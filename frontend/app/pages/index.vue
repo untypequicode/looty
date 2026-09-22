@@ -51,6 +51,8 @@ const showTaskDetailModal = ref(false)
 const editingTask = ref<any>(null)
 const editTaskTitle = ref('')
 const editTaskDesc = ref('')
+const editTaskStartDate = ref('')
+const editTaskDueDate = ref('')
 
 // Rename Modal
 const showRenameModal = ref(false)
@@ -97,8 +99,17 @@ watch(activeWorkspaceId, async (wsId) => {
     boards.value = await $fetch(`/api/workspaces/${wsId}/boards`)
     if (boards.value.length > 0) selectBoard(boards.value[0])
     else activeBoard.value = null
+
+    try {
+      const res = await $fetch<any>(`/api/workspaces/${wsId}/members`)
+      workspaceMembers.value = res.members || []
+    } catch(e) {}
+  } else {
+    boards.value = []
+    activeBoard.value = null
+    workspaceMembers.value = []
   }
-})
+}, { immediate: true })
 
 function selectWorkspace(id: string) { activeWorkspaceId.value = id }
 
@@ -125,31 +136,218 @@ async function createColumn() {
 }
 
 function openTaskModal(colId: string) {
+  editingTask.value = null
   targetColumnId.value = colId
-  showTaskModal.value = true
-}
-
-async function createTask() {
-  if (!newTaskTitle.value.trim() || !targetColumnId.value) return
-  await $fetch(`/api/boards/columns/${targetColumnId.value}/tasks`, { method: 'POST', body: { title: newTaskTitle.value, description: "" } })
-  
-  // Le WebSocket (TASK_CREATED) l'ajoutera dans l'interface
-  
-  showTaskModal.value = false
-  newTaskTitle.value = ''
-  targetColumnId.value = null
+  editTaskTitle.value = ''
+  editTaskDesc.value = ''
+  editTaskStartDate.value = ''
+  editTaskDueDate.value = ''
+  createTaskLabels.value = []
+  createTaskAssignees.value = []
+  showTaskDetailModal.value = true
 }
 
 function openTaskDetail(task: any) {
   editingTask.value = task
   editTaskTitle.value = task.title
   editTaskDesc.value = task.description || ''
+  editTaskStartDate.value = task.start_date ? task.start_date.slice(0, 10) : ''
+  editTaskDueDate.value = task.due_date ? task.due_date.slice(0, 10) : ''
+  if (!task.labels) task.labels = []
+  if (!task.assignees) task.assignees = []
   showTaskDetailModal.value = true
 }
 
+// Labels and Assignees
+const createTaskLabels = ref<any[]>([])
+const createTaskAssignees = ref<string[]>([])
+const labelSearch = ref('')
+const assigneeSearch = ref('')
+const showCreateLabel = ref(false)
+const newLabelName = ref('')
+const newLabelColor = ref('#5e6ad2')
+const editingLabelId = ref<string | null>(null)
+
+const filteredLabels = computed(() => {
+  if (!activeBoard.value?.labels) return []
+  return activeBoard.value.labels.filter((l: any) => l.name.toLowerCase().includes(labelSearch.value.toLowerCase()))
+})
+
+const filteredAssignees = computed(() => {
+  return workspaceMembers.value.filter((m: any) => m.name.toLowerCase().includes(assigneeSearch.value.toLowerCase()))
+})
+
+function isLabelSelected(labelId: string) {
+  if (editingTask.value) {
+    return editingTask.value.labels.some((l: any) => l.id === labelId)
+  }
+  return createTaskLabels.value.some((l: any) => l.id === labelId)
+}
+
+function isAssigneeSelected(userId: string) {
+  if (editingTask.value) {
+    return editingTask.value.assignees.includes(userId)
+  }
+  return createTaskAssignees.value.includes(userId)
+}
+
+async function toggleLabel(lbl: any) {
+  if (isLabelSelected(lbl.id)) {
+    if (editingTask.value) {
+      await $fetch(`/api/boards/tasks/${editingTask.value.id}/labels/${lbl.id}`, { method: 'DELETE' })
+      editingTask.value.labels = editingTask.value.labels.filter((l: any) => l.id !== lbl.id)
+    } else {
+      createTaskLabels.value = createTaskLabels.value.filter((l: any) => l.id !== lbl.id)
+    }
+  } else {
+    if (editingTask.value) {
+      await $fetch(`/api/boards/tasks/${editingTask.value.id}/labels/${lbl.id}`, { method: 'POST' })
+      editingTask.value.labels.push(lbl)
+    } else {
+      createTaskLabels.value.push(lbl)
+    }
+  }
+}
+
+async function toggleAssignee(userId: string) {
+  if (isAssigneeSelected(userId)) {
+    if (editingTask.value) {
+      await $fetch(`/api/boards/tasks/${editingTask.value.id}/assignees/${userId}`, { method: 'DELETE' })
+      editingTask.value.assignees = editingTask.value.assignees.filter((u: any) => u !== userId)
+    } else {
+      createTaskAssignees.value = createTaskAssignees.value.filter((u: any) => u !== userId)
+    }
+  } else {
+    if (editingTask.value) {
+      await $fetch(`/api/boards/tasks/${editingTask.value.id}/assignees/${userId}`, { method: 'POST' })
+      editingTask.value.assignees.push(userId)
+    } else {
+      createTaskAssignees.value.push(userId)
+    }
+  }
+}
+
+async function deleteBoardLabel(labelId: string) {
+  if (!confirm("Voulez-vous vraiment supprimer définitivement ce label ?")) return
+  await $fetch(`/api/boards/labels/${labelId}`, { method: 'DELETE' })
+  if (activeBoard.value) {
+    activeBoard.value.labels = activeBoard.value.labels.filter((l: any) => l.id !== labelId)
+  }
+  // Remove from editing task or create task if it was selected
+  if (editingTask.value) {
+    editingTask.value.labels = editingTask.value.labels.filter((l: any) => l.id !== labelId)
+  }
+  createTaskLabels.value = createTaskLabels.value.filter((l: any) => l.id !== labelId)
+}
+
+async function createLabel() {
+  if (!newLabelName.value || !activeBoard.value) return
+  
+  if (editingLabelId.value) {
+    const label = await $fetch(`/api/boards/labels/${editingLabelId.value}`, {
+      method: 'PUT',
+      body: { name: newLabelName.value, color: newLabelColor.value }
+    })
+    
+    // Update local references
+    if (activeBoard.value) {
+      const idx = activeBoard.value.labels.findIndex((l: any) => l.id === label.id)
+      if (idx !== -1) activeBoard.value.labels.splice(idx, 1, label)
+      
+      // Update in existing tasks
+      for (const col of activeBoard.value.columns) {
+        for (const task of col.tasks) {
+          if (task.labels) {
+            const lIdx = task.labels.findIndex((l: any) => l.id === label.id)
+            if (lIdx !== -1) task.labels.splice(lIdx, 1, label)
+          }
+        }
+      }
+    }
+    
+    // Update local editing arrays
+    if (editingTask.value && editingTask.value.labels) {
+      const idx = editingTask.value.labels.findIndex((l: any) => l.id === label.id)
+      if (idx !== -1) editingTask.value.labels.splice(idx, 1, label)
+    }
+    const cIdx = createTaskLabels.value.findIndex((l: any) => l.id === label.id)
+    if (cIdx !== -1) createTaskLabels.value.splice(cIdx, 1, label)
+    
+  } else {
+    const label = await $fetch(`/api/boards/${activeBoard.value.id}/labels`, {
+      method: 'POST',
+      body: { name: newLabelName.value, color: newLabelColor.value }
+    })
+    if (activeBoard.value) {
+       if (!activeBoard.value.labels) activeBoard.value.labels = []
+       activeBoard.value.labels.push(label)
+    }
+  }
+  
+  showCreateLabel.value = false
+  newLabelName.value = ''
+  editingLabelId.value = null
+}
+
+function startEditLabel(lbl: any) {
+  editingLabelId.value = lbl.id
+  newLabelName.value = lbl.name
+  newLabelColor.value = lbl.color
+  showCreateLabel.value = true
+}
+
+function toggleCreateLabel() {
+  if (showCreateLabel.value && !editingLabelId.value) {
+    showCreateLabel.value = false
+  } else {
+    editingLabelId.value = null
+    newLabelName.value = ''
+    newLabelColor.value = '#5e6ad2'
+    showCreateLabel.value = true
+  }
+}
+
+// Old explicit add/remove methods replaced by toggleLabel and toggleAssignee
+
+function getMemberName(userId: string) {
+  const m = workspaceMembers.value.find(x => x.user_id === userId)
+  return m ? m.name : 'Inconnu'
+}
+
+function getMemberInitials(userId: string) {
+  return getMemberName(userId).charAt(0).toUpperCase()
+}
+
 async function updateTask() {
-  if (!editTaskTitle.value.trim() || !editingTask.value) return
-  await $fetch(`/api/boards/tasks/${editingTask.value.id}`, { method: 'PUT', body: { title: editTaskTitle.value, description: editTaskDesc.value } })
+  if (!editTaskTitle.value.trim()) return
+  
+  if (editingTask.value) {
+    const body: any = { title: editTaskTitle.value, description: editTaskDesc.value }
+    body.start_date = editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null
+    body.due_date = editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null
+
+    await $fetch(`/api/boards/tasks/${editingTask.value.id}`, { method: 'PUT', body })
+  } else if (targetColumnId.value) {
+    try {
+      await $fetch(`/api/boards/columns/${targetColumnId.value}/tasks`, {
+        method: 'POST',
+        body: { 
+          title: editTaskTitle.value, 
+          description: editTaskDesc.value,
+          start_date: editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null,
+          due_date: editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null,
+          labels: createTaskLabels.value.map(l => l.id),
+          assignees: createTaskAssignees.value
+        }
+      })
+      if (activeBoard.value) {
+        await selectBoard(activeBoard.value)
+      }
+    } catch (e) {
+      console.error("Erreur lors de la création de la tâche:", e)
+      alert("Impossible de créer la tâche, vérifie les informations saisies.")
+    }
+  }
   showTaskDetailModal.value = false
 }
 
@@ -185,10 +383,8 @@ async function submitRename() {
     await refreshWorkspaces()
   } else if (renameType.value === 'board') {
     await $fetch(`/api/boards/${id}`, { method: 'PUT', body: { name } })
-    // WebSocket gère la mise à jour
   } else if (renameType.value === 'column') {
     await $fetch(`/api/boards/columns/${id}`, { method: 'PUT', body: { name } })
-    // WebSocket gère la mise à jour
   }
   
   showRenameModal.value = false
@@ -217,7 +413,6 @@ async function onTaskMove(evt: any, toColumnId: string) {
     const task = evt.added ? evt.added.element : evt.moved.element
     const newIndex = evt.added ? evt.added.newIndex : evt.moved.newIndex
     
-    // Calculate new position
     const col = activeBoard.value.columns.find((c: any) => c.id === toColumnId)
     let newPosition = 65536.0
     if (col.tasks.length === 1) {
@@ -230,11 +425,32 @@ async function onTaskMove(evt: any, toColumnId: string) {
       newPosition = (col.tasks[newIndex - 1].position + col.tasks[newIndex + 1].position) / 2.0
     }
     
-    // Optimistic update
     task.position = newPosition
     task.column_id = toColumnId
     
     await $fetch(`/api/boards/tasks/${task.id}/move`, { method: 'PUT', body: { column_id: toColumnId, position: newPosition } })
+  }
+}
+
+async function onColumnMove(evt: any) {
+  if (evt.moved && activeBoard.value) {
+    const column = evt.moved.element
+    const newIndex = evt.moved.newIndex
+    
+    const cols = activeBoard.value.columns
+    let newPosition = 65536.0
+    if (cols.length === 1) {
+      newPosition = 65536.0
+    } else if (newIndex === 0) {
+      newPosition = cols[1].position / 2.0
+    } else if (newIndex === cols.length - 1) {
+      newPosition = cols[cols.length - 1].position + 65536.0
+    } else {
+      newPosition = (cols[newIndex - 1].position + cols[newIndex + 1].position) / 2.0
+    }
+    
+    column.position = newPosition
+    await $fetch(`/api/boards/columns/${column.id}/move`, { method: 'PUT', body: { position: newPosition } })
   }
 }
 
@@ -267,12 +483,10 @@ watch(wsData, (msg) => {
           col.tasks.sort((a: any, b: any) => a.position - b.position)
         }
       } else if (event.type === 'TASK_MOVED') {
-        // Remove from old column
         for (const col of activeBoard.value.columns) {
           const idx = col.tasks.findIndex((t: any) => t.id === event.task.id)
           if (idx !== -1) col.tasks.splice(idx, 1)
         }
-        // Add to new column
         const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
         if (col) {
           col.tasks.push(event.task)
@@ -282,7 +496,12 @@ watch(wsData, (msg) => {
         const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
         if (col) {
           const idx = col.tasks.findIndex((t: any) => t.id === event.task.id)
-          if (idx !== -1) col.tasks[idx] = event.task
+          if (idx !== -1) {
+            // Preserve existing enrichment as backend update doesn't return them
+            event.task.labels = event.task.labels || col.tasks[idx].labels || []
+            event.task.assignees = event.task.assignees || col.tasks[idx].assignees || []
+            col.tasks.splice(idx, 1, event.task)
+          }
         }
       } else if (event.type === 'TASK_DELETED') {
         const col = activeBoard.value.columns.find((c: any) => c.id === event.column_id)
@@ -304,6 +523,10 @@ watch(wsData, (msg) => {
       } else if (event.type === 'COLUMN_UPDATED') {
         const col = activeBoard.value.columns.find((c: any) => c.id === event.column.id)
         if (col) col.name = event.column.name
+      } else if (event.type === 'COLUMN_MOVED') {
+        const col = activeBoard.value.columns.find((c: any) => c.id === event.column.id)
+        if (col) col.position = event.column.position
+        activeBoard.value.columns.sort((a: any, b: any) => a.position - b.position)
       } else if (event.type === 'COLUMN_DELETED') {
         const idx = activeBoard.value.columns.findIndex((c: any) => c.id === event.column_id)
         if (idx !== -1) activeBoard.value.columns.splice(idx, 1)
@@ -312,13 +535,11 @@ watch(wsData, (msg) => {
   }
 })
 
-// Gestion de la touche Echap pour fermer les modales
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     showCreateModal.value = false
     showBoardModal.value = false
     showColumnModal.value = false
-    showTaskModal.value = false
     showTaskDetailModal.value = false
     showRenameModal.value = false
   }
@@ -332,7 +553,6 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-// Protège la route
 watchEffect(() => {
   if (!isLoading.value && !user.value?.authenticated) navigateTo('/login')
 })
@@ -420,29 +640,51 @@ watchEffect(() => {
 
       <div class="content-body" v-if="activeBoard">
         <div class="kanban-board">
-          <div v-for="col in activeBoard.columns" :key="col.id" class="kanban-column">
-            <div class="column-header">
-              <h3 style="flex: 1; cursor: pointer" @dblclick="activeWorkspaceRole !== 'member' ? openRenameModal('column', col.id, col.name) : null" :title="activeWorkspaceRole !== 'member' ? 'Double-clic pour renommer' : ''">{{ col.name }}</h3>
-              <div style="display: flex; gap: 6px; align-items: center;">
-                <span class="task-count">{{ col.tasks.length }}</span>
-                <button v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" class="icon-btn" style="font-size: 0.75rem" @click="deleteColumn(col.id)" title="Supprimer la colonne">🗑️</button>
+          <VueDraggableNext
+            v-model="activeBoard.columns"
+            group="columns"
+            @change="onColumnMove($event)"
+            class="columns-container"
+            ghost-class="ghost-column"
+            handle=".column-header"
+            :disabled="activeWorkspaceRole === 'member'"
+          >
+            <div v-for="col in activeBoard.columns" :key="col.id" class="kanban-column">
+              <div class="column-header">
+                <h3 style="flex: 1; cursor: grab" @dblclick="activeWorkspaceRole !== 'member' ? openRenameModal('column', col.id, col.name) : null" :title="activeWorkspaceRole !== 'member' ? 'Double-clic pour renommer' : ''">{{ col.name }}</h3>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <span class="task-count">{{ col.tasks.length }}</span>
+                  <button v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" class="icon-btn" style="font-size: 0.75rem" @click="deleteColumn(col.id)" title="Supprimer la colonne">🗑️</button>
+                </div>
               </div>
+              
+              <VueDraggableNext
+                v-model="col.tasks"
+                group="tasks"
+                @change="onTaskMove($event, col.id)"
+                class="task-list"
+                ghost-class="ghost-task"
+              >
+                <div v-for="task in col.tasks" :key="task.id" class="task-card" @click="openTaskDetail(task)">
+                  <div class="task-labels" v-if="task.labels && task.labels.length > 0">
+                    <span v-for="lbl in task.labels" :key="lbl.id" class="task-label-chip" :style="{ backgroundColor: lbl.color }">{{ lbl.name }}</span>
+                  </div>
+                  <h4>{{ task.title }}</h4>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                    <div v-if="task.due_date" class="task-due-date" :class="{ 'overdue': new Date(task.due_date) < new Date() }">
+                      🕒 {{ new Date(task.due_date).toLocaleDateString() }}
+                    </div>
+                    <div v-else></div>
+                    <div class="task-assignees" v-if="task.assignees && task.assignees.length > 0">
+                      <span v-for="userId in task.assignees" :key="userId" class="assignee-avatar" :title="getMemberName(userId)">{{ getMemberInitials(userId) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </VueDraggableNext>
+              
+              <button class="add-task-btn" @click="openTaskModal(col.id)">+ Nouvelle tâche</button>
             </div>
-            
-            <VueDraggableNext
-              v-model="col.tasks"
-              group="tasks"
-              @change="onTaskMove($event, col.id)"
-              class="task-list"
-              ghost-class="ghost-task"
-            >
-              <div v-for="task in col.tasks" :key="task.id" class="task-card" @click="openTaskDetail(task)">
-                <h4>{{ task.title }}</h4>
-              </div>
-            </VueDraggableNext>
-            
-            <button class="add-task-btn" @click="openTaskModal(col.id)">+ Nouvelle tâche</button>
-          </div>
+          </VueDraggableNext>
           
           <div v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" class="kanban-column add-column" @click="showColumnModal = true">
             + Ajouter une colonne
@@ -493,32 +735,76 @@ watchEffect(() => {
       </div>
     </div>
     
-    <!-- Modale de Création Tâche -->
-    <div v-if="showTaskModal" class="modal-overlay" @click.self="showTaskModal = false">
-      <div class="modal">
-        <h2>Nouvelle tâche</h2>
-        <form @submit.prevent="createTask">
-          <input v-focus v-model="newTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input" required>
-          <div class="modal-actions">
-            <button type="button" class="secondary-btn" @click="showTaskModal = false">Annuler</button>
-            <button type="submit" class="primary-btn">Créer</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    
     <!-- Modale de Détail/Edition de Tâche -->
     <div v-if="showTaskDetailModal" class="modal-overlay" @click.self="showTaskDetailModal = false">
       <div class="modal" style="width: 500px">
-        <h2>Détails de la tâche</h2>
+        <h2 v-if="editingTask">Détails de la tâche</h2>
+        <h2 v-else>Nouvelle tâche</h2>
         <form @submit.prevent="updateTask">
           <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input" required style="margin-bottom: 1rem">
           <textarea v-model="editTaskDesc" placeholder="Description (facultatif)" class="modern-input" rows="4"></textarea>
+          
+          <div style="display: flex; gap: 1rem; margin-top: 1rem; margin-bottom: 1rem">
+            <div style="flex: 1">
+              <label style="font-size: 0.8rem; color: #9ca3af; display: block; margin-bottom: 4px;">Date de début</label>
+              <input v-model="editTaskStartDate" type="date" class="modern-input">
+            </div>
+            <div style="flex: 1">
+              <label style="font-size: 0.8rem; color: #9ca3af; display: block; margin-bottom: 4px;">Échéance</label>
+              <input v-model="editTaskDueDate" type="date" class="modern-input">
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="font-size: 0.8rem; color: #9ca3af;">Labels</label>
+              <button type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.8rem;">+ Nouveau label</button>
+            </div>
+            
+            <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; gap: 8px; background: #222327; padding: 8px; border-radius: 4px; align-items: center;">
+              <input v-model="newLabelName" type="text" class="modern-input" placeholder="Nom du label" style="margin-bottom: 0;">
+              <input v-model="newLabelColor" type="color" style="height: 36px; border:none; background:none; cursor:pointer;">
+              <button type="button" class="primary-btn" @click="createLabel" :disabled="!newLabelName">{{ editingLabelId ? 'Sauver' : 'Créer' }}</button>
+              <button type="button" class="secondary-btn" @click="showCreateLabel = false" style="padding: 0 8px;">✕</button>
+            </div>
+
+            <input v-model="labelSearch" type="text" class="modern-input" placeholder="Rechercher un label..." style="margin-bottom: 8px;" />
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+               <span v-for="lbl in filteredLabels" :key="lbl.id" 
+                 class="task-label-chip clickable-chip" 
+                 :class="{ 'selected-chip': isLabelSelected(lbl.id) }"
+                 :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
+                 @click="toggleLabel(lbl)">
+                 {{ lbl.name }}
+                 <button type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
+                 <button type="button" @click.stop="deleteBoardLabel(lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
+               </span>
+               <div v-if="filteredLabels.length === 0" style="font-size: 0.8rem; color: #6b7280; width: 100%;">Aucun label trouvé.</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label style="font-size: 0.8rem; color: #9ca3af; display: block; margin-bottom: 4px;">Membres assignés</label>
+            <input v-model="assigneeSearch" type="text" class="modern-input" placeholder="Rechercher un membre..." style="margin-bottom: 8px;" />
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+               <span v-for="m in filteredAssignees" :key="m.user_id" 
+                 class="assignee-chip clickable-chip"
+                 :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
+                 :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
+                 @click="toggleAssignee(m.user_id)">
+                 {{ m.name }}
+               </span>
+               <div v-if="filteredAssignees.length === 0" style="font-size: 0.8rem; color: #6b7280; width: 100%;">Aucun membre trouvé.</div>
+            </div>
+          </div>
+
           <div class="modal-actions" style="justify-content: space-between; margin-top: 1.5rem">
-            <button type="button" class="secondary-btn" style="color: #f87171" @click="deleteTask">Supprimer</button>
+            <div>
+              <button type="button" v-if="editingTask" class="secondary-btn" style="color: #f87171" @click="deleteTask">Supprimer</button>
+            </div>
             <div style="display: flex; gap: 0.5rem">
-              <button type="button" class="secondary-btn" @click="showTaskDetailModal = false">Fermer</button>
-              <button type="submit" class="primary-btn">Enregistrer</button>
+              <button type="button" class="secondary-btn" @click="showTaskDetailModal = false">Annuler</button>
+              <button type="submit" class="primary-btn">{{ editingTask ? 'Enregistrer' : 'Créer' }}</button>
             </div>
           </div>
         </form>
@@ -650,6 +936,23 @@ watchEffect(() => {
 .ghost-task { opacity: 0.4; background: #2f3136; }
 .add-task-btn { background: none; border: none; color: #8a8f98; cursor: pointer; padding: 0.75rem; text-align: left; font-size: 0.875rem; border-top: 1px solid #27282b; }
 .add-task-btn:hover { color: #eee; background: #1c1d21; }
+
+.columns-container { display: flex; gap: 1.5rem; align-items: flex-start; height: 100%; min-height: 100px; }
+.ghost-column { opacity: 0.5; background: #2f3136; border: 1px dashed #5e6ad2; }
+.task-due-date { font-size: 0.75rem; color: #8a8f98; display: inline-flex; align-items: center; background: #1c1d21; padding: 2px 6px; border-radius: 4px; border: 1px solid #2f3136; }
+.task-due-date.overdue { color: #f87171; border-color: #f87171; background: rgba(248, 113, 113, 0.1); }
+.task-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.task-label-chip { padding: 2px 6px; border-radius: 12px; font-size: 0.7rem; color: #fff; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+.clickable-chip { cursor: pointer; transition: transform 0.1s, opacity 0.2s; user-select: none; }
+.clickable-chip:hover { transform: scale(1.05); }
+.clickable-chip:active { transform: scale(0.95); }
+.selected-chip { box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.4); }
+.task-assignees { display: flex; gap: -4px; margin-left: 4px; }
+.assignee-avatar { width: 20px; height: 20px; border-radius: 50%; background: #5e6ad2; color: #fff; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; font-weight: 600; border: 2px solid #222327; }
+.assignee-chip { display: inline-flex; align-items: center; background: #27282b; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; color: #eee; }
+
+.modern-select { flex: 1; padding: 8px 12px; border-radius: 4px; background: #0e0e11; border: 1px solid #27282b; color: #eee; font-family: inherit; font-size: 0.875rem; width: 100%; box-sizing: border-box; }
+.modern-select:focus { border-color: #5e6ad2; outline: none; }
 
 .modern-input { flex: 1; padding: 8px 12px; border-radius: 4px; background: #0e0e11; border: 1px solid #27282b; color: #eee; font-family: inherit; font-size: 0.875rem; width: 100%; box-sizing: border-box; margin-bottom: 1rem; }
 .modern-input:focus { border-color: #5e6ad2; outline: none; }
