@@ -1,5 +1,5 @@
 {
-  "name": "collab-frontend",
+  "name": "looty-frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@tanstack/vue-query": "^5.103.2",
+    "@vueuse/core": "^15.0.0",
+    "@vueuse/nuxt": "^15.0.0",
     "nuxt": "^3.12.0",
     "vue": "latest",
     "vue-router": "latest"

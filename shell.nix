@@ -22,7 +22,7 @@ pkgs.mkShell {
 
   shellHook = ''
     echo "========================================"
-    echo "  App Collaborative - Dev Environment   "
+    echo "  Looty - Dev Environment   "
     echo "========================================"
     echo "Rust: $(rustc --version)"
     echo "Node: $(node --version)"

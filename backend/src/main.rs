@@ -1,9 +1,10 @@
 mod auth;
 mod db;
+mod ws;
 
-use axum::{routing::get, Router, Json};
+use axum::{routing::get, Router, Json, Extension};
 use serde::Serialize;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tower_sessions::{SessionManagerLayer, Expiry};
 use tower_sessions_sqlx_store::PostgresStore;
 use time::Duration;
@@ -45,10 +46,15 @@ async fn main() {
         .with_same_site(tower_sessions::cookie::SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::days(7)));
 
+    // État WebSocket
+    let ws_state = Arc::new(ws::AppState::new());
+
     // Assemblage des routes
     let app = Router::new()
         .route("/api/health", get(health_handler))
+        .route("/api/ws", get(ws::ws_handler))
         .nest("/api/auth", auth::auth_routes(auth_state))
+        .layer(Extension(ws_state))
         .layer(session_layer);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));

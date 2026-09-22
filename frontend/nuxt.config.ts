@@ -9,5 +9,8 @@ export default defineNuxtConfig({
   serverDir: 'server',
   routeRules: {
     '/api/**': { proxy: 'http://backend:8080/api/**' }
-  }
+  },
+  modules: [
+    '@vueuse/nuxt'
+  ]
 })
