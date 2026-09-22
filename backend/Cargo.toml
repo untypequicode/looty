@@ -12,3 +12,9 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid"
 dotenvy = "0.15"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+openidconnect = "3.5.0"
+tower-sessions = "0.13.0"
+tower-sessions-sqlx-store = { version = "0.14.0", features = ["postgres"] }
+reqwest = { version = "0.12", features = ["json"] }
+time = "0.3.36"
+uuid = { version = "1.8", features = ["serde", "v4"] }

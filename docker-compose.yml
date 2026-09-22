@@ -21,6 +21,10 @@ services:
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-collab_db}
       PORT: 8080
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-http://localhost:3000/api/auth/callback}
     depends_on:
       postgres:
         condition: service_healthy
