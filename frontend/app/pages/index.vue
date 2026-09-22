@@ -4,8 +4,8 @@ import { useWebSocket } from '@vueuse/core'
 const { user, isLoading } = useAuth()
 const messageInput = ref('')
 
-// On se connecte au WebSocket uniquement côté client (hydration)
-const { status, data, send } = useWebSocket('/api/ws', {
+// On se connecte au WebSocket directement sur le port 8081 (backend)
+const { status, data, send } = useWebSocket('ws://localhost:8081/api/ws', {
   autoReconnect: true,
   immediate: process.client
 })

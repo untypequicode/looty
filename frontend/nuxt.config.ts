@@ -10,6 +10,11 @@ export default defineNuxtConfig({
   routeRules: {
     '/api/**': { proxy: 'http://backend:8080/api/**' }
   },
+  nitro: {
+    experimental: {
+      websocket: true
+    }
+  },
   modules: [
     '@vueuse/nuxt'
   ]

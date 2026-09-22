@@ -33,6 +33,7 @@ pub async fn ws_handler(
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
+    println!(">>> NOUVELLE CONNEXION WEBSOCKET REÇUE !");
     let (mut sender, mut receiver) = socket.split();
 
     // S'inscrire au channel broadcast
