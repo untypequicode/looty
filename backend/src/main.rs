@@ -1,6 +1,7 @@
 mod auth;
 mod db;
 mod ws;
+mod workspace;
 
 use axum::{routing::get, Router, Json, Extension};
 use serde::Serialize;
@@ -53,7 +54,8 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health_handler))
         .route("/api/ws", get(ws::ws_handler))
-        .nest("/api/auth", auth::auth_routes(auth_state))
+        .nest("/api/auth", auth::auth_routes(auth_state.clone()))
+        .nest("/api/workspaces", workspace::workspace_routes(auth_state))
         .layer(Extension(ws_state))
         .layer(session_layer);
 
