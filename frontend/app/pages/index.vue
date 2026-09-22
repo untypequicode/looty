@@ -48,11 +48,40 @@ const targetColumnId = ref<string | null>(null)
 
 // Task Detail / Edit Modal
 const showTaskDetailModal = ref(false)
-const editingTask = ref<any>(null)
+const taskStack = ref<any[]>([])
+const editingTask = computed(() => taskStack.value[taskStack.value.length - 1] || null)
 const editTaskTitle = ref('')
 const editTaskDesc = ref('')
 const editTaskStartDate = ref('')
 const editTaskDueDate = ref('')
+
+const newSubtaskTitle = ref('')
+
+async function createSubtask() {
+  if (!newSubtaskTitle.value.trim() || !editingTask.value) return;
+  try {
+    const response = await fetch(`/api/boards/tasks/${editingTask.value.id}/subtasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newSubtaskTitle.value })
+    })
+    if (response.ok) {
+      newSubtaskTitle.value = '';
+      const subtask = await response.json();
+      // Optimistic or WS will handle it. But we can push to taskStack.value[last].subtasks if needed.
+    }
+  } catch (e) { console.error(e) }
+}
+
+async function toggleTaskValidation(task: any) {
+  try {
+    const response = await fetch(`/api/boards/tasks/${task.id}/toggle_validation`, { method: 'PUT' })
+    if (response.ok) {
+      const updated = await response.json();
+      Object.assign(task, updated);
+    }
+  } catch (e) {}
+}
 
 // Rename Modal
 const showRenameModal = ref(false)
@@ -93,17 +122,17 @@ async function kickMember(memberId: string) {
   } catch(e) { alert("Erreur lors de l'exclusion") }
 }
 
-// Load boards when workspace changes
+// Load boards and members when workspace changes
 watch(activeWorkspaceId, async (wsId) => {
   if (wsId) {
-    boards.value = await $fetch(`/api/workspaces/${wsId}/boards`)
-    if (boards.value.length > 0) selectBoard(boards.value[0])
-    else activeBoard.value = null
-
     try {
       const res = await $fetch<any>(`/api/workspaces/${wsId}/members`)
       workspaceMembers.value = res.members || []
     } catch(e) {}
+    
+    boards.value = await $fetch(`/api/workspaces/${wsId}/boards`)
+    if (boards.value.length > 0) selectBoard(boards.value[0])
+    else activeBoard.value = null
   } else {
     boards.value = []
     activeBoard.value = null
@@ -111,7 +140,28 @@ watch(activeWorkspaceId, async (wsId) => {
   }
 }, { immediate: true })
 
-function selectWorkspace(id: string) { activeWorkspaceId.value = id }
+function getRootTasks(column: any) {
+  if (!column.tasks) return []
+  return column.tasks.filter((t: any) => {
+    if (!t.parent_id) return true
+    // Also root if parent is in another column
+    const parentInSameCol = column.tasks.some((p: any) => p.id === t.parent_id)
+    return !parentInSameCol
+  })
+}
+
+function getSubtasks(parentTask: any) {
+  if (!activeBoard.value) return []
+  const subtasks = []
+  for (const col of activeBoard.value.columns) {
+    if (col.tasks) {
+      subtasks.push(...col.tasks.filter((t: any) => t.parent_id === parentTask.id))
+    }
+  }
+  return subtasks
+}
+
+function selectWorkspace(workspaceId: string) { activeWorkspaceId.value = workspaceId }
 
 async function selectBoard(board: any) {
   const fullBoard = await $fetch(`/api/boards/${board.id}`)
@@ -136,7 +186,7 @@ async function createColumn() {
 }
 
 function openTaskModal(colId: string) {
-  editingTask.value = null
+  taskStack.value = []
   targetColumnId.value = colId
   editTaskTitle.value = ''
   editTaskDesc.value = ''
@@ -147,12 +197,28 @@ function openTaskModal(colId: string) {
   showTaskDetailModal.value = true
 }
 
+function closeTaskModal() {
+  taskStack.value.pop()
+  if (taskStack.value.length === 0) {
+    showTaskDetailModal.value = false
+  } else {
+    // Sync inputs for the previous task in stack
+    const task = editingTask.value;
+    if (task) {
+      editTaskTitle.value = task.title
+      editTaskDesc.value = task.description || ''
+      editTaskStartDate.value = task.start_date ? task.start_date.split('T')[0] : ''
+      editTaskDueDate.value = task.due_date ? task.due_date.split('T')[0] : ''
+    }
+  }
+}
+
 function openTaskDetail(task: any) {
-  editingTask.value = task
+  taskStack.value.push(task)
   editTaskTitle.value = task.title
   editTaskDesc.value = task.description || ''
-  editTaskStartDate.value = task.start_date ? task.start_date.slice(0, 10) : ''
-  editTaskDueDate.value = task.due_date ? task.due_date.slice(0, 10) : ''
+  editTaskStartDate.value = task.start_date ? task.start_date.split('T')[0] : ''
+  editTaskDueDate.value = task.due_date ? task.due_date.split('T')[0] : ''
   if (!task.labels) task.labels = []
   if (!task.assignees) task.assignees = []
   showTaskDetailModal.value = true
@@ -322,7 +388,11 @@ async function updateTask() {
   if (!editTaskTitle.value.trim()) return
   
   if (editingTask.value) {
-    const body: any = { title: editTaskTitle.value, description: editTaskDesc.value }
+    const body: any = { 
+      title: editTaskTitle.value, 
+      description: editTaskDesc.value,
+      is_per_person: editingTask.value.is_per_person
+    }
     body.start_date = editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null
     body.due_date = editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null
 
@@ -349,6 +419,18 @@ async function updateTask() {
     }
   }
   showTaskDetailModal.value = false
+}
+
+async function saveTaskSettings() {
+  if (!editingTask.value) return
+  const body: any = { 
+    title: editingTask.value.title, 
+    description: editingTask.value.description,
+    is_per_person: editingTask.value.is_per_person,
+    start_date: editingTask.value.start_date,
+    due_date: editingTask.value.due_date
+  }
+  await $fetch(`/api/boards/tasks/${editingTask.value.id}`, { method: 'PUT', body })
 }
 
 async function deleteTask() {
@@ -500,7 +582,14 @@ watch(wsData, (msg) => {
             // Preserve existing enrichment as backend update doesn't return them
             event.task.labels = event.task.labels || col.tasks[idx].labels || []
             event.task.assignees = event.task.assignees || col.tasks[idx].assignees || []
+            event.task.validations = event.task.validations || col.tasks[idx].validations || []
             col.tasks.splice(idx, 1, event.task)
+            // Update in taskStack if it is currently open
+            for (let i = 0; i < taskStack.value.length; i++) {
+              if (taskStack.value[i].id === event.task.id) {
+                Object.assign(taskStack.value[i], event.task)
+              }
+            }
           }
         }
       } else if (event.type === 'TASK_DELETED') {
@@ -530,8 +619,24 @@ watch(wsData, (msg) => {
       } else if (event.type === 'COLUMN_DELETED') {
         const idx = activeBoard.value.columns.findIndex((c: any) => c.id === event.column_id)
         if (idx !== -1) activeBoard.value.columns.splice(idx, 1)
+      } else if (event.type === 'TASK_VALIDATION_UPDATED') {
+         const col = activeBoard.value.columns.find((c: any) => c.id === event.task.task.column_id)
+         if (col) {
+            const idx = col.tasks.findIndex((t: any) => t.id === event.task.task.id)
+            if (idx !== -1) {
+               col.tasks.splice(idx, 1, event.task)
+            }
+         }
+         // Update in taskStack
+         for (let i = 0; i < taskStack.value.length; i++) {
+            if (taskStack.value[i].id === event.task.task.id) {
+               Object.assign(taskStack.value[i], event.task)
+            }
+         }
       }
-    } catch(e) {}
+    } catch (e) {
+      console.error("Erreur WS:", e)
+    }
   }
 })
 
@@ -665,20 +770,25 @@ watchEffect(() => {
                 class="task-list"
                 ghost-class="ghost-task"
               >
-                <div v-for="task in col.tasks" :key="task.id" class="task-card" @click="openTaskDetail(task)">
+                <div v-for="task in getRootTasks(col)" :key="task.id" class="task-card" @click="openTaskDetail(task)">
                   <div class="task-labels" v-if="task.labels && task.labels.length > 0">
                     <span v-for="lbl in task.labels" :key="lbl.id" class="task-label-chip" :style="{ backgroundColor: lbl.color }">{{ lbl.name }}</span>
                   </div>
-                  <h4>{{ task.title }}</h4>
+                  <h4>
+                    <span v-if="task.is_completed" style="color: #10b981; margin-right: 4px;">✓</span>
+                    <span :style="{ textDecoration: task.is_completed ? 'line-through' : 'none' }">{{ task.title }}</span>
+                  </h4>
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                     <div v-if="task.due_date" class="task-due-date" :class="{ 'overdue': new Date(task.due_date) < new Date() }">
                       🕒 {{ new Date(task.due_date).toLocaleDateString() }}
                     </div>
                     <div v-else></div>
                     <div class="task-assignees" v-if="task.assignees && task.assignees.length > 0">
-                      <span v-for="userId in task.assignees" :key="userId" class="assignee-avatar" :title="getMemberName(userId)">{{ getMemberInitials(userId) }}</span>
+                      <span v-for="userId in task.assignees" :key="userId" class="assignee-avatar" :class="{'validated-avatar': task.is_per_person && task.validations?.includes(userId)}" :title="getMemberName(userId)">{{ getMemberInitials(userId) }}</span>
                     </div>
                   </div>
+                  <!-- Nested Subtasks -->
+                  <SubtaskTree v-if="col.tasks.some((t: any) => t.parent_id === task.id)" :parentTask="task" :tasks="col.tasks" :openTaskDetail="openTaskDetail" :toggleTaskValidation="toggleTaskValidation" />
                 </div>
               </VueDraggableNext>
               
@@ -735,82 +845,144 @@ watchEffect(() => {
       </div>
     </div>
     
-    <!-- Modale de Détail/Edition de Tâche -->
-    <div v-if="showTaskDetailModal" class="modal-overlay" @click.self="showTaskDetailModal = false">
-      <div class="modal" style="width: 500px">
-        <h2 v-if="editingTask">Détails de la tâche</h2>
-        <h2 v-else>Nouvelle tâche</h2>
-        <form @submit.prevent="updateTask">
-          <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input" required style="margin-bottom: 1rem">
-          <textarea v-model="editTaskDesc" placeholder="Description (facultatif)" class="modern-input" rows="4"></textarea>
-          
-          <div style="display: flex; gap: 1rem; margin-top: 1rem; margin-bottom: 1rem">
-            <div style="flex: 1">
-              <label style="font-size: 0.8rem; color: #9ca3af; display: block; margin-bottom: 4px;">Date de début</label>
-              <input v-model="editTaskStartDate" type="date" class="modern-input">
-            </div>
-            <div style="flex: 1">
-              <label style="font-size: 0.8rem; color: #9ca3af; display: block; margin-bottom: 4px;">Échéance</label>
-              <input v-model="editTaskDueDate" type="date" class="modern-input">
-            </div>
+        <!-- Modale de Détail/Edition de Tâche (Slide-over) -->
+    <div v-if="showTaskDetailModal" class="slideover-overlay" @click.self="showTaskDetailModal = false">
+      <div class="slideover-panel">
+        <form @submit.prevent="updateTask" style="display: flex; flex-direction: column; height: 100%;">
+          <div class="slideover-header">
+            <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required>
+            <button type="button" class="close-btn" @click="showTaskDetailModal = false">✕</button>
           </div>
+          
+          <div class="slideover-body">
+            <!-- Colonne Principale -->
+            <div class="slideover-main">
+              <label class="section-label">Description</label>
+              <textarea v-model="editTaskDesc" placeholder="Ajouter une description plus détaillée..." class="modern-input desc-input" rows="4"></textarea>
+              
+              <div v-if="editingTask" style="margin-top: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                  <h3 style="margin: 0; font-size: 1rem; font-weight: 500;">Sous-tâches</h3>
+                </div>
+                
+                <div v-for="subtask in getSubtasks(editingTask)" :key="subtask.id" class="subtask-row" @click="openTaskDetail(subtask)" style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #2f3136; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: background 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="subtask-checkbox" :style="{ color: subtask.is_completed ? '#10b981' : '#52525b', fontSize: '1.2rem' }" @click.stop="toggleTaskValidation(subtask)">
+                       {{ subtask.is_completed ? '☑' : '☐' }}
+                    </div>
+                    <span :style="{ textDecoration: subtask.is_completed ? 'line-through' : 'none', color: subtask.is_completed ? '#9ca3af' : '#eee' }">{{ subtask.title }}</span>
+                  </div>
+                  <span style="font-size: 0.8rem; color: #a1a1aa;">></span>
+                </div>
+                
+                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                   <input v-model="newSubtaskTitle" type="text" class="modern-input" placeholder="Nouvelle sous-tâche..." @keydown.enter.prevent="createSubtask">
+                   <button type="button" class="primary-btn" @click="createSubtask">Ajouter</button>
+                </div>
 
-          <div style="margin-bottom: 1rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <label style="font-size: 0.8rem; color: #9ca3af;">Labels</label>
-              <button type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.8rem;">+ Nouveau label</button>
+                <div style="margin-top: 2rem; padding: 16px; background: #1e1e22; border-radius: 8px; border: 1px solid #3f3f46;">
+                  <h3 style="margin: 0 0 12px 0; font-size: 1rem; font-weight: 500;">Validation</h3>
+                  
+                  <label style="display: flex; align-items: center; margin-bottom: 16px; font-size: 0.9rem; color: #e4e4e7; cursor: pointer;">
+                    <input type="checkbox" v-model="editingTask.is_per_person" @change="saveTaskSettings" style="margin-right: 8px; width: 16px; height: 16px;">
+                    Validation requise par chaque personne assignée
+                  </label>
+
+                  <div v-if="editingTask.is_per_person" class="per-person-validations" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+                    <span v-for="assignee in editingTask.assignees" :key="assignee" 
+                          class="assignee-avatar" 
+                          :class="{ 'validated-avatar': editingTask.validations?.includes(assignee) }"
+                          :title="getMemberName(assignee) + (editingTask.validations?.includes(assignee) ? ' a validé' : ' en attente')">
+                      {{ getMemberInitials(assignee) }}
+                    </span>
+                    <span v-if="!editingTask.assignees || editingTask.assignees.length === 0" style="color: #9ca3af; font-size: 0.85rem;">Aucun membre assigné</span>
+                  </div>
+                  
+                  <button type="button" class="primary-btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 1rem;" 
+                          :class="{'btn-success': editingTask.is_completed}" 
+                          :disabled="getSubtasks(editingTask).some(t => !t.is_completed)"
+                          @click="toggleTaskValidation(editingTask)"
+                          :title="getSubtasks(editingTask).some(t => !t.is_completed) ? 'Toutes les sous-tâches doivent être terminées' : ''">
+                    <span v-if="editingTask.is_completed">✓ Tâche terminée</span>
+                    <span v-else>Terminer la tâche</span>
+                  </button>
+                  <p v-if="getSubtasks(editingTask).some(t => !t.is_completed)" style="margin: 8px 0 0 0; font-size: 0.75rem; color: #f87171; text-align: center;">
+                    Toutes les sous-tâches doivent être cochées avant de valider.
+                  </p>
+                </div>
+              </div>
             </div>
             
-            <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; gap: 8px; background: #222327; padding: 8px; border-radius: 4px; align-items: center;">
-              <input v-model="newLabelName" type="text" class="modern-input" placeholder="Nom du label" style="margin-bottom: 0;">
-              <input v-model="newLabelColor" type="color" style="height: 36px; border:none; background:none; cursor:pointer;">
-              <button type="button" class="primary-btn" @click="createLabel" :disabled="!newLabelName">{{ editingLabelId ? 'Sauver' : 'Créer' }}</button>
-              <button type="button" class="secondary-btn" @click="showCreateLabel = false" style="padding: 0 8px;">✕</button>
-            </div>
+            <!-- Colonne Latérale (Métadonnées) -->
+            <div class="slideover-sidebar">
+              <div class="meta-section">
+                <label class="section-label">Dates</label>
+                <div style="display: flex; gap: 8px; flex-direction: column;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+                     <span style="color: #9ca3af;">Début</span>
+                     <input v-model="editTaskStartDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+                     <span style="color: #9ca3af;">Fin</span>
+                     <input v-model="editTaskDueDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
+                  </div>
+                </div>
+              </div>
+              
+              <div class="meta-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <label class="section-label" style="margin: 0;">Labels</label>
+                  <button type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.75rem;">+ Créer</button>
+                </div>
+                
+                <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: #222327; padding: 8px; border-radius: 4px;">
+                  <input v-model="newLabelName" type="text" class="modern-input" placeholder="Nom du label" style="margin-bottom: 0; padding: 6px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                     <input v-model="newLabelColor" type="color" style="height: 28px; width: 40px; border:none; background:none; cursor:pointer;">
+                     <button type="button" class="primary-btn small-btn" @click="createLabel" :disabled="!newLabelName" style="flex: 1;">{{ editingLabelId ? 'Sauver' : 'Ajouter' }}</button>
+                     <button type="button" class="secondary-btn small-btn" @click="showCreateLabel = false">✕</button>
+                  </div>
+                </div>
 
-            <input v-model="labelSearch" type="text" class="modern-input" placeholder="Rechercher un label..." style="margin-bottom: 8px;" />
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-               <span v-for="lbl in filteredLabels" :key="lbl.id" 
-                 class="task-label-chip clickable-chip" 
-                 :class="{ 'selected-chip': isLabelSelected(lbl.id) }"
-                 :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
-                 @click="toggleLabel(lbl)">
-                 {{ lbl.name }}
-                 <button type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
-                 <button type="button" @click.stop="deleteBoardLabel(lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
-               </span>
-               <div v-if="filteredLabels.length === 0" style="font-size: 0.8rem; color: #6b7280; width: 100%;">Aucun label trouvé.</div>
+                <input v-model="labelSearch" type="text" class="modern-input" placeholder="Rechercher..." style="margin-bottom: 8px; padding: 6px; font-size: 0.8rem;" />
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                   <span v-for="lbl in filteredLabels" :key="lbl.id" 
+                     class="task-label-chip clickable-chip" 
+                     :class="{ 'selected-chip': isLabelSelected(lbl.id) }"
+                     :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
+                     @click="toggleLabel(lbl)">
+                     {{ lbl.name }}
+                     <button type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
+                     <button type="button" @click.stop="deleteBoardLabel(lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
+                   </span>
+                </div>
+              </div>
+              
+              <div class="meta-section">
+                <label class="section-label">Membres assignés</label>
+                <input v-model="assigneeSearch" type="text" class="modern-input" placeholder="Rechercher..." style="margin-bottom: 8px; padding: 6px; font-size: 0.8rem;" />
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                   <span v-for="m in filteredAssignees" :key="m.user_id" 
+                     class="assignee-chip clickable-chip"
+                     :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
+                     :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
+                     @click="toggleAssignee(m.user_id)">
+                     {{ m.name }}
+                   </span>
+                </div>
+              </div>
             </div>
           </div>
-
-          <div style="margin-bottom: 1rem;">
-            <label style="font-size: 0.8rem; color: #9ca3af; display: block; margin-bottom: 4px;">Membres assignés</label>
-            <input v-model="assigneeSearch" type="text" class="modern-input" placeholder="Rechercher un membre..." style="margin-bottom: 8px;" />
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-               <span v-for="m in filteredAssignees" :key="m.user_id" 
-                 class="assignee-chip clickable-chip"
-                 :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
-                 :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
-                 @click="toggleAssignee(m.user_id)">
-                 {{ m.name }}
-               </span>
-               <div v-if="filteredAssignees.length === 0" style="font-size: 0.8rem; color: #6b7280; width: 100%;">Aucun membre trouvé.</div>
-            </div>
-          </div>
-
-          <div class="modal-actions" style="justify-content: space-between; margin-top: 1.5rem">
-            <div>
-              <button type="button" v-if="editingTask" class="secondary-btn" style="color: #f87171" @click="deleteTask">Supprimer</button>
-            </div>
-            <div style="display: flex; gap: 0.5rem">
-              <button type="button" class="secondary-btn" @click="showTaskDetailModal = false">Annuler</button>
-              <button type="submit" class="primary-btn">{{ editingTask ? 'Enregistrer' : 'Créer' }}</button>
-            </div>
+          
+          <div class="slideover-footer">
+            <button type="button" v-if="editingTask" class="secondary-btn" style="color: #f87171" @click="deleteTask">Supprimer la tâche</button>
+            <div style="flex: 1"></div>
+            <button type="button" class="secondary-btn" @click="showTaskDetailModal = false">Annuler</button>
+            <button type="submit" class="primary-btn">{{ editingTask ? 'Enregistrer' : 'Créer' }}</button>
           </div>
         </form>
       </div>
     </div>
-    
     <!-- Modale de Renommage -->
     <div v-if="showRenameModal" class="modal-overlay" @click.self="showRenameModal = false">
       <div class="modal">
@@ -967,4 +1139,33 @@ watchEffect(() => {
 .modal { width: 100%; max-width: 400px; padding: 1.5rem; border-radius: 6px; background: #17181c; border: 1px solid #27282b; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 .modal h2 { margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 500; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 1.5rem; }
+
+/* Slide-over Modal */
+.slideover-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.5); z-index: 100; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }
+.slideover-panel { width: 700px; max-width: 100%; height: 100vh; background: #0e0e11; border-left: 1px solid #27282b; box-shadow: -4px 0 24px rgba(0,0,0,0.5); display: flex; flex-direction: column; animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+.slideover-header { padding: 1.5rem 2rem; border-bottom: 1px solid #27282b; display: flex; justify-content: space-between; align-items: flex-start; }
+.title-input { font-size: 1.25rem; font-weight: 600; padding: 0.5rem; background: transparent; border: 1px solid transparent; width: 100%; margin-right: 1rem; color: #fff; }
+.title-input:focus { background: #17181c; border-color: #3b82f6; }
+.close-btn { background: none; border: none; color: #8a8f98; font-size: 1.25rem; cursor: pointer; padding: 0.5rem; border-radius: 4px; transition: 0.2s; }
+.close-btn:hover { background: #27282b; color: #eee; }
+
+.slideover-body { display: flex; flex: 1; overflow: hidden; }
+.slideover-main { flex: 1.8; padding: 2rem; overflow-y: auto; border-right: 1px solid #27282b; }
+.slideover-sidebar { flex: 1; padding: 1.5rem; overflow-y: auto; background: #131418; display: flex; flex-direction: column; gap: 1.5rem; }
+
+.section-label { display: block; font-size: 0.75rem; font-weight: 600; color: #8a8f98; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem; }
+.desc-input { min-height: 120px; resize: vertical; line-height: 1.5; font-size: 0.95rem; }
+
+/* Subtasks & Validations */
+.subtask-row:hover { background: #3f3f46 !important; }
+.subtask-checkbox { width: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s; }
+.subtask-checkbox:hover { transform: scale(1.1); }
+.validated-avatar { box-shadow: 0 0 0 2px #10b981; opacity: 1; }
+.btn-success { background: #10b981; color: #fff; }
+.btn-success:hover { background: #059669; }
+
+.slideover-footer { padding: 1.5rem 2rem; border-top: 1px solid #27282b; display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #0e0e11; }
+
 </style>

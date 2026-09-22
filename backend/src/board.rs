@@ -32,13 +32,16 @@ pub struct BoardColumn {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Task {
     pub id: Uuid,
     pub column_id: Uuid,
+    pub parent_id: Option<Uuid>,
     pub title: String,
     pub description: Option<String>,
     pub position: f64,
+    pub is_per_person: bool,
+    pub is_completed: bool,
     pub start_date: Option<DateTime<Utc>>,
     pub due_date: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -54,12 +57,15 @@ pub struct Label {
     pub created_at: DateTime<Utc>,
 }
 
+
+
 #[derive(Serialize)]
 pub struct TaskWithEnrichment {
     #[serde(flatten)]
     pub task: Task,
     pub labels: Vec<Label>,
     pub assignees: Vec<String>,
+    pub validations: Vec<String>,
 }
 
 // Full board representation
@@ -121,6 +127,7 @@ pub struct UpdateTaskReq {
     pub description: Option<String>,
     pub start_date: Option<DateTime<Utc>>,
     pub due_date: Option<DateTime<Utc>>,
+    pub is_per_person: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -148,6 +155,8 @@ pub fn board_routes(state: AuthState) -> Router {
         .route("/tasks/:task_id/move", put(move_task))
         .route("/tasks/:task_id/labels/:label_id", post(add_task_label).delete(remove_task_label))
         .route("/tasks/:task_id/assignees/:user_id", post(add_task_assignee).delete(remove_task_assignee))
+        .route("/tasks/:task_id/subtasks", post(create_subtask))
+        .route("/tasks/:task_id/toggle_validation", put(toggle_task_validation))
         .with_state(state)
 }
 
@@ -268,10 +277,20 @@ async fn get_board(
     )
     .bind(board_id).fetch_all(&state.pool).await.unwrap_or_default();
 
+    #[derive(sqlx::FromRow)]
+    struct TaskValidationRow { task_id: Uuid, user_id: String }
+    let all_validations = sqlx::query_as::<_, TaskValidationRow>(
+        "SELECT v.task_id, v.user_id FROM task_validations v JOIN tasks t ON v.task_id = t.id JOIN board_columns c ON t.column_id = c.id WHERE c.board_id = $1"
+    )
+    .bind(board_id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
     let mut full_columns = Vec::new();
     for col in columns {
         let tasks = sqlx::query_as::<_, Task>(
-            "SELECT id, column_id, title, description, position, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
+            "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
         )
         .bind(col.id)
         .fetch_all(&state.pool)
@@ -284,10 +303,13 @@ async fn get_board(
             let my_label_ids: Vec<Uuid> = task_labels.iter().filter(|tl| tl.task_id == task_id).map(|tl| tl.label_id).collect();
             let my_labels = labels.iter().filter(|l| my_label_ids.contains(&l.id)).cloned().collect();
             let my_assignees = task_assignees.iter().filter(|ta| ta.task_id == task_id).map(|ta| ta.user_id.clone()).collect();
+            let my_validations = all_validations.iter().filter(|v| v.task_id == task_id).map(|v| v.user_id.clone()).collect();
+
             enriched_tasks.push(TaskWithEnrichment {
                 task,
                 labels: my_labels,
                 assignees: my_assignees,
+                validations: my_validations,
             });
         }
 
@@ -372,7 +394,7 @@ async fn create_task(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let task = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, column_id, title, description, position, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
     .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -434,7 +456,7 @@ async fn move_task(
     }
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET column_id = $1, position = $2, updated_at = NOW() WHERE id = $3 RETURNING id, column_id, title, description, position, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET column_id = $1, position = $2, updated_at = NOW() WHERE id = $3 RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
     .bind(req.column_id).bind(req.position).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -470,9 +492,9 @@ async fn update_task(
     if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, updated_at = NOW() WHERE id = $5 RETURNING id, column_id, title, description, position, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), updated_at = NOW() WHERE id = $6 RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
-    .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(task_id)
+    .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(&req.is_per_person).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let ws_msg = serde_json::json!({
@@ -827,4 +849,116 @@ async fn remove_task_assignee(
     let tx = ws_state.get_or_create_room(&board_ws.to_string()).await;
     let _ = tx.send(ws_msg);
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+pub struct CreateSubtaskReq {
+    pub title: String,
+}
+
+async fn create_subtask(
+    State(state): State<AuthState>,
+    Path(parent_id): Path<Uuid>,
+    Extension(ws_state): Extension<Arc<crate::ws::AppState>>,
+    session: Session,
+    Json(req): Json<CreateSubtaskReq>,
+) -> Result<Json<Task>, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    // Get parent task to inherit column
+    let parent = sqlx::query_as::<_, Task>(
+        "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+    ).bind(parent_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
+    
+    let board_ws = sqlx::query_scalar::<_, Uuid>(
+        "SELECT board_id FROM board_columns WHERE id = $1"
+    ).bind(parent.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
+    let workspace_id = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_ws).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
+    
+    if check_workspace_access(&state.pool, &user_id, &workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    if req.title.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
+
+    let max_pos: Option<f64> = sqlx::query_scalar("SELECT MAX(position) FROM tasks WHERE column_id = $1 AND parent_id = $2")
+        .bind(parent.column_id).bind(parent_id).fetch_one(&state.pool).await.unwrap_or(Some(0.0));
+    let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
+
+    let subtask = sqlx::query_as::<_, Task>(
+        "INSERT INTO tasks (column_id, parent_id, title, position) VALUES ($1, $2, $3, $4) RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+    )
+    .bind(parent.column_id).bind(parent_id).bind(req.title).bind(next_pos)
+    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let ws_msg = serde_json::json!({ "type": "TASK_CREATED", "task": subtask, "workspace_id": workspace_id }).to_string();
+    let tx = ws_state.get_or_create_room(&workspace_id.to_string()).await;
+    let _ = tx.send(ws_msg);
+
+    Ok(Json(subtask))
+}
+
+async fn toggle_task_validation(
+    State(state): State<AuthState>,
+    Path(task_id): Path<Uuid>,
+    Extension(ws_state): Extension<Arc<crate::ws::AppState>>,
+    session: Session,
+) -> Result<Json<TaskWithEnrichment>, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let mut task = sqlx::query_as::<_, Task>(
+        "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+    ).bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
+    
+    let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(task.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
+    let workspace_id = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_ws).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
+    
+    if check_workspace_access(&state.pool, &user_id, &workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+
+    let subtasks = sqlx::query_as::<_, Task>(
+        "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
+    ).bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
+    
+    if !subtasks.iter().all(|t| t.is_completed) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if task.is_per_person {
+        let exists: Option<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1 AND user_id = $2")
+            .bind(task_id).bind(&user_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+        if exists.is_some() {
+            sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2")
+                .bind(task_id).bind(&user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        } else {
+            sqlx::query("INSERT INTO task_validations (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+                .bind(task_id).bind(&user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        }
+        
+        let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1")
+            .bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
+            
+        let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1")
+            .bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
+            
+        task.is_completed = !assignees.is_empty() && assignees.iter().all(|a| validations.contains(a));
+        sqlx::query("UPDATE tasks SET is_completed = $1 WHERE id = $2").bind(task.is_completed).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    } else {
+        task.is_completed = !task.is_completed;
+        sqlx::query("UPDATE tasks SET is_completed = $1 WHERE id = $2").bind(task.is_completed).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1")
+        .bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
+    let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1").bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
+
+    let enriched = TaskWithEnrichment {
+        task,
+        labels: vec![],
+        assignees,
+        validations,
+    };
+
+    let ws_msg = serde_json::json!({ "type": "TASK_VALIDATION_UPDATED", "task": enriched, "workspace_id": workspace_id }).to_string();
+    let tx = ws_state.get_or_create_room(&workspace_id.to_string()).await;
+    let _ = tx.send(ws_msg);
+
+    Ok(Json(enriched))
 }
