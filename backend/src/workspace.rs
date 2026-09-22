@@ -23,9 +23,42 @@ pub struct CreateWorkspacePayload {
     pub name: String,
 }
 
+#[derive(Serialize, sqlx::FromRow)]
+pub struct WorkspaceResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub role: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
 #[derive(Deserialize)]
 pub struct UpdateWorkspacePayload {
     pub name: String,
+}
+
+
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct WorkspaceMemberResponse {
+    pub user_id: String,
+    pub name: String,
+    pub email: String,
+    pub role: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateMemberRolePayload {
+    pub role: String,
+}
+
+async fn get_workspace_role(pool: &PgPool, user_id: &str, workspace_id: &Uuid) -> Option<String> {
+    sqlx::query_scalar("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
+        .bind(workspace_id)
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None)
 }
 
 pub fn workspace_routes(state: AuthState) -> Router {
@@ -33,6 +66,8 @@ pub fn workspace_routes(state: AuthState) -> Router {
         .route("/", get(list_workspaces).post(create_workspace))
         .route("/:workspace_id", put(update_workspace).delete(delete_workspace))
         .route("/:workspace_id/join", post(join_workspace))
+        .route("/:workspace_id/members", get(list_members))
+        .route("/:workspace_id/members/:member_id", put(update_member_role).delete(remove_member))
         .with_state(state)
 }
 
@@ -47,9 +82,9 @@ async fn list_workspaces(
         None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
     };
 
-    let workspaces = sqlx::query_as::<_, Workspace>(
+    let workspaces = sqlx::query_as::<_, WorkspaceResponse>(
         r#"
-        SELECT w.id, w.name, w.created_at, w.updated_at
+        SELECT w.id, w.name, wm.role, w.created_at, w.updated_at
         FROM workspaces w
         JOIN workspace_members wm ON w.id = wm.workspace_id
         WHERE wm.user_id = $1
@@ -190,13 +225,13 @@ async fn update_workspace(
         return (axum::http::StatusCode::BAD_REQUEST, "Workspace name cannot be empty").into_response();
     }
 
-    // Verify membership
-    let is_member: Option<i32> = sqlx::query_scalar("SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
-        .bind(workspace_id).bind(user_id.to_string())
-        .fetch_optional(&state.pool).await.unwrap_or(None);
-        
-    if is_member.is_none() {
-        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    if payload.name.trim().is_empty() {
+        return (axum::http::StatusCode::BAD_REQUEST, "Workspace name cannot be empty").into_response();
+    }
+
+    let role = get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await;
+    if role != Some("owner".to_string()) && role != Some("admin".to_string()) {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners or Admins only").into_response();
     }
 
     let workspace_res = sqlx::query_as::<_, Workspace>(
@@ -222,17 +257,99 @@ async fn delete_workspace(
         None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
     };
 
-    // Verify membership
-    let is_member: Option<i32> = sqlx::query_scalar("SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
-        .bind(workspace_id).bind(user_id.to_string())
-        .fetch_optional(&state.pool).await.unwrap_or(None);
-        
-    if is_member.is_none() {
-        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    let role = get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await;
+    if role != Some("owner".to_string()) {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners only").into_response();
     }
 
     let res = sqlx::query("DELETE FROM workspaces WHERE id = $1")
         .bind(workspace_id)
+        .execute(&state.pool).await;
+
+    match res {
+        Ok(_) => (axum::http::StatusCode::NO_CONTENT).into_response(),
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
+    }
+}
+
+async fn list_members(
+    session: Session,
+    State(state): State<AuthState>,
+    axum::extract::Path(workspace_id): axum::extract::Path<Uuid>,
+) -> impl IntoResponse {
+    let user_id_opt: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    let user_id = match user_id_opt {
+        Some(uid) => uid,
+        None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+    };
+
+    if get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await.is_none() {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let members = sqlx::query_as::<_, WorkspaceMemberResponse>(
+        r#"SELECT wm.user_id, u.name, u.email, wm.role 
+           FROM workspace_members wm 
+           JOIN users u ON wm.user_id = u.id::varchar 
+           WHERE wm.workspace_id = $1"#
+    )
+    .bind(workspace_id)
+    .fetch_all(&state.pool)
+    .await;
+
+    match members {
+        Ok(m) => Json(serde_json::json!({ "members": m })).into_response(),
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
+    }
+}
+
+async fn update_member_role(
+    session: Session,
+    State(state): State<AuthState>,
+    axum::extract::Path((workspace_id, member_id)): axum::extract::Path<(Uuid, String)>,
+    Json(payload): Json<UpdateMemberRolePayload>,
+) -> impl IntoResponse {
+    let user_id_opt: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    let user_id = match user_id_opt {
+        Some(uid) => uid,
+        None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+    };
+
+    if get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await != Some("owner".to_string()) {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners only").into_response();
+    }
+    
+    if payload.role != "owner" && payload.role != "admin" && payload.role != "member" {
+        return (axum::http::StatusCode::BAD_REQUEST, "Invalid role").into_response();
+    }
+
+    let res = sqlx::query("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3")
+        .bind(&payload.role).bind(workspace_id).bind(&member_id)
+        .execute(&state.pool).await;
+
+    match res {
+        Ok(_) => (axum::http::StatusCode::OK).into_response(),
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
+    }
+}
+
+async fn remove_member(
+    session: Session,
+    State(state): State<AuthState>,
+    axum::extract::Path((workspace_id, member_id)): axum::extract::Path<(Uuid, String)>,
+) -> impl IntoResponse {
+    let user_id_opt: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    let user_id = match user_id_opt {
+        Some(uid) => uid,
+        None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+    };
+
+    if get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await != Some("owner".to_string()) {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners only").into_response();
+    }
+
+    let res = sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
+        .bind(workspace_id).bind(&member_id)
         .execute(&state.pool).await;
 
     match res {

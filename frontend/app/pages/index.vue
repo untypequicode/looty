@@ -58,6 +58,39 @@ const renameType = ref<'workspace'|'board'|'column'|null>(null)
 const renameId = ref<string | null>(null)
 const renameName = ref('')
 
+// Settings Modal & Role
+const activeWorkspaceRole = computed(() => {
+  const ws = workspacesData.value?.workspaces?.find((w: any) => w.id === activeWorkspaceId.value)
+  return ws ? ws.role : null
+})
+
+const showSettingsModal = ref(false)
+const workspaceMembers = ref<any[]>([])
+
+async function openSettingsModal() {
+  if (!activeWorkspaceId.value) return
+  try {
+    const res = await $fetch<any>(`/api/workspaces/${activeWorkspaceId.value}/members`)
+    workspaceMembers.value = res.members || []
+    showSettingsModal.value = true
+  } catch(e) { console.error(e) }
+}
+
+async function changeMemberRole(memberId: string, newRole: string) {
+  try {
+    await $fetch(`/api/workspaces/${activeWorkspaceId.value}/members/${memberId}`, { method: 'PUT', body: { role: newRole } })
+    await openSettingsModal()
+  } catch(e) { alert("Erreur lors de la modification du rôle") }
+}
+
+async function kickMember(memberId: string) {
+  if (!confirm("Voulez-vous vraiment exclure ce membre ?")) return
+  try {
+    await $fetch(`/api/workspaces/${activeWorkspaceId.value}/members/${memberId}`, { method: 'DELETE' })
+    await openSettingsModal()
+  } catch(e) { alert("Erreur lors de l'exclusion") }
+}
+
 // Load boards when workspace changes
 watch(activeWorkspaceId, async (wsId) => {
   if (wsId) {
@@ -333,22 +366,23 @@ watchEffect(() => {
               <span class="ws-name">{{ ws.name }}</span>
             </div>
             <div class="item-actions" v-if="activeWorkspaceId === ws.id">
-              <button @click.stop="openRenameModal('workspace', ws.id, ws.name)" title="Renommer">✏️</button>
-              <button @click.stop="deleteWorkspace(ws.id)" title="Supprimer">🗑️</button>
+              <button @click.stop="openSettingsModal()" title="Paramètres (Membres)">⚙️</button>
+              <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="openRenameModal('workspace', ws.id, ws.name)" title="Renommer">✏️</button>
+              <button v-if="ws.role === 'owner'" @click.stop="deleteWorkspace(ws.id)" title="Supprimer">🗑️</button>
             </div>
           </li>
         </ul>
 
         <div v-if="activeWorkspaceId" class="section-title" style="margin-top:2rem;">
           <span>Tableaux</span>
-          <button @click="showBoardModal = true" class="icon-btn" title="Créer un tableau">+</button>
+          <button v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" @click="showBoardModal = true" class="icon-btn" title="Créer un tableau">+</button>
         </div>
         <ul v-if="activeWorkspaceId" class="workspace-list">
           <li v-if="boards.length === 0" class="empty-item">Aucun tableau</li>
           <li v-for="b in boards" :key="b.id"
             :class="['workspace-item', { active: activeBoard?.id === b.id }]" @click="selectBoard(b)">
             <span class="ws-name" style="flex: 1"># {{ b.name }}</span>
-            <div class="item-actions" v-if="activeBoard?.id === b.id">
+            <div class="item-actions" v-if="activeBoard?.id === b.id && (activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin')">
               <button @click.stop="openRenameModal('board', b.id, b.name)" title="Renommer">✏️</button>
               <button @click.stop="deleteBoard(b.id)" title="Supprimer">🗑️</button>
             </div>
@@ -388,10 +422,10 @@ watchEffect(() => {
         <div class="kanban-board">
           <div v-for="col in activeBoard.columns" :key="col.id" class="kanban-column">
             <div class="column-header">
-              <h3 style="flex: 1; cursor: pointer" @dblclick="openRenameModal('column', col.id, col.name)" title="Double-clic pour renommer">{{ col.name }}</h3>
+              <h3 style="flex: 1; cursor: pointer" @dblclick="activeWorkspaceRole !== 'member' ? openRenameModal('column', col.id, col.name) : null" :title="activeWorkspaceRole !== 'member' ? 'Double-clic pour renommer' : ''">{{ col.name }}</h3>
               <div style="display: flex; gap: 6px; align-items: center;">
                 <span class="task-count">{{ col.tasks.length }}</span>
-                <button class="icon-btn" style="font-size: 0.75rem" @click="deleteColumn(col.id)" title="Supprimer la colonne">🗑️</button>
+                <button v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" class="icon-btn" style="font-size: 0.75rem" @click="deleteColumn(col.id)" title="Supprimer la colonne">🗑️</button>
               </div>
             </div>
             
@@ -410,7 +444,7 @@ watchEffect(() => {
             <button class="add-task-btn" @click="openTaskModal(col.id)">+ Nouvelle tâche</button>
           </div>
           
-          <div class="kanban-column add-column" @click="showColumnModal = true">
+          <div v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" class="kanban-column add-column" @click="showColumnModal = true">
             + Ajouter une colonne
           </div>
         </div>
@@ -504,6 +538,36 @@ watchEffect(() => {
         </form>
       </div>
     </div>
+
+    <!-- Modale Paramètres (Dashboard) -->
+    <div v-if="showSettingsModal" class="modal-overlay" @click.self="showSettingsModal = false">
+      <div class="modal settings-modal">
+        <h2>Paramètres de l'espace</h2>
+        <div class="members-list">
+          <div v-for="m in workspaceMembers" :key="m.user_id" class="member-row">
+            <div class="member-avatar">{{ m.name.charAt(0).toUpperCase() }}</div>
+            <div class="member-info">
+              <div class="member-name">{{ m.name }}</div>
+              <div class="member-email">{{ m.email }}</div>
+            </div>
+            <div class="member-role" v-if="activeWorkspaceRole === 'owner'">
+              <select class="modern-select" :value="m.role" @change="(e) => changeMemberRole(m.user_id, (e.target as HTMLSelectElement).value)">
+                <option value="owner">Owner</option>
+                <option value="admin">Admin</option>
+                <option value="member">Membre</option>
+              </select>
+            </div>
+            <div class="member-role-text" v-else>
+              {{ m.role.charAt(0).toUpperCase() + m.role.slice(1) }}
+            </div>
+            <button v-if="activeWorkspaceRole === 'owner' && user.id !== m.user_id" @click="kickMember(m.user_id)" class="kick-btn" title="Exclure">❌</button>
+          </div>
+        </div>
+        <div class="modal-actions" style="margin-top: 20px">
+          <button type="button" class="primary-btn" @click="showSettingsModal = false">Fermer</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -536,8 +600,9 @@ watchEffect(() => {
 .workspace-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; color: #8a8f98; font-size: 0.875rem; font-weight: 500; }
 .workspace-item:hover { background: #27282b; color: #eee; }
 .workspace-item.active { background: #27282b; color: #fff; }
-.ws-avatar { width: 18px; height: 18px; border-radius: 4px; background: #333; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #fff; }
+.ws-avatar { width: 24px; height: 24px; border-radius: 6px; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; }
 .workspace-item.active .ws-avatar { background: #5e6ad2; }
+.ws-name { font-size: 0.9rem; font-weight: 500; }
 .sidebar-footer { padding: 1rem; border-top: 1px solid #27282b; display: flex; flex-direction: column; gap: 0.75rem; }
 .user-profile { display: flex; align-items: center; gap: 10px; }
 .user-avatar { width: 24px; height: 24px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #fff; }
@@ -549,6 +614,19 @@ watchEffect(() => {
 .item-actions { display: flex; gap: 4px; }
 .item-actions button { background: none; border: none; color: #8a8f98; cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; }
 .item-actions button:hover { background: #333; color: #eee; }
+
+/* Settings Modal */
+.settings-modal { max-width: 500px; width: 100%; }
+.members-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; max-height: 400px; overflow-y: auto; }
+.member-row { display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; }
+.member-avatar { width: 36px; height: 36px; border-radius: 50%; background: #6366f1; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.member-info { flex: 1; display: flex; flex-direction: column; }
+.member-name { font-weight: 600; font-size: 0.9rem; color: #eee; }
+.member-email { font-size: 0.75rem; color: #8a8f98; }
+.modern-select { background: #111; color: #eee; border: 1px solid #333; padding: 4px 8px; border-radius: 6px; outline: none; cursor: pointer; }
+.member-role-text { font-size: 0.85rem; color: #8a8f98; font-weight: 500; }
+.kick-btn { background: none; border: none; cursor: pointer; opacity: 0.5; transition: 0.2s; }
+.kick-btn:hover { opacity: 1; }
 
 /* Main Content */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background-color: #0e0e11; }
