@@ -1,51 +1,64 @@
 use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Query},
     response::IntoResponse,
     Extension,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
-use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::{broadcast, RwLock};
 
-// État global pour les WebSockets
+#[derive(Deserialize)]
+pub struct WsQuery {
+    pub workspace_id: String,
+}
+
+// Global state for WebSockets, organized by workspace rooms
 pub struct AppState {
-    // Un channel broadcast pour envoyer des messages à tout le monde
-    pub tx: broadcast::Sender<String>,
-    // Les utilisateurs connectés (juste pour tester)
-    pub connected_users: Mutex<usize>,
+    pub rooms: RwLock<HashMap<String, broadcast::Sender<String>>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        let (tx, _rx) = broadcast::channel(100);
         Self {
-            tx,
-            connected_users: Mutex::new(0),
+            rooms: RwLock::new(HashMap::new()),
         }
+    }
+
+    pub async fn get_or_create_room(&self, workspace_id: &str) -> broadcast::Sender<String> {
+        let rooms = self.rooms.read().await;
+        if let Some(tx) = rooms.get(workspace_id) {
+            return tx.clone();
+        }
+        drop(rooms);
+
+        let mut rooms = self.rooms.write().await;
+        // Check again in case it was created while waiting for write lock
+        if let Some(tx) = rooms.get(workspace_id) {
+            return tx.clone();
+        }
+        let (tx, _rx) = broadcast::channel(100);
+        rooms.insert(workspace_id.to_string(), tx.clone());
+        tx
     }
 }
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
+    Query(query): Query<WsQuery>,
     Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+    ws.on_upgrade(move |socket| handle_socket(socket, query.workspace_id, state))
 }
 
-async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
-    println!(">>> NOUVELLE CONNEXION WEBSOCKET REÇUE !");
+async fn handle_socket(socket: WebSocket, workspace_id: String, state: Arc<AppState>) {
+    println!(">>> NOUVELLE CONNEXION WS POUR WORKSPACE {} !", workspace_id);
     let (mut sender, mut receiver) = socket.split();
 
-    // S'inscrire au channel broadcast
-    let mut rx = state.tx.subscribe();
+    let tx = state.get_or_create_room(&workspace_id).await;
+    let mut rx = tx.subscribe();
 
-    {
-        let mut users = state.connected_users.lock().await;
-        *users += 1;
-        let _ = state.tx.send(format!("Un utilisateur a rejoint. Total: {}", *users));
-    }
-
-    // Tâche pour envoyer les messages reçus du broadcast vers ce client WS
+    // Send messages from broadcast channel to this WS client
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if sender.send(Message::Text(msg)).await.is_err() {
@@ -54,24 +67,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         }
     });
 
-    // Tâche pour recevoir les messages du client WS et les envoyer au broadcast
-    let tx = state.tx.clone();
+    // Receive messages from this WS client and send to broadcast channel
+    let tx_clone = tx.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            let _ = tx.send(format!("Message: {}", text));
+            let _ = tx_clone.send(text);
         }
     });
 
-    // On attend qu'une des deux tâches se termine (client déconnecté ou erreur)
     tokio::select! {
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
     };
-
-    // Client déconnecté
-    {
-        let mut users = state.connected_users.lock().await;
-        *users -= 1;
-        let _ = state.tx.send(format!("Un utilisateur a quitté. Total: {}", *users));
-    }
+    println!("<<< CONNEXION WS FERMÉE POUR WORKSPACE {}", workspace_id);
 }

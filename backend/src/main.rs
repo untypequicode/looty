@@ -2,6 +2,7 @@ mod auth;
 mod db;
 mod ws;
 mod workspace;
+mod board;
 
 use axum::{routing::get, Router, Json, Extension};
 use serde::Serialize;
@@ -55,7 +56,9 @@ async fn main() {
         .route("/api/health", get(health_handler))
         .route("/api/ws", get(ws::ws_handler))
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
-        .nest("/api/workspaces", workspace::workspace_routes(auth_state))
+        .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))
+        .nest("/api/workspaces/:workspace_id/boards", board::workspace_board_routes(auth_state.clone()))
+        .nest("/api/boards", board::board_routes(auth_state.clone()))
         .layer(Extension(ws_state))
         .layer(session_layer);
 
