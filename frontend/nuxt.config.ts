@@ -8,7 +8,8 @@ export default defineNuxtConfig({
   srcDir: 'app',
   serverDir: 'server',
   routeRules: {
-    '/api/**': { proxy: 'http://backend:8080/api/**' }
+    '/api/**': { proxy: 'http://backend:8080/api/**' },
+    '/uploads/**': { proxy: 'http://backend:8080/uploads/**' }
   },
   nitro: {
     experimental: {

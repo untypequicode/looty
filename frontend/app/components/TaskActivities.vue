@@ -17,7 +17,7 @@
           <button class="secondary-btn small-btn" @click="restoreActivity(activity.id)">Restaurer cette version</button>
         </div>
       </div>
-      <div v-if="activities.length === 0" class="empty-state">
+      <div v-if="!activities || activities.length === 0" class="empty-state">
         Aucune activité récente.
       </div>
     </div>
@@ -43,9 +43,10 @@ const activities = ref([])
 async function loadActivities() {
   try {
     const res = await $fetch(`/api/boards/tasks/${props.taskId}/activities`)
-    activities.value = res
+    activities.value = Array.isArray(res) ? res : []
   } catch (e) {
     console.error(e)
+    activities.value = []
   }
 }
 
@@ -103,6 +104,16 @@ function formatDate(dateStr) {
   max-height: 250px;
   overflow-y: auto;
   padding-right: 8px;
+}
+.activities-list::-webkit-scrollbar {
+  width: 6px;
+}
+.activities-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.activities-list::-webkit-scrollbar-thumb {
+  background-color: #3f3f46;
+  border-radius: 10px;
 }
 .activity-item {
   padding: 12px;
