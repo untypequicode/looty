@@ -35,7 +35,62 @@ watch(workspacesData, (newVal: any) => {
 // Kanban State
 const boards = ref<any[]>([])
 const activeBoard = ref<any>(null)
+const currentView = ref<'kanban' | 'timeline'>('kanban')
 const wsUrl = computed(() => activeWorkspaceId.value ? `ws://localhost:8081/api/ws?workspace_id=${activeWorkspaceId.value}` : null)
+
+// Filter State
+const searchQuery = ref('')
+const filterLabels = ref<string[]>([])
+const filterAssignees = ref<string[]>([])
+const hideCompleted = ref(false)
+
+function toggleFilterAssignee(userId: string) {
+  if (filterAssignees.value.includes(userId)) {
+    filterAssignees.value = filterAssignees.value.filter(id => id !== userId)
+  } else {
+    filterAssignees.value.push(userId)
+  }
+}
+
+function toggleFilterLabel(labelId: string) {
+  if (filterLabels.value.includes(labelId)) {
+    filterLabels.value = filterLabels.value.filter(id => id !== labelId)
+  } else {
+    filterLabels.value.push(labelId)
+  }
+}
+
+const filteredBoard = computed(() => {
+  if (!activeBoard.value) return null
+  const newCols = activeBoard.value.columns.map((col: any) => {
+    let filteredTasks = col.tasks.filter((t: any) => {
+      if (searchQuery.value) {
+        const q = searchQuery.value.toLowerCase()
+        const titleMatch = t.title.toLowerCase().includes(q)
+        const descMatch = t.description && t.description.toLowerCase().includes(q)
+        if (!titleMatch && !descMatch) return false
+      }
+      if (filterLabels.value.length > 0) {
+        if (!t.labels || !t.labels.some((l: any) => filterLabels.value.includes(l.id))) return false
+      }
+      if (filterAssignees.value.length > 0) {
+        if (!t.assignees || !t.assignees.some((a: any) => filterAssignees.value.includes(a))) return false
+      }
+      if (hideCompleted.value && t.is_completed) return false
+      return true
+    })
+
+    filteredTasks = filteredTasks.filter((t: any) => {
+      if (!t.parent_id) return true
+      const parentInSameCol = col.tasks.some((p: any) => p.id === t.parent_id)
+      return !parentInSameCol
+    })
+
+    return { ...col, tasks: filteredTasks }
+  })
+  
+  return { ...activeBoard.value, columns: newCols }
+})
 
 // Modals State
 const showBoardModal = ref(false)
@@ -75,12 +130,77 @@ async function createSubtask() {
 
 async function toggleTaskValidation(task: any) {
   try {
+    const wasCompleted = task.is_completed;
     const response = await fetch(`/api/boards/tasks/${task.id}/toggle_validation`, { method: 'PUT' })
     if (response.ok) {
       const updated = await response.json();
       Object.assign(task, updated);
+      
+      // Automation logic
+      if (activeBoard.value && activeBoard.value.automations) {
+        const auto = activeBoard.value.automations;
+        
+        // Skip subtasks if apply_to_subtasks is false
+        if (task.parent_id && !auto.apply_to_subtasks) return;
+        
+        if (!wasCompleted && updated.is_completed && auto.on_complete_move_to) {
+          // It became completed, move to target column
+          if (task.column_id !== auto.on_complete_move_to) {
+            await $fetch(`/api/boards/tasks/${task.id}/move`, { 
+              method: 'PUT', 
+              body: { 
+                column_id: auto.on_complete_move_to, 
+                position: 65536.0,
+                previous_column_id: task.column_id
+              } 
+            });
+          }
+        } else if (wasCompleted && !updated.is_completed && task.previous_column_id) {
+          // It was un-completed, move back to previous column
+          if (task.column_id !== task.previous_column_id) {
+            await $fetch(`/api/boards/tasks/${task.id}/move`, { 
+              method: 'PUT', 
+              body: { 
+                column_id: task.previous_column_id, 
+                position: 65536.0,
+                clear_previous_column_id: true
+              } 
+            });
+          }
+        }
+      }
     }
   } catch (e) {}
+}
+
+// Board Settings Modal
+const showBoardSettingsModal = ref(false)
+const boardSettings = ref({
+  on_complete_move_to: '',
+  apply_to_subtasks: false,
+  auto_validate_on_move: false
+})
+
+function openBoardSettingsModal() {
+  if (!activeBoard.value) return;
+  boardSettings.value = {
+    on_complete_move_to: activeBoard.value.automations?.on_complete_move_to || '',
+    apply_to_subtasks: activeBoard.value.automations?.apply_to_subtasks || false,
+    auto_validate_on_move: activeBoard.value.automations?.auto_validate_on_move || false
+  };
+  showBoardSettingsModal.value = true;
+}
+
+async function saveBoardSettings() {
+  if (!activeBoard.value) return;
+  try {
+    const res = await $fetch(`/api/boards/${activeBoard.value.id}`, {
+      method: 'PUT',
+      body: { automations: boardSettings.value }
+    });
+    activeBoard.value.automations = boardSettings.value;
+    showBoardSettingsModal.value = false;
+  } catch (e) { console.error(e) }
 }
 
 // Rename Modal
@@ -495,7 +615,8 @@ async function onTaskMove(evt: any, toColumnId: string) {
     const task = evt.added ? evt.added.element : evt.moved.element
     const newIndex = evt.added ? evt.added.newIndex : evt.moved.newIndex
     
-    const col = activeBoard.value.columns.find((c: any) => c.id === toColumnId)
+    const col = filteredBoard.value?.columns.find((c: any) => c.id === toColumnId)
+    if (!col) return
     let newPosition = 65536.0
     if (col.tasks.length === 1) {
       newPosition = 65536.0
@@ -510,7 +631,23 @@ async function onTaskMove(evt: any, toColumnId: string) {
     task.position = newPosition
     task.column_id = toColumnId
     
+    // Optimistic UI updates
+    let shouldToggle = false
+    if (evt.added && boardSettings.value?.auto_validate_on_move && boardSettings.value?.on_complete_move_to) {
+      if (toColumnId === boardSettings.value.on_complete_move_to && !task.is_completed) {
+        task.is_completed = true
+        shouldToggle = true
+      } else if (toColumnId !== boardSettings.value.on_complete_move_to && task.is_completed) {
+        task.is_completed = false
+        shouldToggle = true
+      }
+    }
+    
     await $fetch(`/api/boards/tasks/${task.id}/move`, { method: 'PUT', body: { column_id: toColumnId, position: newPosition } })
+    
+    if (shouldToggle) {
+      await $fetch(`/api/boards/tasks/${task.id}/toggle_validation`, { method: 'PUT' })
+    }
   }
 }
 
@@ -519,7 +656,8 @@ async function onColumnMove(evt: any) {
     const column = evt.moved.element
     const newIndex = evt.moved.newIndex
     
-    const cols = activeBoard.value.columns
+    const cols = filteredBoard.value?.columns
+    if (!cols) return
     let newPosition = 65536.0
     if (cols.length === 1) {
       newPosition = 65536.0
@@ -565,14 +703,28 @@ watch(wsData, (msg) => {
           col.tasks.sort((a: any, b: any) => a.position - b.position)
         }
       } else if (event.type === 'TASK_MOVED') {
+        let existingTask = null;
         for (const col of activeBoard.value.columns) {
           const idx = col.tasks.findIndex((t: any) => t.id === event.task.id)
-          if (idx !== -1) col.tasks.splice(idx, 1)
+          if (idx !== -1) {
+            existingTask = col.tasks[idx]
+            if (col.id !== event.task.column_id) {
+               col.tasks.splice(idx, 1)
+            }
+          }
         }
-        const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
-        if (col) {
-          col.tasks.push(event.task)
-          col.tasks.sort((a: any, b: any) => a.position - b.position)
+        const destCol = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
+        if (destCol) {
+          if (existingTask) {
+             existingTask.position = event.task.position
+             existingTask.column_id = event.task.column_id
+             if (!destCol.tasks.some((t: any) => t.id === existingTask.id)) {
+                destCol.tasks.push(existingTask)
+             }
+          } else {
+             destCol.tasks.push(event.task)
+          }
+          destCol.tasks.sort((a: any, b: any) => a.position - b.position)
         }
       } else if (event.type === 'TASK_UPDATED') {
         const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
@@ -620,16 +772,16 @@ watch(wsData, (msg) => {
         const idx = activeBoard.value.columns.findIndex((c: any) => c.id === event.column_id)
         if (idx !== -1) activeBoard.value.columns.splice(idx, 1)
       } else if (event.type === 'TASK_VALIDATION_UPDATED') {
-         const col = activeBoard.value.columns.find((c: any) => c.id === event.task.task.column_id)
+         const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
          if (col) {
-            const idx = col.tasks.findIndex((t: any) => t.id === event.task.task.id)
+            const idx = col.tasks.findIndex((t: any) => t.id === event.task.id)
             if (idx !== -1) {
                col.tasks.splice(idx, 1, event.task)
             }
          }
          // Update in taskStack
          for (let i = 0; i < taskStack.value.length; i++) {
-            if (taskStack.value[i].id === event.task.task.id) {
+            if (taskStack.value[i].id === event.task.id) {
                Object.assign(taskStack.value[i], event.task)
             }
          }
@@ -730,8 +882,15 @@ watchEffect(() => {
     <!-- Main Content -->
     <main class="main-content">
       <header class="main-header">
-        <div v-if="activeBoard">
-          <h1>{{ activeBoard.name }}</h1>
+        <div v-if="activeBoard" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <h1 style="margin: 0;">{{ activeBoard.name }}</h1>
+            <button class="icon-btn" @click="openBoardSettingsModal" title="Paramètres du tableau" style="font-size: 1.2rem;">⚙️</button>
+          </div>
+          <div class="view-toggle">
+            <button :class="{ active: currentView === 'kanban' }" @click="currentView = 'kanban'">Kanban</button>
+            <button :class="{ active: currentView === 'timeline' }" @click="currentView = 'timeline'">Timeline</button>
+          </div>
         </div>
         <div v-else-if="activeWorkspaceId">
           <h1>Sélectionnez un tableau</h1>
@@ -744,9 +903,44 @@ watchEffect(() => {
       </header>
 
       <div class="content-body" v-if="activeBoard">
-        <div class="kanban-board">
+        <div class="filter-bar" style="display: flex; gap: 16px; padding: 12px 24px; background: #131418; border-bottom: 1px solid #27282b; align-items: center; flex-wrap: wrap;">
+          <input v-model="searchQuery" type="text" class="modern-input" placeholder="Rechercher une tâche..." style="max-width: 250px; margin: 0; padding: 6px 12px; font-size: 0.85rem;">
+          
+          <div style="display: flex; gap: 8px; align-items: center;" v-if="workspaceMembers && workspaceMembers.length > 0">
+            <span style="font-size: 0.8rem; color: #8a8f98;">Membres :</span>
+            <div style="display: flex; gap: 4px;">
+              <span v-for="m in workspaceMembers" :key="m.user_id"
+                    class="assignee-avatar small clickable-chip"
+                    :class="{ 'validated-avatar': filterAssignees.includes(m.user_id) }"
+                    :style="{ opacity: filterAssignees.includes(m.user_id) ? 1 : 0.5 }"
+                    @click="toggleFilterAssignee(m.user_id)"
+                    :title="m.name">
+                {{ getMemberInitials(m.user_id) }}
+              </span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center;" v-if="activeBoard.labels && activeBoard.labels.length > 0">
+            <span style="font-size: 0.8rem; color: #8a8f98;">Labels :</span>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <span v-for="l in activeBoard.labels" :key="l.id"
+                    class="task-label-chip clickable-chip"
+                    :style="{ backgroundColor: filterLabels.includes(l.id) ? l.color : '#2f3136', border: filterLabels.includes(l.id) ? 'none' : '1px solid #4a4d55', color: filterLabels.includes(l.id) ? '#fff' : '#9ca3af' }"
+                    @click="toggleFilterLabel(l.id)">
+                {{ l.name }}
+              </span>
+            </div>
+          </div>
+
+          <label style="display: flex; align-items: center; font-size: 0.85rem; color: #a1a1aa; cursor: pointer; margin-left: auto;">
+            <input type="checkbox" v-model="hideCompleted" style="margin-right: 6px;">
+            Masquer terminées
+          </label>
+        </div>
+
+        <div class="kanban-board" v-if="currentView === 'kanban'">
           <VueDraggableNext
-            v-model="activeBoard.columns"
+            v-model="filteredBoard.columns"
             group="columns"
             @change="onColumnMove($event)"
             class="columns-container"
@@ -754,7 +948,7 @@ watchEffect(() => {
             handle=".column-header"
             :disabled="activeWorkspaceRole === 'member'"
           >
-            <div v-for="col in activeBoard.columns" :key="col.id" class="kanban-column">
+            <div v-for="col in filteredBoard.columns" :key="col.id" class="kanban-column">
               <div class="column-header">
                 <h3 style="flex: 1; cursor: grab" @dblclick="activeWorkspaceRole !== 'member' ? openRenameModal('column', col.id, col.name) : null" :title="activeWorkspaceRole !== 'member' ? 'Double-clic pour renommer' : ''">{{ col.name }}</h3>
                 <div style="display: flex; gap: 6px; align-items: center;">
@@ -770,7 +964,7 @@ watchEffect(() => {
                 class="task-list"
                 ghost-class="ghost-task"
               >
-                <div v-for="task in getRootTasks(col)" :key="task.id" class="task-card" @click="openTaskDetail(task)">
+                <div v-for="task in col.tasks" :key="task.id" class="task-card" @click="openTaskDetail(task)">
                   <div class="task-labels" v-if="task.labels && task.labels.length > 0">
                     <span v-for="lbl in task.labels" :key="lbl.id" class="task-label-chip" :style="{ backgroundColor: lbl.color }">{{ lbl.name }}</span>
                   </div>
@@ -800,8 +994,52 @@ watchEffect(() => {
             + Ajouter une colonne
           </div>
         </div>
+        
+        <TimelineView v-else-if="currentView === 'timeline'" :board="filteredBoard" :openTaskDetail="openTaskDetail" />
       </div>
     </main>
+
+    <!-- Modale Paramètres du Tableau (Automatisations) -->
+    <div v-if="showBoardSettingsModal" class="modal-overlay" @click.self="showBoardSettingsModal = false">
+      <div class="modal">
+        <h2>Paramètres du Tableau</h2>
+        <form @submit.prevent="saveBoardSettings">
+          
+          <div style="margin-top: 1.5rem; background: #131418; padding: 1rem; border-radius: 8px; border: 1px solid #27282b;">
+            <h3 style="margin-top: 0; font-size: 1rem; color: #eee; margin-bottom: 1rem;">Automatisations</h3>
+            
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #d1d5db; font-size: 0.9rem; margin-bottom: 1rem;">
+              <input type="checkbox" :checked="!!boardSettings.on_complete_move_to" @change="e => boardSettings.on_complete_move_to = e.target.checked ? activeBoard?.columns[0]?.id || '' : ''">
+              Déplacer automatiquement les tâches terminées
+            </label>
+            
+            <div v-if="boardSettings.on_complete_move_to" style="margin-left: 24px; display: flex; flex-direction: column; gap: 1rem;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; color: #8a8f98; margin-bottom: 6px;">Colonne de destination :</label>
+                <select v-model="boardSettings.on_complete_move_to" class="modern-input" style="margin-bottom: 0;">
+                  <option v-for="col in activeBoard?.columns" :key="col.id" :value="col.id">{{ col.name }}</option>
+                </select>
+              </div>
+              
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #d1d5db; font-size: 0.85rem;">
+                <input type="checkbox" v-model="boardSettings.apply_to_subtasks">
+                Appliquer également aux sous-tâches
+              </label>
+
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #d1d5db; font-size: 0.85rem;">
+                <input type="checkbox" v-model="boardSettings.auto_validate_on_move">
+                Valider / Décocher automatiquement lors du déplacement manuel
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 1.5rem;">
+            <button type="button" class="secondary-btn" @click="showBoardSettingsModal = false">Annuler</button>
+            <button type="submit" class="primary-btn">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Modale de Création Espace -->
     <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
@@ -855,10 +1093,77 @@ watchEffect(() => {
           </div>
           
           <div class="slideover-body">
-            <!-- Colonne Principale -->
             <div class="slideover-main">
+              <!-- Meta horizontale -->
+              <div class="slideover-meta-horizontal" style="display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 2rem; background: #131418; padding: 1.5rem; border-radius: 8px; border: 1px solid #27282b;">
+                <div class="meta-section" style="flex: 1; min-width: 200px;">
+                  <label class="section-label">Dates</label>
+                  <div style="display: flex; gap: 8px; flex-direction: column;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+                       <span style="color: #9ca3af;">Début</span>
+                       <input v-model="editTaskStartDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+                       <span style="color: #9ca3af;">Fin</span>
+                       <input v-model="editTaskDueDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="meta-section" style="flex: 1; min-width: 200px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label class="section-label" style="margin: 0;">Labels</label>
+                    <button type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.75rem;">+ Créer</button>
+                  </div>
+                  
+                  <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: #222327; padding: 8px; border-radius: 4px;">
+                    <input v-model="newLabelName" type="text" class="modern-input" placeholder="Nom du label" style="margin-bottom: 0; padding: 6px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                       <input v-model="newLabelColor" type="color" style="height: 28px; width: 40px; border:none; background:none; cursor:pointer;">
+                       <button type="button" class="primary-btn small-btn" @click="createLabel" :disabled="!newLabelName" style="flex: 1;">{{ editingLabelId ? 'Sauver' : 'Ajouter' }}</button>
+                       <button type="button" class="secondary-btn small-btn" @click="showCreateLabel = false">✕</button>
+                    </div>
+                  </div>
+
+                  <input v-model="labelSearch" type="text" class="modern-input" placeholder="Rechercher..." style="margin-bottom: 8px; padding: 6px; font-size: 0.8rem;" />
+                  <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                     <span v-for="lbl in filteredLabels" :key="lbl.id" 
+                       class="task-label-chip clickable-chip" 
+                       :class="{ 'selected-chip': isLabelSelected(lbl.id) }"
+                       :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
+                       @click="toggleLabel(lbl)">
+                       {{ lbl.name }}
+                       <button type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
+                       <button type="button" @click.stop="deleteBoardLabel(lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
+                     </span>
+                  </div>
+                </div>
+
+                <div class="meta-section" style="flex: 1; min-width: 200px;">
+                  <label class="section-label">Membres assignés</label>
+                  <input v-model="assigneeSearch" type="text" class="modern-input" placeholder="Rechercher..." style="margin-bottom: 8px; padding: 6px; font-size: 0.8rem;" />
+                  <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                     <span v-for="m in filteredAssignees" :key="m.user_id" 
+                       class="assignee-chip clickable-chip"
+                       :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
+                       :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
+                       @click="toggleAssignee(m.user_id)">
+                       {{ m.name }}
+                     </span>
+                  </div>
+                </div>
+              </div>
+
               <label class="section-label">Description</label>
-              <textarea v-model="editTaskDesc" placeholder="Ajouter une description plus détaillée..." class="modern-input desc-input" rows="4"></textarea>
+              <WysiwygEditor v-model="editTaskDesc" />
+              
+              <div v-if="editingTask" style="margin-top: 2rem;">
+                <TaskAttachments :task-id="editingTask.id" />
+              </div>
+
+              <div v-if="editingTask" style="margin-top: 2rem;">
+                <TaskActivities :task-id="editingTask.id" :workspace-members="workspaceMembers" />
+              </div>
               
               <div v-if="editingTask" style="margin-top: 2rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -909,66 +1214,6 @@ watchEffect(() => {
                   <p v-if="getSubtasks(editingTask).some(t => !t.is_completed)" style="margin: 8px 0 0 0; font-size: 0.75rem; color: #f87171; text-align: center;">
                     Toutes les sous-tâches doivent être cochées avant de valider.
                   </p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Colonne Latérale (Métadonnées) -->
-            <div class="slideover-sidebar">
-              <div class="meta-section">
-                <label class="section-label">Dates</label>
-                <div style="display: flex; gap: 8px; flex-direction: column;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
-                     <span style="color: #9ca3af;">Début</span>
-                     <input v-model="editTaskStartDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
-                  </div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
-                     <span style="color: #9ca3af;">Fin</span>
-                     <input v-model="editTaskDueDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
-                  </div>
-                </div>
-              </div>
-              
-              <div class="meta-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <label class="section-label" style="margin: 0;">Labels</label>
-                  <button type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.75rem;">+ Créer</button>
-                </div>
-                
-                <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: #222327; padding: 8px; border-radius: 4px;">
-                  <input v-model="newLabelName" type="text" class="modern-input" placeholder="Nom du label" style="margin-bottom: 0; padding: 6px;">
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                     <input v-model="newLabelColor" type="color" style="height: 28px; width: 40px; border:none; background:none; cursor:pointer;">
-                     <button type="button" class="primary-btn small-btn" @click="createLabel" :disabled="!newLabelName" style="flex: 1;">{{ editingLabelId ? 'Sauver' : 'Ajouter' }}</button>
-                     <button type="button" class="secondary-btn small-btn" @click="showCreateLabel = false">✕</button>
-                  </div>
-                </div>
-
-                <input v-model="labelSearch" type="text" class="modern-input" placeholder="Rechercher..." style="margin-bottom: 8px; padding: 6px; font-size: 0.8rem;" />
-                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                   <span v-for="lbl in filteredLabels" :key="lbl.id" 
-                     class="task-label-chip clickable-chip" 
-                     :class="{ 'selected-chip': isLabelSelected(lbl.id) }"
-                     :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
-                     @click="toggleLabel(lbl)">
-                     {{ lbl.name }}
-                     <button type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
-                     <button type="button" @click.stop="deleteBoardLabel(lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
-                   </span>
-                </div>
-              </div>
-              
-              <div class="meta-section">
-                <label class="section-label">Membres assignés</label>
-                <input v-model="assigneeSearch" type="text" class="modern-input" placeholder="Rechercher..." style="margin-bottom: 8px; padding: 6px; font-size: 0.8rem;" />
-                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                   <span v-for="m in filteredAssignees" :key="m.user_id" 
-                     class="assignee-chip clickable-chip"
-                     :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
-                     :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
-                     @click="toggleAssignee(m.user_id)">
-                     {{ m.name }}
-                   </span>
                 </div>
               </div>
             </div>
@@ -1142,7 +1387,7 @@ watchEffect(() => {
 
 /* Slide-over Modal */
 .slideover-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.5); z-index: 100; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }
-.slideover-panel { width: 700px; max-width: 100%; height: 100vh; background: #0e0e11; border-left: 1px solid #27282b; box-shadow: -4px 0 24px rgba(0,0,0,0.5); display: flex; flex-direction: column; animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.slideover-panel { width: 900px; max-width: 100%; height: 100vh; background: #0e0e11; border-left: 1px solid #27282b; box-shadow: -4px 0 24px rgba(0,0,0,0.5); display: flex; flex-direction: column; animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
 .slideover-header { padding: 1.5rem 2rem; border-bottom: 1px solid #27282b; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -1151,9 +1396,8 @@ watchEffect(() => {
 .close-btn { background: none; border: none; color: #8a8f98; font-size: 1.25rem; cursor: pointer; padding: 0.5rem; border-radius: 4px; transition: 0.2s; }
 .close-btn:hover { background: #27282b; color: #eee; }
 
-.slideover-body { display: flex; flex: 1; overflow: hidden; }
-.slideover-main { flex: 1.8; padding: 2rem; overflow-y: auto; border-right: 1px solid #27282b; }
-.slideover-sidebar { flex: 1; padding: 1.5rem; overflow-y: auto; background: #131418; display: flex; flex-direction: column; gap: 1.5rem; }
+.slideover-body { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
+.slideover-main { flex: 1; padding: 2rem; overflow-y: auto; }
 
 .section-label { display: block; font-size: 0.75rem; font-weight: 600; color: #8a8f98; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem; }
 .desc-input { min-height: 120px; resize: vertical; line-height: 1.5; font-size: 0.95rem; }
@@ -1167,5 +1411,13 @@ watchEffect(() => {
 .btn-success:hover { background: #059669; }
 
 .slideover-footer { padding: 1.5rem 2rem; border-top: 1px solid #27282b; display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #0e0e11; }
+
+.view-toggle { display: flex; background: #17181c; border-radius: 6px; border: 1px solid #27282b; padding: 4px; gap: 4px; }
+.view-toggle button { background: transparent; border: none; padding: 6px 12px; border-radius: 4px; color: #8a8f98; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: 0.2s; }
+.view-toggle button:hover { color: #eee; }
+.view-toggle button.active { background: #2f3136; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+.clickable-chip { cursor: pointer; transition: 0.2s; user-select: none; }
+.clickable-chip:hover { filter: brightness(1.2); }
 
 </style>

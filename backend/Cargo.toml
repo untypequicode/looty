@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.7", features = ["ws"] }
+axum = { version = "0.7", features = ["ws", "multipart"] }
+tower-http = { version = "0.5.2", features = ["fs", "cors"] }
 futures = "0.3"
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -20,3 +21,4 @@ reqwest = { version = "0.12", features = ["json"] }
 time = "0.3.36"
 uuid = { version = "1.8", features = ["serde", "v4"] }
 chrono = { version = "0.4", features = ["serde"] }
+flate2 = "1.0"

@@ -3,8 +3,9 @@ mod db;
 mod ws;
 mod workspace;
 mod board;
+mod archive;
 
-use axum::{routing::get, Router, Json, Extension};
+use axum::{routing::get, Router, Json, Extension, extract::DefaultBodyLimit};
 use serde::Serialize;
 use std::{net::SocketAddr, sync::Arc};
 use tower_sessions::{SessionManagerLayer, Expiry};
@@ -30,6 +31,8 @@ async fn main() {
     
     // Initialisation DB et SQLx
     let pool = db::init_db().await.expect("Failed to initialize database");
+    
+    archive::start_archive_cron(pool.clone());
 
     // Client OIDC Zitadel
     let oidc_client = auth::build_oidc_client().await;
@@ -53,14 +56,18 @@ async fn main() {
 
     // Assemblage des routes
     let app = Router::new()
+        .nest_service("/uploads", tower_http::services::ServeDir::new("uploads"))
         .route("/api/health", get(health_handler))
         .route("/api/ws", get(ws::ws_handler))
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
         .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/boards", board::workspace_board_routes(auth_state.clone()))
         .nest("/api/boards", board::board_routes(auth_state.clone()))
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(Extension(ws_state))
         .layer(session_layer);
+
+    tokio::fs::create_dir_all("uploads").await.ok();
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("Listening on {}", addr);

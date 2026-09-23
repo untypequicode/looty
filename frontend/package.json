@@ -10,10 +10,23 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@aarkue/tiptap-math-extension": "^1.4.0",
     "@tanstack/vue-query": "^5.103.2",
+    "@tiptap/extension-bubble-menu": "^3.31.3",
+    "@tiptap/extension-floating-menu": "^3.31.3",
+    "@tiptap/extension-link": "^3.31.3",
+    "@tiptap/extension-placeholder": "^3.31.3",
+    "@tiptap/extension-typography": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/suggestion": "^3.31.3",
+    "@tiptap/vue-3": "^3.31.3",
     "@vueuse/core": "^15.0.0",
     "@vueuse/nuxt": "^15.0.0",
+    "katex": "^0.18.7",
+    "markdown-it": "^15.0.2",
+    "markdown-it-katex": "^2.0.3",
     "nuxt": "^3.12.0",
+    "tippy.js": "^6.3.7",
     "vue": "latest",
     "vue-draggable-next": "^2.3.0",
     "vue-router": "latest"

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Multipart},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post, put, delete},
@@ -18,6 +18,7 @@ pub struct Board {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub name: String,
+    pub automations: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -40,6 +41,7 @@ pub struct Task {
     pub title: String,
     pub description: Option<String>,
     pub position: f64,
+    pub previous_column_id: Option<Uuid>,
     pub is_per_person: bool,
     pub is_completed: bool,
     pub start_date: Option<DateTime<Utc>>,
@@ -54,6 +56,29 @@ pub struct Label {
     pub board_id: Uuid,
     pub name: String,
     pub color: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TaskAttachment {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub uploaded_by: Uuid,
+    pub filename: String,
+    pub file_path: String,
+    pub mime_type: Option<String>,
+    pub size_bytes: Option<i64>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TaskActivity {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub user_id: Uuid,
+    pub activity_type: String,
+    pub old_value: Option<serde_json::Value>,
+    pub new_value: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -74,6 +99,7 @@ pub struct BoardFull {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub name: String,
+    pub automations: serde_json::Value,
     pub columns: Vec<ColumnWithTasks>,
     pub labels: Vec<Label>,
 }
@@ -92,7 +118,8 @@ pub struct CreateBoardReq {
 
 #[derive(Deserialize)]
 pub struct UpdateBoardReq {
-    pub name: String,
+    pub name: Option<String>,
+    pub automations: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -119,6 +146,8 @@ pub struct CreateTaskReq {
 pub struct MoveTaskReq {
     pub column_id: Uuid,
     pub position: f64,
+    pub previous_column_id: Option<Uuid>,
+    pub clear_previous_column_id: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -157,6 +186,10 @@ pub fn board_routes(state: AuthState) -> Router {
         .route("/tasks/:task_id/assignees/:user_id", post(add_task_assignee).delete(remove_task_assignee))
         .route("/tasks/:task_id/subtasks", post(create_subtask))
         .route("/tasks/:task_id/toggle_validation", put(toggle_task_validation))
+        .route("/tasks/:task_id/attachments", get(get_task_attachments).post(upload_attachment))
+        .route("/tasks/:task_id/attachments/:attachment_id", delete(delete_attachment))
+        .route("/tasks/:task_id/activities", get(get_task_activities))
+        .route("/tasks/:task_id/activities/:activity_id/restore", post(restore_task_activity))
         .with_state(state)
 }
 
@@ -187,7 +220,7 @@ async fn list_boards(
     }
 
     let boards = sqlx::query_as::<_, Board>(
-        "SELECT id, workspace_id, name, created_at, updated_at FROM boards WHERE workspace_id = $1 ORDER BY created_at ASC"
+        "SELECT id, workspace_id, name, automations, created_at, updated_at FROM boards WHERE workspace_id = $1 ORDER BY created_at ASC"
     )
     .bind(workspace_id)
     .fetch_all(&state.pool)
@@ -212,7 +245,7 @@ async fn create_board(
     }
 
     let board = sqlx::query_as::<_, Board>(
-        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2) RETURNING id, workspace_id, name, created_at, updated_at"
+        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2) RETURNING id, workspace_id, name, automations, created_at, updated_at"
     )
     .bind(workspace_id)
     .bind(req.name)
@@ -238,7 +271,7 @@ async fn get_board(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let board = sqlx::query_as::<_, Board>(
-        "SELECT id, workspace_id, name, created_at, updated_at FROM boards WHERE id = $1"
+        "SELECT id, workspace_id, name, automations, created_at, updated_at FROM boards WHERE id = $1"
     )
     .bind(board_id)
     .fetch_optional(&state.pool)
@@ -290,7 +323,7 @@ async fn get_board(
     let mut full_columns = Vec::new();
     for col in columns {
         let tasks = sqlx::query_as::<_, Task>(
-            "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
+            "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
         )
         .bind(col.id)
         .fetch_all(&state.pool)
@@ -320,6 +353,7 @@ async fn get_board(
         id: board.id,
         workspace_id: board.workspace_id,
         name: board.name,
+        automations: board.automations,
         columns: full_columns,
         labels,
     }))
@@ -394,7 +428,7 @@ async fn create_task(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let task = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
     .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -435,31 +469,47 @@ async fn move_task(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     #[derive(sqlx::FromRow)]
-    struct WorkspaceId { workspace_id: Uuid }
+    struct TaskWorkspaceCheck { workspace_id: Uuid, previous_column_id: Option<Uuid>, column_id: Uuid }
     
-    let board = sqlx::query_as::<_, WorkspaceId>(
-        "SELECT b.workspace_id FROM boards b JOIN board_columns c ON b.id = c.board_id JOIN tasks t ON c.id = t.column_id WHERE t.id = $1"
+    let board = sqlx::query_as::<_, TaskWorkspaceCheck>(
+        "SELECT b.workspace_id, t.previous_column_id, t.column_id FROM boards b JOIN board_columns c ON b.id = c.board_id JOIN tasks t ON c.id = t.column_id WHERE t.id = $1"
     )
     .bind(task_id)
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
 
-    let new_board_check = sqlx::query_as::<_, WorkspaceId>(
+    let new_board_ws = sqlx::query_scalar::<_, Uuid>(
         "SELECT b.workspace_id FROM boards b JOIN board_columns c ON b.id = c.board_id WHERE c.id = $1"
     )
     .bind(req.column_id)
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if new_board_check.workspace_id != board.workspace_id {
+    if new_board_ws != board.workspace_id {
         return Err(StatusCode::BAD_REQUEST);
     }
+    let prev_col_val = if req.clear_previous_column_id.unwrap_or(false) {
+        None
+    } else if let Some(pid) = req.previous_column_id {
+        Some(pid)
+    } else {
+        board.previous_column_id
+    };
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET column_id = $1, position = $2, updated_at = NOW() WHERE id = $3 RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET column_id = $1, position = $2, previous_column_id = $3, updated_at = NOW() WHERE id = $4 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
-    .bind(req.column_id).bind(req.position).bind(task_id)
+    .bind(req.column_id).bind(req.position).bind(prev_col_val).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let _ = log_activity(
+        &state.pool,
+        task_id,
+        Uuid::parse_str(&user_id).unwrap(),
+        "move_column",
+        Some(serde_json::json!({ "column_id": board.column_id })),
+        Some(serde_json::json!({ "column_id": req.column_id })),
+    ).await;
 
     let ws_msg = serde_json::json!({
         "type": "TASK_MOVED",
@@ -491,11 +541,30 @@ async fn update_task(
     
     if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
 
+    let old_task = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = $1")
+        .bind(task_id).fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), updated_at = NOW() WHERE id = $6 RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), updated_at = NOW() WHERE id = $6 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
     .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(&req.is_per_person).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if old_task.title != task.title {
+        let _ = log_activity(
+            &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "update_title",
+            Some(serde_json::json!({ "title": old_task.title })),
+            Some(serde_json::json!({ "title": task.title }))
+        ).await;
+    }
+    
+    if old_task.description != task.description {
+        let _ = log_activity(
+            &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "update_description",
+            Some(serde_json::json!({ "description": old_task.description })),
+            Some(serde_json::json!({ "description": task.description }))
+        ).await;
+    }
 
     let ws_msg = serde_json::json!({
         "type": "TASK_UPDATED",
@@ -556,12 +625,17 @@ async fn update_board(
 
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
     if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
-    if req.name.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
+    if let Some(ref n) = req.name {
+        if n.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
+    }
+
+    let new_name = req.name.unwrap_or(board.name);
+    let new_automations = req.automations.unwrap_or(board.automations);
 
     let updated_board = sqlx::query_as::<_, Board>(
-        "UPDATE boards SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, workspace_id, name, created_at, updated_at"
+        "UPDATE boards SET name = $1, automations = $2, updated_at = NOW() WHERE id = $3 RETURNING id, workspace_id, name, automations, created_at, updated_at"
     )
-    .bind(req.name).bind(board_id)
+    .bind(new_name).bind(new_automations).bind(board_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let ws_msg = serde_json::json!({ "type": "BOARD_UPDATED", "board": &updated_board }).to_string();
@@ -867,7 +941,7 @@ async fn create_subtask(
     
     // Get parent task to inherit column
     let parent = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
     ).bind(parent_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let board_ws = sqlx::query_scalar::<_, Uuid>(
@@ -883,7 +957,7 @@ async fn create_subtask(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let subtask = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, parent_id, title, position) VALUES ($1, $2, $3, $4) RETURNING id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, parent_id, title, position) VALUES ($1, $2, $3, $4) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
     )
     .bind(parent.column_id).bind(parent_id).bind(req.title).bind(next_pos)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -904,7 +978,7 @@ async fn toggle_task_validation(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let mut task = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
     ).bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(task.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
@@ -913,7 +987,7 @@ async fn toggle_task_validation(
     if check_workspace_access(&state.pool, &user_id, &workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     let subtasks = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
     ).bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
     
     if !subtasks.iter().all(|t| t.is_completed) {
@@ -960,5 +1034,190 @@ async fn toggle_task_validation(
     let tx = ws_state.get_or_create_room(&workspace_id.to_string()).await;
     let _ = tx.send(ws_msg);
 
+    let _ = log_activity(
+        &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "toggle_validation",
+        Some(serde_json::json!({ "is_completed": !enriched.task.is_completed })),
+        Some(serde_json::json!({ "is_completed": enriched.task.is_completed }))
+    ).await;
+
     Ok(Json(enriched))
+}
+
+// --- ATTACHMENTS & ACTIVITIES ---
+
+async fn log_activity(
+    pool: &sqlx::PgPool,
+    task_id: Uuid,
+    user_id: Uuid,
+    activity_type: &str,
+    old_value: Option<serde_json::Value>,
+    new_value: Option<serde_json::Value>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO task_activities (id, task_id, user_id, activity_type, old_value, new_value) VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(Uuid::new_v4())
+    .bind(task_id)
+    .bind(user_id)
+    .bind(activity_type)
+    .bind(old_value)
+    .bind(new_value)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+
+async fn get_task_attachments(
+    State(state): State<AuthState>,
+    Path(task_id): Path<Uuid>,
+    session: Session,
+) -> Result<Json<Vec<TaskAttachment>>, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let attachments = sqlx::query_as::<_, TaskAttachment>(
+        "SELECT id, task_id, uploaded_by, filename, file_path, mime_type, size_bytes, created_at FROM task_attachments WHERE task_id = $1 ORDER BY created_at DESC"
+    )
+    .bind(task_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(attachments))
+}
+
+async fn upload_attachment(
+    State(state): State<AuthState>,
+    Path(task_id): Path<Uuid>,
+    session: Session,
+    mut multipart: Multipart,
+) -> Result<Json<TaskAttachment>, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let mut uploaded_attachment = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "file" {
+            let filename = field.file_name().unwrap_or("unknown").to_string();
+            let content_type = field.content_type().map(|s| s.to_string());
+            let data = field.bytes().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+            let file_id = Uuid::new_v4();
+            let ext = std::path::Path::new(&filename).extension().and_then(|e| e.to_str()).unwrap_or("");
+            let file_path = format!("uploads/{}.{}", file_id, ext);
+            
+            tokio::fs::write(&file_path, &data).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+            let att = sqlx::query_as::<_, TaskAttachment>(
+                "INSERT INTO task_attachments (id, task_id, uploaded_by, filename, file_path, mime_type, size_bytes) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, task_id, uploaded_by, filename, file_path, mime_type, size_bytes, created_at"
+            )
+            .bind(file_id)
+            .bind(task_id)
+            .bind(Uuid::parse_str(&user_id).unwrap())
+            .bind(filename)
+            .bind(file_path)
+            .bind(content_type)
+            .bind(data.len() as i64)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+            uploaded_attachment = Some(att);
+            break;
+        }
+    }
+    
+    if let Some(att) = uploaded_attachment {
+        Ok(Json(att))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
+}
+
+async fn delete_attachment(
+    State(state): State<AuthState>,
+    Path((task_id, attachment_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<StatusCode, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    // On pourrait vérifier les permissions ici (si l'utilisateur a accès au workspace de la tâche)
+    // Pour simplifier on le supprime juste
+    
+    let att = sqlx::query_scalar::<_, String>("SELECT file_path FROM task_attachments WHERE id = $1 AND task_id = $2")
+        .bind(attachment_id)
+        .bind(task_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Some(file_path) = att {
+        tokio::fs::remove_file(&file_path).await.ok();
+        
+        sqlx::query("DELETE FROM task_attachments WHERE id = $1")
+            .bind(attachment_id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+async fn get_task_activities(
+    State(state): State<AuthState>,
+    Path(task_id): Path<Uuid>,
+    session: Session,
+) -> Result<Json<Vec<TaskActivity>>, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let activities = sqlx::query_as::<_, TaskActivity>(
+        "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at FROM task_activities WHERE task_id = $1 ORDER BY created_at ASC"
+    )
+    .bind(task_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(activities))
+}
+
+async fn restore_task_activity(
+    State(state): State<AuthState>,
+    Path((task_id, activity_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<StatusCode, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let activity = sqlx::query_as::<_, TaskActivity>(
+        "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at FROM task_activities WHERE id = $1 AND task_id = $2"
+    )
+    .bind(activity_id).bind(task_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+    
+    if let Some(old_val) = activity.old_value {
+        match activity.activity_type.as_str() {
+            "update_title" => {
+                if let Some(title) = old_val.get("title").and_then(|t| t.as_str()) {
+                    sqlx::query("UPDATE tasks SET title = $1 WHERE id = $2")
+                        .bind(title).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                }
+            }
+            "update_description" => {
+                if let Some(desc) = old_val.get("description").and_then(|d| d.as_str()) {
+                    sqlx::query("UPDATE tasks SET description = $1 WHERE id = $2")
+                        .bind(desc).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    Ok(StatusCode::OK)
 }

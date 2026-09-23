@@ -17,5 +17,8 @@ export default defineNuxtConfig({
   },
   modules: [
     '@vueuse/nuxt'
-  ]
+  ],
+  build: {
+    transpile: ['evaluatex']
+  }
 })
