@@ -60,8 +60,6 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
-      - "traefik.http.routers.${APP_NAME}-web.entrypoints=websecure"
-      - "traefik.http.routers.${APP_NAME}-web.tls=true"
       - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
     restart: unless-stopped
 
