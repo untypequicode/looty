@@ -9,7 +9,8 @@ export default defineNuxtConfig({
   serverDir: 'server',
   routeRules: {
     '/api/**': { proxy: 'http://backend:8080/api/**' },
-    '/uploads/**': { proxy: 'http://backend:8080/uploads/**' }
+    '/uploads/**': { proxy: 'http://backend:8080/uploads/**' },
+    '/collab/**': { proxy: 'http://collaboration:8082/**' }
   },
   nitro: {
     experimental: {

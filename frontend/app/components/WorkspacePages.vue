@@ -20,7 +20,12 @@
       </div>
       
       <div class="page-content">
-        <WysiwygEditor v-model="localContent" @update:modelValue="debouncedSavePage" />
+        <WysiwygEditor 
+          v-model="localContent" 
+          :document-id="page.id"
+          :current-user="currentUser"
+          @update:modelValue="debouncedSavePage" 
+        />
       </div>
     </div>
   </div>
@@ -28,7 +33,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import WysiwygEditor from './WysiwygEditor.vue'
+import WysiwygEditor from './WysiwygEditor.client.vue'
 
 const props = defineProps({
   workspaceId: {
@@ -38,6 +43,10 @@ const props = defineProps({
   page: {
     type: Object,
     required: true
+  },
+  currentUser: {
+    type: Object,
+    required: false
   }
 })
 

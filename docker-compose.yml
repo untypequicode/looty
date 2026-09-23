@@ -37,6 +37,23 @@ services:
       - "traefik.http.routers.${APP_NAME}-api.tls=true"
       - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
     restart: unless-stopped
+    
+  collaboration:
+    build:
+      context: ./collaboration
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-collab.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/collab`)"
+      - "traefik.http.routers.${APP_NAME}-collab.entrypoints=websecure"
+      - "traefik.http.routers.${APP_NAME}-collab.tls=true"
+      - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
+    restart: unless-stopped
 
   frontend:
     build:

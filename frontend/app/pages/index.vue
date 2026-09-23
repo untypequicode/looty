@@ -38,7 +38,11 @@ watch(workspacesData, (newVal: any) => {
 const boards = ref<any[]>([])
 const activeBoard = ref<any>(null)
 const currentView = ref<'kanban' | 'timeline'>('kanban')
-const wsUrl = computed(() => activeWorkspaceId.value ? `ws://localhost:8081/api/ws?workspace_id=${activeWorkspaceId.value}` : null)
+const wsUrl = computed(() => {
+  if (!activeWorkspaceId.value) return null
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/api/ws?workspace_id=${activeWorkspaceId.value}`
+})
 
 // Wiki State
 const pages = ref<any[]>([])
@@ -1134,6 +1138,7 @@ watch(showColumnModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
           v-if="activePage" 
           :workspace-id="activeWorkspaceId" 
           :page="activePage" 
+          :current-user="user?.user"
           @update-title="updatePageTitleInList(activePage.id, $event)"
         />
         <div v-else style="display: flex; height: 100%; align-items: center; justify-content: center; color: #8a8f98;">

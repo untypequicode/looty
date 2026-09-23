@@ -18,8 +18,7 @@
 </template>
 
 <script setup>
-import { useEditor, EditorContent } from '@tiptap/vue-3'
-import { BubbleMenu } from '@tiptap/vue-3/menus'
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
@@ -28,61 +27,122 @@ import Link from '@tiptap/extension-link'
 import CodeBlock from '@tiptap/extension-code-block'
 import Underline from '@tiptap/extension-underline'
 import Image from '@tiptap/extension-image'
+import { Collaboration } from '@tiptap/extension-collaboration'
+import { CollaborationCursor } from '@tiptap/extension-collaboration-cursor'
+import * as Y from 'yjs'
+import { HocuspocusProvider } from '@hocuspocus/provider'
 import { CustomMathExtension } from './CustomMathExtension'
 import { CustomMathInlineExtension } from './CustomMathInlineExtension'
 import { CommandsExtension, getSuggestionItems, renderItems } from './CommandsExtension'
-import { watch, onBeforeUnmount } from 'vue'
+import { watch, onBeforeUnmount, markRaw, onMounted } from 'vue'
 import 'katex/dist/katex.min.css'
 
 const props = defineProps({
-  modelValue: {
-    type: String,
-    default: '',
-  },
+  modelValue: { type: String, default: '' },
+  documentId: { type: String, default: null },
+  currentUser: { type: Object, default: () => ({ name: 'Anonyme' }) }
 })
 
 const emit = defineEmits(['update:modelValue'])
 
-const editor = useEditor({
-  content: props.modelValue,
-  extensions: [
-    StarterKit.configure({
-      codeBlock: false,
+const colors = ['#f56565', '#ed8936', '#ecc94b', '#48bb78', '#38b2ac', '#4299e1', '#667eea', '#9f7aea', '#ed64a6']
+const userColor = colors[Math.floor(Math.random() * colors.length)]
+
+let provider = null
+let ydoc = null
+
+const extensions = [
+  StarterKit.configure({ codeBlock: false, history: false }),
+  TaskList,
+  TaskItem.configure({ nested: true }),
+  Link.configure({ openOnClick: false }),
+  CodeBlock,
+  Underline,
+  Image,
+  Placeholder.configure({ placeholder: 'Tapez / pour les commandes ou commencez à écrire...' }),
+  CustomMathExtension,
+  CustomMathInlineExtension,
+  CommandsExtension.configure({
+    suggestion: { items: getSuggestionItems, render: renderItems },
+  }),
+]
+
+if (props.documentId) {
+  ydoc = markRaw(new Y.Doc())
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  
+  // Connect directly to the collaboration server (exposed on 8082) for local dev,
+  // otherwise use the /collab path which Traefik proxies in production.
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  const wsUrl = isLocal 
+    ? `ws://127.0.0.1:8082`
+    : `${protocol}//${window.location.host}/collab`
+
+  provider = markRaw(new HocuspocusProvider({
+    url: wsUrl,
+    name: props.documentId,
+    document: ydoc,
+    connect: false, // DON'T CONNECT YET
+  }))
+
+  extensions.push(
+    Collaboration.configure({
+      document: ydoc,
     }),
-    TaskList,
-    TaskItem.configure({
-      nested: true,
-    }),
-    Link.configure({
-      openOnClick: false,
-    }),
-    CodeBlock,
-    Underline,
-    Image,
-    Placeholder.configure({
-      placeholder: 'Tapez / pour les commandes ou commencez à écrire...',
-    }),
-    CustomMathExtension,
-    CustomMathInlineExtension,
-    CommandsExtension.configure({
-      suggestion: {
-        items: getSuggestionItems,
-        render: renderItems,
+    CollaborationCursor.configure({
+      provider,
+      user: {
+        name: props.currentUser?.name || 'Anonyme',
+        color: userColor,
       },
-    }),
-  ],
+    })
+  )
+}
+
+const editorOptions = {
+  extensions,
   onUpdate: () => {
-    emit('update:modelValue', editor.value.getHTML())
+    if (!props.documentId) {
+      emit('update:modelValue', editor.value.getHTML())
+    }
   },
-})
+}
+
+// CRUCIAL: Do not pass 'content' AT ALL if using Collaboration in Tiptap 3,
+// otherwise it tries to resolve positions before the document is ready.
+if (!props.documentId) {
+  editorOptions.content = props.modelValue
+}
+
+const editor = useEditor(editorOptions)
+
+if (provider) {
+  provider.on('synced', () => {
+    if (editor.value && editor.value.isEmpty && props.modelValue && props.modelValue !== '<p></p>') {
+      editor.value.commands.setContent(props.modelValue)
+    }
+  })
+}
 
 watch(() => props.modelValue, (value) => {
+  if (!editor.value) return
+  if (props.documentId) return
   const isSame = editor.value.getHTML() === value
   if (isSame) return
   editor.value.commands.setContent(value, false)
 })
 
+onMounted(() => {
+  if (provider) {
+    provider.connect()
+  }
+})
+
 onBeforeUnmount(() => {
+  if (provider) {
+    provider.destroy()
+  }
   if (editor.value) editor.value.destroy()
 })
 </script>
@@ -199,5 +259,32 @@ onBeforeUnmount(() => {
   padding-left: 1rem;
   color: #8a8f98;
   font-style: italic;
+}
+</style>
+
+<style>
+/* CSS for Tiptap collaboration cursors - non scoped */
+.collaboration-cursor__caret {
+  border-left: 1px solid #0d0d0d;
+  border-right: 1px solid #0d0d0d;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+.collaboration-cursor__label {
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  left: -1px;
+  line-height: normal;
+  padding: 0.1rem 0.3rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
 }
 </style>
