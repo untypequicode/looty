@@ -1,0 +1,22 @@
+:root {
+  --bg-color-main: #0e0e11;
+  --bg-color-2: #111113;
+  --bg-color-hover: #17181c;
+  --bg-color-modal: #1e1e22;
+  
+  --border-color: #1e1f23;
+  
+  --text-color: #eeeeee;
+  --text-color-2: #e4e4e7;
+  --text-color-3: #8a8f98;
+  --text-color-light: #cccccc;
+  
+  --primary-color: #5e6ad2;
+  --primary-color-hover: #6d79e0;
+  
+  --success-color: #10b981;
+  --success-color-hover: #059669;
+  
+  --danger-color: #f87171;
+  --danger-color-hover: #ef4444;
+}
