@@ -63,6 +63,38 @@ export const getSuggestionItems = ({ query }) => {
       },
     },
     {
+      title: 'Liste de tâches',
+      subtitle: 'Créer une checklist',
+      icon: '☐',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleTaskList().run()
+      },
+    },
+    {
+      title: 'Code source',
+      subtitle: 'Bloc de code',
+      icon: '<>',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
+      },
+    },
+    {
+      title: 'Citation',
+      subtitle: 'Mettre en exergue',
+      icon: '""',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleBlockquote().run()
+      },
+    },
+    {
+      title: 'Séparateur',
+      subtitle: 'Ligne horizontale',
+      icon: '—',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).setHorizontalRule().run()
+      },
+    },
+    {
       title: 'Math en bloc',
       subtitle: 'Formule LaTeX centrée',
       icon: '∑',

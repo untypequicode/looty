@@ -15,6 +15,7 @@ const isCreatingWorkspace = ref(false)
 const newWorkspaceName = ref('')
 const showCreateModal = ref(false)
 const activeWorkspaceId = ref<string | null>(null)
+const currentModule = ref('kanban')
 
 async function createWorkspace() {
   if (!newWorkspaceName.value.trim()) return;
@@ -38,6 +39,11 @@ const boards = ref<any[]>([])
 const activeBoard = ref<any>(null)
 const currentView = ref<'kanban' | 'timeline'>('kanban')
 const wsUrl = computed(() => activeWorkspaceId.value ? `ws://localhost:8081/api/ws?workspace_id=${activeWorkspaceId.value}` : null)
+
+// Wiki State
+const pages = ref<any[]>([])
+const activePage = ref<any>(null)
+const isLoadingPages = ref(false)
 
 // Filter State
 const searchQuery = ref('')
@@ -255,10 +261,18 @@ watch(activeWorkspaceId, async (wsId) => {
     boards.value = await $fetch(`/api/workspaces/${wsId}/boards`)
     if (boards.value.length > 0) selectBoard(boards.value[0])
     else activeBoard.value = null
+
+    isLoadingPages.value = true
+    try {
+      pages.value = await $fetch(`/api/workspaces/${wsId}/pages`)
+    } catch(e) {}
+    isLoadingPages.value = false
   } else {
     boards.value = []
     activeBoard.value = null
     workspaceMembers.value = []
+    pages.value = []
+    activePage.value = null
   }
 }, { immediate: true })
 
@@ -288,6 +302,43 @@ function selectWorkspace(workspaceId: string) { activeWorkspaceId.value = worksp
 async function selectBoard(board: any) {
   const fullBoard = await $fetch(`/api/boards/${board.id}`)
   activeBoard.value = fullBoard
+  activePage.value = null
+}
+
+async function createPage() {
+  if (!activeWorkspaceId.value) return
+  try {
+    const page = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/pages`, {
+      method: 'POST',
+      body: { title: 'Nouvelle page', parent_id: null, content: '' }
+    })
+    pages.value.push(page)
+    selectPage(page)
+  } catch(e) {
+    console.error('Erreur creation page:', e)
+  }
+}
+
+function selectPage(page: any) {
+  currentModule.value = 'wiki'
+  activeBoard.value = null
+  activePage.value = page
+}
+
+async function deletePage(id: string) {
+  if (!confirm('Supprimer cette page ?')) return
+  try {
+    await $fetch(`/api/workspaces/${activeWorkspaceId.value}/pages/${id}`, { method: 'DELETE' })
+    pages.value = pages.value.filter(p => p.id !== id)
+    if (activePage.value?.id === id) activePage.value = null
+  } catch(e) {
+    console.error('Erreur suppression page:', e)
+  }
+}
+
+function updatePageTitleInList(pageId: string, newTitle: string) {
+  const p = pages.value.find(p => p.id === pageId)
+  if (p) p.title = newTitle
 }
 
 async function createBoard() {
@@ -905,11 +956,28 @@ watch(showColumnModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
         <ul v-if="activeWorkspaceId" class="workspace-list">
           <li v-if="boards.length === 0" class="empty-item">Aucun tableau</li>
           <li v-for="b in boards" :key="b.id"
-            :class="['workspace-item', { active: activeBoard?.id === b.id }]" @click="selectBoard(b)">
+            :class="['workspace-item', { active: activeBoard?.id === b.id && currentModule === 'kanban' }]" @click="selectBoard(b); currentModule = 'kanban'">
             <span class="ws-name" style="flex: 1"># {{ b.name }}</span>
             <div class="item-actions" v-if="activeBoard?.id === b.id && (activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin')">
               <button @click.stop="openRenameModal('board', b.id, b.name)" title="Renommer">✏️</button>
               <button @click.stop="deleteBoard(b.id)" title="Supprimer">🗑️</button>
+            </div>
+          </li>
+        </ul>
+
+        <div v-if="activeWorkspaceId" class="section-title" style="margin-top:2rem;">
+          <span>Wiki (Pages)</span>
+          <button @click="createPage" class="icon-btn" title="Créer une page">+</button>
+        </div>
+        <ul v-if="activeWorkspaceId" class="workspace-list">
+          <li v-if="isLoadingPages" class="loading-item">Chargement...</li>
+          <li v-else-if="pages.length === 0" class="empty-item">Aucune page</li>
+          <li v-for="page in pages" :key="page.id"
+            :class="['workspace-item', { active: activePage?.id === page.id && currentModule === 'wiki' }]" 
+            @click="selectPage(page)">
+            <span class="ws-name" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📄 {{ page.title || 'Nouvelle page' }}</span>
+            <div class="item-actions" v-if="activePage?.id === page.id">
+              <button @click.stop="deletePage(page.id)" title="Supprimer">🗑️</button>
             </div>
           </li>
         </ul>
@@ -938,6 +1006,14 @@ watch(showColumnModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
           <div class="view-toggle">
             <button :class="{ active: currentView === 'kanban' }" @click="currentView = 'kanban'">Kanban</button>
             <button :class="{ active: currentView === 'timeline' }" @click="currentView = 'timeline'">Timeline</button>
+          </div>
+        </div>
+        <div v-else-if="activeWorkspaceId && currentModule === 'wiki'" style="width: 100%; display: flex; align-items: center; gap: 8px;">
+          <div style="color: #8a8f98; font-size: 0.9rem;">
+            Wiki / {{ activePage ? (activePage.title || 'Nouvelle page') : 'Sélectionnez une page' }}
+          </div>
+          <div style="margin-left: auto;">
+            <button v-if="activePage" class="secondary-btn" style="padding: 4px 12px; font-size: 0.85rem;">Édition terminée</button>
           </div>
         </div>
         <div v-else-if="activeWorkspaceId">
@@ -1048,6 +1124,18 @@ watch(showColumnModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
         </div>
         
         <TimelineView v-else-if="currentView === 'timeline'" :board="filteredBoard" :openTaskDetail="openTaskDetail" />
+      </div>
+
+      <div v-if="activeWorkspaceId && currentModule === 'wiki'" style="flex: 1; overflow-y: auto;">
+        <WorkspacePages 
+          v-if="activePage" 
+          :workspace-id="activeWorkspaceId" 
+          :page="activePage" 
+          @update-title="updatePageTitleInList(activePage.id, $event)"
+        />
+        <div v-else style="display: flex; height: 100%; align-items: center; justify-content: center; color: #8a8f98;">
+          Sélectionnez une page dans le menu de gauche ou créez-en une nouvelle.
+        </div>
       </div>
     </main>
 

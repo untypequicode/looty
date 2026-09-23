@@ -4,6 +4,7 @@ mod ws;
 mod workspace;
 mod board;
 mod archive;
+mod page;
 
 use axum::{routing::get, Router, Json, Extension, extract::DefaultBodyLimit};
 use serde::Serialize;
@@ -62,6 +63,7 @@ async fn main() {
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
         .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/boards", board::workspace_board_routes(auth_state.clone()))
+        .nest("/api/workspaces/:workspace_id/pages", page::page_routes(auth_state.clone()))
         .nest("/api/boards", board::board_routes(auth_state.clone()))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(Extension(ws_state))
