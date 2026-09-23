@@ -89,10 +89,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wysiwyg-editor {
-  border: 1px solid #3f3f46;
-  border-radius: 6px;
   overflow: hidden;
-  background: #1e1e22;
+  background: transparent;
   position: relative;
 }
 
@@ -133,7 +131,6 @@ onBeforeUnmount(() => {
 }
 
 .editor-content-area {
-  padding: 16px;
   min-height: 150px;
   color: #eee;
   outline: none;

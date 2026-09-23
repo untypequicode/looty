@@ -6,9 +6,9 @@
         @blur="isEditing = false"
         ref="textareaRef"
         placeholder="Tapez votre formule LaTeX ici..."
-        rows="3"
+        :rows="Math.max(3, (latex || '').split('\n').length)"
         class="modern-input"
-        style="font-family: monospace; width: 100%; margin-bottom: 0;"
+        style="font-family: monospace; width: 100%; margin-bottom: 0; resize: vertical;"
       ></textarea>
     </div>
     <div v-else class="math-render" @click="enableEdit" title="Cliquez pour modifier">
@@ -70,12 +70,16 @@ function onKeyDown(e) {
   
   if (e.key === 'ArrowUp' && textareaRef.value && textareaRef.value.selectionStart === 0) {
     isEditing.value = false
-    props.editor.commands.focus(props.getPos() - 1)
+    props.editor.commands.focus(Math.max(0, props.getPos() - 1))
   }
   
   if (e.key === 'ArrowDown' && textareaRef.value && textareaRef.value.selectionStart === latex.value.length) {
     isEditing.value = false
-    props.editor.commands.focus(props.getPos() + 2)
+    const posAfter = props.getPos() + props.node.nodeSize
+    if (posAfter >= props.editor.state.doc.content.size) {
+      props.editor.commands.insertContentAt(posAfter, '<p></p>')
+    }
+    props.editor.commands.focus(posAfter + 1)
   }
 }
 </script>

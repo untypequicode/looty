@@ -190,6 +190,8 @@ pub fn board_routes(state: AuthState) -> Router {
         .route("/tasks/:task_id/attachments/:attachment_id", delete(delete_attachment))
         .route("/tasks/:task_id/activities", get(get_task_activities))
         .route("/tasks/:task_id/activities/:activity_id/restore", post(restore_task_activity))
+        .route("/tasks/:task_id/comments", get(get_task_comments).post(add_task_comment))
+        .route("/tasks/:task_id/comments/:comment_id", delete(delete_task_comment))
         .with_state(state)
 }
 
@@ -1073,7 +1075,7 @@ async fn get_task_attachments(
     Path(task_id): Path<Uuid>,
     session: Session,
 ) -> Result<Json<Vec<TaskAttachment>>, StatusCode> {
-    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    let _user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let attachments = sqlx::query_as::<_, TaskAttachment>(
         "SELECT id, task_id, uploaded_by, filename, file_path, mime_type, size_bytes, created_at FROM task_attachments WHERE task_id = $1 ORDER BY created_at DESC"
@@ -1140,7 +1142,7 @@ async fn delete_attachment(
     Path((task_id, attachment_id)): Path<(Uuid, Uuid)>,
     session: Session,
 ) -> Result<StatusCode, StatusCode> {
-    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    let _user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     // On pourrait vérifier les permissions ici (si l'utilisateur a accès au workspace de la tâche)
     // Pour simplifier on le supprime juste
@@ -1172,7 +1174,7 @@ async fn get_task_activities(
     Path(task_id): Path<Uuid>,
     session: Session,
 ) -> Result<Json<Vec<TaskActivity>>, StatusCode> {
-    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    let _user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let activities = sqlx::query_as::<_, TaskActivity>(
         "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at FROM task_activities WHERE task_id = $1 ORDER BY created_at ASC"
@@ -1190,7 +1192,7 @@ async fn restore_task_activity(
     Path((task_id, activity_id)): Path<(Uuid, Uuid)>,
     session: Session,
 ) -> Result<StatusCode, StatusCode> {
-    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    let _user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let activity = sqlx::query_as::<_, TaskActivity>(
         "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at FROM task_activities WHERE id = $1 AND task_id = $2"
@@ -1220,4 +1222,76 @@ async fn restore_task_activity(
     }
     
     Ok(StatusCode::OK)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct TaskComment {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub user_id: String,
+    pub content: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateComment {
+    pub content: String,
+}
+
+async fn get_task_comments(
+    State(state): State<AuthState>,
+    Path(task_id): Path<Uuid>,
+) -> Result<Json<Vec<TaskComment>>, StatusCode> {
+    let comments = sqlx::query_as::<_, TaskComment>(
+        "SELECT id, task_id, user_id, content, created_at, updated_at FROM task_comments WHERE task_id = $1 ORDER BY created_at ASC"
+    )
+    .bind(task_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(comments))
+}
+
+async fn add_task_comment(
+    State(state): State<AuthState>,
+    Path(task_id): Path<Uuid>,
+    session: Session,
+    Json(payload): Json<CreateComment>,
+) -> Result<Json<TaskComment>, StatusCode> {
+    let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let comment = sqlx::query_as::<_, TaskComment>(
+        "INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3) RETURNING id, task_id, user_id, content, created_at, updated_at"
+    )
+    .bind(task_id)
+    .bind(user_id.to_string())
+    .bind(payload.content)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(comment))
+}
+
+async fn delete_task_comment(
+    State(state): State<AuthState>,
+    Path((task_id, comment_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<StatusCode, StatusCode> {
+    let _user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    let result = sqlx::query("DELETE FROM task_comments WHERE id = $1 AND task_id = $2")
+        .bind(comment_id)
+        .bind(task_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        
+    if result.rows_affected() > 0 {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
 }

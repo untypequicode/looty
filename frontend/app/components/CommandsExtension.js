@@ -47,11 +47,27 @@ export const getSuggestionItems = ({ query }) => {
       },
     },
     {
+      title: 'Titre 3',
+      subtitle: 'Petit titre',
+      icon: 'H3',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
+      },
+    },
+    {
       title: 'Liste à puces',
-      subtitle: 'Créer une liste',
+      subtitle: 'Créer une liste simple',
       icon: '•',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).toggleBulletList().run()
+      },
+    },
+    {
+      title: 'Liste numérotée',
+      subtitle: 'Créer une liste ordonnée',
+      icon: '1.',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleOrderedList().run()
       },
     },
     {

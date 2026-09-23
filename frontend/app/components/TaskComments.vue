@@ -20,7 +20,7 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg>
           </button>
         </div>
-        <div class="comment-body">{{ comment.content }}</div>
+        <div class="comment-body ProseMirror" style="padding: 0; min-height: 0;" v-html="comment.content"></div>
       </div>
       <div v-if="comments.length === 0" class="empty-comments">
         Aucun commentaire pour le moment.
@@ -28,15 +28,13 @@
     </div>
 
     <form @submit.prevent="submitComment" class="comment-form">
-      <textarea 
-        v-model="newComment" 
-        placeholder="Écrire un commentaire..." 
-        rows="2"
-        class="comment-input"
-        @keydown.meta.enter.prevent="submitComment"
-        @keydown.ctrl.enter.prevent="submitComment"
-      ></textarea>
-      <button type="submit" class="comment-submit" :disabled="!newComment.trim()">
+      <div style="flex: 1;">
+        <SimpleEditor 
+          v-model="newComment" 
+          placeholder-text="Écrire un commentaire..."
+        />
+      </div>
+      <button type="submit" class="comment-submit" :disabled="!newComment || newComment === '<p></p>' || newComment === '<p><br></p>'">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-6-4 6 4 6L2 8z" fill="currentColor"/></svg>
       </button>
     </form>
@@ -65,11 +63,12 @@ async function loadComments() {
 onMounted(() => { loadComments() })
 
 async function submitComment() {
-  if (!newComment.value.trim()) return
+  const content = (newComment.value || '').trim()
+  if (!content || content === '<p></p>' || content === '<p><br></p>') return
   try {
     const comment = await $fetch(`/api/boards/tasks/${props.taskId}/comments`, {
       method: 'POST',
-      body: { content: newComment.value }
+      body: { content: content }
     })
     comments.value.push(comment)
     newComment.value = ''

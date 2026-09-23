@@ -372,6 +372,9 @@ function openTaskModal(colId: string) {
 }
 
 function closeTaskModal() {
+  if (editingTask.value) {
+    updateTask()
+  }
   taskStack.value.pop()
   if (taskStack.value.length === 0) {
     showTaskDetailModal.value = false
@@ -1301,7 +1304,7 @@ watch(showColumnModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
               </div>
 
               <label class="section-label">Description</label>
-              <WysiwygEditor v-model="editTaskDesc" />
+              <SimpleEditor v-model="editTaskDesc" />
               
               <div v-if="editingTask" style="margin-top: 2rem;">
                 <TaskComments :task-id="editingTask.id" :workspace-members="workspaceMembers" />
