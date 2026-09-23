@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useWebSocket } from '@vueuse/core'
 import { VueDraggableNext } from 'vue-draggable-next'
+import gsap from 'gsap'
 
 const { user, isLoading } = useAuth()
 
@@ -109,6 +110,7 @@ const editTaskTitle = ref('')
 const editTaskDesc = ref('')
 const editTaskStartDate = ref('')
 const editTaskDueDate = ref('')
+const editTaskPriority = ref(0)
 
 const newSubtaskTitle = ref('')
 
@@ -312,6 +314,7 @@ function openTaskModal(colId: string) {
   editTaskDesc.value = ''
   editTaskStartDate.value = ''
   editTaskDueDate.value = ''
+  editTaskPriority.value = 0
   createTaskLabels.value = []
   createTaskAssignees.value = []
   showTaskDetailModal.value = true
@@ -339,6 +342,7 @@ function openTaskDetail(task: any) {
   editTaskDesc.value = task.description || ''
   editTaskStartDate.value = task.start_date ? task.start_date.split('T')[0] : ''
   editTaskDueDate.value = task.due_date ? task.due_date.split('T')[0] : ''
+  editTaskPriority.value = task.priority || 0
   if (!task.labels) task.labels = []
   if (!task.assignees) task.assignees = []
   showTaskDetailModal.value = true
@@ -511,6 +515,7 @@ async function updateTask() {
     const body: any = { 
       title: editTaskTitle.value, 
       description: editTaskDesc.value,
+      priority: editTaskPriority.value,
       is_per_person: editingTask.value.is_per_person
     }
     body.start_date = editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null
@@ -524,6 +529,7 @@ async function updateTask() {
         body: { 
           title: editTaskTitle.value, 
           description: editTaskDesc.value,
+          priority: editTaskPriority.value,
           start_date: editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null,
           due_date: editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null,
           labels: createTaskLabels.value.map(l => l.id),
@@ -793,12 +799,20 @@ watch(wsData, (msg) => {
 })
 
 function handleKeydown(e: KeyboardEvent) {
+  const target = e.target as HTMLElement
+  const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+  
   if (e.key === 'Escape') {
     showCreateModal.value = false
     showBoardModal.value = false
     showColumnModal.value = false
     showTaskDetailModal.value = false
     showRenameModal.value = false
+    showSettingsModal.value = false
+    showBoardSettingsModal.value = false
+  } else if (e.key.toLowerCase() === 'c' && !isInput && activeBoard.value && activeBoard.value.columns.length > 0) {
+    e.preventDefault()
+    openTaskModal(activeBoard.value.columns[0].id)
   }
 }
 
@@ -813,6 +827,40 @@ onUnmounted(() => {
 watchEffect(() => {
   if (!isLoading.value && !user.value?.authenticated) navigateTo('/login')
 })
+
+const priorityIcons: Record<number, {label: string, color: string, icon: string}> = {
+  0: { label: 'Sans priorité', color: '#6b7280', icon: '○' },
+  1: { label: 'Urgente', color: '#ef4444', icon: '🔴' },
+  2: { label: 'Haute', color: '#f97316', icon: '🟠' },
+  3: { label: 'Moyenne', color: '#eab308', icon: '🟡' },
+  4: { label: 'Basse', color: '#6b7280', icon: '🔵' },
+}
+
+function getPriority(p: number) { return priorityIcons[p] || priorityIcons[0] }
+
+// GSAP animations for modals
+function animateSlideoverOpen() {
+  nextTick(() => {
+    const panel = document.querySelector('.slideover-panel')
+    if (panel) {
+      gsap.fromTo(panel, { x: '100%', opacity: 0.5 }, { x: '0%', opacity: 1, duration: 0.35, ease: 'power3.out' })
+    }
+  })
+}
+
+function animateModalOpen(selector: string) {
+  nextTick(() => {
+    const modal = document.querySelector(selector + ' .modal')
+    if (modal) {
+      gsap.fromTo(modal, { scale: 0.95, opacity: 0, y: 10 }, { scale: 1, opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' })
+    }
+  })
+}
+
+watch(showTaskDetailModal, (v) => { if (v) animateSlideoverOpen() })
+watch(showCreateModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
+watch(showBoardModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
+watch(showColumnModal, (v) => { if (v) animateModalOpen('.modal-overlay') })
 </script>
 
 <template>
@@ -965,20 +1013,24 @@ watchEffect(() => {
                 ghost-class="ghost-task"
               >
                 <div v-for="task in col.tasks" :key="task.id" class="task-card" @click="openTaskDetail(task)">
-                  <div class="task-labels" v-if="task.labels && task.labels.length > 0">
-                    <span v-for="lbl in task.labels" :key="lbl.id" class="task-label-chip" :style="{ backgroundColor: lbl.color }">{{ lbl.name }}</span>
+                  <div class="task-card-top">
+                    <span class="priority-dot" :style="{ color: getPriority(task.priority).color }" :title="getPriority(task.priority).label">{{ getPriority(task.priority).icon }}</span>
+                    <div class="task-labels" v-if="task.labels && task.labels.length > 0">
+                      <span v-for="lbl in task.labels" :key="lbl.id" class="task-label-dot" :style="{ backgroundColor: lbl.color }" :title="lbl.name"></span>
+                    </div>
                   </div>
                   <h4>
-                    <span v-if="task.is_completed" style="color: #10b981; margin-right: 4px;">✓</span>
-                    <span :style="{ textDecoration: task.is_completed ? 'line-through' : 'none' }">{{ task.title }}</span>
+                    <span v-if="task.is_completed" class="status-icon completed">✓</span>
+                    <span :class="{ 'task-title-done': task.is_completed }">{{ task.title }}</span>
                   </h4>
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                  <div class="task-card-footer">
                     <div v-if="task.due_date" class="task-due-date" :class="{ 'overdue': new Date(task.due_date) < new Date() }">
-                      🕒 {{ new Date(task.due_date).toLocaleDateString() }}
+                      {{ new Date(task.due_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) }}
                     </div>
                     <div v-else></div>
                     <div class="task-assignees" v-if="task.assignees && task.assignees.length > 0">
-                      <span v-for="userId in task.assignees" :key="userId" class="assignee-avatar" :class="{'validated-avatar': task.is_per_person && task.validations?.includes(userId)}" :title="getMemberName(userId)">{{ getMemberInitials(userId) }}</span>
+                      <span v-for="userId in task.assignees.slice(0, 3)" :key="userId" class="assignee-avatar" :class="{'validated-avatar': task.is_per_person && task.validations?.includes(userId)}" :title="getMemberName(userId)">{{ getMemberInitials(userId) }}</span>
+                      <span v-if="task.assignees.length > 3" class="assignee-avatar more">+{{ task.assignees.length - 3 }}</span>
                     </div>
                   </div>
                   <!-- Nested Subtasks -->
@@ -1095,21 +1147,27 @@ watchEffect(() => {
           <div class="slideover-body">
             <div class="slideover-main">
               <!-- Meta horizontale -->
-              <div class="slideover-meta-horizontal" style="display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 2rem; background: #131418; padding: 1.5rem; border-radius: 8px; border: 1px solid #27282b;">
-                <div class="meta-section" style="flex: 1; min-width: 200px;">
-                  <label class="section-label">Dates</label>
-                  <div style="display: flex; gap: 8px; flex-direction: column;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
-                       <span style="color: #9ca3af;">Début</span>
-                       <input v-model="editTaskStartDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
-                       <span style="color: #9ca3af;">Fin</span>
-                       <input v-model="editTaskDueDate" type="date" class="modern-input" style="width: 140px; margin: 0; padding: 4px 8px;">
-                    </div>
-                  </div>
+              <div class="slideover-meta-horizontal">
+                <div class="meta-field">
+                  <span class="meta-label">Priorité</span>
+                  <select v-model="editTaskPriority" class="modern-select meta-select">
+                    <option :value="0">Sans priorité</option>
+                    <option :value="1">🔴 Urgente</option>
+                    <option :value="2">🟠 Haute</option>
+                    <option :value="3">🟡 Moyenne</option>
+                    <option :value="4">🔵 Basse</option>
+                  </select>
                 </div>
-
+                <div class="meta-field">
+                  <span class="meta-label">Début</span>
+                  <input v-model="editTaskStartDate" type="date" class="modern-input meta-input">
+                </div>
+                <div class="meta-field">
+                  <span class="meta-label">Échéance</span>
+                  <input v-model="editTaskDueDate" type="date" class="modern-input meta-input">
+                </div>
+              </div>
+              <div class="slideover-meta-horizontal" style="margin-top: 1rem;">
                 <div class="meta-section" style="flex: 1; min-width: 200px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <label class="section-label" style="margin: 0;">Labels</label>
@@ -1157,6 +1215,10 @@ watchEffect(() => {
               <label class="section-label">Description</label>
               <WysiwygEditor v-model="editTaskDesc" />
               
+              <div v-if="editingTask" style="margin-top: 2rem;">
+                <TaskComments :task-id="editingTask.id" :workspace-members="workspaceMembers" />
+              </div>
+
               <div v-if="editingTask" style="margin-top: 2rem;">
                 <TaskAttachments :task-id="editingTask.id" />
               </div>
@@ -1290,134 +1352,147 @@ watchEffect(() => {
 
 .app-layout { display: flex; height: 100vh; overflow: hidden; }
 
-/* Sidebar */
-.sidebar { width: 260px; background-color: #17181c; display: flex; flex-direction: column; border-right: 1px solid #27282b; z-index: 10; }
-.sidebar-header { padding: 1.25rem; }
-.logo { font-size: 1rem; font-weight: 600; color: #fff; letter-spacing: -0.2px; }
-.sidebar-content { flex: 1; padding: 0 1rem; overflow-y: auto; }
-.section-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #8a8f98; margin-bottom: 0.5rem; margin-top: 1rem; font-weight: 500; }
-.icon-btn { background: none; border: none; color: #8a8f98; cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-.icon-btn:hover { background: #27282b; color: #eee; }
-.workspace-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
-.loading-item, .empty-item { color: #8a8f98; font-size: 0.85rem; padding: 0.5rem; }
-.workspace-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; color: #8a8f98; font-size: 0.875rem; font-weight: 500; }
-.workspace-item:hover { background: #27282b; color: #eee; }
-.workspace-item.active { background: #27282b; color: #fff; }
-.ws-avatar { width: 24px; height: 24px; border-radius: 6px; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; }
-.workspace-item.active .ws-avatar { background: #5e6ad2; }
-.ws-name { font-size: 0.9rem; font-weight: 500; }
-.sidebar-footer { padding: 1rem; border-top: 1px solid #27282b; display: flex; flex-direction: column; gap: 0.75rem; }
-.user-profile { display: flex; align-items: center; gap: 10px; }
-.user-avatar { width: 24px; height: 24px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #fff; }
+/* Sidebar - Linear style */
+.sidebar { width: 240px; background-color: #111113; display: flex; flex-direction: column; border-right: 1px solid #1e1f23; z-index: 10; }
+.sidebar-header { padding: 1rem 1rem 0.5rem; }
+.logo { font-size: 0.9rem; font-weight: 600; color: #fff; letter-spacing: -0.3px; opacity: 0.9; }
+.sidebar-content { flex: 1; padding: 0 0.5rem; overflow-y: auto; }
+.section-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #5a5d65; margin-bottom: 0.25rem; margin-top: 1.25rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 0.5rem; }
+.icon-btn { background: none; border: none; color: #5a5d65; cursor: pointer; padding: 2px 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.15s; }
+.icon-btn:hover { background: #1e1f23; color: #eee; }
+.workspace-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+.loading-item, .empty-item { color: #5a5d65; font-size: 0.8rem; padding: 0.5rem; }
+.workspace-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; color: #8a8f98; font-size: 0.85rem; font-weight: 400; transition: all 0.12s; }
+.workspace-item:hover { background: #1a1b1e; color: #ccc; }
+.workspace-item.active { background: #1e1f23; color: #fff; }
+.ws-avatar { width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #5e6ad2, #7c3aed); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; }
+.workspace-item.active .ws-avatar { background: linear-gradient(135deg, #818cf8, #a78bfa); }
+.ws-name { font-size: 0.85rem; font-weight: 500; }
+.sidebar-footer { padding: 0.75rem; border-top: 1px solid #1e1f23; display: flex; flex-direction: column; gap: 0.5rem; }
+.user-profile { display: flex; align-items: center; gap: 8px; }
+.user-avatar { width: 22px; height: 22px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #fff; }
 .user-info p { margin: 0; }
-.user-name { font-weight: 500; font-size: 0.875rem; color: #eee; }
-.user-email { font-size: 0.75rem; color: #8a8f98; }
-.logout-btn { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #8a8f98; font-size: 0.85rem; }
+.user-name { font-weight: 500; font-size: 0.8rem; color: #ccc; }
+.user-email { font-size: 0.7rem; color: #5a5d65; }
+.logout-btn { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #5a5d65; font-size: 0.8rem; }
 .logout-btn:hover { color: #f87171; }
-.item-actions { display: flex; gap: 4px; }
-.item-actions button { background: none; border: none; color: #8a8f98; cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; }
-.item-actions button:hover { background: #333; color: #eee; }
+.item-actions { display: flex; gap: 2px; }
+.item-actions button { background: none; border: none; color: #5a5d65; cursor: pointer; padding: 2px 3px; border-radius: 4px; font-size: 0.7rem; transition: all 0.12s; }
+.item-actions button:hover { background: #27282b; color: #eee; }
 
 /* Settings Modal */
 .settings-modal { max-width: 500px; width: 100%; }
-.members-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; max-height: 400px; overflow-y: auto; }
-.member-row { display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; }
-.member-avatar { width: 36px; height: 36px; border-radius: 50%; background: #6366f1; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.members-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 400px; overflow-y: auto; }
+.member-row { display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(255,255,255,0.02); border: 1px solid #1e1f23; border-radius: 6px; }
+.member-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #5e6ad2, #7c3aed); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
 .member-info { flex: 1; display: flex; flex-direction: column; }
-.member-name { font-weight: 600; font-size: 0.9rem; color: #eee; }
-.member-email { font-size: 0.75rem; color: #8a8f98; }
-.modern-select { background: #111; color: #eee; border: 1px solid #333; padding: 4px 8px; border-radius: 6px; outline: none; cursor: pointer; }
-.member-role-text { font-size: 0.85rem; color: #8a8f98; font-weight: 500; }
-.kick-btn { background: none; border: none; cursor: pointer; opacity: 0.5; transition: 0.2s; }
+.member-name { font-weight: 500; font-size: 0.85rem; color: #eee; }
+.member-email { font-size: 0.7rem; color: #5a5d65; }
+.modern-select { background: #111; color: #eee; border: 1px solid #1e1f23; padding: 4px 8px; border-radius: 6px; outline: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
+.member-role-text { font-size: 0.8rem; color: #5a5d65; font-weight: 500; }
+.kick-btn { background: none; border: none; cursor: pointer; opacity: 0.4; transition: 0.15s; }
 .kick-btn:hover { opacity: 1; }
 
 /* Main Content */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background-color: #0e0e11; }
-.main-header { padding: 2.5rem 3rem 1.5rem 3rem; border-bottom: 1px solid #27282b; }
-.main-header h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; }
-.subtitle { margin: 0; color: #8a8f98; font-size: 0.9rem; }
-.content-body { padding: 2rem 3rem; flex: 1; display: flex; flex-direction: column; }
+.main-header { padding: 1.5rem 2rem 1rem; border-bottom: 1px solid #1e1f23; }
+.main-header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+.subtitle { margin: 0; color: #5a5d65; font-size: 0.85rem; }
+.content-body { flex: 1; display: flex; flex-direction: column; }
 
-/* Kanban Board */
-.kanban-board { display: flex; gap: 1.5rem; align-items: flex-start; overflow-x: auto; flex: 1; padding-bottom: 1rem; }
-.kanban-column { background: #17181c; border: 1px solid #27282b; border-radius: 6px; width: 300px; min-width: 300px; display: flex; flex-direction: column; max-height: 100%; }
-.kanban-column.add-column { background: transparent; border: 1px dashed #27282b; color: #8a8f98; cursor: pointer; align-items: center; justify-content: center; padding: 1rem; font-size: 0.875rem; }
+/* Filter Bar - Linear style */
+.filter-bar { display: flex; gap: 12px; padding: 8px 2rem; background: transparent; border-bottom: 1px solid #1e1f23; align-items: center; flex-wrap: wrap; }
+
+/* Kanban Board - Linear style */
+.kanban-board { display: flex; gap: 1rem; align-items: flex-start; overflow-x: auto; flex: 1; padding: 1rem 2rem; }
+.kanban-column { background: transparent; border: none; border-radius: 0; width: 280px; min-width: 280px; display: flex; flex-direction: column; max-height: 100%; }
+.kanban-column.add-column { background: transparent; border: 1px dashed #1e1f23; color: #5a5d65; cursor: pointer; align-items: center; justify-content: center; padding: 1rem; font-size: 0.85rem; border-radius: 8px; }
 .kanban-column.add-column:hover { border-color: #5e6ad2; color: #eee; }
-.column-header { padding: 1rem; border-bottom: 1px solid #27282b; display: flex; justify-content: space-between; align-items: center; }
-.column-header h3 { margin: 0; font-size: 0.875rem; font-weight: 500; }
-.task-count { background: #27282b; color: #8a8f98; font-size: 0.75rem; padding: 2px 6px; border-radius: 12px; }
-.task-list { padding: 0.5rem; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 50px; }
-.task-card { background: #222327; border: 1px solid #2f3136; border-radius: 4px; padding: 0.75rem; cursor: grab; }
+.column-header { padding: 0 4px 10px; display: flex; justify-content: space-between; align-items: center; }
+.column-header h3 { margin: 0; font-size: 0.8rem; font-weight: 500; color: #8a8f98; text-transform: uppercase; letter-spacing: 0.3px; }
+.task-count { color: #5a5d65; font-size: 0.7rem; padding: 0; }
+.task-list { padding: 0; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; min-height: 50px; }
+
+/* Task Card - Linear style */
+.task-card { background: transparent; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; transition: background 0.1s; }
+.task-card:hover { background: #17181c; }
 .task-card:active { cursor: grabbing; }
-.task-card h4 { margin: 0; font-size: 0.875rem; font-weight: 400; color: #eee; }
-.ghost-task { opacity: 0.4; background: #2f3136; }
-.add-task-btn { background: none; border: none; color: #8a8f98; cursor: pointer; padding: 0.75rem; text-align: left; font-size: 0.875rem; border-top: 1px solid #27282b; }
-.add-task-btn:hover { color: #eee; background: #1c1d21; }
+.task-card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.priority-dot { font-size: 0.65rem; line-height: 1; }
+.task-label-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.task-card h4 { margin: 0; font-size: 0.85rem; font-weight: 400; color: #e4e4e7; line-height: 1.4; display: flex; align-items: center; gap: 6px; }
+.status-icon { font-size: 0.75rem; flex-shrink: 0; }
+.status-icon.completed { color: #10b981; }
+.task-title-done { text-decoration: line-through; color: #6b7280; }
+.task-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.ghost-task { opacity: 0.4; background: #1e1f23; border-radius: 6px; }
+.add-task-btn { background: none; border: none; color: #5a5d65; cursor: pointer; padding: 8px 4px; text-align: left; font-size: 0.8rem; border-radius: 4px; transition: all 0.12s; }
+.add-task-btn:hover { color: #eee; background: #17181c; }
 
-.columns-container { display: flex; gap: 1.5rem; align-items: flex-start; height: 100%; min-height: 100px; }
-.ghost-column { opacity: 0.5; background: #2f3136; border: 1px dashed #5e6ad2; }
-.task-due-date { font-size: 0.75rem; color: #8a8f98; display: inline-flex; align-items: center; background: #1c1d21; padding: 2px 6px; border-radius: 4px; border: 1px solid #2f3136; }
-.task-due-date.overdue { color: #f87171; border-color: #f87171; background: rgba(248, 113, 113, 0.1); }
-.task-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.columns-container { display: flex; gap: 1rem; align-items: flex-start; height: 100%; min-height: 100px; }
+.ghost-column { opacity: 0.5; background: #1e1f23; border-radius: 6px; }
+.task-due-date { font-size: 0.7rem; color: #5a5d65; }
+.task-due-date.overdue { color: #f87171; }
+.task-labels { display: flex; gap: 3px; }
 .task-label-chip { padding: 2px 6px; border-radius: 12px; font-size: 0.7rem; color: #fff; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
-.clickable-chip { cursor: pointer; transition: transform 0.1s, opacity 0.2s; user-select: none; }
-.clickable-chip:hover { transform: scale(1.05); }
-.clickable-chip:active { transform: scale(0.95); }
+.clickable-chip { cursor: pointer; transition: all 0.12s; user-select: none; }
+.clickable-chip:hover { filter: brightness(1.15); transform: scale(1.03); }
+.clickable-chip:active { transform: scale(0.97); }
 .selected-chip { box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.4); }
-.task-assignees { display: flex; gap: -4px; margin-left: 4px; }
-.assignee-avatar { width: 20px; height: 20px; border-radius: 50%; background: #5e6ad2; color: #fff; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; font-weight: 600; border: 2px solid #222327; }
-.assignee-chip { display: inline-flex; align-items: center; background: #27282b; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; color: #eee; }
+.task-assignees { display: flex; margin-left: 4px; }
+.assignee-avatar { width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, #5e6ad2, #7c3aed); color: #fff; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; font-weight: 600; margin-left: -4px; border: 1.5px solid #0e0e11; }
+.assignee-avatar.more { background: #27282b; color: #8a8f98; font-size: 0.55rem; }
+.assignee-chip { display: inline-flex; align-items: center; background: #1e1f23; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; color: #eee; }
 
-.modern-select { flex: 1; padding: 8px 12px; border-radius: 4px; background: #0e0e11; border: 1px solid #27282b; color: #eee; font-family: inherit; font-size: 0.875rem; width: 100%; box-sizing: border-box; }
-.modern-select:focus { border-color: #5e6ad2; outline: none; }
-
-.modern-input { flex: 1; padding: 8px 12px; border-radius: 4px; background: #0e0e11; border: 1px solid #27282b; color: #eee; font-family: inherit; font-size: 0.875rem; width: 100%; box-sizing: border-box; margin-bottom: 1rem; }
+.modern-input { flex: 1; padding: 6px 10px; border-radius: 6px; background: #111113; border: 1px solid #1e1f23; color: #eee; font-family: inherit; font-size: 0.85rem; width: 100%; box-sizing: border-box; margin-bottom: 0.75rem; transition: border-color 0.15s; }
 .modern-input:focus { border-color: #5e6ad2; outline: none; }
-.primary-btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; background: #fff; color: #000; font-weight: 500; font-size: 0.875rem; }
-.primary-btn:hover { background: #e0e0e0; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.secondary-btn { padding: 8px 16px; border-radius: 4px; border: 1px solid #27282b; cursor: pointer; background: #17181c; color: #eee; font-weight: 500; font-size: 0.875rem; }
-.secondary-btn:hover { background: #27282b; }
+.primary-btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; background: #5e6ad2; color: #fff; font-weight: 500; font-size: 0.85rem; transition: all 0.12s; }
+.primary-btn:hover { background: #6d79e0; }
+.primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.secondary-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #1e1f23; cursor: pointer; background: transparent; color: #8a8f98; font-weight: 500; font-size: 0.85rem; transition: all 0.12s; }
+.secondary-btn:hover { background: #1e1f23; color: #eee; }
 
-/* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal { width: 100%; max-width: 400px; padding: 1.5rem; border-radius: 6px; background: #17181c; border: 1px solid #27282b; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-.modal h2 { margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 500; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 1.5rem; }
+/* Modal - Linear style */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
+.modal { width: 100%; max-width: 420px; padding: 1.25rem; border-radius: 8px; background: #17181c; border: 1px solid #1e1f23; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+.modal h2 { margin: 0 0 0.75rem 0; font-size: 1rem; font-weight: 500; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 1rem; }
 
-/* Slide-over Modal */
-.slideover-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.5); z-index: 100; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }
-.slideover-panel { width: 900px; max-width: 100%; height: 100vh; background: #0e0e11; border-left: 1px solid #27282b; box-shadow: -4px 0 24px rgba(0,0,0,0.5); display: flex; flex-direction: column; animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+/* Slide-over - Linear style */
+.slideover-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); z-index: 100; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }
+.slideover-panel { width: 720px; max-width: 100%; height: 100vh; background: #111113; border-left: 1px solid #1e1f23; box-shadow: -8px 0 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
 
-.slideover-header { padding: 1.5rem 2rem; border-bottom: 1px solid #27282b; display: flex; justify-content: space-between; align-items: flex-start; }
-.title-input { font-size: 1.25rem; font-weight: 600; padding: 0.5rem; background: transparent; border: 1px solid transparent; width: 100%; margin-right: 1rem; color: #fff; }
-.title-input:focus { background: #17181c; border-color: #3b82f6; }
-.close-btn { background: none; border: none; color: #8a8f98; font-size: 1.25rem; cursor: pointer; padding: 0.5rem; border-radius: 4px; transition: 0.2s; }
-.close-btn:hover { background: #27282b; color: #eee; }
+.slideover-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #1e1f23; display: flex; justify-content: space-between; align-items: center; }
+.title-input { font-size: 1.1rem; font-weight: 600; padding: 0.4rem; background: transparent; border: 1px solid transparent; width: 100%; margin-right: 1rem; color: #fff; border-radius: 4px; }
+.title-input:focus { background: #17181c; border-color: #5e6ad2; }
+.close-btn { background: none; border: none; color: #5a5d65; font-size: 1rem; cursor: pointer; padding: 0.4rem; border-radius: 4px; transition: 0.15s; }
+.close-btn:hover { background: #1e1f23; color: #eee; }
 
 .slideover-body { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
-.slideover-main { flex: 1; padding: 2rem; overflow-y: auto; }
+.slideover-main { flex: 1; padding: 1.5rem; overflow-y: auto; }
 
-.section-label { display: block; font-size: 0.75rem; font-weight: 600; color: #8a8f98; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem; }
-.desc-input { min-height: 120px; resize: vertical; line-height: 1.5; font-size: 0.95rem; }
+.slideover-meta-horizontal { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; padding: 12px; background: #17181c; border-radius: 8px; border: 1px solid #1e1f23; }
+.meta-field { display: flex; align-items: center; gap: 8px; }
+.meta-label { font-size: 0.75rem; color: #5a5d65; font-weight: 500; white-space: nowrap; }
+.meta-input { width: 130px; margin: 0; padding: 4px 8px; font-size: 0.8rem; }
+.meta-select { margin: 0; padding: 4px 8px; font-size: 0.8rem; min-width: 120px; }
+
+.section-label { display: block; font-size: 0.7rem; font-weight: 500; color: #5a5d65; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem; }
+.desc-input { min-height: 120px; resize: vertical; line-height: 1.5; font-size: 0.9rem; }
 
 /* Subtasks & Validations */
-.subtask-row:hover { background: #3f3f46 !important; }
+.subtask-row:hover { background: #1e1f23 !important; }
 .subtask-checkbox { width: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s; }
 .subtask-checkbox:hover { transform: scale(1.1); }
 .validated-avatar { box-shadow: 0 0 0 2px #10b981; opacity: 1; }
 .btn-success { background: #10b981; color: #fff; }
 .btn-success:hover { background: #059669; }
 
-.slideover-footer { padding: 1.5rem 2rem; border-top: 1px solid #27282b; display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #0e0e11; }
+.slideover-footer { padding: 1rem 1.5rem; border-top: 1px solid #1e1f23; display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #111113; }
 
-.view-toggle { display: flex; background: #17181c; border-radius: 6px; border: 1px solid #27282b; padding: 4px; gap: 4px; }
-.view-toggle button { background: transparent; border: none; padding: 6px 12px; border-radius: 4px; color: #8a8f98; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: 0.2s; }
-.view-toggle button:hover { color: #eee; }
-.view-toggle button.active { background: #2f3136; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-
-.clickable-chip { cursor: pointer; transition: 0.2s; user-select: none; }
-.clickable-chip:hover { filter: brightness(1.2); }
+.view-toggle { display: flex; background: #111113; border-radius: 6px; border: 1px solid #1e1f23; padding: 2px; gap: 2px; }
+.view-toggle button { background: transparent; border: none; padding: 4px 10px; border-radius: 4px; color: #5a5d65; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: 0.12s; }
+.view-toggle button:hover { color: #ccc; }
+.view-toggle button.active { background: #1e1f23; color: #fff; }
 
 </style>
