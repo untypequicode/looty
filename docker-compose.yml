@@ -8,7 +8,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-looty_db}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-looty_db}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -33,11 +33,9 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`))"
-      - "traefik.http.routers.${APP_NAME}-api.entrypoints=websecure"
-      - "traefik.http.routers.${APP_NAME}-api.tls=true"
       - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
     restart: unless-stopped
-    
+
   collaboration:
     build:
       context: ./collaboration
@@ -50,8 +48,6 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-collab.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/collab`)"
-      - "traefik.http.routers.${APP_NAME}-collab.entrypoints=websecure"
-      - "traefik.http.routers.${APP_NAME}-collab.tls=true"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
     restart: unless-stopped
 
