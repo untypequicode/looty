@@ -5,7 +5,7 @@ import tippy from 'tippy.js'
 import CommandList from './CommandList.vue'
 
 export const CommandsExtension = Extension.create({
-  name: 'commands',
+  name: 'slashCommands',
 
   addOptions() {
     return {
@@ -108,6 +108,46 @@ export const getSuggestionItems = ({ query }) => {
       icon: '—',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).setHorizontalRule().run()
+      },
+    },
+    {
+      title: 'Tableau',
+      subtitle: 'Insérer un tableau (3x3)',
+      icon: '▦',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      },
+    },
+    {
+      title: 'Image',
+      subtitle: 'Uploader une image',
+      icon: '🖼',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        // Trigger a custom file input event since Tiptap Image requires a URL
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.onchange = async (e) => {
+          if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0]
+            const formData = new FormData()
+            formData.append('file', file)
+            try {
+              const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+              })
+              const data = await response.json()
+              if (data.url) {
+                editor.chain().focus().setImage({ src: data.url }).run()
+              }
+            } catch (err) {
+              console.error('Upload failed', err)
+            }
+          }
+        }
+        input.click()
       },
     },
     {

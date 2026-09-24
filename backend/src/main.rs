@@ -5,6 +5,7 @@ mod workspace;
 mod board;
 mod archive;
 mod page;
+mod upload;
 
 use axum::{routing::get, Router, Json, Extension, extract::DefaultBodyLimit};
 use serde::Serialize;
@@ -60,6 +61,7 @@ async fn main() {
         .nest_service("/uploads", tower_http::services::ServeDir::new("uploads"))
         .route("/api/health", get(health_handler))
         .route("/api/ws", get(ws::ws_handler))
+        .route("/api/upload", axum::routing::post(upload::upload_file))
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
         .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/boards", board::workspace_board_routes(auth_state.clone()))

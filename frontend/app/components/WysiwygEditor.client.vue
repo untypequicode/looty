@@ -1,6 +1,6 @@
 <template>
   <div class="wysiwyg-editor">
-    <bubble-menu v-if="editor" :editor="editor" :tippy-options="{ duration: 100 }" class="bubble-menu">
+    <bubble-menu v-if="editor" :editor="editor" :tippy-options="{ duration: 100 }" :should-show="({ editor, from, to }) => from !== to || editor.isActive('table')" class="bubble-menu">
       <button type="button" @click.prevent="editor.chain().focus().toggleBold().run()" :class="{ 'is-active': editor.isActive('bold') }"><b>B</b></button>
       <button type="button" @click.prevent="editor.chain().focus().toggleItalic().run()" :class="{ 'is-active': editor.isActive('italic') }"><i>I</i></button>
       <button type="button" @click.prevent="editor.chain().focus().toggleUnderline().run()" :class="{ 'is-active': editor.isActive('underline') }"><u>U</u></button>
@@ -11,6 +11,17 @@
       <div class="divider"></div>
       <button type="button" @click.prevent="editor.chain().focus().toggleCode().run()" :class="{ 'is-active': editor.isActive('code') }">&lt;&gt;</button>
       <button type="button" @click.prevent="editor.chain().focus().insertContent({ type: 'mathInline', attrs: { latex: '' } }).run()">$</button>
+      
+      <template v-if="editor.isActive('table')">
+        <div class="divider"></div>
+        <button type="button" @click.prevent="editor.chain().focus().addColumnBefore().run()" title="Col Avant">+C</button>
+        <button type="button" @click.prevent="editor.chain().focus().addColumnAfter().run()" title="Col Après">C+</button>
+        <button type="button" @click.prevent="editor.chain().focus().deleteColumn().run()" title="Supprimer Col">-C</button>
+        <button type="button" @click.prevent="editor.chain().focus().addRowBefore().run()" title="Ligne Avant">+L</button>
+        <button type="button" @click.prevent="editor.chain().focus().addRowAfter().run()" title="Ligne Après">L+</button>
+        <button type="button" @click.prevent="editor.chain().focus().deleteRow().run()" title="Supprimer Ligne">-L</button>
+        <button type="button" @click.prevent="editor.chain().focus().deleteTable().run()" title="Supprimer Tableau">🗑</button>
+      </template>
     </bubble-menu>
 
     <editor-content :editor="editor" class="editor-content-area" />
@@ -26,24 +37,31 @@ import TaskItem from '@tiptap/extension-task-item'
 import Link from '@tiptap/extension-link'
 import CodeBlock from '@tiptap/extension-code-block'
 import Underline from '@tiptap/extension-underline'
-import Image from '@tiptap/extension-image'
+import { ResizableImage } from './ResizableImage'
 import { Collaboration } from '@tiptap/extension-collaboration'
 import { CollaborationCursor } from '@tiptap/extension-collaboration-cursor'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import Mention from '@tiptap/extension-mention'
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { CustomMathExtension } from './CustomMathExtension'
 import { CustomMathInlineExtension } from './CustomMathInlineExtension'
 import { CommandsExtension, getSuggestionItems, renderItems } from './CommandsExtension'
+import MentionSuggestion from './MentionSuggestion'
 import { watch, onBeforeUnmount, markRaw, onMounted } from 'vue'
 import 'katex/dist/katex.min.css'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
   documentId: { type: String, default: null },
-  currentUser: { type: Object, default: () => ({ name: 'Anonyme' }) }
+  currentUser: { type: Object, default: () => ({ name: 'Anonyme' }) },
+  editable: { type: Boolean, default: true }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'update:collaborators'])
 
 const colors = ['#f56565', '#ed8936', '#ecc94b', '#48bb78', '#38b2ac', '#4299e1', '#667eea', '#9f7aea', '#ed64a6']
 const userColor = colors[Math.floor(Math.random() * colors.length)]
@@ -58,10 +76,20 @@ const extensions = [
   Link.configure({ openOnClick: false }),
   CodeBlock,
   Underline,
-  Image,
+  ResizableImage,
   Placeholder.configure({ placeholder: 'Tapez / pour les commandes ou commencez à écrire...' }),
   CustomMathExtension,
   CustomMathInlineExtension,
+  Table.configure({ resizable: true }),
+  TableRow,
+  TableHeader,
+  TableCell,
+  Mention.configure({
+    HTMLAttributes: {
+      class: 'mention',
+    },
+    suggestion: MentionSuggestion,
+  }),
   CommandsExtension.configure({
     suggestion: { items: getSuggestionItems, render: renderItems },
   }),
@@ -72,8 +100,6 @@ if (props.documentId) {
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   
-  // Connect directly to the collaboration server (exposed on 8082) for local dev,
-  // otherwise use the /collab path which Traefik proxies in production.
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   const wsUrl = isLocal 
     ? `ws://127.0.0.1:8082`
@@ -102,6 +128,7 @@ if (props.documentId) {
 
 const editorOptions = {
   extensions,
+  editable: props.editable,
   onUpdate: () => {
     if (!props.documentId) {
       emit('update:modelValue', editor.value.getHTML())
@@ -133,9 +160,35 @@ watch(() => props.modelValue, (value) => {
   editor.value.commands.setContent(value, false)
 })
 
+watch(() => props.editable, (value) => {
+  if (editor.value) {
+    editor.value.setEditable(value)
+  }
+})
+
 onMounted(() => {
   if (provider) {
     provider.connect()
+    
+    provider.awareness.on('update', () => {
+      const states = Array.from(provider.awareness.getStates().values())
+      const users = states.map(state => state.user).filter(Boolean)
+      // Filter out duplicate names
+      const uniqueUsers = []
+      const names = new Set()
+      for (const u of users) {
+        if (!names.has(u.name)) {
+          names.add(u.name)
+          uniqueUsers.push(u)
+        }
+      }
+      emit('update:collaborators', uniqueUsers)
+    })
+  }
+  
+  // Set content immediately so we don't wait for the WebSocket sync if the editor is empty
+  if (editor.value && editor.value.isEmpty && props.modelValue && props.modelValue !== '<p></p>') {
+    editor.value.commands.setContent(props.modelValue, false)
   }
 })
 
@@ -199,6 +252,7 @@ onBeforeUnmount(() => {
 :deep(.ProseMirror) {
   outline: none;
   min-height: 150px;
+  padding-bottom: 50vh;
 }
 :deep(.ProseMirror p.is-editor-empty:first-child::before) {
   color: #6b7280;
@@ -260,6 +314,49 @@ onBeforeUnmount(() => {
   color: #8a8f98;
   font-style: italic;
 }
+
+/* Tables */
+:deep(.ProseMirror table) {
+  border-collapse: collapse;
+  margin: 0;
+  overflow: hidden;
+  table-layout: fixed;
+  width: 100%;
+}
+:deep(.ProseMirror table td),
+:deep(.ProseMirror table th) {
+  border: 1px solid #3f3f46;
+  box-sizing: border-box;
+  min-width: 1em;
+  padding: 6px 8px;
+  position: relative;
+  vertical-align: top;
+}
+:deep(.ProseMirror table th) {
+  background-color: #1e1f23;
+  font-weight: bold;
+  text-align: left;
+}
+:deep(.ProseMirror table .column-resize-handle) {
+  background-color: #5e6ad2;
+  bottom: -2px;
+  pointer-events: none;
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 4px;
+}
+:deep(.ProseMirror table .selectedCell:after) {
+  background: rgba(94, 106, 210, 0.2);
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
 </style>
 
 <style>
@@ -286,5 +383,14 @@ onBeforeUnmount(() => {
   top: -1.4em;
   user-select: none;
   white-space: nowrap;
+}
+
+/* Mention extension styles */
+.mention {
+  color: #5e6ad2;
+  background-color: rgba(94, 106, 210, 0.1);
+  border-radius: 0.4rem;
+  padding: 0.1rem 0.3rem;
+  box-decoration-break: clone;
 }
 </style>

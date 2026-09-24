@@ -397,8 +397,8 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
           <div style="color: #8a8f98; font-size: 0.9rem;">
             Wiki / {{ activePage ? (activePage.title || 'Nouvelle page') : 'Sélectionnez une page' }}
           </div>
-          <div style="margin-left: auto;">
-            <button v-if="activePage" class="secondary-btn" style="padding: 4px 12px; font-size: 0.85rem;">Édition terminée</button>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 12px;" id="wiki-header-actions">
+            <!-- Page actions will be teleported here -->
           </div>
         </div>
         <div v-else-if="activeWorkspaceId">
