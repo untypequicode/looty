@@ -1,6 +1,6 @@
 <template>
   <div class="wysiwyg-editor">
-    <bubble-menu v-if="editor" :editor="editor" :tippy-options="{ duration: 100 }" class="bubble-menu">
+    <bubble-menu v-if="editor && editable" :editor="editor" :tippy-options="{ duration: 100 }" class="bubble-menu">
       <button type="button" @click.prevent="editor.chain().focus().toggleBold().run()" :class="{ 'is-active': editor.isActive('bold') }"><b>B</b></button>
       <button type="button" @click.prevent="editor.chain().focus().toggleItalic().run()" :class="{ 'is-active': editor.isActive('italic') }"><i>I</i></button>
       <button type="button" @click.prevent="editor.chain().focus().toggleUnderline().run()" :class="{ 'is-active': editor.isActive('underline') }"><u>U</u></button>
@@ -39,6 +39,10 @@ const props = defineProps({
   placeholderText: {
     type: String,
     default: 'Commencez à écrire...',
+  },
+  editable: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -46,6 +50,7 @@ const emit = defineEmits(['update:modelValue'])
 
 const editor = useEditor({
   content: props.modelValue,
+  editable: props.editable,
   extensions: [
     StarterKit.configure({
       codeBlock: false,
@@ -74,6 +79,12 @@ watch(() => props.modelValue, (value) => {
   const isSame = editor.value.getHTML() === value
   if (isSame) return
   editor.value.commands.setContent(value, false)
+})
+
+watch(() => props.editable, (value) => {
+  if (editor.value) {
+    editor.value.setEditable(value)
+  }
 })
 
 onBeforeUnmount(() => {

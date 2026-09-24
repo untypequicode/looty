@@ -1,14 +1,18 @@
-import { watch } from 'vue'
+import { watch, triggerRef } from 'vue'
 import type { Ref } from 'vue'
 import { useWebSocket } from '@vueuse/core'
+import { useQueryClient } from '@tanstack/vue-query'
 import type { Board } from '../types'
 
 export const useKanbanWS = (
-  wsUrl: string, 
+  wsUrl: Ref<string>, 
   activeBoard: Ref<Board | null>, 
   boards: Ref<Board[]>,
-  taskStack: Ref<any[]>
+  taskStack: Ref<any[]>,
+  pages?: Ref<any[]>,
+  activePage?: Ref<any | null>
 ) => {
+  const queryClient = useQueryClient()
   const { data: wsData } = useWebSocket(wsUrl, { autoReconnect: true })
   
   watch(wsData, (msg) => {
@@ -16,14 +20,32 @@ export const useKanbanWS = (
       try {
         const event = JSON.parse(msg)
         
-        if (event.type === 'BOARD_CREATED') {
-          if (!boards.value.find(b => b.id === event.board.id)) {
-            boards.value.push(event.board)
+        if (event.type === 'BOARD_CREATED' || event.type === 'BOARD_DELETED' || event.type === 'BOARD_UPDATED') {
+          queryClient.invalidateQueries({ queryKey: ['workspaces'] })
+        } else if (event.type === 'PAGE_CREATED' && pages) {
+          if (pages.value && !pages.value.find(p => p.id === event.page.id)) {
+            pages.value.push(event.page)
           }
-          return;
+        } else if (event.type === 'PAGE_UPDATED' && pages) {
+          if (pages.value) {
+            const idx = pages.value.findIndex(p => p.id === event.page.id)
+            if (idx !== -1) pages.value[idx] = event.page
+            if (activePage && activePage.value?.id === event.page.id) {
+               activePage.value.title = event.page.title
+            }
+          }
+        } else if (event.type === 'PAGE_DELETED' && pages) {
+          if (pages.value) {
+            const idx = pages.value.findIndex(p => p.id === event.page_id)
+            if (idx !== -1) pages.value.splice(idx, 1)
+          }
         }
         
-        if (!activeBoard.value) return
+        if (!activeBoard.value) {
+           triggerRef(boards)
+           if (pages) triggerRef(pages)
+           return
+        }
         
         if (event.type === 'COLUMN_CREATED') {
           if (event.column.board_id === activeBoard.value.id) {
@@ -85,17 +107,6 @@ export const useKanbanWS = (
             const idx = col.tasks.findIndex((t: any) => t.id === event.task_id)
             if (idx !== -1) col.tasks.splice(idx, 1)
           }
-        } else if (event.type === 'BOARD_UPDATED') {
-          const idx = boards.value.findIndex(b => b.id === event.board.id)
-          if (idx !== -1) boards.value[idx] = event.board
-          if (activeBoard.value?.id === event.board.id) activeBoard.value.name = event.board.name
-        } else if (event.type === 'BOARD_DELETED') {
-          const idx = boards.value.findIndex(b => b.id === event.board_id)
-          if (idx !== -1) boards.value.splice(idx, 1)
-          if (activeBoard.value?.id === event.board_id) {
-            // Can't automatically call selectBoard(boards.value[0]) easily here without exposing it.
-            // Component should watch for activeBoardId being deleted and update.
-          }
         } else if (event.type === 'COLUMN_UPDATED') {
           const col = activeBoard.value.columns.find((c: any) => c.id === event.column.id)
           if (col) col.name = event.column.name
@@ -121,6 +132,17 @@ export const useKanbanWS = (
               }
            }
         }
+        
+        // Invalidate active board query so VueQuery fetches the fresh data
+        if (activeBoard.value?.id) {
+           queryClient.invalidateQueries({ queryKey: ['boards', activeBoard.value.id] })
+        }
+        
+        triggerRef(boards)
+        triggerRef(taskStack)
+        if (pages) triggerRef(pages)
+        if (activePage) triggerRef(activePage)
+
       } catch (e) {
         console.error("Erreur WS:", e)
       }

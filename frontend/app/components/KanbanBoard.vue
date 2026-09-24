@@ -30,7 +30,7 @@ const emit = defineEmits<{
       class="columns-container"
       ghost-class="ghost-column"
       handle=".column-header"
-      :disabled="activeWorkspaceRole === 'member'"
+      :disabled="activeWorkspaceRole === 'viewer'"
     >
       <KanbanColumn
         v-for="col in board.columns" 
@@ -48,7 +48,7 @@ const emit = defineEmits<{
     </VueDraggableNext>
     
     <div 
-      v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" 
+      v-if="activeWorkspaceRole !== 'viewer'" 
       class="kanban-column add-column" 
       @click="emit('show-column-modal')"
     >

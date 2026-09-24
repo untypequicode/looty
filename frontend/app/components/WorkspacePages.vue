@@ -8,14 +8,14 @@
           type="text" 
           class="page-title-input" 
           placeholder="Titre de la page"
-          :readonly="isReadonly"
+          :readonly="isReadonly || activeWorkspaceRole === 'viewer'"
         />
         <Teleport to="#wiki-header-actions" v-if="isMounted">
           <div class="page-meta">
             <span v-if="page.created_at">Créée {{ formatRelativeDate(page.created_at) }}</span>
             <span v-else>Créée à l'instant</span>
-            <span class="meta-dot">•</span>
-            <button class="meta-btn" @click="isReadonly = !isReadonly">
+            <span class="meta-dot" v-if="activeWorkspaceRole !== 'viewer'">•</span>
+            <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn" @click="isReadonly = !isReadonly">
               {{ isReadonly ? '🔒 Lecture' : '✏️ Édition' }}
             </button>
             <span class="meta-dot">•</span>
@@ -44,7 +44,7 @@
           v-model="localContent" 
           :document-id="page.id"
           :current-user="currentUser"
-          :editable="!isReadonly"
+          :editable="!isReadonly && activeWorkspaceRole !== 'viewer'"
           @update:modelValue="debouncedSavePage" 
           @update:collaborators="collaborators = $event"
         />
@@ -56,6 +56,9 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import WysiwygEditor from './WysiwygEditor.client.vue'
+import { useWorkspace } from '../composables/useWorkspace'
+
+const { activeWorkspaceRole } = useWorkspace()
 
 const props = defineProps({
   workspaceId: {

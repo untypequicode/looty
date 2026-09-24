@@ -68,6 +68,7 @@ const props = defineProps({
 })
 
 const attachments = ref([])
+const confirmAction = (msg) => window.confirm(msg)
 const isDragging = ref(false)
 const isUploading = ref(false)
 const fileInput = ref(null)
@@ -143,7 +144,7 @@ function isImage(filename) {
 }
 
 async function deleteAttachment(attachmentId) {
-  if (!confirm("Voulez-vous vraiment supprimer cette pièce jointe ?")) return
+  if (!confirmAction("Voulez-vous vraiment supprimer cette pièce jointe ?")) return
   try {
     await $fetch(`/api/boards/tasks/${props.taskId}/attachments/${attachmentId}`, { method: 'DELETE' })
     attachments.value = attachments.value.filter(a => a.id !== attachmentId)

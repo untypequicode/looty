@@ -24,15 +24,15 @@ const emit = defineEmits<{
     <div class="column-header">
       <h3 
         style="flex: 1; cursor: grab" 
-        @dblclick="activeWorkspaceRole !== 'member' ? emit('open-rename', column.id, column.name) : null" 
-        :title="activeWorkspaceRole !== 'member' ? 'Double-clic pour renommer' : ''"
+        @dblclick="(activeWorkspaceRole !== 'viewer') ? emit('open-rename', column.id, column.name) : null" 
+        :title="(activeWorkspaceRole !== 'viewer') ? 'Double-clic pour renommer' : ''"
       >
         {{ column.name }}
       </h3>
       <div style="display: flex; gap: 6px; align-items: center;">
         <span class="task-count">{{ column.tasks.length }}</span>
         <button 
-          v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" 
+          v-if="activeWorkspaceRole !== 'viewer'" 
           class="icon-btn" 
           style="font-size: 0.75rem" 
           @click="emit('delete-column', column.id)" 
@@ -49,6 +49,7 @@ const emit = defineEmits<{
       @change="emit('task-move', $event, column.id)"
       class="task-list"
       ghost-class="ghost-task"
+      :disabled="activeWorkspaceRole === 'viewer'"
     >
       <TaskCard
         v-for="task in column.tasks" 
@@ -61,7 +62,7 @@ const emit = defineEmits<{
       />
     </VueDraggableNext>
     
-    <button class="add-task-btn" @click="emit('open-task-modal', column.id)">+ Nouvelle tâche</button>
+    <button v-if="activeWorkspaceRole !== 'viewer'" class="add-task-btn" @click="emit('open-task-modal', column.id)">+ Nouvelle tâche</button>
   </div>
 </template>
 

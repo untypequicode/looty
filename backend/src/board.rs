@@ -242,7 +242,7 @@ async fn create_board(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let role = check_workspace_access(&state.pool, &user_id, &workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) {
+    if role == Some("viewer".to_string()) || role.is_none() {
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -381,7 +381,7 @@ async fn create_column(
         .ok_or(StatusCode::NOT_FOUND)?;
         
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
+    if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     let max_pos: Option<f64> = sqlx::query_scalar("SELECT MAX(position) FROM board_columns WHERE board_id = $1")
         .bind(board_id)
@@ -422,7 +422,8 @@ async fn create_task(
     .bind(column_id)
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
+    if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     let max_pos: Option<f64> = sqlx::query_scalar("SELECT MAX(position) FROM tasks WHERE column_id = $1")
         .bind(column_id)
@@ -479,7 +480,8 @@ async fn move_task(
     .bind(task_id)
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
+    if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     let new_board_ws = sqlx::query_scalar::<_, Uuid>(
         "SELECT b.workspace_id FROM boards b JOIN board_columns c ON b.id = c.board_id WHERE c.id = $1"
@@ -541,7 +543,8 @@ async fn update_task(
     .bind(task_id)
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
+    if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     let old_task = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = $1")
         .bind(task_id).fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -595,7 +598,8 @@ async fn delete_task(
     .bind(task_id)
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if check_workspace_access(&state.pool, &user_id, &board.workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
+    if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("DELETE FROM tasks WHERE id = $1")
         .bind(task_id)
@@ -626,7 +630,7 @@ async fn update_board(
     let board = board_opt.ok_or(StatusCode::NOT_FOUND)?;
 
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
+    if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
     if let Some(ref n) = req.name {
         if n.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
     }
@@ -662,7 +666,7 @@ async fn delete_board(
         .bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
         
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
+    if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("DELETE FROM boards WHERE id = $1").bind(board_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -691,7 +695,7 @@ async fn update_column(
     .bind(column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
+    if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
     if req.name.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
 
     let col = sqlx::query_as::<_, BoardColumn>(
@@ -724,7 +728,7 @@ async fn delete_column(
     .bind(column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
+    if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("DELETE FROM board_columns WHERE id = $1").bind(column_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -754,7 +758,7 @@ async fn move_column(
     .fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let role = check_workspace_access(&state.pool, &user_id, &board.workspace_id).await;
-    if role != Some("owner".to_string()) && role != Some("admin".to_string()) { return Err(StatusCode::FORBIDDEN); }
+    if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     let col = sqlx::query_as::<_, BoardColumn>(
         "UPDATE board_columns SET position = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, created_at, updated_at"
@@ -861,7 +865,7 @@ async fn add_task_label(
     let col_id = sqlx::query_scalar::<_, Uuid>("SELECT column_id FROM tasks WHERE id = $1").bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_id = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(col_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
-    if check_workspace_access(&state.pool, &user_id, &board_ws).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("INSERT INTO task_labels (task_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(task_id).bind(label_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
@@ -880,7 +884,7 @@ async fn remove_task_label(
     let col_id = sqlx::query_scalar::<_, Uuid>("SELECT column_id FROM tasks WHERE id = $1").bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_id = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(col_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
-    if check_workspace_access(&state.pool, &user_id, &board_ws).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("DELETE FROM task_labels WHERE task_id = $1 AND label_id = $2").bind(task_id).bind(label_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
@@ -899,7 +903,7 @@ async fn add_task_assignee(
     let col_id = sqlx::query_scalar::<_, Uuid>("SELECT column_id FROM tasks WHERE id = $1").bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_id = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(col_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
-    if check_workspace_access(&state.pool, &user_id, &board_ws).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(task_id).bind(target_user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
@@ -918,7 +922,7 @@ async fn remove_task_assignee(
     let col_id = sqlx::query_scalar::<_, Uuid>("SELECT column_id FROM tasks WHERE id = $1").bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_id = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(col_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
-    if check_workspace_access(&state.pool, &user_id, &board_ws).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2").bind(task_id).bind(target_user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
@@ -951,7 +955,7 @@ async fn create_subtask(
     ).bind(parent.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let workspace_id = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_ws).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if check_workspace_access(&state.pool, &user_id, &workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &workspace_id).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
     if req.title.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
 
     let max_pos: Option<f64> = sqlx::query_scalar("SELECT MAX(position) FROM tasks WHERE column_id = $1 AND parent_id = $2")
@@ -986,7 +990,7 @@ async fn toggle_task_validation(
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(task.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let workspace_id = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_ws).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
-    if check_workspace_access(&state.pool, &user_id, &workspace_id).await.is_none() { return Err(StatusCode::FORBIDDEN); }
+    let role = check_workspace_access(&state.pool, &user_id, &workspace_id).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     let subtasks = sqlx::query_as::<_, Task>(
         "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"

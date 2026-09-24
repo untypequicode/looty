@@ -12,6 +12,7 @@ const props = defineProps<{
   filteredLabels: Label[]
   filteredAssignees: WorkspaceMember[]
   targetColumnId: string | null
+  activeWorkspaceRole: string | null
 }>()
 
 const emit = defineEmits<{
@@ -165,7 +166,7 @@ watch(() => props.editingTask, (task) => {
     <div class="slideover-panel">
       <form @submit.prevent="submitTask" style="display: flex; flex-direction: column; height: 100%;">
         <div class="slideover-header">
-          <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required>
+          <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required :readonly="activeWorkspaceRole === 'viewer'">
           <button type="button" class="close-btn" @click="emit('close')">✕</button>
         </div>
         
@@ -175,7 +176,7 @@ watch(() => props.editingTask, (task) => {
             <div class="slideover-meta-horizontal">
               <div class="meta-field">
                 <span class="meta-label">Priorité</span>
-                <select v-model="editTaskPriority" class="modern-select meta-select">
+                <select v-model="editTaskPriority" class="modern-select meta-select" :disabled="activeWorkspaceRole === 'viewer'">
                   <option :value="0">Sans priorité</option>
                   <option :value="1">🔴 Urgente</option>
                   <option :value="2">🟠 Haute</option>
@@ -185,11 +186,11 @@ watch(() => props.editingTask, (task) => {
               </div>
               <div class="meta-field">
                 <span class="meta-label">Début</span>
-                <input v-model="editTaskStartDate" type="date" class="modern-input meta-input">
+                <input v-model="editTaskStartDate" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
               </div>
               <div class="meta-field">
                 <span class="meta-label">Échéance</span>
-                <input v-model="editTaskDueDate" type="date" class="modern-input meta-input">
+                <input v-model="editTaskDueDate" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
               </div>
             </div>
             
@@ -197,7 +198,7 @@ watch(() => props.editingTask, (task) => {
               <div class="meta-section" style="flex: 1; min-width: 200px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <label class="section-label" style="margin: 0;">Labels</label>
-                  <button type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.75rem;">+ Créer</button>
+                  <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.75rem;">+ Créer</button>
                 </div>
                 
                 <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: #222327; padding: 8px; border-radius: 4px;">
@@ -217,8 +218,8 @@ watch(() => props.editingTask, (task) => {
                     :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
                     @click="toggleLabel(lbl)">
                     {{ lbl.name }}
-                    <button type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
-                    <button type="button" @click.stop="emit('delete-label', lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
+                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
+                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="emit('delete-label', lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
                   </span>
                 </div>
               </div>
@@ -231,7 +232,7 @@ watch(() => props.editingTask, (task) => {
                     class="assignee-chip clickable-chip"
                     :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
                     :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
-                    @click="toggleAssignee(m.user_id)">
+                    @click="activeWorkspaceRole !== 'viewer' ? toggleAssignee(m.user_id) : null">
                     {{ m.name }}
                   </span>
                 </div>
@@ -239,7 +240,7 @@ watch(() => props.editingTask, (task) => {
             </div>
 
             <label class="section-label">Description</label>
-            <SimpleEditor v-model="editTaskDesc" />
+            <SimpleEditor v-model="editTaskDesc" :editable="activeWorkspaceRole !== 'viewer'" />
             
             <template v-if="editingTask">
               <div style="margin-top: 2rem;">
@@ -259,11 +260,15 @@ watch(() => props.editingTask, (task) => {
           </div>
         </div>
         
-        <div class="slideover-footer">
+        <div class="slideover-footer" v-if="activeWorkspaceRole !== 'viewer'">
           <button type="button" v-if="editingTask" class="secondary-btn" style="color: #f87171" @click="emit('delete')">Supprimer la tâche</button>
           <div style="flex: 1"></div>
           <button type="button" class="secondary-btn" @click="emit('close')">Annuler</button>
           <button type="submit" class="primary-btn">{{ editingTask ? 'Enregistrer' : 'Créer' }}</button>
+        </div>
+        <div class="slideover-footer" v-else>
+          <div style="flex: 1"></div>
+          <button type="button" class="secondary-btn" @click="emit('close')">Fermer</button>
         </div>
       </form>
     </div>

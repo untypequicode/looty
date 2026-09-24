@@ -60,14 +60,14 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
           <div class="item-actions" v-if="activeWorkspaceId === ws.id">
             <button @click.stop="emit('open-settings')" title="Paramètres (Membres)">⚙️</button>
             <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="emit('open-rename', 'workspace', ws.id, ws.name)" title="Renommer">✏️</button>
-            <button v-if="ws.role === 'owner'" @click.stop="emit('delete-workspace', ws.id)" title="Supprimer">🗑️</button>
+            <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="emit('delete-workspace', ws.id)" title="Supprimer">🗑️</button>
           </div>
         </li>
       </ul>
 
       <div v-if="activeWorkspaceId" class="section-title" style="margin-top:2rem;">
         <span>Tableaux</span>
-        <button v-if="activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin'" @click="emit('show-board-modal')" class="icon-btn" title="Créer un tableau">+</button>
+        <button v-if="activeWorkspaceRole !== 'viewer'" @click="emit('show-board-modal')" class="icon-btn" title="Créer un tableau">+</button>
       </div>
       
       <ul v-if="activeWorkspaceId" class="workspace-list">
@@ -76,7 +76,7 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
           :class="['workspace-item', { active: activeBoard?.id === b.id && currentModule === 'kanban' }]" 
           @click="emit('select-board', b)">
           <span class="ws-name" style="flex: 1"># {{ b.name }}</span>
-          <div class="item-actions" v-if="activeBoard?.id === b.id && (activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin')">
+          <div class="item-actions" v-if="activeBoard?.id === b.id && activeWorkspaceRole !== 'viewer'">
             <button @click.stop="emit('open-rename', 'board', b.id, b.name)" title="Renommer">✏️</button>
             <button @click.stop="emit('delete-board', b.id)" title="Supprimer">🗑️</button>
           </div>

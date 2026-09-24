@@ -18,9 +18,9 @@ export const useWorkspace = () => {
   const { data: workspaceMembers, isLoading: isLoadingMembers } = useQuery({
     queryKey: ['workspaces', activeWorkspaceId, 'members'],
     queryFn: async () => {
-      if (!activeWorkspaceId.value) return { members: [] }
-      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/members`)
-      return response as { members: WorkspaceMember[] }
+      if (!activeWorkspaceId.value) return []
+      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/members`) as { members: WorkspaceMember[] }
+      return response.members
     },
     enabled: computed(() => !!activeWorkspaceId.value)
   })

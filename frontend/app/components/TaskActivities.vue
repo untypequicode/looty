@@ -39,6 +39,7 @@ const props = defineProps({
 })
 
 const activities = ref([])
+const confirmAction = (msg) => window.confirm(msg)
 
 async function loadActivities() {
   try {
@@ -55,7 +56,7 @@ onMounted(() => {
 })
 
 async function restoreActivity(activityId) {
-  if (!confirm("Voulez-vous vraiment restaurer la tâche à cet état ?")) return
+  if (!confirmAction("Voulez-vous vraiment restaurer la tâche à cet état ?")) return
   try {
     await $fetch(`/api/boards/tasks/${props.taskId}/activities/${activityId}/restore`, { method: 'POST' })
     // Reload task data by emitting an event or just alert

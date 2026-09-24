@@ -73,6 +73,8 @@ const renameId = ref<string | null>(null)
 const renameName = ref('')
 const boardSettingsForm = ref<BoardAutomation>({})
 
+const confirmAction = (msg: string) => window.confirm(msg)
+
 // --- WebSockets ---
 const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -82,7 +84,7 @@ const wsUrl = computed(() => {
     ? `ws://127.0.0.1:8080/api/ws?workspace_id=${activeWorkspaceId.value}`
     : `${protocol}//${typeof window !== 'undefined' ? window.location.host : ''}/api/ws?workspace_id=${activeWorkspaceId.value}`
 })
-useKanbanWS(wsUrl, activeBoard, boards, taskStack)
+useKanbanWS(wsUrl, activeBoard, boards, taskStack, pages, activePage)
 
 // --- Watchers & Lifecycle ---
 watch(() => boards.value, (newBoards) => {
@@ -228,7 +230,7 @@ const handleSaveTask = async (taskData: any) => {
 
 const handleDeleteTask = async () => {
   if (!editingTask.value) return
-  if (confirm("Voulez-vous vraiment supprimer cette tâche ?")) {
+  if (confirmAction("Voulez-vous vraiment supprimer cette tâche ?")) {
     await deleteTask(editingTask.value.id)
     closeTaskModal()
   }
@@ -242,14 +244,14 @@ const handleTaskMove = async (evt: any, toColumnId: string) => {
     const col = filteredBoard.value?.columns.find((c: any) => c.id === toColumnId)
     if (!col) return
     let newPosition = 65536.0
-    if (col.tasks.length === 1) {
+    if (col.tasks.length <= 1) {
       newPosition = 65536.0
     } else if (newIndex === 0) {
-      newPosition = col.tasks[1].position / 2.0
+      newPosition = (col.tasks[1]?.position ?? 65536.0) / 2.0
     } else if (newIndex === col.tasks.length - 1) {
-      newPosition = col.tasks[newIndex - 1].position + 65536.0
+      newPosition = (col.tasks[newIndex - 1]?.position ?? 0) + 65536.0
     } else {
-      newPosition = (col.tasks[newIndex - 1].position + col.tasks[newIndex + 1].position) / 2.0
+      newPosition = ((col.tasks[newIndex - 1]?.position ?? 0) + (col.tasks[newIndex + 1]?.position ?? 65536.0)) / 2.0
     }
     
     task.position = newPosition
@@ -314,7 +316,7 @@ const handleCreatePage = async () => {
 }
 
 const handleDeletePage = async (id: string) => {
-  if (activeWorkspaceId.value && confirm('Supprimer cette page ?')) {
+  if (activeWorkspaceId.value && confirmAction('Supprimer cette page ?')) {
     await deletePage({ workspaceId: activeWorkspaceId.value, pageId: id })
     if (activePage.value?.id === id) activePage.value = null
   }
@@ -372,8 +374,8 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       @select-page="handleSelectPage"
       @open-settings="showSettingsModal = true"
       @open-rename="openRenameModal"
-      @delete-workspace="(id) => confirm('Supprimer cet espace ?') && deleteWorkspace(id)"
-      @delete-board="(id) => confirm('Supprimer ce tableau ?') && deleteBoard(id)"
+      @delete-workspace="(id) => confirmAction('Supprimer cet espace ?') && deleteWorkspace(id)"
+      @delete-board="(id) => confirmAction('Supprimer ce tableau ?') && deleteBoard(id)"
       @delete-page="handleDeletePage"
       @create-page="handleCreatePage"
       @show-create-modal="showCreateModal = true"
@@ -433,7 +435,7 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
           @open-task="handleOpenTask"
           @toggle-validation="handleToggleTaskValidation"
           @open-rename="openRenameModal"
-          @delete-column="(id) => confirm('Supprimer colonne ?') && deleteColumn(id)"
+          @delete-column="(id) => confirmAction('Supprimer colonne ?') && deleteColumn(id)"
           @open-task-modal="openTaskModal"
           @show-column-modal="showColumnModal = true"
         />
@@ -512,13 +514,14 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       :currentUser="user?.user"
       @close="showSettingsModal = false"
       @change-role="(id, r) => activeWorkspaceId && changeMemberRole({workspaceId: activeWorkspaceId, memberId: id, role: r})"
-      @kick-member="(id) => confirm('Exclure ?') && activeWorkspaceId && kickMember({workspaceId: activeWorkspaceId, memberId: id})"
+      @kick-member="(id) => confirmAction('Exclure ?') && activeWorkspaceId && kickMember({workspaceId: activeWorkspaceId, memberId: id})"
     />
 
     <TaskDetailSlideover 
       v-if="showTaskDetailModal"
       :editingTask="editingTask"
       :workspaceMembers="workspaceMembers || []"
+      :activeWorkspaceRole="activeWorkspaceRole"
       :filteredLabels="activeBoard?.labels || []"
       :filteredAssignees="workspaceMembers || []"
       :targetColumnId="targetColumnId"
@@ -526,7 +529,7 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       @save="handleSaveTask"
       @delete="handleDeleteTask"
       @create-label="(name, color, id) => activeBoard && (id ? editLabel({labelId: id, name, color}) : createLabel({boardId: activeBoard.id, name, color}))"
-      @delete-label="(id) => confirm('Supprimer label ?') && deleteLabel(id)"
+      @delete-label="(id) => confirmAction('Supprimer label ?') && deleteLabel(id)"
       @toggle-validation="handleToggleTaskValidation"
       @create-subtask="(id, title) => createSubtask({parentId: id, title})"
       @open-task="handleOpenTask"

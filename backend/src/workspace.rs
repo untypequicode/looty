@@ -52,7 +52,7 @@ pub struct UpdateMemberRolePayload {
     pub role: String,
 }
 
-async fn get_workspace_role(pool: &PgPool, user_id: &str, workspace_id: &Uuid) -> Option<String> {
+pub async fn get_workspace_role(pool: &PgPool, user_id: &str, workspace_id: &Uuid) -> Option<String> {
     sqlx::query_scalar("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(workspace_id)
         .bind(user_id)
@@ -258,8 +258,8 @@ async fn delete_workspace(
     };
 
     let role = get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await;
-    if role != Some("owner".to_string()) {
-        return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners only").into_response();
+    if role != Some("owner".to_string()) && role != Some("admin".to_string()) {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners or Admins only").into_response();
     }
 
     let res = sqlx::query("DELETE FROM workspaces WHERE id = $1")
@@ -319,7 +319,7 @@ async fn update_member_role(
         return (axum::http::StatusCode::FORBIDDEN, "Forbidden: Owners only").into_response();
     }
     
-    if payload.role != "owner" && payload.role != "admin" && payload.role != "member" {
+    if payload.role != "owner" && payload.role != "admin" && payload.role != "member" && payload.role != "viewer" {
         return (axum::http::StatusCode::BAD_REQUEST, "Invalid role").into_response();
     }
 

@@ -39,6 +39,7 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
               <option value="owner">Owner</option>
               <option value="admin">Admin</option>
               <option value="member">Membre</option>
+              <option value="viewer">Lecteur</option>
             </select>
           </div>
           <div class="member-role-text" v-else>

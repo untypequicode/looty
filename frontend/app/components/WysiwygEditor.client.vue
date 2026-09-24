@@ -1,6 +1,6 @@
 <template>
   <div class="wysiwyg-editor">
-    <bubble-menu v-if="editor" :editor="editor" :tippy-options="{ duration: 100 }" :should-show="({ editor, from, to }) => from !== to || editor.isActive('table')" class="bubble-menu">
+    <bubble-menu v-if="editor && editable" :editor="editor" :tippy-options="{ duration: 100 }" :should-show="({ editor, from, to }) => from !== to || editor.isActive('table')" class="bubble-menu">
       <button type="button" @click.prevent="editor.chain().focus().toggleBold().run()" :class="{ 'is-active': editor.isActive('bold') }"><b>B</b></button>
       <button type="button" @click.prevent="editor.chain().focus().toggleItalic().run()" :class="{ 'is-active': editor.isActive('italic') }"><i>I</i></button>
       <button type="button" @click.prevent="editor.chain().focus().toggleUnderline().run()" :class="{ 'is-active': editor.isActive('underline') }"><u>U</u></button>
