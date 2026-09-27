@@ -86,13 +86,14 @@ function onKeyDown(e) {
 }
 .math-inline-render {
   padding: 0 4px;
-  background: #18191c;
+  background: var(--bg-color-2);
   border-radius: 4px;
   border: 1px solid transparent;
   transition: border-color 0.2s;
+  color: var(--text-color);
 }
 .math-inline-render:hover {
-  border-color: #3f3f46;
+  border-color: var(--border-color);
 }
 .inline-input {
   width: 150px;
@@ -102,16 +103,16 @@ function onKeyDown(e) {
   margin: 0;
   display: inline-block;
   height: auto;
-  background: #1e1e22;
-  color: #eee;
-  border: 1px solid #4f46e5;
+  background: var(--bg-color-main);
+  color: var(--text-color);
+  border: 1px solid var(--primary-color);
   outline: none;
 }
 .inline-input:focus {
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
 }
 .empty-math {
-  color: #8a8f98;
+  color: var(--text-color-3);
   font-style: italic;
 }
 </style>

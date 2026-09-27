@@ -185,25 +185,25 @@ function getTaskBarStyle(task: any) {
   flex-direction: column;
   height: calc(100vh - 120px);
   overflow: hidden;
-  background: #0e0e11;
-  border-top: 1px solid #27282b;
+  background: var(--bg-color-main);
+  border-top: 1px solid var(--border-color);
   margin-top: 1rem;
 }
 
 .timeline-header {
   display: flex;
-  border-bottom: 1px solid #27282b;
-  background: #131418;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color-2);
 }
 
 .timeline-left-panel {
   width: 250px;
   flex-shrink: 0;
-  border-right: 1px solid #27282b;
+  border-right: 1px solid var(--border-color);
   padding: 12px 16px;
   display: flex;
   align-items: center;
-  background: #17181c;
+  background: var(--bg-color-2);
   z-index: 10;
   position: sticky;
   left: 0;
@@ -212,7 +212,7 @@ function getTaskBarStyle(task: any) {
 .timeline-header .timeline-left-panel h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: #8a8f98;
+  color: var(--text-color-3);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -231,21 +231,21 @@ function getTaskBarStyle(task: any) {
   align-items: center;
   justify-content: center;
   padding: 8px 0;
-  border-right: 1px solid #27282b;
+  border-right: 1px solid var(--border-color);
 }
 .timeline-day-col.is-today {
-  background-color: rgba(94, 106, 210, 0.1);
+  background-color: var(--bg-color-hover);
 }
 
 .day-name {
   font-size: 0.65rem;
-  color: #8a8f98;
+  color: var(--text-color-3);
   text-transform: uppercase;
 }
 .day-number {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #eee;
+  color: var(--text-color);
   margin-top: 2px;
   width: 24px;
   height: 24px;
@@ -255,7 +255,7 @@ function getTaskBarStyle(task: any) {
   border-radius: 50%;
 }
 .day-number.is-today {
-  background: #5e6ad2;
+  background: var(--primary-color);
   color: #fff;
 }
 
@@ -271,11 +271,11 @@ function getTaskBarStyle(task: any) {
 
 .timeline-column-title {
   padding: 8px 16px;
-  background: #1a1b1f;
+  background: var(--bg-color-2);
   font-weight: 600;
   font-size: 0.85rem;
-  color: #9ca3af;
-  border-bottom: 1px solid #27282b;
+  color: var(--text-color-2);
+  border-bottom: 1px solid var(--border-color);
   position: sticky;
   left: 0;
   z-index: 5;
@@ -283,22 +283,22 @@ function getTaskBarStyle(task: any) {
 
 .timeline-row {
   display: flex;
-  border-bottom: 1px solid #1c1d21;
+  border-bottom: 1px solid var(--border-color);
 }
 .timeline-row:hover {
-  background: #1c1d21;
+  background: var(--bg-color-hover);
 }
 
 .task-title {
   font-size: 0.85rem;
-  color: #d1d5db;
+  color: var(--text-color-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
 }
 .task-title:hover {
-  color: #fff;
+  color: var(--text-color);
 }
 
 .timeline-grid-row {
@@ -310,10 +310,10 @@ function getTaskBarStyle(task: any) {
   width: 48px;
   height: 40px;
   flex-shrink: 0;
-  border-right: 1px solid #1c1d21;
+  border-right: 1px solid var(--border-color);
 }
 .timeline-day-cell.is-today {
-  background-color: rgba(94, 106, 210, 0.05);
+  background-color: var(--bg-color-hover);
 }
 
 .timeline-task-bar {
@@ -355,6 +355,6 @@ function getTaskBarStyle(task: any) {
 .timeline-empty-col {
   display: flex;
   height: 20px;
-  border-bottom: 1px solid #1c1d21;
+  border-bottom: 1px solid var(--border-color);
 }
 </style>
