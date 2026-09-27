@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    response::{IntoResponse, Redirect},
+    response::IntoResponse,
     routing::get,
     Json, Router,
 };
@@ -23,7 +23,7 @@ pub struct AuthState {
     pub oidc_clients: Arc<DashMap<Uuid, CoreClient>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 pub struct ProviderDto {
     pub id: Uuid,
     pub name: String,
@@ -40,8 +40,7 @@ pub fn auth_routes(state: AuthState) -> Router {
 }
 
 async fn get_active_providers(State(state): State<AuthState>) -> impl IntoResponse {
-    let providers = sqlx::query_as!(
-        ProviderDto,
+    let providers = sqlx::query_as::<_, ProviderDto>(
         "SELECT id, name FROM oauth_providers WHERE is_active = TRUE"
     )
     .fetch_all(&state.pool)
@@ -51,15 +50,22 @@ async fn get_active_providers(State(state): State<AuthState>) -> impl IntoRespon
     Json(providers)
 }
 
+#[derive(sqlx::FromRow)]
+struct ProviderConfig {
+    issuer_url: String,
+    client_id: String,
+    client_secret: String,
+}
+
 async fn get_oidc_client(state: &AuthState, provider_id: Uuid) -> Result<CoreClient, String> {
     if let Some(client) = state.oidc_clients.get(&provider_id) {
         return Ok(client.clone());
     }
 
-    let provider = sqlx::query!(
-        "SELECT issuer_url, client_id, client_secret FROM oauth_providers WHERE id = $1 AND is_active = TRUE",
-        provider_id
+    let provider = sqlx::query_as::<_, ProviderConfig>(
+        "SELECT issuer_url, client_id, client_secret FROM oauth_providers WHERE id = $1 AND is_active = TRUE"
     )
+    .bind(provider_id)
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -181,7 +187,7 @@ async fn callback_handler(
     let provider_user_id = userinfo.subject().as_str().to_string();
     let provider_name = provider_id.to_string(); // we use provider_id as string for identities table provider column
 
-    let user_count: i64 = sqlx::query_scalar!("SELECT count(*) FROM users").fetch_one(&state.pool).await.unwrap_or(0);
+    let user_count: i64 = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM users").fetch_one(&state.pool).await.unwrap_or(0);
     let is_super_admin = user_count == 0;
 
     let user_id = sqlx::query_scalar::<_, uuid::Uuid>(
