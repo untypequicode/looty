@@ -279,6 +279,12 @@ function formatRelativeDate(dateStr) {
   color: #3f3f46;
 }
 
+@media (max-width: 768px) {
+  .page-title-input { font-size: 2rem; }
+  .page-editor-wrapper { padding: 1rem 1rem 4rem 1rem; }
+  .page-icon { font-size: 2rem; }
+}
+
 .page-meta {
   display: flex;
   align-items: center;

@@ -163,8 +163,9 @@ watch(() => props.editingTask, (task) => {
 </script>
 
 <template>
-  <div class="slideover-overlay" @click.self="emit('close')">
-    <div class="slideover-panel">
+  <transition name="slideover">
+    <div class="slideover-overlay" @click.self="emit('close')">
+      <div class="slideover-panel">
       <form @submit.prevent="submitTask" style="display: flex; flex-direction: column; height: 100%;">
         <div class="slideover-header">
           <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required :readonly="activeWorkspaceRole === 'viewer'">
@@ -296,6 +297,7 @@ watch(() => props.editingTask, (task) => {
       </form>
     </div>
   </div>
+  </transition>
 </template>
 
 <style scoped>
@@ -325,5 +327,28 @@ watch(() => props.editingTask, (task) => {
 .task-label-chip { padding: 2px 6px; border-radius: 12px; font-size: 0.7rem; color: #fff; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
 .clickable-chip { cursor: pointer; transition: all 0.12s; user-select: none; }
 .selected-chip { box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.4); }
-.assignee-chip { display: inline-flex; align-items: center; background: var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; color: #eee; }
+.assignee-chip { display: inline-flex; align-items: center; background: var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; color: var(--text-color); }
+
+/* Transitions */
+.slideover-enter-active,
+.slideover-leave-active {
+  transition: opacity 0.3s ease;
+}
+.slideover-enter-active .slideover-panel,
+.slideover-leave-active .slideover-panel {
+  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.slideover-enter-from,
+.slideover-leave-to {
+  opacity: 0;
+}
+.slideover-enter-from .slideover-panel,
+.slideover-leave-to .slideover-panel {
+  transform: translateX(100%);
+}
+
+@media (max-width: 768px) {
+  .slideover-meta-horizontal { flex-direction: column; }
+  .slideover-panel { width: 100vw; }
+}
 </style>

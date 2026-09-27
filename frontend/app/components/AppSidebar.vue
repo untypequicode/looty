@@ -55,6 +55,12 @@ onMounted(() => {
   const saved = localStorage.getItem('theme-mode')
   if (saved) colorMode.value = saved
   applyTheme()
+
+  if (typeof window !== 'undefined') {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (colorMode.value === 'auto') applyTheme()
+    })
+  }
 })
 
 const toggleTheme = () => {

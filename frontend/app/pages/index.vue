@@ -56,6 +56,7 @@ const activePage = computed({
 const taskStack = ref<any[]>([])
 const editingTask = computed(() => taskStack.value[taskStack.value.length - 1] || null)
 const targetColumnId = ref<string | null>(null)
+const isSidebarOpen = ref(false)
 
 // --- Modals State ---
 const showCreateModal = ref(false)
@@ -305,6 +306,7 @@ const handleSelectPage = (page: any) => {
   currentModule.value = 'wiki'
   activeBoardId.value = null
   activePage.value = page
+  isSidebarOpen.value = false
 }
 
 const handleSelectBoard = (board: any) => {
@@ -312,6 +314,7 @@ const handleSelectBoard = (board: any) => {
   else selectBoard(null)
   currentModule.value = 'kanban'
   activePage.value = null
+  isSidebarOpen.value = false
 }
 
 const handleCreatePage = async () => {
@@ -379,8 +382,11 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
     <div class="spinner"></div><p>Chargement de Looty...</p>
   </div>
   
-  <div v-else-if="user?.authenticated" class="app-layout">
+  <div v-else-if="user?.authenticated" class="app-layout" :class="{ 'sidebar-open': isSidebarOpen }">
+    <div class="mobile-overlay" v-if="isSidebarOpen" @click="isSidebarOpen = false"></div>
     <AppSidebar 
+      class="app-sidebar"
+      :class="{ 'is-open': isSidebarOpen }"
       :user="user"
       :workspacesData="workspacesData"
       :isLoadingWorkspaces="isLoadingWorkspaces"
@@ -410,31 +416,45 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
 
     <main class="main-content">
       <header class="main-header">
-        <div v-if="activeBoard" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <h1 style="margin: 0;">{{ activeBoard.name }}</h1>
-            <button class="icon-btn" @click="openBoardSettingsModal" title="Paramètres du tableau" style="font-size: 1.2rem;">⚙️</button>
-          </div>
-          <div class="view-toggle">
-            <button :class="{ active: currentView === 'kanban' }" @click="currentView = 'kanban'">Kanban</button>
-            <button :class="{ active: currentView === 'timeline' }" @click="currentView = 'timeline'">Timeline</button>
-          </div>
+        <div style="display: flex; align-items: center; width: 100%; gap: 12px; margin-bottom: 8px;">
+          <button class="mobile-menu-btn" @click="isSidebarOpen = true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          
+          <template v-if="activeBoard">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <h1 style="margin: 0; font-size: 1.2rem;">{{ activeBoard.name }}</h1>
+                <button class="icon-btn" @click="openBoardSettingsModal" title="Paramètres du tableau" style="font-size: 1.2rem;">⚙️</button>
+              </div>
+              <div class="view-toggle">
+                <button :class="{ active: currentView === 'kanban' }" @click="currentView = 'kanban'">Kanban</button>
+                <button :class="{ active: currentView === 'timeline' }" @click="currentView = 'timeline'">Timeline</button>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="activeWorkspaceId && currentModule === 'wiki'">
+            <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
+              <div style="color: var(--text-color-3); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                Wiki / {{ activePage ? (activePage.title || 'Nouvelle page') : 'Sélectionnez une page' }}
+              </div>
+              <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;" id="wiki-header-actions">
+              </div>
+            </div>
+          </template>
         </div>
-        <div v-else-if="activeWorkspaceId && currentModule === 'wiki'" style="width: 100%; display: flex; align-items: center; gap: 8px;">
-          <div style="color: #8a8f98; font-size: 0.9rem;">
-            Wiki / {{ activePage ? (activePage.title || 'Nouvelle page') : 'Sélectionnez une page' }}
+        <div v-if="!activeBoard && (!activeWorkspaceId || currentModule !== 'wiki')" style="display: flex; align-items: center; gap: 12px;">
+           <button v-if="!isSidebarOpen" class="mobile-menu-btn" @click="isSidebarOpen = true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div v-if="activeWorkspaceId">
+            <h1>Sélectionnez un tableau</h1>
+            <p class="subtitle">Créez ou sélectionnez un tableau Kanban dans la barre latérale.</p>
           </div>
-          <div style="margin-left: auto; display: flex; align-items: center; gap: 12px;" id="wiki-header-actions">
-            <!-- Page actions will be teleported here -->
+          <div v-else>
+            <h1>Bienvenue sur Looty</h1>
+            <p class="subtitle">Sélectionnez ou créez un espace de travail pour commencer.</p>
           </div>
-        </div>
-        <div v-else-if="activeWorkspaceId">
-          <h1>Sélectionnez un tableau</h1>
-          <p class="subtitle">Créez ou sélectionnez un tableau Kanban dans la barre latérale.</p>
-        </div>
-        <div v-else>
-          <h1>Bienvenue sur Looty</h1>
-          <p class="subtitle">Sélectionnez ou créez un espace de travail pour commencer.</p>
         </div>
       </header>
 
@@ -569,35 +589,32 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
 :global(body) {
-  margin: 0; padding: 0;
-  font-family: 'Inter', -apple-system, sans-serif;
-  background-color: var(--bg-color-main); color: var(--text-color);
-  min-height: 100vh; -webkit-font-smoothing: antialiased;
-}
-
-:global(:root) {
-  --bg-color-main: #0e0e11;
-  --bg-color-2: #111113;
-  --bg-color-hover: #17181c;
-  --bg-color-modal: #1e1e22;
-  --border-color: #1e1f23;
-  --text-color: #eeeeee;
-  --text-color-2: #e4e4e7;
-  --text-color-3: #8a8f98;
-  --primary-color: #5e6ad2;
-  --primary-color-hover: #6d79e0;
+  -webkit-font-smoothing: antialiased;
 }
 
 .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #888; }
 .spinner { width: 24px; height: 24px; border: 2px solid #333; border-radius: 50%; border-top-color: #eee; animation: spin 1s linear infinite; margin-bottom: 1rem; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.app-layout { display: flex; height: 100vh; overflow: hidden; }
-.main-content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background-color: var(--bg-color-main); }
-.main-header { padding: 1.5rem 2rem 1rem; border-bottom: 1px solid var(--border-color); }
+.app-layout { display: flex; height: 100vh; overflow: hidden; position: relative; }
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background-color: var(--bg-color-main); }
+.main-header { padding: 1.2rem 1.5rem 0.8rem; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; }
 .main-header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
 .subtitle { margin: 0; color: var(--text-color-3); font-size: 0.85rem; }
-.content-body { flex: 1; display: flex; flex-direction: column; }
+.content-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; color: var(--text-color-2); padding: 4px; border-radius: 4px; }
+.mobile-menu-btn:hover { background: var(--bg-color-hover); color: var(--text-color); }
+.mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 40; backdrop-filter: blur(2px); }
+
+@media (max-width: 768px) {
+  .mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
+  .mobile-overlay { display: block; }
+  .app-sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 50; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--shadow-lg); }
+  .app-sidebar.is-open { transform: translateX(0); }
+  .view-toggle { display: none; }
+  .main-header { padding: 1rem; }
+}
 
 .icon-btn { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 2px 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.15s; }
 .icon-btn:hover { background: var(--border-color); color: var(--text-color); }
