@@ -88,8 +88,8 @@ import { useWorkspace } from '../composables/useWorkspace'
 const { activeWorkspaceRole, workspaceMembers } = useWorkspace()
 
 const getMemberName = (id) => {
-  const member = workspaceMembers.value?.find(m => m.user.id === id)
-  return member ? member.user.name : 'Utilisateur inconnu'
+  const member = workspaceMembers.value?.find(m => m.user_id === id)
+  return member ? member.name : 'Utilisateur inconnu'
 }
 
 const props = defineProps({
