@@ -5,8 +5,8 @@
       <div class="timeline-left-panel">
         <h3>Tâches</h3>
       </div>
-      <div class="timeline-grid-header">
-        <div v-for="day in days" :key="day.getTime()" class="timeline-day-col">
+      <div class="timeline-grid-header" ref="headerRef">
+        <div v-for="day in days" :key="day.getTime()" class="timeline-day-col" :class="{ 'is-today': isToday(day) }">
           <div class="day-name">{{ getDayName(day) }}</div>
           <div class="day-number" :class="{ 'is-today': isToday(day) }">{{ day.getDate() }}</div>
         </div>
@@ -14,7 +14,7 @@
     </div>
     
     <!-- Corps de la Timeline -->
-    <div class="timeline-body">
+    <div class="timeline-body" ref="bodyRef" @scroll="onScroll">
       <div v-for="col in board.columns" :key="col.id" class="timeline-column-group">
         <div class="timeline-column-title">{{ col.name }}</div>
         
@@ -25,7 +25,7 @@
             </div>
             
             <div class="timeline-grid-row">
-              <div v-for="day in days" :key="day.getTime()" class="timeline-day-cell"></div>
+              <div v-for="day in days" :key="day.getTime()" class="timeline-day-cell" :class="{ 'is-today': isToday(day) }"></div>
               
               <div class="timeline-task-bar" 
                    :style="getTaskBarStyle(task)" 
@@ -41,7 +41,7 @@
         <div v-if="getTasksWithDates(col.tasks).length === 0" class="timeline-empty-col">
           <div class="timeline-left-panel"></div>
           <div class="timeline-grid-row">
-            <div v-for="day in days" :key="day.getTime()" class="timeline-day-cell"></div>
+            <div v-for="day in days" :key="day.getTime()" class="timeline-day-cell" :class="{ 'is-today': isToday(day) }"></div>
           </div>
         </div>
       </div>
@@ -50,12 +50,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 
 const props = defineProps<{
   board: any,
   openTaskDetail: (task: any) => void
 }>()
+
+const headerRef = ref<HTMLElement | null>(null)
+const bodyRef = ref<HTMLElement | null>(null)
+
+function onScroll(e: Event) {
+  if (headerRef.value && e.target) {
+    headerRef.value.scrollLeft = (e.target as HTMLElement).scrollLeft
+  }
+}
+
+onMounted(() => {
+  nextTick(() => {
+    scrollToToday()
+  })
+})
+
+function scrollToToday() {
+  if (!bodyRef.value || days.value.length === 0) return
+  const todayIdx = days.value.findIndex(d => isToday(d))
+  if (todayIdx !== -1) {
+    const targetScroll = (todayIdx * DAY_WIDTH) - (bodyRef.value.clientWidth / 2) + (DAY_WIDTH / 2)
+    bodyRef.value.scrollLeft = Math.max(0, targetScroll)
+  }
+}
 
 const DAY_WIDTH = 48 // pixels
 
@@ -209,6 +233,9 @@ function getTaskBarStyle(task: any) {
   padding: 8px 0;
   border-right: 1px solid #27282b;
 }
+.timeline-day-col.is-today {
+  background-color: rgba(94, 106, 210, 0.1);
+}
 
 .day-name {
   font-size: 0.65rem;
@@ -284,6 +311,9 @@ function getTaskBarStyle(task: any) {
   height: 40px;
   flex-shrink: 0;
   border-right: 1px solid #1c1d21;
+}
+.timeline-day-cell.is-today {
+  background-color: rgba(94, 106, 210, 0.05);
 }
 
 .timeline-task-bar {
