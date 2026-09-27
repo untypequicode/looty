@@ -78,6 +78,7 @@ export interface Page {
   id: string
   workspace_id: string
   parent_id?: string | null
+  icon?: string | null
   title: string
   content?: string
   created_by?: string

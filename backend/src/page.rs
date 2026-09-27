@@ -18,9 +18,12 @@ pub struct Page {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub parent_id: Option<Uuid>,
+    pub icon: Option<String>,
     pub title: String,
     pub content: Option<String>,
     pub created_by: Uuid,
+    pub updated_by: Option<Uuid>,
+    pub position: f64,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -28,6 +31,7 @@ pub struct Page {
 #[derive(Deserialize)]
 pub struct CreatePage {
     pub title: String,
+    pub icon: Option<String>,
     pub parent_id: Option<Uuid>,
     pub content: Option<String>,
 }
@@ -35,8 +39,10 @@ pub struct CreatePage {
 #[derive(Deserialize)]
 pub struct UpdatePage {
     pub title: Option<String>,
+    pub icon: Option<String>,
     pub parent_id: Option<Uuid>,
     pub content: Option<String>,
+    pub position: Option<f64>,
 }
 
 pub fn page_routes(state: AuthState) -> Router {
@@ -62,7 +68,7 @@ async fn list_pages(
     }
 
     let pages = sqlx::query_as::<_, Page>(
-        "SELECT * FROM pages WHERE workspace_id = $1 ORDER BY title ASC"
+        "SELECT * FROM pages WHERE workspace_id = $1 ORDER BY position ASC, created_at ASC"
     )
     .bind(workspace_id)
     .fetch_all(&pool)
@@ -112,12 +118,13 @@ async fn create_page(
     }
 
     let page = sqlx::query_as::<_, Page>(
-        "INSERT INTO pages (workspace_id, parent_id, title, content, created_by)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO pages (workspace_id, parent_id, icon, title, content, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *"
     )
     .bind(workspace_id)
     .bind(payload.parent_id)
+    .bind(payload.icon)
     .bind(payload.title)
     .bind(payload.content)
     .bind(user_uuid)
@@ -143,6 +150,7 @@ async fn update_page(
     Json(payload): Json<UpdatePage>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    let user_uuid = Uuid::parse_str(&user_id).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid User ID".to_string()))?;
     
     let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
     if role.is_none() || role == Some("viewer".to_string()) {
@@ -152,15 +160,21 @@ async fn update_page(
     let page = sqlx::query_as::<_, Page>(
         "UPDATE pages SET 
             title = COALESCE($1, title),
-            parent_id = $2,
-            content = COALESCE($3, content),
+            icon = COALESCE($2, icon),
+            parent_id = $3,
+            content = COALESCE($4, content),
+            position = COALESCE($5, position),
+            updated_by = $6,
             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4 AND workspace_id = $5
+         WHERE id = $7 AND workspace_id = $8
          RETURNING *"
     )
     .bind(payload.title)
+    .bind(payload.icon)
     .bind(payload.parent_id)
     .bind(payload.content)
+    .bind(payload.position)
+    .bind(user_uuid)
     .bind(page_id)
     .bind(workspace_id)
     .fetch_one(&pool)

@@ -1,18 +1,19 @@
 <template>
-  <div class="items">
+  <div class="items" ref="itemsContainer">
     <template v-if="items.length">
       <button
         class="item"
         :class="{ 'is-selected': index === selectedIndex }"
         v-for="(item, index) in items"
         :key="index"
+        :ref="el => { if (el) itemRefs[index] = el }"
         @click="selectItem(index)"
       >
-        <span class="icon">{{ item.icon }}</span>
-        <div class="content">
-          <div class="title">{{ item.title }}</div>
-          <div class="subtitle">{{ item.subtitle }}</div>
+        <div class="item-left">
+          <span class="icon">{{ item.icon }}</span>
+          <span class="title">{{ item.title }}</span>
         </div>
+        <span class="shortcut" v-if="item.shortcut">{{ item.shortcut }}</span>
       </button>
     </template>
     <div class="item" v-else>
@@ -24,7 +25,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 
 const props = defineProps({
   items: {
@@ -38,10 +39,26 @@ const props = defineProps({
 })
 
 const selectedIndex = ref(0)
+const itemsContainer = ref(null)
+const itemRefs = ref([])
 
 watch(() => props.items, () => {
   selectedIndex.value = 0
+  itemRefs.value = []
 })
+
+const scrollToSelected = async () => {
+  await nextTick()
+  const el = itemRefs.value[selectedIndex.value]
+  if (el && itemsContainer.value) {
+    const container = itemsContainer.value
+    if (el.offsetTop < container.scrollTop) {
+      container.scrollTop = el.offsetTop
+    } else if (el.offsetTop + el.offsetHeight > container.scrollTop + container.offsetHeight) {
+      container.scrollTop = el.offsetTop + el.offsetHeight - container.offsetHeight
+    }
+  }
+}
 
 function onKeyDown({ event }) {
   if (event.key === 'ArrowUp') {
@@ -64,10 +81,12 @@ function onKeyDown({ event }) {
 
 function upHandler() {
   selectedIndex.value = ((selectedIndex.value + props.items.length) - 1) % props.items.length
+  scrollToSelected()
 }
 
 function downHandler() {
   selectedIndex.value = (selectedIndex.value + 1) % props.items.length
+  scrollToSelected()
 }
 
 function enterHandler() {
@@ -88,49 +107,58 @@ defineExpose({
 
 <style scoped>
 .items {
-  padding: 8px;
-  background: #18191c;
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
-  border: 1px solid #3f3f46;
+  padding: 6px;
+  background: var(--bg-color-modal);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 300px;
+  gap: 2px;
+  max-height: 320px;
   overflow-y: auto;
-  min-width: 250px;
+  min-width: 280px;
 }
 
 .item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
   width: 100%;
-  text-align: left;
   background: transparent;
   border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  color: #eee;
+  color: var(--text-color);
   transition: background 0.1s ease;
 }
 
 .item:hover,
 .item.is-selected {
-  background: #27282b;
+  background: var(--bg-color-hover);
+  color: var(--text-color);
+}
+.item:hover .icon, .item.is-selected .icon,
+.item:hover .shortcut, .item.is-selected .shortcut {
+  color: var(--text-color);
+}
+
+.item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .icon {
-  font-size: 1.2rem;
-  width: 24px;
+  font-size: 1.05rem;
+  width: 22px;
   text-align: center;
-  color: #8a8f98;
-}
-
-.content {
+  color: var(--text-color-3);
+  font-weight: bold;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .title {
@@ -138,8 +166,9 @@ defineExpose({
   font-size: 0.95rem;
 }
 
-.subtitle {
-  font-size: 0.75rem;
-  color: #8a8f98;
+.shortcut {
+  font-size: 0.8rem;
+  color: var(--text-color-3);
+  font-family: monospace;
 }
 </style>

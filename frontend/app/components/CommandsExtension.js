@@ -31,100 +31,67 @@ export const CommandsExtension = Extension.create({
 export const getSuggestionItems = ({ query }) => {
   return [
     {
-      title: 'Titre 1',
-      subtitle: 'Grand titre de section',
+      title: 'H1 En-tête',
+      shortcut: '⇧ ⌘ 1',
       icon: 'H1',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run()
       },
     },
     {
-      title: 'Titre 2',
-      subtitle: 'Moyen titre',
+      title: 'Titre moyen',
+      shortcut: '⇧ ⌘ 2',
       icon: 'H2',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
       },
     },
     {
-      title: 'Titre 3',
-      subtitle: 'Petit titre',
+      title: 'Petit titre',
+      shortcut: '⇧ ⌘ 3',
       icon: 'H3',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
       },
     },
     {
+      title: 'En-tête extrêmement petit',
+      shortcut: '⇧ ⌘ 4',
+      icon: 'H4',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).setNode('heading', { level: 4 }).run()
+      },
+    },
+    {
+      title: 'Liste des tâches',
+      shortcut: '⇧ ⌘ 7',
+      icon: '✓',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleTaskList().run()
+      },
+    },
+    {
       title: 'Liste à puces',
-      subtitle: 'Créer une liste simple',
+      shortcut: '⇧ ⌘ 8',
       icon: '•',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).toggleBulletList().run()
       },
     },
     {
-      title: 'Liste numérotée',
-      subtitle: 'Créer une liste ordonnée',
+      title: 'Liste ordonnée',
+      shortcut: '⇧ ⌘ 9',
       icon: '1.',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).toggleOrderedList().run()
       },
     },
     {
-      title: 'Math en ligne',
-      subtitle: 'Formule LaTeX dans le texte',
-      icon: '$',
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).insertContent({ type: 'mathInline', attrs: { latex: '' } }).run()
-      },
-    },
-    {
-      title: 'Liste de tâches',
-      subtitle: 'Créer une checklist',
-      icon: '☐',
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).toggleTaskList().run()
-      },
-    },
-    {
-      title: 'Code source',
-      subtitle: 'Bloc de code',
-      icon: '<>',
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
-      },
-    },
-    {
-      title: 'Citation',
-      subtitle: 'Mettre en exergue',
-      icon: '""',
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).toggleBlockquote().run()
-      },
-    },
-    {
-      title: 'Séparateur',
-      subtitle: 'Ligne horizontale',
-      icon: '—',
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).setHorizontalRule().run()
-      },
-    },
-    {
-      title: 'Tableau',
-      subtitle: 'Insérer un tableau (3x3)',
-      icon: '▦',
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-      },
-    },
-    {
       title: 'Image',
-      subtitle: 'Uploader une image',
+      shortcut: '',
       icon: '🖼',
       command: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).run()
-        // Trigger a custom file input event since Tiptap Image requires a URL
         const input = document.createElement('input')
         input.type = 'file'
         input.accept = 'image/*'
@@ -151,14 +118,46 @@ export const getSuggestionItems = ({ query }) => {
       },
     },
     {
-      title: 'Math en bloc',
-      subtitle: 'Formule LaTeX centrée',
-      icon: '∑',
+      title: 'Tableau',
+      shortcut: '',
+      icon: '▦',
       command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).insertContent({ type: 'mathBlock', attrs: { latex: '' } }).run()
+        editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
       },
     },
-  ].filter(item => item.title.toLowerCase().startsWith(query.toLowerCase()) || item.subtitle.toLowerCase().includes(query.toLowerCase()))
+    {
+      title: 'Citation',
+      shortcut: 'Ctrl ]',
+      icon: '""',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleBlockquote().run()
+      },
+    },
+    {
+      title: 'Bloc de code',
+      shortcut: '⇧ ⌘ C',
+      icon: '<>',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
+      },
+    },
+    {
+      title: 'Bloc mathématique (LaTeX)',
+      shortcut: '',
+      icon: 'fx',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).insertContent({ type: 'mathInline', attrs: { latex: '' } }).run()
+      },
+    },
+    {
+      title: 'Séparateur',
+      shortcut: 'Ctrl _',
+      icon: '—',
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).setHorizontalRule().run()
+      },
+    },
+  ].filter(item => item.title.toLowerCase().startsWith(query.toLowerCase())).slice(0, 10)
 }
 
 export const renderItems = () => {

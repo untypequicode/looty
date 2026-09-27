@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useColorMode } from '@vueuse/core'
 import type { User, Workspace, Board, Page } from '../types'
+import PageTree from './PageTree.vue'
 
 const props = defineProps<{
   user: { authenticated: boolean, user?: User }
@@ -26,12 +28,45 @@ const emit = defineEmits<{
   (e: 'delete-board', id: string): void
   (e: 'delete-page', id: string): void
   (e: 'create-page'): void
+  (e: 'create-subpage', id: string): void
   (e: 'show-create-modal'): void
   (e: 'show-board-modal'): void
   (e: 'copy-invite-link'): void
+  (e: 'move-page', payload: any): void
 }>()
 
 const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
+const colorMode = ref('auto')
+
+import { onMounted } from 'vue'
+
+const applyTheme = () => {
+  if (typeof document === 'undefined') return
+  if (colorMode.value === 'dark' || (colorMode.value === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark')
+    document.documentElement.classList.remove('light')
+  } else {
+    document.documentElement.classList.remove('dark')
+    document.documentElement.classList.add('light')
+  }
+}
+
+onMounted(() => {
+  const saved = localStorage.getItem('theme-mode')
+  if (saved) colorMode.value = saved
+  applyTheme()
+})
+
+const toggleTheme = () => {
+  if (colorMode.value === 'auto') colorMode.value = 'light'
+  else if (colorMode.value === 'light') colorMode.value = 'dark'
+  else colorMode.value = 'auto'
+  
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('theme-mode', colorMode.value)
+  }
+  applyTheme()
+}
 </script>
 
 <template>
@@ -58,9 +93,15 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
             <span class="ws-name">{{ ws.name }}</span>
           </div>
           <div class="item-actions" v-if="activeWorkspaceId === ws.id">
-            <button @click.stop="emit('open-settings')" title="Paramètres (Membres)">⚙️</button>
-            <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="emit('open-rename', 'workspace', ws.id, ws.name)" title="Renommer">✏️</button>
-            <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="emit('delete-workspace', ws.id)" title="Supprimer">🗑️</button>
+            <button @click.stop="emit('open-settings')" title="Paramètres (Membres)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </button>
+            <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="emit('open-rename', 'workspace', ws.id, ws.name)" title="Renommer">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button v-if="ws.role === 'owner' || ws.role === 'admin'" @click.stop="emit('delete-workspace', ws.id)" title="Supprimer">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
           </div>
         </li>
       </ul>
@@ -75,10 +116,17 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
         <li v-for="b in boards" :key="b.id"
           :class="['workspace-item', { active: activeBoard?.id === b.id && currentModule === 'kanban' }]" 
           @click="emit('select-board', b)">
-          <span class="ws-name" style="flex: 1"># {{ b.name }}</span>
+          <span class="ws-name" style="flex: 1; display: flex; align-items: center; gap: 6px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="item-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+            {{ b.name }}
+          </span>
           <div class="item-actions" v-if="activeBoard?.id === b.id && activeWorkspaceRole !== 'viewer'">
-            <button @click.stop="emit('open-rename', 'board', b.id, b.name)" title="Renommer">✏️</button>
-            <button @click.stop="emit('delete-board', b.id)" title="Supprimer">🗑️</button>
+            <button @click.stop="emit('open-rename', 'board', b.id, b.name)" title="Renommer">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button @click.stop="emit('delete-board', b.id)" title="Supprimer">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
           </div>
         </li>
       </ul>
@@ -88,18 +136,20 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
         <button @click="emit('create-page')" class="icon-btn" title="Créer une page">+</button>
       </div>
       
-      <ul v-if="activeWorkspaceId" class="workspace-list">
-        <li v-if="isLoadingPages" class="loading-item">Chargement...</li>
-        <li v-else-if="pages.length === 0" class="empty-item">Aucune page</li>
-        <li v-for="page in pages" :key="page.id"
-          :class="['workspace-item', { active: activePage?.id === page.id && currentModule === 'wiki' }]" 
-          @click="emit('select-page', page)">
-          <span class="ws-name" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📄 {{ page.title || 'Nouvelle page' }}</span>
-          <div class="item-actions" v-if="activePage?.id === page.id">
-            <button @click.stop="emit('delete-page', page.id)" title="Supprimer">🗑️</button>
-          </div>
-        </li>
-      </ul>
+      <div v-if="activeWorkspaceId && !isLoadingPages && pages.length === 0" class="empty-item">Aucune page</div>
+      <div v-else-if="isLoadingPages" class="loading-item">Chargement...</div>
+      <PageTree
+        v-if="activeWorkspaceId && pages.length > 0"
+        :pages="pages"
+        :parent-id="null"
+        :level="0"
+        :active-page="activePage"
+        :current-module="currentModule"
+        @select-page="emit('select-page', $event)"
+        @delete-page="emit('delete-page', $event)"
+        @create-subpage="emit('create-subpage', $event)"
+        @move-page="emit('move-page', $event)"
+      />
     </div>
     
     <div class="sidebar-footer">
@@ -110,36 +160,218 @@ const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
           <p class="user-email">{{ user.user.email }}</p>
         </div>
       </div>
-      <a href="/api/auth/logout" class="logout-btn">Déconnexion</a>
+      <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
+        <button class="theme-toggle-btn" @click="toggleTheme" :title="'Thème actuel: ' + colorMode">
+          <svg v-if="colorMode === 'light'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+          <svg v-else-if="colorMode === 'dark'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+        </button>
+        <a href="/api/auth/logout" class="logout-btn">Déconnexion</a>
+      </div>
     </div>
   </aside>
 </template>
 
 <style scoped>
-.sidebar { width: 240px; background-color: var(--bg-color-2); display: flex; flex-direction: column; border-right: 1px solid var(--border-color); z-index: 10; }
-.sidebar-header { padding: 1rem 1rem 0.5rem; }
-.logo { font-size: 0.9rem; font-weight: 600; color: #fff; letter-spacing: -0.3px; opacity: 0.9; }
-.sidebar-content { flex: 1; padding: 0 0.5rem; overflow-y: auto; }
-.section-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--text-color-3); margin-bottom: 0.25rem; margin-top: 1.25rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 0.5rem; }
-.icon-btn { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 2px 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.15s; }
-.icon-btn:hover { background: var(--border-color); color: var(--text-color); }
-.workspace-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
-.loading-item, .empty-item { color: var(--text-color-3); font-size: 0.8rem; padding: 0.5rem; }
-.workspace-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; color: var(--text-color-2); font-size: 0.85rem; font-weight: 400; transition: all 0.12s; }
-.workspace-item:hover { background: var(--bg-color-hover); color: var(--text-color-light); }
-.workspace-item.active { background: var(--border-color); color: #fff; }
-.ws-avatar { width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #5e6ad2, #7c3aed); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; }
-.workspace-item.active .ws-avatar { background: linear-gradient(135deg, #818cf8, #a78bfa); }
-.ws-name { font-size: 0.85rem; font-weight: 500; }
-.sidebar-footer { padding: 0.75rem; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 0.5rem; }
-.user-profile { display: flex; align-items: center; gap: 8px; }
-.user-avatar { width: 22px; height: 22px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #fff; }
+.sidebar { 
+  width: 250px; 
+  background-color: var(--bg-color-2); 
+  display: flex; 
+  flex-direction: column; 
+  border-right: 1px solid var(--border-color); 
+  z-index: 10;
+  transition: width var(--transition-smooth);
+}
+.sidebar-header { 
+  padding: 1.25rem 1rem 0.5rem; 
+}
+.logo { 
+  font-size: 0.9rem; 
+  font-weight: 600; 
+  color: var(--text-color); 
+  letter-spacing: -0.3px; 
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo::before {
+  content: '✦';
+  color: var(--primary-color);
+}
+.sidebar-content { 
+  flex: 1; 
+  padding: 0 0.75rem; 
+  overflow-y: auto; 
+}
+.section-title { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  font-size: 0.65rem; 
+  color: var(--text-color-3); 
+  margin-bottom: 0.25rem; 
+  margin-top: 1.5rem; 
+  font-weight: 600; 
+  text-transform: uppercase; 
+  letter-spacing: 0.8px; 
+  padding: 0 0.5rem; 
+}
+.icon-btn { 
+  background: none; 
+  border: none; 
+  color: var(--text-color-3); 
+  cursor: pointer; 
+  padding: 4px; 
+  border-radius: var(--radius-sm); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-size: 0.85rem; 
+  transition: all var(--transition-fast); 
+}
+.icon-btn:hover { 
+  background: var(--border-color); 
+  color: var(--text-color); 
+}
+.workspace-list { 
+  list-style: none; 
+  padding: 0; 
+  margin: 0; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 2px; 
+}
+.loading-item, .empty-item { 
+  color: var(--text-color-3); 
+  font-size: 0.8rem; 
+  padding: 0.5rem 0.75rem; 
+}
+.workspace-item { 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+  padding: 6px 10px; 
+  border-radius: var(--radius-sm); 
+  cursor: pointer; 
+  color: var(--text-color-2); 
+  font-size: 0.875rem; 
+  font-weight: 500; 
+  transition: all var(--transition-fast); 
+  position: relative;
+}
+.workspace-item:hover { 
+  background: var(--bg-color-hover); 
+  color: var(--text-color); 
+}
+.workspace-item.active { 
+  background: var(--bg-color-hover); 
+  color: var(--text-color); 
+  font-weight: 600;
+}
+.ws-avatar { 
+  width: 20px; 
+  height: 20px; 
+  border-radius: 4px; 
+  background: var(--border-color); 
+  color: var(--text-color); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-size: 0.65rem; 
+  font-weight: 600; 
+}
+.workspace-item.active .ws-avatar { 
+  background: var(--primary-color); 
+  color: #fff;
+}
+.ws-name { 
+  font-size: 0.875rem; 
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-footer { 
+  padding: 1rem; 
+  border-top: 1px solid var(--border-color); 
+  display: flex; 
+  flex-direction: column; 
+  gap: 0.75rem; 
+}
+.user-profile { 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+}
+.user-avatar { 
+  width: 28px; 
+  height: 28px; 
+  border-radius: 50%; 
+  background: var(--primary-color-glass); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-size: 0.8rem; 
+  color: var(--primary-color);
+  font-weight: 600;
+}
 .user-info p { margin: 0; }
-.user-name { font-weight: 500; font-size: 0.8rem; color: var(--text-color-light); }
-.user-email { font-size: 0.7rem; color: var(--text-color-3); }
-.logout-btn { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-color-3); font-size: 0.8rem; }
-.logout-btn:hover { color: #f87171; }
-.item-actions { display: flex; gap: 2px; }
-.item-actions button { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 2px 3px; border-radius: 4px; font-size: 0.7rem; transition: all 0.12s; }
-.item-actions button:hover { background: var(--bg-color-modal); color: var(--text-color); }
+.user-name { font-weight: 500; font-size: 0.85rem; color: var(--text-color); }
+.user-email { font-size: 0.75rem; color: var(--text-color-3); }
+.logout-btn { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  text-decoration: none; 
+  color: var(--text-color-3); 
+  font-size: 0.85rem; 
+  transition: color var(--transition-fast);
+}
+.logout-btn:hover { 
+  color: var(--danger-color); 
+}
+.theme-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  color: var(--text-color-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.theme-toggle-btn:hover {
+  background: var(--bg-color-hover);
+}
+.item-actions { 
+  display: none; 
+  gap: 4px; 
+  position: absolute;
+  right: 6px;
+  background: var(--bg-color-hover);
+  padding: 2px;
+  border-radius: var(--radius-sm);
+}
+.workspace-item:hover .item-actions {
+  display: flex;
+}
+.item-actions button { 
+  background: none; 
+  border: none; 
+  color: var(--text-color-3); 
+  cursor: pointer; 
+  padding: 4px; 
+  border-radius: var(--radius-sm); 
+  font-size: 0.75rem; 
+  transition: all var(--transition-fast); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.item-actions button:hover { 
+  background: var(--border-color); 
+  color: var(--text-color); 
+}
 </style>

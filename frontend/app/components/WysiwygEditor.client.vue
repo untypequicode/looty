@@ -1,35 +1,65 @@
 <template>
-  <div class="wysiwyg-editor">
-    <bubble-menu v-if="editor && editable" :editor="editor" :tippy-options="{ duration: 100 }" :should-show="({ editor, from, to }) => from !== to || editor.isActive('table')" class="bubble-menu">
-      <button type="button" @click.prevent="editor.chain().focus().toggleBold().run()" :class="{ 'is-active': editor.isActive('bold') }"><b>B</b></button>
-      <button type="button" @click.prevent="editor.chain().focus().toggleItalic().run()" :class="{ 'is-active': editor.isActive('italic') }"><i>I</i></button>
-      <button type="button" @click.prevent="editor.chain().focus().toggleUnderline().run()" :class="{ 'is-active': editor.isActive('underline') }"><u>U</u></button>
-      <button type="button" @click.prevent="editor.chain().focus().toggleStrike().run()" :class="{ 'is-active': editor.isActive('strike') }"><s>S</s></button>
+  <div class="wysiwyg-editor" :class="{ 'is-editable': editable }">
+    <div class="editor-toolbar" v-if="editor && editable">
+      <div class="toolbar-group">
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleHeading({ level: 1 }).run()" :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }" title="Titre 1">H1</button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleHeading({ level: 2 }).run()" :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }" title="Titre 2">H2</button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleHeading({ level: 3 }).run()" :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }" title="Titre 3">H3</button>
+      </div>
+
       <div class="divider"></div>
-      <button type="button" @click.prevent="editor.chain().focus().toggleHeading({ level: 1 }).run()" :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }">H1</button>
-      <button type="button" @click.prevent="editor.chain().focus().toggleHeading({ level: 2 }).run()" :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }">H2</button>
+
+      <div class="toolbar-group">
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleBold().run()" :class="{ 'is-active': editor.isActive('bold') }" title="Gras"><b style="font-family: serif; font-size: 1.1rem;">B</b></button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleItalic().run()" :class="{ 'is-active': editor.isActive('italic') }" title="Italique"><i style="font-family: serif; font-size: 1.1rem;">I</i></button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleUnderline().run()" :class="{ 'is-active': editor.isActive('underline') }" title="Souligné"><u style="font-family: serif; font-size: 1.1rem;">U</u></button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleStrike().run()" :class="{ 'is-active': editor.isActive('strike') }" title="Barré"><s style="font-family: serif; font-size: 1.1rem;">S</s></button>
+      </div>
+
       <div class="divider"></div>
-      <button type="button" @click.prevent="editor.chain().focus().toggleCode().run()" :class="{ 'is-active': editor.isActive('code') }">&lt;&gt;</button>
-      <button type="button" @click.prevent="editor.chain().focus().insertContent({ type: 'mathInline', attrs: { latex: '' } }).run()">$</button>
-      
+
+      <div class="toolbar-group">
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleBulletList().run()" :class="{ 'is-active': editor.isActive('bulletList') }" title="Liste à puces"><span style="font-size: 1.2rem;">•</span></button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleOrderedList().run()" :class="{ 'is-active': editor.isActive('orderedList') }" title="Liste numérotée">1.</button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleTaskList().run()" :class="{ 'is-active': editor.isActive('taskList') }" title="Liste de tâches"><span style="font-size: 1.2rem;">☐</span></button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleBlockquote().run()" :class="{ 'is-active': editor.isActive('blockquote') }" title="Citation">""</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="toolbar-group">
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().toggleCodeBlock().run()" :class="{ 'is-active': editor.isActive('codeBlock') }" title="Code Source">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 8m-8-8l-4 8"/></svg>
+        </button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().insertContent({ type: 'mathInline', attrs: { latex: '' } }).run()" title="Formule Mathématique">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        </button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().setHorizontalRule().run()" title="Séparateur">—</button>
+        <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="Tableau">▦</button>
+      </div>
+
       <template v-if="editor.isActive('table')">
         <div class="divider"></div>
-        <button type="button" @click.prevent="editor.chain().focus().addColumnBefore().run()" title="Col Avant">+C</button>
-        <button type="button" @click.prevent="editor.chain().focus().addColumnAfter().run()" title="Col Après">C+</button>
-        <button type="button" @click.prevent="editor.chain().focus().deleteColumn().run()" title="Supprimer Col">-C</button>
-        <button type="button" @click.prevent="editor.chain().focus().addRowBefore().run()" title="Ligne Avant">+L</button>
-        <button type="button" @click.prevent="editor.chain().focus().addRowAfter().run()" title="Ligne Après">L+</button>
-        <button type="button" @click.prevent="editor.chain().focus().deleteRow().run()" title="Supprimer Ligne">-L</button>
-        <button type="button" @click.prevent="editor.chain().focus().deleteTable().run()" title="Supprimer Tableau">🗑</button>
+        <div class="toolbar-group">
+          <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().addColumnBefore().run()" title="Colonne Avant">+C</button>
+          <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().addColumnAfter().run()" title="Colonne Après">C+</button>
+          <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().deleteColumn().run()" title="Supprimer Colonne">-C</button>
+          <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().addRowBefore().run()" title="Ligne Avant">+L</button>
+          <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().addRowAfter().run()" title="Ligne Après">L+</button>
+          <button type="button" class="toolbar-btn" @click.prevent="editor.chain().focus().deleteRow().run()" title="Supprimer Ligne">-L</button>
+          <button type="button" class="toolbar-btn danger" @click.prevent="editor.chain().focus().deleteTable().run()" title="Supprimer Tableau">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
       </template>
-    </bubble-menu>
+    </div>
 
     <editor-content :editor="editor" class="editor-content-area" />
   </div>
 </template>
 
 <script setup>
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/vue-3'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
@@ -50,7 +80,11 @@ import { HocuspocusProvider } from '@hocuspocus/provider'
 import { CustomMathExtension } from './CustomMathExtension'
 import { CustomMathInlineExtension } from './CustomMathInlineExtension'
 import { CommandsExtension, getSuggestionItems, renderItems } from './CommandsExtension'
+import { EmojiExtension, getEmojiItems, renderEmojiItems } from './EmojiExtension'
 import MentionSuggestion from './MentionSuggestion'
+import { TrailingNode } from './TrailingNode'
+import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
+import Dropcursor from '@tiptap/extension-dropcursor'
 import { watch, onBeforeUnmount, markRaw, onMounted } from 'vue'
 import 'katex/dist/katex.min.css'
 
@@ -93,6 +127,18 @@ const extensions = [
   CommandsExtension.configure({
     suggestion: { items: getSuggestionItems, render: renderItems },
   }),
+  EmojiExtension.configure({
+    suggestion: { items: getEmojiItems, render: renderEmojiItems },
+  }),
+  TrailingNode,
+  GlobalDragHandle.configure({
+    dragHandleWidth: 20,
+    scrollTreshold: 100,
+  }),
+  Dropcursor.configure({
+    color: '#8b5cf6',
+    width: 2,
+  }),
 ]
 
 if (props.documentId) {
@@ -134,6 +180,56 @@ const editorOptions = {
       emit('update:modelValue', editor.value.getHTML())
     }
   },
+  editorProps: {
+    handleDrop: function(view, event, slice, moved) {
+      if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+        const file = event.dataTransfer.files[0]
+        if (file.type.startsWith('image/')) {
+          uploadAndInsertImage(file, view, event.clientX, event.clientY)
+          return true
+        }
+      }
+      return false
+    },
+    handlePaste: function(view, event, slice) {
+      if (event.clipboardData && event.clipboardData.files && event.clipboardData.files[0]) {
+        const file = event.clipboardData.files[0]
+        if (file.type.startsWith('image/')) {
+          uploadAndInsertImage(file, view)
+          return true
+        }
+      }
+      return false
+    }
+  }
+}
+
+async function uploadAndInsertImage(file, view, x, y) {
+  const formData = new FormData()
+  formData.append('file', file)
+  try {
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    })
+    const data = await response.json()
+    if (data.url) {
+      const { schema } = view.state
+      const node = schema.nodes.image.create({ src: data.url })
+      if (x !== undefined && y !== undefined) {
+        const pos = view.posAtCoords({ left: x, top: y })
+        if (pos) {
+          const tr = view.state.tr.insert(pos.pos, node)
+          view.dispatch(tr)
+          return
+        }
+      }
+      const tr = view.state.tr.replaceSelectionWith(node)
+      view.dispatch(tr)
+    }
+  } catch (err) {
+    console.error('Upload failed', err)
+  }
 }
 
 // CRUCIAL: Do not pass 'content' AT ALL if using Collaboration in Tiptap 3,
@@ -202,60 +298,110 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wysiwyg-editor {
-  overflow: hidden;
   background: transparent;
   position: relative;
-}
-
-.bubble-menu, .floating-menu {
   display: flex;
-  background-color: #27282b;
-  padding: 4px;
-  border-radius: 6px;
-  border: 1px solid #3f3f46;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  flex-direction: column;
+  min-height: calc(100vh - 200px);
+}
+.wysiwyg-editor:focus-within {
+  /* No border */
 }
 
-.bubble-menu button, .floating-menu button {
+.editor-toolbar {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 8px 16px;
+  background-color: var(--bg-color-modal);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.6;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.editor-toolbar::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  bottom: -20px;
+  left: -20px;
+  right: -20px;
+  z-index: -1;
+}
+
+.editor-toolbar:hover {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  box-shadow: var(--shadow-glass);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-btn {
   background: transparent;
   border: none;
-  color: #a1a1aa;
-  padding: 4px 8px;
-  border-radius: 4px;
+  color: var(--text-color-3);
+  padding: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
   font-size: 0.9rem;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
-.bubble-menu button:hover, .floating-menu button:hover {
-  background: #3f3f46;
-  color: #fff;
+.toolbar-btn:hover {
+  background: var(--border-color);
+  color: var(--text-color);
 }
 
-.bubble-menu button.is-active {
-  background: #4f46e5;
-  color: #fff;
+.toolbar-btn.is-active {
+  background: var(--primary-color-glass);
+  color: var(--primary-color);
+}
+
+.toolbar-btn.danger:hover {
+  background: rgba(235, 87, 87, 0.1);
+  color: var(--danger-color);
 }
 
 .divider {
   width: 1px;
-  background: #3f3f46;
+  height: 18px;
+  background: var(--border-color);
   margin: 0 4px;
 }
 
 .editor-content-area {
-  min-height: 150px;
-  color: #eee;
+  flex: 1;
+  padding: 16px 24px;
+  color: var(--text-color);
   outline: none;
+  font-size: 1.05rem;
+  line-height: 1.6;
 }
 
 :deep(.ProseMirror) {
   outline: none;
   min-height: 150px;
-  padding-bottom: 50vh;
 }
 :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  color: #6b7280;
+  color: var(--text-color-3);
   content: attr(data-placeholder);
   float: left;
   height: 0;
@@ -286,21 +432,21 @@ onBeforeUnmount(() => {
 
 /* Code Blocks */
 :deep(pre) {
-  background: #111113;
-  border-radius: 6px;
-  border: 1px solid #1e1f23;
+  background: var(--bg-color-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
   padding: 1rem;
-  color: #e2e8f0;
+  color: var(--text-color);
   font-family: monospace;
   overflow-x: auto;
   margin: 1rem 0;
 }
 :deep(code) {
-  background: #17181c;
+  background: var(--bg-color-hover);
   padding: 2px 4px;
   border-radius: 4px;
   font-size: 0.9em;
-  color: #fca5a5;
+  color: var(--danger-color);
 }
 :deep(pre code) {
   background: none;
@@ -308,10 +454,10 @@ onBeforeUnmount(() => {
   color: inherit;
 }
 :deep(blockquote) {
-  border-left: 3px solid #5e6ad2;
+  border-left: 3px solid var(--primary-color);
   margin-left: 0;
   padding-left: 1rem;
-  color: #8a8f98;
+  color: var(--text-color-2);
   font-style: italic;
 }
 
@@ -325,7 +471,7 @@ onBeforeUnmount(() => {
 }
 :deep(.ProseMirror table td),
 :deep(.ProseMirror table th) {
-  border: 1px solid #3f3f46;
+  border: 1px solid var(--border-color);
   box-sizing: border-box;
   min-width: 1em;
   padding: 6px 8px;
@@ -333,12 +479,12 @@ onBeforeUnmount(() => {
   vertical-align: top;
 }
 :deep(.ProseMirror table th) {
-  background-color: #1e1f23;
+  background-color: var(--bg-color-2);
   font-weight: bold;
   text-align: left;
 }
 :deep(.ProseMirror table .column-resize-handle) {
-  background-color: #5e6ad2;
+  background-color: var(--primary-color);
   bottom: -2px;
   pointer-events: none;
   position: absolute;
@@ -347,7 +493,7 @@ onBeforeUnmount(() => {
   width: 4px;
 }
 :deep(.ProseMirror table .selectedCell:after) {
-  background: rgba(94, 106, 210, 0.2);
+  background: var(--primary-color-glass);
   content: "";
   left: 0;
   right: 0;
@@ -392,5 +538,26 @@ onBeforeUnmount(() => {
   border-radius: 0.4rem;
   padding: 0.1rem 0.3rem;
   box-decoration-break: clone;
+}
+
+/* Drag Handle */
+:deep(.drag-handle) {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: grab;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>');
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: background-color 0.2s;
+}
+
+:deep(.drag-handle:hover) {
+  background-color: var(--bg-color-hover);
 }
 </style>

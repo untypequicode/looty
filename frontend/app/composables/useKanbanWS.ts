@@ -32,6 +32,10 @@ export const useKanbanWS = (
             if (idx !== -1) pages.value[idx] = event.page
             if (activePage && activePage.value?.id === event.page.id) {
                activePage.value.title = event.page.title
+               activePage.value.icon = event.page.icon
+               activePage.value.parent_id = event.page.parent_id
+               activePage.value.updated_by = event.page.updated_by
+               activePage.value.updated_at = event.page.updated_at
             }
           }
         } else if (event.type === 'PAGE_DELETED' && pages) {

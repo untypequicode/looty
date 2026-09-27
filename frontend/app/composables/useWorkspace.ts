@@ -94,10 +94,10 @@ export const useWorkspace = () => {
   })
 
   const createPageMutation = useMutation({
-    mutationFn: async (workspaceId: string) => {
+    mutationFn: async ({ workspaceId, parentId }: { workspaceId: string, parentId?: string }) => {
       return await $fetch(`/api/workspaces/${workspaceId}/pages`, {
         method: 'POST',
-        body: { title: 'Nouvelle page', parent_id: null, content: '' }
+        body: { title: 'Nouvelle page', parent_id: parentId || null, content: '' }
       }) as Page
     },
     onSuccess: () => {
@@ -109,6 +109,18 @@ export const useWorkspace = () => {
     mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
       return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}`, {
         method: 'DELETE'
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
+    }
+  })
+
+  const updatePageMutation = useMutation({
+    mutationFn: async ({ workspaceId, pageId, data }: { workspaceId: string, pageId: string, data: Partial<Page> }) => {
+      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}`, {
+        method: 'PUT',
+        body: data
       })
     },
     onSuccess: () => {
@@ -162,6 +174,7 @@ export const useWorkspace = () => {
     renameWorkspace: renameWorkspaceMutation.mutateAsync,
     deleteWorkspace: deleteWorkspaceMutation.mutateAsync,
     createPage: createPageMutation.mutateAsync,
+    updatePage: updatePageMutation.mutateAsync,
     deletePage: deletePageMutation.mutateAsync,
     changeMemberRole: changeMemberRoleMutation.mutateAsync,
     kickMember: kickMemberMutation.mutateAsync,

@@ -28,7 +28,7 @@ const {
   activeWorkspaceId, activeWorkspaceRole, workspacesData, isLoadingWorkspaces, 
   workspaceMembers, pages, isLoadingPages, boards,
   selectWorkspace, createWorkspace, isCreatingWorkspace, renameWorkspace, deleteWorkspace, 
-  createPage, deletePage, changeMemberRole, kickMember, copyInviteLink
+  createPage, updatePage, deletePage, changeMemberRole, kickMember, copyInviteLink
 } = useWorkspace()
 
 const {
@@ -214,6 +214,12 @@ const handleOpenTask = (task: any) => {
   showTaskDetailModal.value = true
 }
 
+const currentSubtasks = computed(() => {
+  if (!editingTask.value || !activeBoard.value) return []
+  const allTasks = activeBoard.value.columns.flatMap(c => c.tasks)
+  return allTasks.filter(t => t.parent_id === editingTask.value!.id)
+})
+
 const closeTaskModal = () => {
   taskStack.value.pop()
   if (taskStack.value.length === 0) showTaskDetailModal.value = false
@@ -310,8 +316,25 @@ const handleSelectBoard = (board: any) => {
 
 const handleCreatePage = async () => {
   if (activeWorkspaceId.value) {
-    await createPage(activeWorkspaceId.value)
-    // we should ideally select it, but query invalidation will refresh the list.
+    const page = await createPage({ workspaceId: activeWorkspaceId.value })
+    if (page) handleSelectPage(page)
+  }
+}
+
+const handleCreateSubpage = async (parentId: string) => {
+  if (activeWorkspaceId.value) {
+    const page = await createPage({ workspaceId: activeWorkspaceId.value, parentId })
+    if (page) handleSelectPage(page)
+  }
+}
+
+const handleMovePage = async (payload: { pageId: string, parentId: string | null, position: number }) => {
+  if (activeWorkspaceId.value) {
+    await updatePage({
+      workspaceId: activeWorkspaceId.value,
+      pageId: payload.pageId,
+      data: { parent_id: payload.parentId, position: payload.position }
+    })
   }
 }
 
@@ -378,6 +401,8 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       @delete-board="(id) => confirmAction('Supprimer ce tableau ?') && deleteBoard(id)"
       @delete-page="handleDeletePage"
       @create-page="handleCreatePage"
+      @create-subpage="handleCreateSubpage"
+      @move-page="handleMovePage"
       @show-create-modal="showCreateModal = true"
       @show-board-modal="showBoardModal = true"
       @copy-invite-link="activeWorkspaceId && copyInviteLink(activeWorkspaceId)"
@@ -522,6 +547,7 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       :editingTask="editingTask"
       :workspaceMembers="workspaceMembers || []"
       :activeWorkspaceRole="activeWorkspaceRole"
+      :taskSubtasks="currentSubtasks"
       :filteredLabels="activeBoard?.labels || []"
       :filteredAssignees="workspaceMembers || []"
       :targetColumnId="targetColumnId"

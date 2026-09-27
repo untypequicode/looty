@@ -13,6 +13,7 @@ const props = defineProps<{
   filteredAssignees: WorkspaceMember[]
   targetColumnId: string | null
   activeWorkspaceRole: string | null
+  taskSubtasks?: Task[]
 }>()
 
 const emit = defineEmits<{
@@ -218,8 +219,12 @@ watch(() => props.editingTask, (task) => {
                     :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
                     @click="toggleLabel(lbl)">
                     {{ lbl.name }}
-                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; font-size:10px; opacity:0.7">✏️</button>
-                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="emit('delete-label', lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; font-size:10px; opacity:0.7">🗑</button>
+                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; opacity:0.7">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="emit('delete-label', lbl.id)" title="Supprimer définitivement" style="background:none; border:none; color:inherit; cursor:pointer; opacity:0.7">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
                   </span>
                 </div>
               </div>
@@ -255,7 +260,25 @@ watch(() => props.editingTask, (task) => {
                 <TaskActivities :task-id="editingTask.id" :workspace-members="workspaceMembers" />
               </div>
               
-              <!-- Subtasks and validations section omitted for brevity, to be added later if needed -->
+              <div style="margin-top: 2rem;">
+                <label class="section-label">Sous-tâches</label>
+                <div v-if="taskSubtasks && taskSubtasks.length > 0" class="subtasks-list" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+                  <div v-for="st in taskSubtasks" :key="st.id" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: var(--bg-color-2); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;" @click="st.is_completed = !st.is_completed; emit('update-task', st.id, { is_completed: st.is_completed })">
+                      <input type="checkbox" :checked="st.is_completed" @click.stop @change="emit('update-task', st.id, { is_completed: $event.target.checked })" style="cursor: pointer;" :disabled="activeWorkspaceRole === 'viewer'" />
+                      <span :style="{ textDecoration: st.is_completed ? 'line-through' : 'none', color: st.is_completed ? 'var(--text-color-3)' : 'var(--text-color)' }">{{ st.title }}</span>
+                    </div>
+                    <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="emit('delete-task', st.id)" class="icon-btn" title="Supprimer" style="color: var(--danger-color);">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div v-if="activeWorkspaceRole !== 'viewer'" style="display: flex; gap: 8px;">
+                  <input type="text" v-model="newSubtaskTitle" class="form-input" style="flex: 1" placeholder="Nouvelle sous-tâche..." @keyup.enter="createSubtask" />
+                  <button type="button" class="secondary-btn" @click="createSubtask">Ajouter</button>
+                </div>
+              </div>
             </template>
           </div>
         </div>
