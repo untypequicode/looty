@@ -2,6 +2,7 @@ export interface User {
   id: string
   email: string
   name: string
+  is_super_admin?: boolean
 }
 
 export interface WorkspaceMember {

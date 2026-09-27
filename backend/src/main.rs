@@ -6,6 +6,7 @@ mod board;
 mod archive;
 mod page;
 mod upload;
+mod admin;
 
 use axum::{routing::get, Router, Json, Extension, extract::DefaultBodyLimit};
 use serde::Serialize;
@@ -36,12 +37,30 @@ async fn main() {
     
     archive::start_archive_cron(pool.clone());
 
-    // Client OIDC Zitadel
-    let oidc_client = auth::build_oidc_client().await;
+    // Auto-seed initial OAuth provider from env if empty
+    let provider_count: i64 = sqlx::query_scalar!("SELECT count(*) FROM oauth_providers").fetch_one(&pool).await.unwrap_or(0);
+    if provider_count == 0 {
+        let issuer_url = std::env::var("OIDC_ISSUER").unwrap_or_default();
+        let client_id = std::env::var("OIDC_CLIENT_ID").unwrap_or_default();
+        let client_secret = std::env::var("OIDC_CLIENT_SECRET").unwrap_or_default();
+        if !issuer_url.is_empty() && !client_id.is_empty() && !client_secret.is_empty() {
+            sqlx::query!(
+                "INSERT INTO oauth_providers (name, issuer_url, client_id, client_secret) VALUES ('Zitadel (Default)', $1, $2, $3)",
+                issuer_url, client_id, client_secret
+            )
+            .execute(&pool)
+            .await
+            .ok();
+            println!("Seeded default OAuth provider from environment variables");
+        }
+    }
+
+    // OIDC cache
+    let oidc_clients = std::sync::Arc::new(dashmap::DashMap::new());
 
     let auth_state = auth::AuthState {
         pool: pool.clone(),
-        oidc_client,
+        oidc_clients,
     };
 
     // Initialisation du Session Store dans Postgres
@@ -63,6 +82,7 @@ async fn main() {
         .route("/api/ws", get(ws::ws_handler))
         .route("/api/upload", axum::routing::post(upload::upload_file))
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
+        .nest("/api/admin", admin::admin_routes(auth_state.clone()))
         .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/boards", board::workspace_board_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/pages", page::page_routes(auth_state.clone()))
