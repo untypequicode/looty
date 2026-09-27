@@ -38,16 +38,16 @@ async fn main() {
     archive::start_archive_cron(pool.clone());
 
     // Auto-seed initial OAuth provider from env if empty
-    let provider_count: i64 = sqlx::query_scalar!("SELECT count(*) FROM oauth_providers").fetch_one(&pool).await.unwrap_or(0);
+    let provider_count: i64 = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM oauth_providers").fetch_one(&pool).await.unwrap_or(0);
     if provider_count == 0 {
         let issuer_url = std::env::var("OIDC_ISSUER").unwrap_or_default();
         let client_id = std::env::var("OIDC_CLIENT_ID").unwrap_or_default();
         let client_secret = std::env::var("OIDC_CLIENT_SECRET").unwrap_or_default();
         if !issuer_url.is_empty() && !client_id.is_empty() && !client_secret.is_empty() {
-            sqlx::query!(
-                "INSERT INTO oauth_providers (name, issuer_url, client_id, client_secret) VALUES ('Zitadel (Default)', $1, $2, $3)",
-                issuer_url, client_id, client_secret
+            sqlx::query(
+                "INSERT INTO oauth_providers (name, issuer_url, client_id, client_secret) VALUES ('Zitadel (Default)', $1, $2, $3)"
             )
+            .bind(issuer_url).bind(client_id).bind(client_secret)
             .execute(&pool)
             .await
             .ok();
