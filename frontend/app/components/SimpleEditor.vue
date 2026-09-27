@@ -94,26 +94,26 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wysiwyg-editor {
-  border: 1px solid #3f3f46;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
-  background: #1e1e22;
+  background: var(--bg-color-main);
   position: relative;
 }
 
 .bubble-menu, .floating-menu {
   display: flex;
-  background-color: #27282b;
+  background-color: var(--bg-color-modal);
   padding: 4px;
   border-radius: 6px;
-  border: 1px solid #3f3f46;
+  border: 1px solid var(--border-color);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 .bubble-menu button, .floating-menu button {
   background: transparent;
   border: none;
-  color: #a1a1aa;
+  color: var(--text-color-3);
   padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -122,25 +122,25 @@ onBeforeUnmount(() => {
 }
 
 .bubble-menu button:hover, .floating-menu button:hover {
-  background: #3f3f46;
-  color: #fff;
+  background: var(--bg-color-hover);
+  color: var(--text-color);
 }
 
 .bubble-menu button.is-active {
-  background: #4f46e5;
+  background: var(--primary-color);
   color: #fff;
 }
 
 .divider {
   width: 1px;
-  background: #3f3f46;
+  background: var(--border-color);
   margin: 0 4px;
 }
 
 .editor-content-area {
   padding: 16px;
   min-height: 150px;
-  color: #eee;
+  color: var(--text-color);
   outline: none;
 }
 
@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
   min-height: 150px;
 }
 :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  color: #6b7280;
+  color: var(--text-color-3);
   content: attr(data-placeholder);
   float: left;
   height: 0;
@@ -180,21 +180,21 @@ onBeforeUnmount(() => {
 
 /* Code Blocks */
 :deep(pre) {
-  background: #111113;
+  background: var(--bg-color-modal);
   border-radius: 6px;
-  border: 1px solid #1e1f23;
+  border: 1px solid var(--border-color);
   padding: 1rem;
-  color: #e2e8f0;
+  color: var(--text-color-2);
   font-family: monospace;
   overflow-x: auto;
   margin: 1rem 0;
 }
 :deep(code) {
-  background: #17181c;
+  background: var(--bg-color-2);
   padding: 2px 4px;
   border-radius: 4px;
   font-size: 0.9em;
-  color: #fca5a5;
+  color: var(--danger-color);
 }
 :deep(pre code) {
   background: none;
@@ -202,10 +202,10 @@ onBeforeUnmount(() => {
   color: inherit;
 }
 :deep(blockquote) {
-  border-left: 3px solid #5e6ad2;
+  border-left: 3px solid var(--primary-color);
   margin-left: 0;
   padding-left: 1rem;
-  color: #8a8f98;
+  color: var(--text-color-3);
   font-style: italic;
 }
 </style>

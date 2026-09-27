@@ -25,6 +25,7 @@ pub fn admin_routes(state: AuthState) -> Router {
         .route("/providers", get(list_providers).post(create_provider))
         .route("/providers/:id", put(update_provider).delete(delete_provider))
         .route("/users", get(list_users))
+        .route("/users/:id/role", put(update_user_role))
         .with_state(state)
 }
 
@@ -154,4 +155,31 @@ async fn list_users(session: Session, State(state): State<AuthState>) -> impl In
     .unwrap_or_default();
 
     Json(users).into_response()
+}
+
+#[derive(Deserialize)]
+struct RoleUpdate {
+    is_super_admin: bool,
+}
+
+async fn update_user_role(
+    session: Session,
+    State(state): State<AuthState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<RoleUpdate>,
+) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let result = sqlx::query("UPDATE users SET is_super_admin = $1 WHERE id = $2")
+        .bind(payload.is_super_admin)
+        .bind(id)
+        .execute(&state.pool)
+        .await;
+
+    match result {
+        Ok(_) => (axum::http::StatusCode::OK).into_response(),
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed").into_response(),
+    }
 }

@@ -115,7 +115,7 @@ function formatDate(dateStr) {
   margin: 0 0 12px 0;
   font-size: 0.8rem;
   font-weight: 500;
-  color: #8a8f98;
+  color: var(--text-color-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   display: flex;
@@ -123,8 +123,8 @@ function formatDate(dateStr) {
   gap: 6px;
 }
 .comment-count {
-  background: #27282b;
-  color: #8a8f98;
+  background: var(--bg-color-modal);
+  color: var(--text-color-3);
   padding: 1px 6px;
   border-radius: 10px;
   font-size: 0.7rem;
@@ -139,8 +139,8 @@ function formatDate(dateStr) {
 }
 .comment-item {
   padding: 10px 12px;
-  background: #17181c;
-  border: 1px solid #27282b;
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 .comment-header {
@@ -153,7 +153,7 @@ function formatDate(dateStr) {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #5e6ad2;
+  background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
@@ -171,16 +171,16 @@ function formatDate(dateStr) {
 .comment-user {
   font-weight: 500;
   font-size: 0.85rem;
-  color: #eee;
+  color: var(--text-color);
 }
 .comment-time {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-color-3);
 }
 .comment-delete {
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--text-color-3);
   cursor: pointer;
   padding: 2px;
   border-radius: 4px;
@@ -191,17 +191,17 @@ function formatDate(dateStr) {
   opacity: 1;
 }
 .comment-delete:hover {
-  color: #f87171;
+  color: var(--danger-color);
   background: rgba(248, 113, 113, 0.1);
 }
 .comment-body {
   font-size: 0.9rem;
-  color: #d1d5db;
+  color: var(--text-color-2);
   line-height: 1.5;
   white-space: pre-wrap;
 }
 .empty-comments {
-  color: #6b7280;
+  color: var(--text-color-3);
   font-size: 0.85rem;
   font-style: italic;
   padding: 8px 0;
@@ -215,9 +215,9 @@ function formatDate(dateStr) {
   flex: 1;
   padding: 8px 12px;
   border-radius: 6px;
-  background: #17181c;
-  border: 1px solid #27282b;
-  color: #eee;
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   font-family: inherit;
   font-size: 0.875rem;
   resize: none;
@@ -225,10 +225,10 @@ function formatDate(dateStr) {
   transition: border-color 0.2s;
 }
 .comment-input:focus {
-  border-color: #5e6ad2;
+  border-color: var(--primary-color);
 }
 .comment-submit {
-  background: #5e6ad2;
+  background: var(--primary-color);
   border: none;
   color: white;
   padding: 8px 12px;
@@ -239,7 +239,7 @@ function formatDate(dateStr) {
   align-items: center;
 }
 .comment-submit:hover {
-  background: #4f5bc4;
+  background: var(--primary-color-hover);
 }
 .comment-submit:disabled {
   opacity: 0.3;

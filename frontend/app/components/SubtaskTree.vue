@@ -1,8 +1,8 @@
 <template>
-  <div class="nested-subtasks" style="margin-top: 8px; border-top: 1px solid #3f3f46; padding-top: 8px; margin-left: 8px; border-left: 1px solid #3f3f46; padding-left: 8px;">
+  <div class="nested-subtasks" style="margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 8px; margin-left: 8px; border-left: 1px solid var(--border-color); padding-left: 8px;">
     <div v-for="subtask in getSubtasks(parentTask)" :key="subtask.id">
-      <div class="subtask-row" @click.stop="openTaskDetail(subtask)" style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 4px 0; color: #a1a1aa; cursor: pointer;">
-        <div class="subtask-checkbox" :style="{ color: subtask.is_completed ? '#10b981' : '#52525b' }" @click.stop="toggleTaskValidation(subtask)">
+      <div class="subtask-row" @click.stop="openTaskDetail(subtask)" style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 4px 0; color: var(--text-color-3); cursor: pointer;">
+        <div class="subtask-checkbox" :style="{ color: subtask.is_completed ? '#10b981' : 'var(--text-color-3)' }" @click.stop="toggleTaskValidation(subtask)">
            {{ subtask.is_completed ? '☑' : '☐' }}
         </div>
         <span :style="{ textDecoration: subtask.is_completed ? 'line-through' : 'none' }">{{ subtask.title }}</span>

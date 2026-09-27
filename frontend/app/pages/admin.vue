@@ -95,6 +95,24 @@ async function deleteProvider(id: string) {
     }
   }
 }
+
+async function toggleUserRole(u: any) {
+  if (u.id === user.value?.user?.id) {
+    alert("Vous ne pouvez pas modifier votre propre rôle.")
+    return
+  }
+  if (confirm(`Changer le rôle de ${u.name} ?`)) {
+    try {
+      await $fetch(`/api/admin/users/${u.id}/role`, {
+        method: 'PUT',
+        body: { is_super_admin: !u.is_super_admin }
+      })
+      fetchUsers()
+    } catch (e) {
+      alert("Erreur")
+    }
+  }
+}
 </script>
 
 <template>
@@ -130,8 +148,10 @@ async function deleteProvider(id: string) {
               <td>{{ u.name }}</td>
               <td>{{ u.email }}</td>
               <td>
-                <span v-if="u.is_super_admin" style="color: var(--primary-color); font-weight: bold;">Oui</span>
-                <span v-else>Non</span>
+                <button class="secondary-btn" @click="toggleUserRole(u)" style="padding: 4px 8px; font-size: 0.75rem;">
+                  <span v-if="u.is_super_admin" style="color: var(--primary-color); font-weight: bold;">Oui</span>
+                  <span v-else>Non</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -163,8 +183,12 @@ async function deleteProvider(id: string) {
                 <span v-else style="color: var(--text-color-3);">Inactif</span>
               </td>
               <td>
-                <button class="icon-btn" @click="openEditProvider(p)">✏️</button>
-                <button class="icon-btn" @click="deleteProvider(p.id)">🗑️</button>
+                <button class="icon-btn" @click="openEditProvider(p)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </button>
+                <button class="icon-btn" @click="deleteProvider(p.id)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
               </td>
             </tr>
             <tr v-if="providers.length === 0">

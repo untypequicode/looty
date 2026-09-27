@@ -113,13 +113,13 @@ function formatDate(dateStr) {
   background: transparent;
 }
 .activities-list::-webkit-scrollbar-thumb {
-  background-color: #3f3f46;
+  background-color: var(--border-color);
   border-radius: 10px;
 }
 .activity-item {
   padding: 12px;
-  background: #1e1e22;
-  border: 1px solid #3f3f46;
+  background: var(--bg-color-main);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 .activity-header {
@@ -131,7 +131,7 @@ function formatDate(dateStr) {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #4f46e5;
+  background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
@@ -145,20 +145,20 @@ function formatDate(dateStr) {
 }
 .activity-user {
   font-weight: 600;
-  color: #eee;
+  color: var(--text-color);
   margin-right: 4px;
 }
 .activity-text {
-  color: #a1a1aa;
+  color: var(--text-color-3);
 }
 .activity-time {
   font-size: 0.8rem;
-  color: #8a8f98;
+  color: var(--text-color-3);
 }
 .activity-actions {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #3f3f46;
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
 }
@@ -167,7 +167,7 @@ function formatDate(dateStr) {
   font-size: 0.8rem;
 }
 .empty-state {
-  color: #a1a1aa;
+  color: var(--text-color-3);
   font-size: 0.9rem;
   font-style: italic;
   padding: 12px 0;

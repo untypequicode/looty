@@ -86,9 +86,9 @@ export default {
 
 <style scoped>
 .mention-list {
-  background: #27282b;
+  background: var(--bg-color-modal);
   border-radius: 6px;
-  border: 1px solid #3f3f46;
+  border: 1px solid var(--border-color);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
   padding: 4px;
   display: flex;
@@ -101,7 +101,7 @@ export default {
   border: none;
   text-align: left;
   padding: 6px 10px;
-  color: #eeeeee;
+  color: var(--text-color);
   border-radius: 4px;
   cursor: pointer;
   display: flex;
@@ -110,12 +110,12 @@ export default {
 
 .mention-item:hover,
 .mention-item.is-selected {
-  background: #3f3f46;
+  background: var(--bg-color-hover);
 }
 
 .mention-empty {
   padding: 6px 10px;
-  color: #a1a1aa;
+  color: var(--text-color-3);
   font-size: 0.9rem;
 }
 </style>

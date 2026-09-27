@@ -203,7 +203,7 @@ watch(() => props.editingTask, (task) => {
                   <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click="toggleCreateLabel" style="background:none; border:none; color:#5e6ad2; cursor:pointer; font-size: 0.75rem;">+ Créer</button>
                 </div>
                 
-                <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: #222327; padding: 8px; border-radius: 4px;">
+                <div v-if="showCreateLabel" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-color-2); padding: 8px; border-radius: 4px;">
                   <input v-model="newLabelName" type="text" class="modern-input" placeholder="Nom du label" style="margin-bottom: 0; padding: 6px;">
                   <div style="display: flex; gap: 8px; align-items: center;">
                     <input v-model="newLabelColor" type="color" style="height: 28px; width: 40px; border:none; background:none; cursor:pointer;">
@@ -217,7 +217,7 @@ watch(() => props.editingTask, (task) => {
                   <span v-for="lbl in filteredLabels" :key="lbl.id" 
                     class="task-label-chip clickable-chip" 
                     :class="{ 'selected-chip': isLabelSelected(lbl.id) }"
-                    :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : '#2f3136', border: isLabelSelected(lbl.id) ? 'none' : '1px solid #4a4d55', color: isLabelSelected(lbl.id) ? '#fff' : '#9ca3af' }"
+                    :style="{ backgroundColor: isLabelSelected(lbl.id) ? lbl.color : 'var(--bg-color-2)', border: isLabelSelected(lbl.id) ? 'none' : '1px solid var(--border-color)', color: isLabelSelected(lbl.id) ? '#fff' : 'var(--text-color-3)' }"
                     @click="toggleLabel(lbl)">
                     {{ lbl.name }}
                     <button v-if="activeWorkspaceRole !== 'viewer'" type="button" @click.stop="startEditLabel(lbl)" title="Modifier ce label" style="background:none; border:none; color:inherit; cursor:pointer; margin-left:4px; opacity:0.7">
@@ -237,7 +237,7 @@ watch(() => props.editingTask, (task) => {
                   <span v-for="m in filteredAssignees" :key="m.user_id" 
                     class="assignee-chip clickable-chip"
                     :class="{ 'selected-chip': isAssigneeSelected(m.user_id) }"
-                    :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? '#5e6ad2' : '#2f3136', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid #4a4d55', color: isAssigneeSelected(m.user_id) ? '#fff' : '#9ca3af' }"
+                    :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? 'var(--primary-color)' : 'var(--bg-color-2)', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid var(--border-color)', color: isAssigneeSelected(m.user_id) ? '#fff' : 'var(--text-color-3)' }"
                     @click="activeWorkspaceRole !== 'viewer' ? toggleAssignee(m.user_id) : null">
                     {{ m.name }}
                   </span>
@@ -305,25 +305,25 @@ watch(() => props.editingTask, (task) => {
 .slideover-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); z-index: 100; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }
 .slideover-panel { width: 720px; max-width: 100%; height: 100vh; background: var(--bg-color-2); border-left: 1px solid var(--border-color); box-shadow: -8px 0 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
 .slideover-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-.title-input { font-size: 1.1rem; font-weight: 600; padding: 0.4rem; background: transparent; border: 1px solid transparent; width: 100%; margin-right: 1rem; color: #fff; border-radius: 4px; }
+.title-input { font-size: 1.1rem; font-weight: 600; padding: 0.4rem; background: transparent; border: 1px solid transparent; width: 100%; margin-right: 1rem; color: var(--text-color); border-radius: 4px; }
 .title-input:focus { background: var(--bg-color-modal); border-color: var(--primary-color); }
 .close-btn { background: none; border: none; color: var(--text-color-3); font-size: 1rem; cursor: pointer; padding: 0.4rem; border-radius: 4px; transition: 0.15s; }
-.close-btn:hover { background: var(--border-color); color: #eee; }
+.close-btn:hover { background: var(--border-color); color: var(--text-color); }
 .slideover-body { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .slideover-main { flex: 1; padding: 1.5rem; overflow-y: auto; }
 .slideover-meta-horizontal { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; padding: 12px; background: var(--bg-color-modal); border-radius: 8px; border: 1px solid var(--border-color); }
 .meta-field { display: flex; align-items: center; gap: 8px; }
 .meta-label { font-size: 0.75rem; color: var(--text-color-3); font-weight: 500; white-space: nowrap; }
-.modern-input { flex: 1; padding: 6px 10px; border-radius: 6px; background: #111; border: 1px solid var(--border-color); color: #eee; font-family: inherit; font-size: 0.85rem; }
+.modern-input { flex: 1; padding: 6px 10px; border-radius: 6px; background: var(--bg-color-main); border: 1px solid var(--border-color); color: var(--text-color); font-family: inherit; font-size: 0.85rem; }
 .meta-input { width: 130px; margin: 0; padding: 4px 8px; font-size: 0.8rem; }
-.modern-select { background: #111; color: #eee; border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 6px; outline: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
+.modern-select { background: var(--bg-color-main); color: var(--text-color); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 6px; outline: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
 .meta-select { margin: 0; padding: 4px 8px; font-size: 0.8rem; min-width: 120px; }
 .section-label { display: block; font-size: 0.7rem; font-weight: 500; color: var(--text-color-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem; }
 .slideover-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--bg-color-2); }
 .primary-btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; background: var(--primary-color); color: #fff; font-weight: 500; font-size: 0.85rem; transition: all 0.12s; }
 .primary-btn:hover { background: var(--primary-color-hover); }
 .secondary-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; background: transparent; color: var(--text-color-3); font-weight: 500; font-size: 0.85rem; transition: all 0.12s; }
-.secondary-btn:hover { background: var(--border-color); color: #eee; }
+.secondary-btn:hover { background: var(--border-color); color: var(--text-color); }
 .task-label-chip { padding: 2px 6px; border-radius: 12px; font-size: 0.7rem; color: #fff; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
 .clickable-chip { cursor: pointer; transition: all 0.12s; user-select: none; }
 .selected-chip { box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.4); }
