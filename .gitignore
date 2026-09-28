@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 docker-compose.override.yml
+digest.txt
 
 # Node/Frontend
 node_modules/
