@@ -4,7 +4,7 @@ use axum::{
     Extension,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 

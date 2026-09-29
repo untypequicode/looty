@@ -30,65 +30,9 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, computed, nextTick } from 'vue'
+import { allEmojis } from '../utils/emojis'
 
 const emit = defineEmits(['select', 'close'])
-
-// The exact same list from EmojiExtension.js
-const allEmojis = [
-  { title: 'smile', emoji: '😄' },
-  { title: 'joy', emoji: '😂' },
-  { title: 'heart', emoji: '❤️' },
-  { title: 'thumbsup', emoji: '👍' },
-  { title: 'fire', emoji: '🔥' },
-  { title: 'star', emoji: '⭐' },
-  { title: 'rocket', emoji: '🚀' },
-  { title: 'party', emoji: '🥳' },
-  { title: 'check', emoji: '✅' },
-  { title: 'cross', emoji: '❌' },
-  { title: 'warning', emoji: '⚠️' },
-  { title: 'info', emoji: 'ℹ️' },
-  { title: 'idea', emoji: '💡' },
-  { title: 'pin', emoji: '📌' },
-  { title: 'eyes', emoji: '👀' },
-  { title: 'sob', emoji: '😭' },
-  { title: 'cry', emoji: '😢' },
-  { title: 'sweat_smile', emoji: '😅' },
-  { title: 'wink', emoji: '😉' },
-  { title: 'sunglasses', emoji: '😎' },
-  { title: 'thinking', emoji: '🤔' },
-  { title: 'alien', emoji: '👽' },
-  { title: 'ghost', emoji: '👻' },
-  { title: 'robot', emoji: '🤖' },
-  { title: 'cat', emoji: '🐱' },
-  { title: 'dog', emoji: '🐶' },
-  { title: 'apple', emoji: '🍎' },
-  { title: 'pizza', emoji: '🍕' },
-  { title: 'coffee', emoji: '☕' },
-  { title: 'car', emoji: '🚗' },
-  { title: 'house', emoji: '🏠' },
-  { title: 'computer', emoji: '💻' },
-  { title: 'book', emoji: '📖' },
-  { title: 'music', emoji: '🎵' },
-  { title: 'art', emoji: '🎨' },
-  { title: 'earth', emoji: '🌍' },
-  { title: 'sun', emoji: '☀️' },
-  { title: 'moon', emoji: '🌙' },
-  { title: 'rainbow', emoji: '🌈' },
-  { title: 'zap', emoji: '⚡' },
-  { title: 'snow', emoji: '❄️' },
-  { title: 'fireworks', emoji: '🎆' },
-  { title: 'balloon', emoji: '🎈' },
-  { title: 'gift', emoji: '🎁' },
-  { title: 'medal', emoji: '🏅' },
-  { title: 'lock', emoji: '🔒' },
-  { title: 'key', emoji: '🔑' },
-  { title: 'mag', emoji: '🔍' },
-  { title: 'loudspeaker', emoji: '📢' },
-  { title: 'bell', emoji: '🔔' },
-  { title: 'pushpin', emoji: '📌' },
-  { title: 'chart', emoji: '📈' },
-  { title: 'calendar', emoji: '📅' },
-]
 
 const pickerRef = ref(null)
 const searchInput = ref(null)

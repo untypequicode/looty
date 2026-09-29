@@ -1,7 +1,6 @@
 use axum::{
     extract::{Path, State, Multipart},
     http::StatusCode,
-    response::IntoResponse,
     routing::{get, post, put, delete},
     Json, Router, Extension,
 };
@@ -871,6 +870,13 @@ async fn add_task_label(
     let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("INSERT INTO task_labels (task_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(task_id).bind(label_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let _ = log_activity(
+        &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "add_label",
+        None,
+        Some(serde_json::json!({ "label_id": label_id }))
+    ).await;
+
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
     let tx = ws_state.get_or_create_room(&board_ws.to_string()).await;
     let _ = tx.send(ws_msg);
@@ -890,6 +896,13 @@ async fn remove_task_label(
     let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     sqlx::query("DELETE FROM task_labels WHERE task_id = $1 AND label_id = $2").bind(task_id).bind(label_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let _ = log_activity(
+        &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "remove_label",
+        Some(serde_json::json!({ "label_id": label_id })),
+        None
+    ).await;
+
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
     let tx = ws_state.get_or_create_room(&board_ws.to_string()).await;
     let _ = tx.send(ws_msg);
@@ -908,7 +921,14 @@ async fn add_task_assignee(
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
-    sqlx::query("INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(task_id).bind(target_user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query("INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(task_id).bind(&target_user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let _ = log_activity(
+        &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "add_assignee",
+        None,
+        Some(serde_json::json!({ "user_id": target_user_id }))
+    ).await;
+
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
     let tx = ws_state.get_or_create_room(&board_ws.to_string()).await;
     let _ = tx.send(ws_msg);
@@ -927,7 +947,14 @@ async fn remove_task_assignee(
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     let role = check_workspace_access(&state.pool, &user_id, &board_ws).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
-    sqlx::query("DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2").bind(task_id).bind(target_user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query("DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2").bind(task_id).bind(&target_user_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let _ = log_activity(
+        &state.pool, task_id, Uuid::parse_str(&user_id).unwrap(), "remove_assignee",
+        Some(serde_json::json!({ "user_id": target_user_id })),
+        None
+    ).await;
+
     let ws_msg = serde_json::json!({ "type": "TASK_UPDATED", "task_id": task_id, "workspace_id": board_ws }).to_string();
     let tx = ws_state.get_or_create_room(&board_ws.to_string()).await;
     let _ = tx.send(ws_msg);
@@ -1232,7 +1259,7 @@ async fn restore_task_activity(
         if updated {
             let col_id = sqlx::query_scalar::<_, Uuid>("SELECT column_id FROM tasks WHERE id = $1").bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
             let board_id = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(col_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
-            let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
+            let _board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
             // We just trigger task_id update so the frontend can refetch
             // Wait, we don't have Extension(ws_state) injected in this handler!
         }

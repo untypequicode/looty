@@ -199,6 +199,10 @@ watch(() => props.editingTask, (task) => {
                 <span class="meta-label">Échéance</span>
                 <input v-model="editTaskDueDate" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
               </div>
+              <div class="meta-field" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span class="meta-label" style="margin: 0;">Validation par personne</span>
+                <input type="checkbox" v-model="editTaskIsPerPerson" :disabled="activeWorkspaceRole === 'viewer'">
+              </div>
             </div>
             
             <div class="slideover-meta-horizontal" style="margin-top: 1rem;">

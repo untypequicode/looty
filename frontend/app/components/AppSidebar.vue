@@ -73,6 +73,44 @@ const toggleTheme = () => {
   }
   applyTheme()
 }
+
+const showSearch = ref(false)
+const searchQuery = ref('')
+const searchResults = ref([])
+const isSearching = ref(false)
+
+const handleSearch = async () => {
+  if (!searchQuery.value || searchQuery.value.trim().length < 2) {
+    searchResults.value = []
+    return
+  }
+  isSearching.value = true
+  try {
+    const res = await $fetch(`/api/workspaces/${props.activeWorkspaceId}/search?q=${encodeURIComponent(searchQuery.value)}`)
+    searchResults.value = res.results || []
+  } catch (e) {
+    console.error("Search error", e)
+  }
+  isSearching.value = false
+}
+
+const selectSearchResult = (result) => {
+  if (result.type === 'page') {
+    const p = props.pages.find(page => page.id === result.id)
+    if (p) {
+      emit('select-page', p)
+    }
+  }
+  showSearch.value = false
+  searchQuery.value = ''
+  searchResults.value = []
+}
+
+let searchTimeout = null
+const onSearchInput = () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(handleSearch, 300)
+}
 </script>
 
 <template>
@@ -80,6 +118,52 @@ const toggleTheme = () => {
     <div class="sidebar-header"><div class="logo">Looty</div></div>
     
     <div class="sidebar-content">
+      <div v-if="activeWorkspaceId" class="sidebar-search" style="padding: 1rem 0 0 0;">
+        <button @click="showSearch = true" class="search-btn" style="width: 100%; display: flex; align-items: center; gap: 8px; background: var(--bg-color-3); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: var(--radius-md); color: var(--text-color-3); cursor: pointer; transition: all 0.2s;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <span>Rechercher...</span>
+        </button>
+      </div>
+
+      <!-- Search Modal -->
+      <ClientOnly>
+        <Teleport to="body">
+          <div v-if="showSearch" class="modal-overlay" @click.self="showSearch = false">
+            <div class="modal-content search-modal" style="margin-top: 10vh; max-width: 600px; padding: 0;">
+              <input 
+                v-model="searchQuery" 
+                @input="onSearchInput"
+                type="text" 
+                placeholder="Rechercher dans l'espace (pages, contenus)..." 
+                class="modern-input search-modal-input" 
+                style="border: none; border-bottom: 1px solid var(--border-color); border-radius: var(--radius-md) var(--radius-md) 0 0; margin-bottom: 0; padding: 16px; font-size: 1.1rem; box-shadow: none;"
+                autofocus
+              />
+              <div class="search-results" style="max-height: 400px; overflow-y: auto; padding: 8px;">
+                <div v-if="isSearching" style="padding: 16px; text-align: center; color: var(--text-color-3);">Recherche en cours...</div>
+                <div v-else-if="searchResults.length === 0 && searchQuery.length >= 2" style="padding: 16px; text-align: center; color: var(--text-color-3);">Aucun résultat trouvé</div>
+                <div v-else-if="searchQuery.length < 2" style="padding: 16px; text-align: center; color: var(--text-color-3);">Tapez au moins 2 caractères</div>
+                <div 
+                  v-else
+                  v-for="res in searchResults" 
+                  :key="res.id"
+                  @click="selectSearchResult(res)"
+                  class="search-result-item"
+                  style="padding: 12px; cursor: pointer; border-radius: var(--radius-md); transition: background 0.1s;"
+                >
+                  <div style="font-weight: 500; color: var(--text-color); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                    <span v-if="res.type === 'page'">📄</span> {{ res.title }}
+                  </div>
+                  <div v-if="res.snippet" style="font-size: 0.85rem; color: var(--text-color-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {{ res.snippet.replace(/<[^>]*>?/gm, '') }}...
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Teleport>
+      </ClientOnly>
+
       <div class="section-title">
         <span>Espaces de Travail</span>
         <div style="display: flex; gap: 0.5rem;">

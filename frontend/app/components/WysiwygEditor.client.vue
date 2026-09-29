@@ -135,21 +135,18 @@ const extensions = [
     dragHandleWidth: 20,
     scrollTreshold: 100,
   }),
-  Dropcursor.configure({
-    color: '#8b5cf6',
-    width: 2,
-  }),
 ]
 
-if (props.documentId) {
+if (props.documentId && typeof window !== 'undefined') {
   ydoc = markRaw(new Y.Doc())
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  const wsUrl = isLocal 
-    ? `ws://127.0.0.1:8082`
-    : `${protocol}//${window.location.host}/collab`
+  // Use direct port 8082 for local development to bypass Nuxt proxy (which doesn't support WS upgrade)
+  const wsUrl = typeof window !== 'undefined' 
+    ? (isLocal ? `ws://${window.location.hostname}:8082` : `${protocol}//${window.location.host}/collab`) 
+    : ''
 
   provider = markRaw(new HocuspocusProvider({
     url: wsUrl,

@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 
 const props = defineProps({
   taskId: {
@@ -54,6 +54,8 @@ async function loadActivities() {
 onMounted(() => {
   loadActivities()
 })
+
+watch(() => props.taskId, loadActivities)
 
 async function restoreActivity(activityId) {
   if (!confirmAction("Voulez-vous vraiment restaurer la tâche à cet état ?")) return
@@ -85,6 +87,8 @@ function getActivityText(activity) {
     case 'toggle_validation': return `a modifié la validation`
     case 'add_assignee': return `a ajouté un assigné`
     case 'remove_assignee': return `a retiré un assigné`
+    case 'add_label': return `a ajouté une étiquette`
+    case 'remove_label': return `a retiré une étiquette`
     case 'upload_attachment': return `a ajouté une pièce jointe`
     default: return `a effectué une action`
   }

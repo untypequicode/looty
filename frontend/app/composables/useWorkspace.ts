@@ -45,6 +45,16 @@ export const useWorkspace = () => {
     enabled: computed(() => !!activeWorkspaceId.value)
   })
 
+  const { data: myTasks, isLoading: isLoadingMyTasks } = useQuery({
+    queryKey: ['workspaces', activeWorkspaceId, 'my_tasks'],
+    queryFn: async () => {
+      if (!activeWorkspaceId.value) return []
+      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/my_tasks`) as { tasks: any[] }
+      return response.tasks
+    },
+    enabled: computed(() => !!activeWorkspaceId.value)
+  })
+
   const activeWorkspaceRole = computed(() => {
     const ws = workspacesData.value?.workspaces?.find((w: Workspace) => w.id === activeWorkspaceId.value)
     return ws ? ws.role : null
@@ -190,6 +200,8 @@ export const useWorkspace = () => {
     isLoadingPages,
     boards,
     isLoadingBoards,
+    myTasks,
+    isLoadingMyTasks,
     selectWorkspace,
     createWorkspace: createWorkspaceMutation.mutateAsync,
     isCreatingWorkspace: createWorkspaceMutation.isPending,

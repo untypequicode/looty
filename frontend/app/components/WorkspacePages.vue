@@ -37,6 +37,9 @@
             <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn share-btn" @click="toggleShareModal = true" style="display: flex; align-items: center; gap: 4px;">
               🔗 Partager
             </button>
+            <button v-if="activeWorkspaceRole === 'admin' || activeWorkspaceRole === 'owner'" class="meta-btn perm-btn" @click="openPermissionsModal" style="display: flex; align-items: center; gap: 4px; margin-left: 8px;">
+              🔐 Accès
+            </button>
             <span class="meta-dot">•</span>
             <div class="collaborators-list" v-if="collaborators.length > 0">
               <div 
@@ -81,28 +84,56 @@
     </div>
 
     <!-- Share Modal -->
-    <Teleport to="body">
-      <div v-if="toggleShareModal" class="modal-overlay" @click.self="toggleShareModal = false">
-        <div class="modal-content">
-          <h2>Partager la page</h2>
-          <div v-if="page.is_public && page.share_token" class="share-info">
-            <p>Cette page est accessible publiquement via ce lien :</p>
-            <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 24px;">
-              <input type="text" readonly :value="shareLink" class="modern-input" style="flex: 1;" />
-              <button @click="copyShareLink" class="btn btn-primary">Copier</button>
+    <ClientOnly>
+      <Teleport to="body">
+        <div v-if="toggleShareModal" class="modal-overlay" @click.self="toggleShareModal = false">
+          <div class="modal-content">
+            <h2>Partager la page</h2>
+            <div v-if="page.is_public && page.share_token" class="share-info">
+              <p>Cette page est accessible publiquement via ce lien :</p>
+              <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 24px;">
+                <input type="text" readonly :value="shareLink" class="modern-input" style="flex: 1;" />
+                <button @click="copyShareLink" class="btn btn-primary">Copier</button>
+              </div>
+              <button @click="handleRevokeShare" class="btn btn-danger" :disabled="isSharing">Révoquer le lien</button>
             </div>
-            <button @click="handleRevokeShare" class="btn btn-danger" :disabled="isSharing">Révoquer le lien</button>
-          </div>
-          <div v-else class="share-info">
-            <p>Créer un lien public pour partager cette page avec des personnes externes.</p>
-            <button @click="handleSharePage" class="btn btn-primary" style="margin-top: 16px;" :disabled="isSharing">Générer un lien</button>
-          </div>
-          <div class="modal-actions" style="margin-top: 24px; text-align: right;">
-            <button @click="toggleShareModal = false" class="btn btn-secondary">Fermer</button>
+            <div v-else class="share-info">
+              <p>Créer un lien public pour partager cette page avec des personnes externes.</p>
+              <button @click="handleSharePage" class="btn btn-primary" style="margin-top: 16px;" :disabled="isSharing">Générer un lien</button>
+            </div>
+            <div class="modal-actions" style="margin-top: 24px; text-align: right;">
+              <button @click="toggleShareModal = false" class="btn btn-secondary">Fermer</button>
+            </div>
           </div>
         </div>
-      </div>
-    </Teleport>
+      </Teleport>
+    </ClientOnly>
+
+    <!-- Permissions Modal -->
+    <ClientOnly>
+      <Teleport to="body">
+        <div v-if="togglePermissionsModal" class="modal-overlay" @click.self="togglePermissionsModal = false">
+          <div class="modal-content">
+            <h2>Accès à la page</h2>
+            <p>Gérez les permissions spécifiques à cette page pour les membres de l'espace.</p>
+            <div class="members-list" style="margin-top: 16px;">
+              <div v-for="member in workspaceMembers" :key="member.user_id" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                <span>{{ member.name }} <small>({{ member.email }})</small></span>
+                <select v-model="pagePermissionsMap[member.user_id]" @change="updatePagePerm(member.user_id, $event.target.value)" class="modern-select" style="width: auto;">
+                  <option value="none">Hérité ({{ member.role }})</option>
+                  <option value="viewer">Lecteur</option>
+                  <option value="editor">Éditeur</option>
+                  <option value="blocked">Bloqué (Aucun accès)</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-actions" style="margin-top: 24px; text-align: right;">
+              <button @click="togglePermissionsModal = false" class="btn btn-secondary">Fermer</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+    </ClientOnly>
   </div>
 </template>
 
@@ -149,6 +180,38 @@ let saveTimeout = null
 
 const toggleShareModal = ref(false)
 const isSharing = ref(false)
+const togglePermissionsModal = ref(false)
+const pagePermissionsMap = ref({})
+
+const openPermissionsModal = async () => {
+  togglePermissionsModal.value = true
+  try {
+    const res = await $fetch(`/api/workspaces/${props.workspaceId}/pages/${props.page.id}/permissions`)
+    const map = {}
+    for (const p of res) {
+      map[p.user_id] = p.role
+    }
+    for (const m of workspaceMembers.value) {
+      if (!map[m.user_id]) map[m.user_id] = 'none'
+    }
+    pagePermissionsMap.value = map
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const updatePagePerm = async (userId, role) => {
+  try {
+    await $fetch(`/api/workspaces/${props.workspaceId}/pages/${props.page.id}/permissions`, {
+      method: 'PUT',
+      body: { user_id: userId, role }
+    })
+  } catch (e) {
+    console.error(e)
+    alert("Erreur lors de la mise à jour de la permission")
+  }
+}
+
 import { computed } from 'vue'
 const shareLink = computed(() => {
   if (!props.page.share_token) return ''
@@ -452,4 +515,36 @@ function formatRelativeDate(dateStr) {
 .save-status.saving { color: var(--warning-color); }
 .save-status.saved { color: var(--success-color); }
 .save-status.error { color: var(--danger-color); font-weight: bold; }
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+.modal-content {
+  width: 100%;
+  max-width: 450px;
+  margin: 0 1rem;
+  padding: 1.5rem;
+  border-radius: 8px;
+  background: var(--bg-color-modal);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.modal-content h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 </style>

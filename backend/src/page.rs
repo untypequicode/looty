@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State, Extension},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post, put, delete},
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -52,6 +52,7 @@ pub fn page_routes(state: AuthState) -> Router {
         .route("/", get(list_pages).post(create_page))
         .route("/:page_id", get(get_page).put(update_page).delete(delete_page))
         .route("/:page_id/share", post(share_page).delete(revoke_share))
+        .route("/:page_id/permissions", get(get_page_permissions).put(set_page_permission))
         .with_state(state.pool)
 }
 
@@ -66,14 +67,23 @@ async fn list_pages(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
     
-    if get_workspace_role(&pool, &user_id, &workspace_id).await.is_none() {
+    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
+    if role.is_none() {
         return Err((StatusCode::FORBIDDEN, "Forbidden".to_string()));
     }
+    
+    let is_admin = role == Some("owner".to_string()) || role == Some("admin".to_string());
+    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
 
     let pages = sqlx::query_as::<_, Page>(
-        "SELECT * FROM pages WHERE workspace_id = $1 ORDER BY position ASC, created_at ASC"
+        "SELECT p.* FROM pages p
+         LEFT JOIN page_permissions pp ON pp.page_id = p.id AND pp.user_id = $2
+         WHERE p.workspace_id = $1 AND ($3 OR pp.role IS NULL OR pp.role != 'blocked')
+         ORDER BY p.position ASC, p.created_at ASC"
     )
     .bind(workspace_id)
+    .bind(user_uuid)
+    .bind(is_admin)
     .fetch_all(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -88,15 +98,22 @@ async fn get_page(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
     
-    if get_workspace_role(&pool, &user_id, &workspace_id).await.is_none() {
+    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
+    if role.is_none() {
         return Err((StatusCode::FORBIDDEN, "Forbidden".to_string()));
     }
+    let is_admin = role == Some("owner".to_string()) || role == Some("admin".to_string());
+    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
 
     let page = sqlx::query_as::<_, Page>(
-        "SELECT * FROM pages WHERE id = $1 AND workspace_id = $2"
+        "SELECT p.* FROM pages p
+         LEFT JOIN page_permissions pp ON pp.page_id = p.id AND pp.user_id = $3
+         WHERE p.id = $1 AND p.workspace_id = $2 AND ($4 OR pp.role IS NULL OR pp.role != 'blocked')"
     )
     .bind(page_id)
     .bind(workspace_id)
+    .bind(user_uuid)
+    .bind(is_admin)
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -294,4 +311,75 @@ pub async fn get_public_page(
     .ok_or((StatusCode::NOT_FOUND, "Page not found or not public".to_string()))?;
 
     Ok(Json(page))
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct PagePermission {
+    pub id: Uuid,
+    pub page_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct SetPagePermissionReq {
+    pub user_id: Uuid,
+    pub role: String,
+}
+
+async fn get_page_permissions(
+    State(pool): State<PgPool>,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<Json<Vec<PagePermission>>, (StatusCode, String)> {
+    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    
+    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
+    if role.is_none() {
+        return Err((StatusCode::FORBIDDEN, "Forbidden".to_string()));
+    }
+
+    let perms = sqlx::query_as::<_, PagePermission>(
+        "SELECT id, page_id, user_id, role, created_at FROM page_permissions WHERE page_id = $1"
+    )
+    .bind(page_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    Ok(Json(perms))
+}
+
+async fn set_page_permission(
+    State(pool): State<PgPool>,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+    Json(payload): Json<SetPagePermissionReq>,
+) -> Result<Json<PagePermission>, (StatusCode, String)> {
+    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    
+    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
+    if role != Some("admin".to_string()) && role != Some("owner".to_string()) {
+        return Err((StatusCode::FORBIDDEN, "Forbidden: Only admins can change permissions".to_string()));
+    }
+
+    if payload.role == "none" {
+        sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
+            .bind(page_id).bind(payload.user_id).execute(&pool).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        return Err((StatusCode::NO_CONTENT, "".to_string())); // Special return just to signal success for delete
+    }
+
+    let perm = sqlx::query_as::<_, PagePermission>(
+        "INSERT INTO page_permissions (page_id, user_id, role) VALUES ($1, $2, $3) 
+         ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3 RETURNING *"
+    )
+    .bind(page_id)
+    .bind(payload.user_id)
+    .bind(payload.role)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(perm))
 }

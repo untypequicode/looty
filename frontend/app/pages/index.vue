@@ -27,7 +27,7 @@ import WorkspaceDashboard from '../components/WorkspaceDashboard.vue'
 const { user, isLoading } = useAuth()
 const {
   activeWorkspaceId, activeWorkspaceRole, workspacesData, isLoadingWorkspaces, 
-  workspaceMembers, pages, isLoadingPages, boards,
+  workspaceMembers, pages, isLoadingPages, boards, myTasks,
   selectWorkspace, createWorkspace, isCreatingWorkspace, renameWorkspace, deleteWorkspace, 
   createPage, updatePage, deletePage, changeMemberRole, kickMember, copyInviteLink
 } = useWorkspace()
@@ -383,6 +383,14 @@ const handleToggleTaskValidation = async (task: any) => {
 const handleToggleTaskLabel = async (task: Task | null, label: Label) => {
   if (task) {
     const action = task.labels?.some(l => l.id === label.id) ? 'remove' : 'add'
+    
+    // Optimistic update
+    if (action === 'add') {
+      task.labels = [...(task.labels || []), label]
+    } else {
+      task.labels = (task.labels || []).filter(l => l.id !== label.id)
+    }
+
     await toggleTaskLabel({ taskId: task.id, labelId: label.id, action })
   }
 }
@@ -390,6 +398,14 @@ const handleToggleTaskLabel = async (task: Task | null, label: Label) => {
 const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
   if (task) {
     const action = task.assignees?.includes(userId) ? 'remove' : 'add'
+    
+    // Optimistic update
+    if (action === 'add') {
+      task.assignees = [...(task.assignees || []), userId]
+    } else {
+      task.assignees = (task.assignees || []).filter(id => id !== userId)
+    }
+
     await toggleTaskAssignee({ taskId: task.id, userId, action })
   }
 }
@@ -526,10 +542,11 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       
       <div v-if="activeWorkspaceId && currentModule === 'dashboard'" style="flex: 1; overflow-y: auto;">
         <WorkspaceDashboard 
-          :boards="boards"
-          :pages="pages"
+          :boards="boards || []"
+          :pages="pages || []"
+          :myTasks="myTasks || []"
           :user-id="user?.id"
-          @open-task="(id) => handleOpenTask(id)"
+          @open-task="(task) => handleOpenTask(task)"
           @open-page="handleSelectPage"
         />
       </div>

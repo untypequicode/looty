@@ -1,7 +1,7 @@
 use axum::{
     extract::State,
     response::IntoResponse,
-    routing::{get, post, put, delete},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,8 @@ pub fn workspace_routes(state: AuthState) -> Router {
         .route("/:workspace_id/join", post(join_workspace))
         .route("/:workspace_id/members", get(list_members))
         .route("/:workspace_id/members/:member_id", put(update_member_role).delete(remove_member))
+        .route("/:workspace_id/my_tasks", get(get_my_tasks))
+        .route("/:workspace_id/search", get(search_workspace))
         .with_state(state)
 }
 
@@ -356,4 +358,124 @@ async fn remove_member(
         Ok(_) => (axum::http::StatusCode::NO_CONTENT).into_response(),
         Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
     }
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct MyTaskResponse {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub due_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_completed: bool,
+    pub board_name: Option<String>,
+    pub workspace_id: Uuid,
+}
+
+pub async fn get_my_tasks(
+    session: Session,
+    State(state): State<AuthState>,
+    axum::extract::Path(workspace_id): axum::extract::Path<Uuid>,
+) -> impl IntoResponse {
+    let user_id_opt: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    let user_id = match user_id_opt {
+        Some(uid) => uid,
+        None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+    };
+
+    let role = get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await;
+    if role.is_none() {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let tasks = sqlx::query_as::<_, MyTaskResponse>(
+        "SELECT t.id, t.title, t.description, t.due_date, t.is_completed, b.name as board_name, b.workspace_id
+         FROM tasks t
+         JOIN task_assignees ta ON ta.task_id = t.id
+         JOIN board_columns c ON c.id = t.column_id
+         JOIN boards b ON b.id = c.board_id
+         WHERE ta.user_id = $1 AND b.workspace_id = $2 AND t.is_completed = false
+         ORDER BY t.due_date ASC NULLS LAST"
+    )
+    .bind(user_id.to_string())
+    .bind(workspace_id)
+    .fetch_all(&state.pool)
+    .await;
+
+    match tasks {
+        Ok(t) => Json(serde_json::json!({ "tasks": t })).into_response(),
+        Err(e) => {
+            println!("Failed to fetch tasks: {:?}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
+        }
+    }
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct SearchResult {
+    pub id: Uuid,
+    pub title: String,
+    pub r#type: String, // "page"
+    pub snippet: Option<String>,
+}
+
+pub async fn search_workspace(
+    session: Session,
+    State(state): State<AuthState>,
+    axum::extract::Path(workspace_id): axum::extract::Path<Uuid>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let user_id_opt: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    let user_id = match user_id_opt {
+        Some(uid) => uid,
+        None => return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+    };
+
+    let role = get_workspace_role(&state.pool, &user_id.to_string(), &workspace_id).await;
+    if role.is_none() {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let query_str = params.get("q").cloned().unwrap_or_default();
+    if query_str.trim().is_empty() {
+        return Json(serde_json::json!({ "results": [] })).into_response();
+    }
+
+    let search_pattern = format!("%{}%", query_str.trim());
+
+    // Basic ILIKE search for pages (title or content)
+    let pages = sqlx::query_as::<_, SearchResult>(
+        "SELECT id, title, 'page' as type, 
+         substring(content from 1 for 100) as snippet
+         FROM pages 
+         WHERE workspace_id = $1 
+         AND (title ILIKE $2 OR content ILIKE $2)
+         LIMIT 20"
+    )
+    .bind(workspace_id)
+    .bind(&search_pattern)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    // Basic ILIKE search for tasks
+    let tasks = sqlx::query_as::<_, SearchResult>(
+        "SELECT t.id, t.title, 'task' as type, 
+         substring(t.description from 1 for 100) as snippet
+         FROM tasks t
+         JOIN board_columns c ON c.id = t.column_id
+         JOIN boards b ON b.id = c.board_id
+         WHERE b.workspace_id = $1 
+         AND (t.title ILIKE $2 OR t.description ILIKE $2)
+         LIMIT 20"
+    )
+    .bind(workspace_id)
+    .bind(&search_pattern)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let mut all_results = pages;
+    all_results.extend(tasks);
+
+    Json(serde_json::json!({ "results": all_results })).into_response()
 }

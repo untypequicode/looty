@@ -5,6 +5,8 @@ import tippy from 'tippy.js'
 import { VueRenderer } from '@tiptap/vue-3'
 import EmojiList from './EmojiList.vue'
 
+import { allEmojis } from '../utils/emojis'
+
 export const EmojiExtension = Extension.create({
   name: 'emojiExtension',
 
@@ -36,69 +38,7 @@ export const EmojiExtension = Extension.create({
 })
 
 export const getEmojiItems = ({ query }) => {
-  const emojis = [
-    { title: 'smile', emoji: '😄' },
-    { title: 'joy', emoji: '😂' },
-    { title: 'heart', emoji: '❤️' },
-    { title: 'thumbsup', emoji: '👍' },
-    { title: 'fire', emoji: '🔥' },
-    { title: 'star', emoji: '⭐' },
-    { title: 'rocket', emoji: '🚀' },
-    { title: 'party', emoji: '🥳' },
-    { title: 'check', emoji: '✅' },
-    { title: 'cross', emoji: '❌' },
-    { title: 'warning', emoji: '⚠️' },
-    { title: 'info', emoji: 'ℹ️' },
-    { title: 'idea', emoji: '💡' },
-    { title: 'pin', emoji: '📌' },
-    { title: 'eyes', emoji: '👀' },
-    { title: 'sob', emoji: '😭' },
-    { title: 'cry', emoji: '😢' },
-    { title: 'sweat_smile', emoji: '😅' },
-    { title: 'wink', emoji: '😉' },
-    { title: 'sunglasses', emoji: '😎' },
-    { title: 'thinking', emoji: '🤔' },
-    { title: 'shrug', emoji: '🤷' },
-    { title: 'facepalm', emoji: '🤦' },
-    { title: 'pray', emoji: '🙏' },
-    { title: 'tada', emoji: '🎉' },
-    { title: 'sparkles', emoji: '✨' },
-    { title: 'clap', emoji: '👏' },
-    { title: 'handshake', emoji: '🤝' },
-    { title: 'ok', emoji: '👌' },
-    { title: 'muscle', emoji: '💪' },
-    { title: 'brain', emoji: '🧠' },
-    { title: 'alien', emoji: '👽' },
-    { title: 'ghost', emoji: '👻' },
-    { title: 'skull', emoji: '💀' },
-    { title: 'robot', emoji: '🤖' },
-    { title: 'poop', emoji: '💩' },
-    { title: 'money', emoji: '💰' },
-    { title: 'chart', emoji: '📈' },
-    { title: 'computer', emoji: '💻' },
-    { title: 'phone', emoji: '📱' },
-    { title: 'clock', emoji: '🕒' },
-    { title: 'calendar', emoji: '📅' },
-    { title: 'book', emoji: '📖' },
-    { title: 'pencil', emoji: '✏️' },
-    { title: 'mag', emoji: '🔍' },
-    { title: 'lock', emoji: '🔒' },
-    { title: 'key', emoji: '🔑' },
-    { title: 'tools', emoji: '🛠️' },
-    { title: 'gear', emoji: '⚙️' },
-    { title: 'link', emoji: '🔗' },
-    { title: 'bug', emoji: '🐛' },
-    { title: 'wave', emoji: '👋' },
-    { title: 'sad', emoji: '😔' },
-    { title: 'angry', emoji: '😠' },
-    { title: 'cool', emoji: '😎' },
-    { title: 'zany', emoji: '🤪' },
-    { title: 'exploding_head', emoji: '🤯' },
-    { title: 'tired', emoji: '😫' },
-    { title: 'sleeping', emoji: '😴' },
-    { title: 'mask', emoji: '😷' }
-  ]
-  return emojis.filter(item => item.title.toLowerCase().startsWith(query.toLowerCase())).slice(0, 10)
+  return allEmojis.filter(item => item.title.toLowerCase().includes(query.toLowerCase())).slice(0, 10)
 }
 
 export const renderEmojiItems = () => {

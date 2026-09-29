@@ -9,7 +9,7 @@
       <div class="dashboard-card tasks-card">
         <h3>Vos tâches ({{ sortedTasks.length }})</h3>
         <div class="task-list">
-          <div v-for="task in sortedTasks" :key="task.id" class="task-item" @click="emit('open-task', task.id)">
+          <div v-for="task in sortedTasks" :key="task.id" class="task-item" @click="emit('open-task', task)">
             <div class="task-icon">
               <svg v-if="task.is_completed" style="color: var(--success-color);" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
               <div v-else style="width: 16px; height: 16px; border: 2px solid var(--text-color-3); border-radius: 4px;"></div>
@@ -53,6 +53,7 @@ import { computed, ref } from 'vue'
 const props = defineProps<{
   pages: any[],
   boards: any[],
+  myTasks: any[],
   userId: string | null
 }>()
 
@@ -60,26 +61,8 @@ const emit = defineEmits(['open-task', 'open-page'])
 
 const pageSort = ref('recent')
 
-// Tasks assigned to user
-const userTasks = computed(() => {
-  if (!props.userId) return []
-  const tasks: any[] = []
-  for (const board of props.boards) {
-    if (!board.columns) continue
-    for (const col of board.columns) {
-      if (!col.tasks) continue
-      for (const t of col.tasks) {
-        if (t.assignees && t.assignees.includes(props.userId)) {
-          tasks.push(t)
-        }
-      }
-    }
-  }
-  return tasks
-})
-
 const sortedTasks = computed(() => {
-  return [...userTasks.value].sort((a, b) => {
+  return [...props.myTasks].sort((a, b) => {
     if (a.due_date && b.due_date) {
       return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
     }
