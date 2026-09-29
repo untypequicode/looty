@@ -229,10 +229,12 @@ async function uploadAndInsertImage(file, view, x, y) {
   }
 }
 
-// CRUCIAL: Do not pass 'content' AT ALL if using Collaboration in Tiptap 3,
-// otherwise it tries to resolve positions before the document is ready.
+// CRUCIAL: Pass an empty paragraph for Collaboration to prevent TextSelection crash on empty doc.
+// If it's not collaborative (no documentId), pass the actual modelValue.
 if (!props.documentId) {
   editorOptions.content = props.modelValue
+} else {
+  editorOptions.content = '<p></p>'
 }
 
 const editor = useEditor(editorOptions)

@@ -12,8 +12,10 @@
   "type": "commonjs",
   "dependencies": {
     "@hocuspocus/extension-database": "^4.7.0",
+    "@hocuspocus/provider": "^4.7.0",
     "@hocuspocus/server": "^4.7.0",
     "pg": "^8.23.0",
+    "ws": "^8.22.0",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.32"
   }
