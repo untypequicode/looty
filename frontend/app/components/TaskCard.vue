@@ -47,7 +47,10 @@ const getMemberName = (userId: string) => {
     </div>
     
     <h4>
-      <svg v-if="task.is_completed" class="status-icon completed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+      <div @click.stop="emit('toggle-validation', task)" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-top: 2px;" title="Valider la tâche">
+        <svg v-if="task.is_completed" class="status-icon completed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+        <div v-else style="width: 12px; height: 12px; border: 1.5px solid var(--text-color-3); border-radius: 3px; display: inline-block;"></div>
+      </div>
       <span :class="{ 'task-title-done': task.is_completed }">{{ task.title }}</span>
     </h4>
     

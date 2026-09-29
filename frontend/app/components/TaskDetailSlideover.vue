@@ -120,6 +120,7 @@ const saveTaskSettings = () => {
     title: props.editingTask.title,
     description: props.editingTask.description,
     is_per_person: editTaskIsPerPerson.value,
+    priority: props.editingTask.priority,
     start_date: props.editingTask.start_date,
     due_date: props.editingTask.due_date
   })
@@ -167,8 +168,12 @@ watch(() => props.editingTask, (task) => {
     <div class="slideover-overlay" @click.self="emit('close')">
       <div class="slideover-panel">
       <form @submit.prevent="submitTask" style="display: flex; flex-direction: column; height: 100%;">
-        <div class="slideover-header">
-          <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required :readonly="activeWorkspaceRole === 'viewer'">
+        <div class="slideover-header" style="display: flex; align-items: center;">
+          <div v-if="editingTask" @click="emit('toggle-validation')" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 8px;" title="Valider la tâche">
+            <svg v-if="editingTask.is_completed" style="color: var(--success-color);" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            <div v-else style="width: 16px; height: 16px; border: 2px solid var(--text-color-3); border-radius: 4px; display: inline-block;"></div>
+          </div>
+          <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required :readonly="activeWorkspaceRole === 'viewer'" :style="{ textDecoration: editingTask?.is_completed ? 'line-through' : 'none', opacity: editingTask?.is_completed ? 0.6 : 1 }">
           <button type="button" class="close-btn" @click="emit('close')">✕</button>
         </div>
         
@@ -240,6 +245,7 @@ watch(() => props.editingTask, (task) => {
                     :style="{ backgroundColor: isAssigneeSelected(m.user_id) ? 'var(--primary-color)' : 'var(--bg-color-2)', border: isAssigneeSelected(m.user_id) ? 'none' : '1px solid var(--border-color)', color: isAssigneeSelected(m.user_id) ? '#fff' : 'var(--text-color-3)' }"
                     @click="activeWorkspaceRole !== 'viewer' ? toggleAssignee(m.user_id) : null">
                     {{ m.name }}
+                    <svg v-if="editingTask?.is_per_person && editingTask?.validations?.includes(m.user_id)" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 20 20" style="margin-left: 4px; color: #10b981;"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                   </span>
                 </div>
               </div>

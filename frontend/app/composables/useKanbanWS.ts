@@ -88,22 +88,26 @@ export const useKanbanWS = (
             destCol.tasks.sort((a: any, b: any) => a.position - b.position)
           }
         } else if (event.type === 'TASK_UPDATED') {
-          const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
-          if (col) {
-            const idx = col.tasks.findIndex((t: any) => t.id === event.task.id)
-            if (idx !== -1) {
-              // Preserve existing enrichment as backend update doesn't return them
-              event.task.labels = event.task.labels || col.tasks[idx].labels || []
-              event.task.assignees = event.task.assignees || col.tasks[idx].assignees || []
-              event.task.validations = event.task.validations || col.tasks[idx].validations || []
-              col.tasks.splice(idx, 1, event.task)
-              // Update in taskStack if it is currently open
-              for (let i = 0; i < taskStack.value.length; i++) {
-                if (taskStack.value[i].id === event.task.id) {
-                  Object.assign(taskStack.value[i], event.task)
+          if (event.task) {
+            const col = activeBoard.value.columns.find((c: any) => c.id === event.task.column_id)
+            if (col) {
+              const idx = col.tasks.findIndex((t: any) => t.id === event.task.id)
+              if (idx !== -1) {
+                // Preserve existing enrichment as backend update doesn't return them
+                event.task.labels = event.task.labels || col.tasks[idx].labels || []
+                event.task.assignees = event.task.assignees || col.tasks[idx].assignees || []
+                event.task.validations = event.task.validations || col.tasks[idx].validations || []
+                col.tasks.splice(idx, 1, event.task)
+                // Update in taskStack if it is currently open
+                for (let i = 0; i < taskStack.value.length; i++) {
+                  if (taskStack.value[i].id === event.task.id) {
+                    Object.assign(taskStack.value[i], event.task)
+                  }
                 }
               }
             }
+          } else if (event.task_id) {
+            queryClient.invalidateQueries({ queryKey: ['board', activeBoard.value.id] })
           }
         } else if (event.type === 'TASK_DELETED') {
           const col = activeBoard.value.columns.find((c: any) => c.id === event.column_id)

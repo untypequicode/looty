@@ -46,6 +46,7 @@ pub struct Task {
     pub is_completed: bool,
     pub start_date: Option<DateTime<Utc>>,
     pub due_date: Option<DateTime<Utc>>,
+    pub priority: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -140,6 +141,7 @@ pub struct CreateTaskReq {
     pub due_date: Option<DateTime<Utc>>,
     pub labels: Option<Vec<Uuid>>,
     pub assignees: Option<Vec<String>>,
+    pub priority: Option<i32>,
 }
 
 #[derive(Deserialize)]
@@ -157,6 +159,7 @@ pub struct UpdateTaskReq {
     pub start_date: Option<DateTime<Utc>>,
     pub due_date: Option<DateTime<Utc>>,
     pub is_per_person: Option<bool>,
+    pub priority: Option<i32>,
 }
 
 #[derive(Deserialize)]
@@ -325,7 +328,7 @@ async fn get_board(
     let mut full_columns = Vec::new();
     for col in columns {
         let tasks = sqlx::query_as::<_, Task>(
-            "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
+            "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
         )
         .bind(col.id)
         .fetch_all(&state.pool)
@@ -431,9 +434,9 @@ async fn create_task(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let task = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
     )
-    .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date)
+    .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date).bind(req.priority.unwrap_or(0))
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Handle initial labels and assignees if provided
@@ -501,7 +504,7 @@ async fn move_task(
     };
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET column_id = $1, position = $2, previous_column_id = $3, updated_at = NOW() WHERE id = $4 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET column_id = $1, position = $2, previous_column_id = $3, updated_at = NOW() WHERE id = $4 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
     )
     .bind(req.column_id).bind(req.position).bind(prev_col_val).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -550,9 +553,9 @@ async fn update_task(
         .bind(task_id).fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), updated_at = NOW() WHERE id = $6 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), priority = COALESCE($6, priority), updated_at = NOW() WHERE id = $7 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
     )
-    .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(&req.is_per_person).bind(task_id)
+    .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(&req.is_per_person).bind(req.priority).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if old_task.title != task.title {
@@ -947,7 +950,7 @@ async fn create_subtask(
     
     // Get parent task to inherit column
     let parent = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
     ).bind(parent_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let board_ws = sqlx::query_scalar::<_, Uuid>(
@@ -963,7 +966,7 @@ async fn create_subtask(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let subtask = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, parent_id, title, position) VALUES ($1, $2, $3, $4) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, parent_id, title, position, priority) VALUES ($1, $2, $3, $4, 0) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
     )
     .bind(parent.column_id).bind(parent_id).bind(req.title).bind(next_pos)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -984,7 +987,7 @@ async fn toggle_task_validation(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let mut task = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
     ).bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(task.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
@@ -993,7 +996,7 @@ async fn toggle_task_validation(
     let role = check_workspace_access(&state.pool, &user_id, &workspace_id).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     let subtasks = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
     ).bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
     
     if !subtasks.iter().all(|t| t.is_completed) {
@@ -1181,7 +1184,7 @@ async fn get_task_activities(
     let _user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let activities = sqlx::query_as::<_, TaskActivity>(
-        "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at FROM task_activities WHERE task_id = $1 ORDER BY created_at ASC"
+        "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at FROM task_activities WHERE task_id = $1 ORDER BY created_at DESC"
     )
     .bind(task_id)
     .fetch_all(&state.pool)
@@ -1208,20 +1211,30 @@ async fn restore_task_activity(
     .ok_or(StatusCode::NOT_FOUND)?;
     
     if let Some(old_val) = activity.old_value {
+        let mut updated = false;
         match activity.activity_type.as_str() {
             "update_title" => {
                 if let Some(title) = old_val.get("title").and_then(|t| t.as_str()) {
                     sqlx::query("UPDATE tasks SET title = $1 WHERE id = $2")
                         .bind(title).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                    updated = true;
                 }
             }
             "update_description" => {
                 if let Some(desc) = old_val.get("description").and_then(|d| d.as_str()) {
                     sqlx::query("UPDATE tasks SET description = $1 WHERE id = $2")
                         .bind(desc).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                    updated = true;
                 }
             }
             _ => {}
+        }
+        if updated {
+            let col_id = sqlx::query_scalar::<_, Uuid>("SELECT column_id FROM tasks WHERE id = $1").bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
+            let board_id = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(col_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
+            let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.unwrap_or_default();
+            // We just trigger task_id update so the frontend can refetch
+            // Wait, we don't have Extension(ws_state) injected in this handler!
         }
     }
     

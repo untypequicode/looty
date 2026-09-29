@@ -6,9 +6,16 @@
         <h3>Tâches</h3>
       </div>
       <div class="timeline-grid-header" ref="headerRef">
-        <div v-for="day in days" :key="day.getTime()" class="timeline-day-col" :class="{ 'is-today': isToday(day) }">
-          <div class="day-name">{{ getDayName(day) }}</div>
-          <div class="day-number" :class="{ 'is-today': isToday(day) }">{{ day.getDate() }}</div>
+        <div class="timeline-months-row">
+          <div v-for="m in months" :key="m.name" :style="{ width: (m.count * 48) + 'px' }" class="timeline-month-cell">
+            {{ m.name }}
+          </div>
+        </div>
+        <div class="timeline-days-row">
+          <div v-for="day in days" :key="day.getTime()" class="timeline-day-col" :class="{ 'is-today': isToday(day) }">
+            <div class="day-name">{{ getDayName(day) }}</div>
+            <div class="day-number" :class="{ 'is-today': isToday(day) }">{{ day.getDate() }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -142,6 +149,34 @@ const days = computed(() => {
   return arr
 })
 
+const months = computed(() => {
+  const arr = []
+  if (days.value.length === 0) return []
+  
+  let currentMonth = days.value[0].getMonth()
+  let currentYear = days.value[0].getFullYear()
+  let count = 0
+  
+  for (let i = 0; i < days.value.length; i++) {
+    const d = days.value[i]
+    if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+      count++
+    } else {
+      arr.push({ name: getMonthName(currentMonth, currentYear), count })
+      currentMonth = d.getMonth()
+      currentYear = d.getFullYear()
+      count = 1
+    }
+  }
+  arr.push({ name: getMonthName(currentMonth, currentYear), count })
+  return arr
+})
+
+function getMonthName(month: number, year: number) {
+  const names = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+  return `${names[month]} ${year}`
+}
+
 function getDayName(d: Date) {
   const names = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
   return names[d.getDay()]
@@ -219,8 +254,31 @@ function getTaskBarStyle(task: any) {
 
 .timeline-grid-header {
   display: flex;
+  flex-direction: column;
   flex: 1;
   overflow-x: hidden; /* Sync with body scroll */
+}
+
+.timeline-months-row {
+  display: flex;
+  height: 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.timeline-month-cell {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-color-2);
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-color-2);
+}
+
+.timeline-days-row {
+  display: flex;
 }
 
 .timeline-day-col {

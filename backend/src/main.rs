@@ -81,6 +81,7 @@ async fn main() {
         .route("/api/health", get(health_handler))
         .route("/api/ws", get(ws::ws_handler))
         .route("/api/upload", axum::routing::post(upload::upload_file))
+        .route("/api/public/pages/:token", get(page::get_public_page).with_state(pool.clone()))
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
         .nest("/api/admin", admin::admin_routes(auth_state.clone()))
         .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))

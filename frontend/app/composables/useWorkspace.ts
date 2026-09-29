@@ -128,6 +128,28 @@ export const useWorkspace = () => {
     }
   })
 
+  const sharePageMutation = useMutation({
+    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
+      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/share`, {
+        method: 'POST'
+      }) as Page
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
+    }
+  })
+
+  const revokeShareMutation = useMutation({
+    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
+      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/share`, {
+        method: 'DELETE'
+      }) as Page
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
+    }
+  })
+
   const changeMemberRoleMutation = useMutation({
     mutationFn: async ({ workspaceId, memberId, role }: { workspaceId: string, memberId: string, role: string }) => {
       return await $fetch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
@@ -176,6 +198,8 @@ export const useWorkspace = () => {
     createPage: createPageMutation.mutateAsync,
     updatePage: updatePageMutation.mutateAsync,
     deletePage: deletePageMutation.mutateAsync,
+    sharePage: sharePageMutation.mutateAsync,
+    revokeShare: revokeShareMutation.mutateAsync,
     changeMemberRole: changeMemberRoleMutation.mutateAsync,
     kickMember: kickMemberMutation.mutateAsync,
     copyInviteLink

@@ -26,6 +26,8 @@ pub struct Page {
     pub position: f64,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub share_token: Option<Uuid>,
+    pub is_public: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -49,6 +51,7 @@ pub fn page_routes(state: AuthState) -> Router {
     Router::new()
         .route("/", get(list_pages).post(create_page))
         .route("/:page_id", get(get_page).put(update_page).delete(delete_page))
+        .route("/:page_id/share", post(share_page).delete(revoke_share))
         .with_state(state.pool)
 }
 
@@ -225,4 +228,70 @@ async fn delete_page(
     let _ = tx.send(ws_msg);
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn share_page(
+    State(pool): State<PgPool>,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    let role = get_workspace_role(&pool, &user_id, &workspace_id).await.ok_or((StatusCode::FORBIDDEN, "Forbidden".to_string()))?;
+    
+    if role == "viewer" {
+        return Err((StatusCode::FORBIDDEN, "Viewers cannot share pages".to_string()));
+    }
+
+    let token = Uuid::new_v4();
+    let page = sqlx::query_as::<_, Page>(
+        "UPDATE pages SET share_token = $1, is_public = true WHERE id = $2 AND workspace_id = $3 RETURNING *"
+    )
+    .bind(token)
+    .bind(page_id)
+    .bind(workspace_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(page))
+}
+
+pub async fn revoke_share(
+    State(pool): State<PgPool>,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    let role = get_workspace_role(&pool, &user_id, &workspace_id).await.ok_or((StatusCode::FORBIDDEN, "Forbidden".to_string()))?;
+    
+    if role == "viewer" {
+        return Err((StatusCode::FORBIDDEN, "Viewers cannot revoke share".to_string()));
+    }
+
+    let page = sqlx::query_as::<_, Page>(
+        "UPDATE pages SET share_token = NULL, is_public = false WHERE id = $1 AND workspace_id = $2 RETURNING *"
+    )
+    .bind(page_id)
+    .bind(workspace_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(page))
+}
+
+pub async fn get_public_page(
+    State(pool): State<PgPool>,
+    Path(token): Path<Uuid>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let page = sqlx::query_as::<_, Page>(
+        "SELECT * FROM pages WHERE share_token = $1 AND is_public = true"
+    )
+    .bind(token)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .ok_or((StatusCode::NOT_FOUND, "Page not found or not public".to_string()))?;
+
+    Ok(Json(page))
 }

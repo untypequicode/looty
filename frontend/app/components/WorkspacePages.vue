@@ -34,6 +34,9 @@
               <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
               {{ isReadonly ? 'Lecture' : 'Édition' }}
             </button>
+            <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn share-btn" @click="toggleShareModal = true" style="display: flex; align-items: center; gap: 4px;">
+              🔗 Partager
+            </button>
             <span class="meta-dot">•</span>
             <div class="collaborators-list" v-if="collaborators.length > 0">
               <div 
@@ -76,6 +79,30 @@
         />
       </div>
     </div>
+
+    <!-- Share Modal -->
+    <Teleport to="body">
+      <div v-if="toggleShareModal" class="modal-overlay" @click.self="toggleShareModal = false">
+        <div class="modal-content">
+          <h2>Partager la page</h2>
+          <div v-if="page.is_public && page.share_token" class="share-info">
+            <p>Cette page est accessible publiquement via ce lien :</p>
+            <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 24px;">
+              <input type="text" readonly :value="shareLink" class="modern-input" style="flex: 1;" />
+              <button @click="copyShareLink" class="btn btn-primary">Copier</button>
+            </div>
+            <button @click="handleRevokeShare" class="btn btn-danger" :disabled="isSharing">Révoquer le lien</button>
+          </div>
+          <div v-else class="share-info">
+            <p>Créer un lien public pour partager cette page avec des personnes externes.</p>
+            <button @click="handleSharePage" class="btn btn-primary" style="margin-top: 16px;" :disabled="isSharing">Générer un lien</button>
+          </div>
+          <div class="modal-actions" style="margin-top: 24px; text-align: right;">
+            <button @click="toggleShareModal = false" class="btn btn-secondary">Fermer</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -85,7 +112,7 @@ import WysiwygEditor from './WysiwygEditor.client.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import { useWorkspace } from '../composables/useWorkspace'
 
-const { activeWorkspaceRole, workspaceMembers } = useWorkspace()
+const { activeWorkspaceRole, workspaceMembers, sharePage, revokeShare } = useWorkspace()
 
 const getMemberName = (id) => {
   const member = workspaceMembers.value?.find(m => m.user_id === id)
@@ -119,6 +146,45 @@ const saveStatusClass = ref('')
 const isMounted = ref(false)
 const collaborators = ref([])
 let saveTimeout = null
+
+const toggleShareModal = ref(false)
+const isSharing = ref(false)
+import { computed } from 'vue'
+const shareLink = computed(() => {
+  if (!props.page.share_token) return ''
+  return `${window.location.origin}/public/${props.page.share_token}`
+})
+
+const handleSharePage = async () => {
+  try {
+    isSharing.value = true
+    const updatedPage = await sharePage({ workspaceId: props.workspaceId, pageId: props.page.id })
+    Object.assign(props.page, updatedPage)
+  } catch(e) {
+    console.error(e)
+  } finally {
+    isSharing.value = false
+  }
+}
+
+const handleRevokeShare = async () => {
+  try {
+    isSharing.value = true
+    const updatedPage = await revokeShare({ workspaceId: props.workspaceId, pageId: props.page.id })
+    Object.assign(props.page, updatedPage)
+  } catch(e) {
+    console.error(e)
+  } finally {
+    isSharing.value = false
+  }
+}
+
+const copyShareLink = () => {
+  if (shareLink.value) {
+    navigator.clipboard.writeText(shareLink.value)
+    alert('Lien copié !')
+  }
+}
 
 onMounted(() => {
   isMounted.value = true

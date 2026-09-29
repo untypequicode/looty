@@ -21,6 +21,7 @@ import BoardSettingsModal from '../components/BoardSettingsModal.vue'
 import WorkspaceMembersModal from '../components/WorkspaceMembersModal.vue'
 import TimelineView from '../components/TimelineView.vue'
 import WorkspacePages from '../components/WorkspacePages.vue'
+import WorkspaceDashboard from '../components/WorkspaceDashboard.vue'
 
 // --- State ---
 const { user, isLoading } = useAuth()
@@ -45,7 +46,7 @@ const {
   searchQuery, filterLabels, filterAssignees, hideCompleted, toggleFilterLabel, toggleFilterAssignee, filteredBoard
 } = useKanbanFilters(activeBoard)
 
-const currentModule = useSessionStorage<'kanban' | 'wiki'>('looty_current_module', 'kanban')
+const currentModule = useSessionStorage<'kanban' | 'wiki' | 'home' | 'dashboard'>('looty_current_module', 'dashboard')
 const currentView = ref<'kanban' | 'timeline'>('kanban')
 const activePageId = useSessionStorage<string | null>('looty_active_page', null)
 const activePage = computed({
@@ -96,7 +97,9 @@ watch(() => boards.value, (newBoards) => {
       }
     }
   } else if (newBoards && newBoards.length === 0) {
-    selectBoard(null)
+    if (currentModule.value === 'kanban') {
+      selectBoard(null)
+    }
   }
 }, { immediate: true })
 
@@ -279,6 +282,8 @@ const handleTaskMove = async (evt: any, toColumnId: string) => {
   }
 }
 
+
+
 const handleColumnMove = async (evt: any) => {
   if (evt.moved && activeBoard.value) {
     const column = evt.moved.element
@@ -317,6 +322,18 @@ const handleSelectBoard = (board: any) => {
   isSidebarOpen.value = false
 }
 
+const handleSelectWorkspaceDashboard = () => {
+  currentModule.value = 'dashboard'
+  activeBoardId.value = null
+  activePage.value = null
+  isSidebarOpen.value = false
+}
+
+const handleSelectWorkspace = (id: string) => {
+  selectWorkspace(id)
+  handleSelectWorkspaceDashboard()
+}
+
 const handleCreatePage = async () => {
   if (activeWorkspaceId.value) {
     const page = await createPage({ workspaceId: activeWorkspaceId.value })
@@ -349,6 +366,7 @@ const handleDeletePage = async (id: string) => {
 }
 
 const handleToggleTaskValidation = async (task: any) => {
+  if (activeWorkspaceRole.value === 'viewer') return
   const wasCompleted = task.is_completed;
   await toggleTaskValidation(task.id)
   const auto = activeBoard.value?.automations
@@ -398,7 +416,8 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       :activeBoard="activeBoard || null"
       :activePage="activePage"
       :currentModule="currentModule"
-      @select-workspace="selectWorkspace"
+      @select-workspace="handleSelectWorkspace"
+      @go-dashboard="handleSelectWorkspaceDashboard"
       @select-board="handleSelectBoard"
       @select-page="handleSelectPage"
       @open-settings="showSettingsModal = true"
@@ -503,6 +522,16 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
         <div v-else style="display: flex; height: 100%; align-items: center; justify-content: center; color: #8a8f98;">
           Sélectionnez une page dans le menu de gauche ou créez-en une nouvelle.
         </div>
+      </div>
+      
+      <div v-if="activeWorkspaceId && currentModule === 'dashboard'" style="flex: 1; overflow-y: auto;">
+        <WorkspaceDashboard 
+          :boards="boards"
+          :pages="pages"
+          :user-id="user?.id"
+          @open-task="(id) => handleOpenTask(id)"
+          @open-page="handleSelectPage"
+        />
       </div>
     </main>
     
