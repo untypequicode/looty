@@ -252,13 +252,16 @@ async fn create_board(
     }
 
     let board = sqlx::query_as::<_, Board>(
-        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2) RETURNING id, workspace_id, name, automations, require_all_validations, created_at, updated_at"
+        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2) RETURNING id, workspace_id, name, automations, created_at, updated_at"
     )
     .bind(workspace_id)
     .bind(req.name)
     .fetch_one(&state.pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        eprintln!("create_board: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let ws_msg = serde_json::json!({
         "type": "BOARD_CREATED",
@@ -296,7 +299,10 @@ async fn get_board(
     .bind(board_id)
     .fetch_all(&state.pool)
     .await
-    .unwrap_or_default();
+    .map_err(|e| {
+        eprintln!("get_board: erreur chargement colonnes: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let labels = sqlx::query_as::<_, Label>(
         "SELECT id, board_id, name, color, created_at FROM labels WHERE board_id = $1"
@@ -330,12 +336,15 @@ async fn get_board(
     let mut full_columns = Vec::new();
     for col in columns {
         let tasks = sqlx::query_as::<_, Task>(
-            "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
+            "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, require_all_validations, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE column_id = $1 ORDER BY position ASC"
         )
         .bind(col.id)
         .fetch_all(&state.pool)
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            eprintln!("get_board: erreur chargement tâches: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
         
         let mut enriched_tasks = Vec::new();
         for task in tasks {
@@ -394,10 +403,13 @@ async fn create_column(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let col = sqlx::query_as::<_, BoardColumn>(
-        "INSERT INTO board_columns (board_id, name, position) VALUES ($1, $2, $3) RETURNING id, board_id, name, position, require_all_validations, created_at, updated_at"
+        "INSERT INTO board_columns (board_id, name, position) VALUES ($1, $2, $3) RETURNING id, board_id, name, position, created_at, updated_at"
     )
     .bind(board_id).bind(req.name).bind(next_pos)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_one(&state.pool).await.map_err(|e| {
+        eprintln!("create_column: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let ws_msg = serde_json::json!({
         "type": "COLUMN_CREATED",
@@ -644,10 +656,13 @@ async fn update_board(
     let new_automations = req.automations.unwrap_or(board.automations);
 
     let updated_board = sqlx::query_as::<_, Board>(
-        "UPDATE boards SET name = $1, automations = $2, updated_at = NOW() WHERE id = $3 RETURNING id, workspace_id, name, automations, require_all_validations, created_at, updated_at"
+        "UPDATE boards SET name = $1, automations = $2, updated_at = NOW() WHERE id = $3 RETURNING id, workspace_id, name, automations, created_at, updated_at"
     )
     .bind(new_name).bind(new_automations).bind(board_id)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_one(&state.pool).await.map_err(|e| {
+        eprintln!("update_board: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let ws_msg = serde_json::json!({ "type": "BOARD_UPDATED", "board": &updated_board }).to_string();
     let tx = ws_state.get_or_create_room(&updated_board.workspace_id.to_string()).await;
@@ -704,10 +719,13 @@ async fn update_column(
     if req.name.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
 
     let col = sqlx::query_as::<_, BoardColumn>(
-        "UPDATE board_columns SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, require_all_validations, created_at, updated_at"
+        "UPDATE board_columns SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, created_at, updated_at"
     )
     .bind(req.name).bind(column_id)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_one(&state.pool).await.map_err(|e| {
+        eprintln!("update_column: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let ws_msg = serde_json::json!({ "type": "COLUMN_UPDATED", "column": &col }).to_string();
     let tx = ws_state.get_or_create_room(&board.workspace_id.to_string()).await;
@@ -766,10 +784,13 @@ async fn move_column(
     if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     let col = sqlx::query_as::<_, BoardColumn>(
-        "UPDATE board_columns SET position = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, require_all_validations, created_at, updated_at"
+        "UPDATE board_columns SET position = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, created_at, updated_at"
     )
     .bind(req.position).bind(column_id)
-    .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_one(&state.pool).await.map_err(|e| {
+        eprintln!("move_column: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let ws_msg = serde_json::json!({
         "type": "COLUMN_MOVED",
@@ -980,7 +1001,7 @@ async fn create_subtask(
     
     // Get parent task to inherit column
     let parent = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, require_all_validations, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
     ).bind(parent_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let board_ws = sqlx::query_scalar::<_, Uuid>(
@@ -1017,7 +1038,7 @@ async fn toggle_task_validation(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let mut task = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, require_all_validations, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE id = $1"
     ).bind(task_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
     
     let board_ws = sqlx::query_scalar::<_, Uuid>("SELECT board_id FROM board_columns WHERE id = $1").bind(task.column_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.ok_or(StatusCode::NOT_FOUND)?;
@@ -1026,7 +1047,7 @@ async fn toggle_task_validation(
     let role = check_workspace_access(&state.pool, &user_id, &workspace_id).await; if role.is_none() || role == Some("viewer".to_string()) { return Err(StatusCode::FORBIDDEN); }
 
     let subtasks = sqlx::query_as::<_, Task>(
-        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
+        "SELECT id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, require_all_validations, priority, start_date, due_date, created_at, updated_at FROM tasks WHERE parent_id = $1"
     ).bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
     
     if !subtasks.iter().all(|t| t.is_completed) {
@@ -1310,14 +1331,17 @@ async fn add_task_comment(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let comment = sqlx::query_as::<_, TaskComment>(
-        "INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3) RETURNING id, task_id, user_id, content, require_all_validations, created_at, updated_at"
+        "INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3) RETURNING id, task_id, user_id, content, created_at, updated_at"
     )
     .bind(task_id)
     .bind(user_id.to_string())
     .bind(payload.content)
     .fetch_one(&state.pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        eprintln!("add_task_comment: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     
     Ok(Json(comment))
 }
