@@ -46,7 +46,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'blur'])
 
 const editor = useEditor({
   content: props.modelValue,
@@ -72,6 +72,9 @@ const editor = useEditor({
   ],
   onUpdate: () => {
     emit('update:modelValue', editor.value.getHTML())
+  },
+  onBlur: () => {
+    emit('blur')
   },
 })
 

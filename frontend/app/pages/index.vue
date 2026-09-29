@@ -238,6 +238,10 @@ const handleSaveTask = async (taskData: any) => {
   closeTaskModal()
 }
 
+const handleUpdateTask = async (id: string, taskData: any) => {
+  await updateTask({ id, taskData })
+}
+
 const handleDeleteTask = async () => {
   if (!editingTask.value) return
   if (confirmAction("Voulez-vous vraiment supprimer cette tâche ?")) {
@@ -625,6 +629,7 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       @toggle-validation="handleToggleTaskValidation"
       @create-subtask="(id, title) => createSubtask({parentId: id, title})"
       @open-task="handleOpenTask"
+      @update-task="handleUpdateTask"
       @toggle-task-label="handleToggleTaskLabel"
       @toggle-task-assignee="handleToggleTaskAssignee"
     />

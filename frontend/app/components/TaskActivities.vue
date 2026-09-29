@@ -35,6 +35,10 @@ const props = defineProps({
   workspaceMembers: {
     type: Array,
     default: () => []
+  },
+  task: {
+    type: Object,
+    default: () => ({})
   }
 })
 
@@ -56,6 +60,12 @@ onMounted(() => {
 })
 
 watch(() => props.taskId, loadActivities)
+
+let timeout = null
+watch(() => props.task, () => {
+  if (timeout) clearTimeout(timeout)
+  timeout = setTimeout(loadActivities, 500)
+}, { deep: true })
 
 async function restoreActivity(activityId) {
   if (!confirmAction("Voulez-vous vraiment restaurer la tâche à cet état ?")) return

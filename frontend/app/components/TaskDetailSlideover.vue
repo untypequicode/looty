@@ -27,6 +27,7 @@ const emit = defineEmits<{
   (e: 'open-task', task: Task): void
   (e: 'toggle-task-label', task: Task | null, label: Label): void
   (e: 'toggle-task-assignee', task: Task | null, userId: string): void
+  (e: 'update-task', taskId: string, taskData: any): void
 }>()
 
 const editTaskTitle = ref('')
@@ -116,13 +117,13 @@ const submitTask = () => {
 
 const saveTaskSettings = () => {
   if (!props.editingTask) return
-  emit('save', {
-    title: props.editingTask.title,
-    description: props.editingTask.description,
+  emit('update-task', props.editingTask.id, {
+    title: editTaskTitle.value,
+    description: editTaskDesc.value,
     is_per_person: editTaskIsPerPerson.value,
-    priority: props.editingTask.priority,
-    start_date: props.editingTask.start_date,
-    due_date: props.editingTask.due_date
+    priority: editTaskPriority.value,
+    start_date: editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null,
+    due_date: editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null
   })
 }
 
@@ -173,7 +174,7 @@ watch(() => props.editingTask, (task) => {
             <svg v-if="editingTask.is_completed" style="color: var(--success-color);" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
             <div v-else style="width: 16px; height: 16px; border: 2px solid var(--text-color-3); border-radius: 4px; display: inline-block;"></div>
           </div>
-          <input v-focus v-model="editTaskTitle" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required :readonly="activeWorkspaceRole === 'viewer'" :style="{ textDecoration: editingTask?.is_completed ? 'line-through' : 'none', opacity: editingTask?.is_completed ? 0.6 : 1 }">
+          <input v-focus v-model="editTaskTitle" @change="saveTaskSettings" type="text" placeholder="Titre de la tâche" class="modern-input title-input" required :readonly="activeWorkspaceRole === 'viewer'" :style="{ textDecoration: editingTask?.is_completed ? 'line-through' : 'none', opacity: editingTask?.is_completed ? 0.6 : 1 }">
           <button type="button" class="close-btn" @click="emit('close')">✕</button>
         </div>
         
@@ -183,7 +184,7 @@ watch(() => props.editingTask, (task) => {
             <div class="slideover-meta-horizontal">
               <div class="meta-field">
                 <span class="meta-label">Priorité</span>
-                <select v-model="editTaskPriority" class="modern-select meta-select" :disabled="activeWorkspaceRole === 'viewer'">
+                <select v-model="editTaskPriority" @change="saveTaskSettings" class="modern-select meta-select" :disabled="activeWorkspaceRole === 'viewer'">
                   <option :value="0">Sans priorité</option>
                   <option :value="1">🔴 Urgente</option>
                   <option :value="2">🟠 Haute</option>
@@ -193,15 +194,15 @@ watch(() => props.editingTask, (task) => {
               </div>
               <div class="meta-field">
                 <span class="meta-label">Début</span>
-                <input v-model="editTaskStartDate" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
+                <input v-model="editTaskStartDate" @change="saveTaskSettings" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
               </div>
               <div class="meta-field">
                 <span class="meta-label">Échéance</span>
-                <input v-model="editTaskDueDate" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
+                <input v-model="editTaskDueDate" @change="saveTaskSettings" type="date" class="modern-input meta-input" :readonly="activeWorkspaceRole === 'viewer'">
               </div>
               <div class="meta-field" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
                 <span class="meta-label" style="margin: 0;">Validation par personne</span>
-                <input type="checkbox" v-model="editTaskIsPerPerson" :disabled="activeWorkspaceRole === 'viewer'">
+                <input type="checkbox" v-model="editTaskIsPerPerson" @change="saveTaskSettings" :disabled="activeWorkspaceRole === 'viewer'">
               </div>
             </div>
             
@@ -256,7 +257,7 @@ watch(() => props.editingTask, (task) => {
             </div>
 
             <label class="section-label">Description</label>
-            <SimpleEditor v-model="editTaskDesc" :editable="activeWorkspaceRole !== 'viewer'" />
+            <SimpleEditor v-model="editTaskDesc" @blur="saveTaskSettings" :editable="activeWorkspaceRole !== 'viewer'" />
             
             <template v-if="editingTask">
               <div style="margin-top: 2rem;">
@@ -268,7 +269,7 @@ watch(() => props.editingTask, (task) => {
               </div>
 
               <div style="margin-top: 2rem;">
-                <TaskActivities :task-id="editingTask.id" :workspace-members="workspaceMembers" />
+                <TaskActivities :task-id="editingTask.id" :task="editingTask" :workspace-members="workspaceMembers" />
               </div>
               
               <div style="margin-top: 2rem;">

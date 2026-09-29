@@ -107,7 +107,7 @@ export const useKanbanWS = (
               }
             }
           } else if (event.task_id) {
-            queryClient.invalidateQueries({ queryKey: ['board', activeBoard.value.id] })
+            queryClient.invalidateQueries({ queryKey: ['boards', activeBoard.value.id] })
           }
         } else if (event.type === 'TASK_DELETED') {
           const col = activeBoard.value.columns.find((c: any) => c.id === event.column_id)
