@@ -111,6 +111,10 @@ const onSearchInput = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(handleSearch, 300)
 }
+
+const favoritePages = computed(() => {
+  return (props.pages || []).filter(p => p.is_favorite)
+})
 </script>
 
 <template>
@@ -195,6 +199,23 @@ const onSearchInput = () => {
           </div>
         </li>
       </ul>
+
+      <div v-if="activeWorkspaceId" class="section-title" style="margin-top:2rem;">
+        <span>Favoris</span>
+      </div>
+      <div v-if="activeWorkspaceId && favoritePages.length === 0" class="empty-item">Aucun favori</div>
+      <PageTree
+        v-if="activeWorkspaceId && favoritePages.length > 0"
+        :pages="pages"
+        :root-ids="favoritePages.map(p => p.id)"
+        :level="0"
+        :active-page="activePage"
+        :current-module="currentModule"
+        @select-page="emit('select-page', $event)"
+        @delete-page="emit('delete-page', $event)"
+        @create-subpage="emit('create-subpage', $event)"
+        @move-page="emit('move-page', $event)"
+      />
 
       <div v-if="activeWorkspaceId" class="section-title" style="margin-top:2rem;">
         <span>Tableaux</span>

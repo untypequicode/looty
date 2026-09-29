@@ -43,6 +43,7 @@ pub struct Task {
     pub previous_column_id: Option<Uuid>,
     pub is_per_person: bool,
     pub is_completed: bool,
+    pub require_all_validations: bool,
     pub start_date: Option<DateTime<Utc>>,
     pub due_date: Option<DateTime<Utc>>,
     pub priority: i32,
@@ -141,6 +142,7 @@ pub struct CreateTaskReq {
     pub labels: Option<Vec<Uuid>>,
     pub assignees: Option<Vec<String>>,
     pub priority: Option<i32>,
+    pub require_all_validations: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -159,6 +161,7 @@ pub struct UpdateTaskReq {
     pub due_date: Option<DateTime<Utc>>,
     pub is_per_person: Option<bool>,
     pub priority: Option<i32>,
+    pub require_all_validations: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -249,7 +252,7 @@ async fn create_board(
     }
 
     let board = sqlx::query_as::<_, Board>(
-        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2) RETURNING id, workspace_id, name, automations, created_at, updated_at"
+        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2) RETURNING id, workspace_id, name, automations, require_all_validations, created_at, updated_at"
     )
     .bind(workspace_id)
     .bind(req.name)
@@ -391,7 +394,7 @@ async fn create_column(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let col = sqlx::query_as::<_, BoardColumn>(
-        "INSERT INTO board_columns (board_id, name, position) VALUES ($1, $2, $3) RETURNING id, board_id, name, position, created_at, updated_at"
+        "INSERT INTO board_columns (board_id, name, position) VALUES ($1, $2, $3) RETURNING id, board_id, name, position, require_all_validations, created_at, updated_at"
     )
     .bind(board_id).bind(req.name).bind(next_pos)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -433,7 +436,7 @@ async fn create_task(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let task = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, require_all_validations, created_at, updated_at"
     )
     .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date).bind(req.priority.unwrap_or(0))
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -503,7 +506,7 @@ async fn move_task(
     };
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET column_id = $1, position = $2, previous_column_id = $3, updated_at = NOW() WHERE id = $4 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET column_id = $1, position = $2, previous_column_id = $3, updated_at = NOW() WHERE id = $4 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, require_all_validations, created_at, updated_at"
     )
     .bind(req.column_id).bind(req.position).bind(prev_col_val).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -552,9 +555,9 @@ async fn update_task(
         .bind(task_id).fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let task = sqlx::query_as::<_, Task>(
-        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), priority = COALESCE($6, priority), updated_at = NOW() WHERE id = $7 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
+        "UPDATE tasks SET title = $1, description = $2, start_date = $3, due_date = $4, is_per_person = COALESCE($5, is_per_person), priority = COALESCE($6, priority), require_all_validations = COALESCE($7, require_all_validations), updated_at = NOW() WHERE id = $8 RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, require_all_validations, created_at, updated_at"
     )
-    .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(&req.is_per_person).bind(req.priority).bind(task_id)
+    .bind(&req.title).bind(&req.description).bind(&req.start_date).bind(&req.due_date).bind(&req.is_per_person).bind(req.priority).bind(req.require_all_validations).bind(task_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if old_task.title != task.title {
@@ -641,7 +644,7 @@ async fn update_board(
     let new_automations = req.automations.unwrap_or(board.automations);
 
     let updated_board = sqlx::query_as::<_, Board>(
-        "UPDATE boards SET name = $1, automations = $2, updated_at = NOW() WHERE id = $3 RETURNING id, workspace_id, name, automations, created_at, updated_at"
+        "UPDATE boards SET name = $1, automations = $2, updated_at = NOW() WHERE id = $3 RETURNING id, workspace_id, name, automations, require_all_validations, created_at, updated_at"
     )
     .bind(new_name).bind(new_automations).bind(board_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -701,7 +704,7 @@ async fn update_column(
     if req.name.trim().is_empty() { return Err(StatusCode::BAD_REQUEST); }
 
     let col = sqlx::query_as::<_, BoardColumn>(
-        "UPDATE board_columns SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, created_at, updated_at"
+        "UPDATE board_columns SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, require_all_validations, created_at, updated_at"
     )
     .bind(req.name).bind(column_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -763,7 +766,7 @@ async fn move_column(
     if role == Some("viewer".to_string()) || role.is_none() { return Err(StatusCode::FORBIDDEN); }
 
     let col = sqlx::query_as::<_, BoardColumn>(
-        "UPDATE board_columns SET position = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, created_at, updated_at"
+        "UPDATE board_columns SET position = $1, updated_at = NOW() WHERE id = $2 RETURNING id, board_id, name, position, require_all_validations, created_at, updated_at"
     )
     .bind(req.position).bind(column_id)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -993,7 +996,7 @@ async fn create_subtask(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let subtask = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, parent_id, title, position, priority) VALUES ($1, $2, $3, $4, 0) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, created_at, updated_at"
+        "INSERT INTO tasks (column_id, parent_id, title, position, priority) VALUES ($1, $2, $3, $4, 0) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, require_all_validations, created_at, updated_at"
     )
     .bind(parent.column_id).bind(parent_id).bind(req.title).bind(next_pos)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -1048,7 +1051,7 @@ async fn toggle_task_validation(
         let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1")
             .bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
             
-        task.is_completed = !assignees.is_empty() && assignees.iter().all(|a| validations.contains(a));
+        if task.require_all_validations { task.is_completed = !assignees.is_empty() && assignees.iter().all(|a| validations.contains(a)); } else { task.is_completed = !validations.is_empty(); }
         sqlx::query("UPDATE tasks SET is_completed = $1 WHERE id = $2").bind(task.is_completed).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     } else {
         task.is_completed = !task.is_completed;
@@ -1307,7 +1310,7 @@ async fn add_task_comment(
     let user_id = get_user_id(&session).await.ok_or(StatusCode::UNAUTHORIZED)?;
     
     let comment = sqlx::query_as::<_, TaskComment>(
-        "INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3) RETURNING id, task_id, user_id, content, created_at, updated_at"
+        "INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3) RETURNING id, task_id, user_id, content, require_all_validations, created_at, updated_at"
     )
     .bind(task_id)
     .bind(user_id.to_string())

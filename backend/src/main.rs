@@ -34,6 +34,7 @@ async fn main() {
     
     // Initialisation DB et SQLx
     let pool = db::init_db().await.expect("Failed to initialize database");
+    sqlx::migrate!("./migrations").run(&pool).await.expect("Failed to run migrations");
     
     archive::start_archive_cron(pool.clone());
 

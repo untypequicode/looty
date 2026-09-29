@@ -1,0 +1,20 @@
+1. Implement Backend:
+   - Run migration to create `page_favorites` and `page_views`.
+   - Update `page.rs` with `get_home_pages` which returns sorted pages (viewed, popular, updated, created).
+   - Update `list_pages` to join with `page_favorites` to include an `is_favorite` boolean, or just create a separate endpoint for fetching favorites.
+   - Add routes `/:page_id/favorite` (toggle) and `/:page_id/view` (increment view).
+2. Implement Frontend - Page interactions:
+   - Create a store or composable for views and favorites.
+   - When opening a page (`WorkspacePages.vue`), call the `/view` endpoint.
+   - Add a favorite button (star) in `WorkspacePages.vue` header to toggle favorite.
+3. Implement Frontend - Sidebar:
+   - Add "Favoris" section to sidebar.
+   - Update sidebar tree to auto-expand level 1 children when a parent is clicked.
+4. Implement Frontend - Bottom Subpages:
+   - Add a section at the bottom of `WorkspacePages.vue` showing children of the current page.
+5. Implement Frontend - Home View (Accueil):
+   - Create a new component `WorkspaceHome.vue` or similar, to show tabs: "Vu récemment", "Populaire", "Récemment mis à jour", "Créé par moi".
+   - Use `get_home_pages` API to populate these.
+6. Implement Real-time Presence Dock:
+   - Update `ws.rs` (Backend) to handle a `USER_LOCATION` message (broadcasts to all users).
+   - In `app.vue` or `layout`, add a global floating dock that listens to `USER_LOCATION` and shows online users.

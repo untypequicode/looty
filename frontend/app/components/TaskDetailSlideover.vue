@@ -110,6 +110,7 @@ const submitTask = () => {
     start_date: editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null,
     due_date: editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null,
     is_per_person: editTaskIsPerPerson.value,
+    require_all_validations: editTaskRequireAllValidations.value,
     labels: props.editingTask ? undefined : createTaskLabels.value.map(l => l.id),
     assignees: props.editingTask ? undefined : createTaskAssignees.value
   })
@@ -121,6 +122,7 @@ const saveTaskSettings = () => {
     title: editTaskTitle.value,
     description: editTaskDesc.value,
     is_per_person: editTaskIsPerPerson.value,
+    require_all_validations: editTaskRequireAllValidations.value,
     priority: editTaskPriority.value,
     start_date: editTaskStartDate.value ? new Date(editTaskStartDate.value).toISOString() : null,
     due_date: editTaskDueDate.value ? new Date(editTaskDueDate.value).toISOString() : null
@@ -150,6 +152,7 @@ watch(() => props.editingTask, (task) => {
     editTaskDueDate.value = task.due_date ? task.due_date.split('T')[0] : ''
     editTaskPriority.value = task.priority || 0
     editTaskIsPerPerson.value = task.is_per_person || false
+    editTaskRequireAllValidations.value = task.require_all_validations !== false
   } else {
     editTaskTitle.value = ''
     editTaskDesc.value = ''
@@ -157,6 +160,7 @@ watch(() => props.editingTask, (task) => {
     editTaskDueDate.value = ''
     editTaskPriority.value = 0
     editTaskIsPerPerson.value = false
+    editTaskRequireAllValidations.value = true
     createTaskLabels.value = []
     createTaskAssignees.value = []
   }
@@ -203,6 +207,10 @@ watch(() => props.editingTask, (task) => {
               <div class="meta-field" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
                 <span class="meta-label" style="margin: 0;">Validation par personne</span>
                 <input type="checkbox" v-model="editTaskIsPerPerson" @change="saveTaskSettings" :disabled="activeWorkspaceRole === 'viewer'">
+              </div>
+              <div class="meta-field" v-if="editTaskIsPerPerson" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span class="meta-label" style="margin: 0;">Tous doivent valider</span>
+                <input type="checkbox" v-model="editTaskRequireAllValidations" @change="saveTaskSettings" :disabled="activeWorkspaceRole === 'viewer'" title="Si décoché, une seule validation suffit">
               </div>
             </div>
             

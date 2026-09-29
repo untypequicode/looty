@@ -1,0 +1,39 @@
+--- frontend/app/composables/useKanbanWS.ts
++++ frontend/app/composables/useKanbanWS.ts
+@@ -1,4 +1,4 @@
+-import { watch, triggerRef } from 'vue'
++import { watch, triggerRef, ref } from 'vue'
+ import type { Ref } from 'vue'
+ import { useWebSocket } from '@vueuse/core'
+ import { useQueryClient } from '@tanstack/vue-query'
+@@ -13,7 +13,10 @@
+ ) => {
+   const queryClient = useQueryClient()
+-  const { data: wsData } = useWebSocket(wsUrl, { autoReconnect: true })
++  const { data: wsData, send } = useWebSocket(wsUrl, { autoReconnect: true })
++
++  const onlineUsers = ref<any[]>([])
+   
+   watch(wsData, (msg) => {
+     if (msg) {
+       try {
+         const event = JSON.parse(msg)
++
++        if (event.type === 'PRESENCE_SYNC') {
++          onlineUsers.value = event.presence || []
++        } else if (event.type === 'USER_PRESENCE_UPDATE') {
++          const idx = onlineUsers.value.findIndex(u => u.user_id === event.presence.user_id)
++          if (idx !== -1) onlineUsers.value[idx] = event.presence
++          else onlineUsers.value.push(event.presence)
++        } else if (event.type === 'USER_OFFLINE') {
++          onlineUsers.value = onlineUsers.value.filter(u => u.user_id !== event.user_id)
++        }
+         
+@@ -148,4 +151,6 @@
+         triggerRef(activeBoard)
+       } catch(e) {}
+     }
+   })
++
++  return { send, onlineUsers }
+ }

@@ -54,8 +54,8 @@
       </template>
     </div>
 
-    <editor-content v-if="isSynced" :editor="editor" class="editor-content-area" />
-    <div v-else class="editor-loading">
+    <editor-content v-show="isSynced" :editor="editor" class="editor-content-area" />
+    <div v-show="!isSynced" class="editor-loading">
       <div class="loading-spinner"></div>
       Chargement du document...
     </div>
@@ -63,6 +63,7 @@
 </template>
 
 <script setup>
+
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -143,6 +144,12 @@ const extensions = [
 
 if (props.documentId && typeof window !== 'undefined') {
   ydoc = markRaw(new Y.Doc())
+  // Seed the document with a paragraph to prevent TipTap TextSelection crash on completely empty docs
+  const xml = ydoc.getXmlFragment('default')
+  if (xml.length === 0) {
+    const p = new Y.XmlElement('paragraph')
+    xml.insert(0, [p])
+  }
 
   const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')

@@ -22,6 +22,7 @@ import WorkspaceMembersModal from '../components/WorkspaceMembersModal.vue'
 import TimelineView from '../components/TimelineView.vue'
 import WorkspacePages from '../components/WorkspacePages.vue'
 import WorkspaceDashboard from '../components/WorkspaceDashboard.vue'
+import PresenceDock from '../components/PresenceDock.vue'
 
 // --- State ---
 import { useQueryClient } from '@tanstack/vue-query'
@@ -94,10 +95,23 @@ const isLocal = typeof window !== 'undefined' && (window.location.hostname === '
 const wsUrl = computed(() => {
   if (!activeWorkspaceId.value) return ''
   return isLocal 
-    ? `ws://127.0.0.1:8080/api/ws?workspace_id=${activeWorkspaceId.value}`
+    ? `ws://${window.location.hostname}:8080/api/ws?workspace_id=${activeWorkspaceId.value}`
     : `${protocol}//${typeof window !== 'undefined' ? window.location.host : ''}/api/ws?workspace_id=${activeWorkspaceId.value}`
 })
-useKanbanWS(wsUrl, activeBoard, boards, taskStackIds, pages, activePage)
+const { send, onlineUsers, status } = useKanbanWS(wsUrl, activeBoard, boards, taskStackIds, pages, activePage)
+
+const currentLocationStr = computed(() => {
+  if (currentModule.value === 'wiki' && activePageId.value) return `page:${activePageId.value}`
+  if (currentModule.value === 'kanban' && activeBoardId.value) return `board:${activeBoardId.value}`
+  return 'home'
+})
+
+watch([currentLocationStr, status], ([loc, s]) => {
+  if (send && s === 'OPEN') {
+    send(JSON.stringify({ type: 'USER_LOCATION', location: loc }))
+  }
+}, { immediate: true })
+
 
 // --- Watchers & Lifecycle ---
 watch(() => boards.value, (newBoards) => {
@@ -609,6 +623,15 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
         />
       </div>
     </main>
+
+    <PresenceDock 
+      v-if="activeWorkspaceId"
+      :users="onlineUsers || []" 
+      :current-location="currentLocationStr" 
+      :workspace-members="workspaceMembers || []"
+      :pages="pages || []"
+      :boards="boards || []"
+    />
     
     <!-- Modals -->
     <AppModal 

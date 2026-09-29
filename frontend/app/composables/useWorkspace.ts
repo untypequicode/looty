@@ -160,6 +160,26 @@ export const useWorkspace = () => {
     }
   })
 
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
+      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/favorite`, {
+        method: 'POST'
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
+    }
+  })
+
+  const recordViewMutation = useMutation({
+    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
+      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/view`, {
+        method: 'POST'
+      })
+    }
+    // No invalidate query here to avoid excessive re-renders, it updates in background
+  })
+
   const changeMemberRoleMutation = useMutation({
     mutationFn: async ({ workspaceId, memberId, role }: { workspaceId: string, memberId: string, role: string }) => {
       return await $fetch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
@@ -212,6 +232,8 @@ export const useWorkspace = () => {
     deletePage: deletePageMutation.mutateAsync,
     sharePage: sharePageMutation.mutateAsync,
     revokeShare: revokeShareMutation.mutateAsync,
+    toggleFavorite: toggleFavoriteMutation.mutateAsync,
+    recordView: recordViewMutation.mutateAsync,
     changeMemberRole: changeMemberRoleMutation.mutateAsync,
     kickMember: kickMemberMutation.mutateAsync,
     copyInviteLink

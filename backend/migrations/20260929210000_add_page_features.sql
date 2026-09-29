@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS page_favorites (
+    page_id UUID REFERENCES pages(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (page_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS page_views (
+    page_id UUID REFERENCES pages(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    last_viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    view_count INTEGER DEFAULT 1,
+    PRIMARY KEY (page_id, user_id)
+);

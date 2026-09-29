@@ -14,7 +14,7 @@
         @dragover.prevent="onDragOver($event, page)"
         @dragleave="onDragLeave($event, page)"
         @drop.prevent="onDrop($event, page)"
-        @click="$emit('select-page', page)"
+        @click="handleSelectPage(page)"
       >
         <button 
           v-if="hasChildren(page.id)" 
@@ -63,6 +63,7 @@ import { computed, ref } from 'vue'
 const props = defineProps({
   pages: { type: Array, required: true },
   parentId: { type: String, default: null },
+  rootIds: { type: Array, default: null },
   level: { type: Number, default: 0 },
   activePage: { type: Object, default: null },
   currentModule: { type: String, default: '' },
@@ -74,8 +75,16 @@ const collapsedState = ref({})
 const dropTarget = ref(null)
 
 const currentLevelPages = computed(() => {
+  if (props.level === 0 && props.rootIds) {
+    return props.pages.filter(p => props.rootIds.includes(p.id)).sort((a, b) => (a.position || 0) - (b.position || 0))
+  }
   return props.pages.filter(p => p.parent_id === props.parentId).sort((a, b) => (a.position || 0) - (b.position || 0))
 })
+
+function handleSelectPage(page) {
+  collapsedState.value[page.id] = false
+  emit('select-page', page)
+}
 
 function hasChildren(pageId) {
   return props.pages.some(p => p.parent_id === pageId)

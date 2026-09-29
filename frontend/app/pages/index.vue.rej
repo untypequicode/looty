@@ -1,0 +1,18 @@
+--- index.vue
++++ index.vue
+@@ -536,6 +550,15 @@
+           <h2 v-else style="color: var(--text-color-3);">Veuillez sélectionner un espace de travail.</h2>
+         </div>
+       </main>
++
++      <PresenceDock 
++        v-if="activeWorkspaceId"
++        :users="onlineUsers" 
++        :current-location="currentLocationStr" 
++        :workspace-members="workspaceMembers || []"
++        :pages="pages || []"
++        :boards="boards || []"
++      />
+     </div>
+ 
+     <!-- App Modals (Settings, Renaming, Task details, etc.) -->

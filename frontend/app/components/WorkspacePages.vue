@@ -20,6 +20,10 @@
             placeholder="Titre de la page"
             :readonly="isReadonly || activeWorkspaceRole === 'viewer'"
           />
+          <button @click="handleToggleFavorite" class="favorite-btn" :class="{ 'is-active': page.is_favorite }" title="Ajouter aux favoris">
+            <svg v-if="page.is_favorite" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </button>
         </div>
         <Teleport to="#wiki-header-actions" v-if="isMounted">
           <div class="page-meta">
@@ -81,6 +85,27 @@
           @update:modelValue="debouncedSavePage" 
           @update:collaborators="collaborators = $event"
         />
+        
+        <!-- Subpages section -->
+        <div v-if="subpages.length > 0 || activeWorkspaceRole !== 'viewer'" class="subpages-section">
+          <h3 class="subpages-title">Documents</h3>
+          <div class="subpages-grid">
+            <div v-for="subpage in subpages" :key="subpage.id" class="subpage-card" @click="navigateToSubpage(subpage.id)">
+              <div class="subpage-icon">{{ subpage.icon || '📄' }}</div>
+              <div class="subpage-details">
+                <div class="subpage-title">{{ subpage.title || 'Sans titre' }}</div>
+                <div class="subpage-meta">
+                  <span v-if="subpage.updated_at">Mis à jour {{ formatRelativeDate(subpage.updated_at) }}</span>
+                  <span v-else>Créé récemment</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="activeWorkspaceRole !== 'viewer'" class="subpage-card new-subpage-card" @click="createNewSubpage">
+              <div class="subpage-icon" style="color: var(--text-color-3)">+</div>
+              <div class="subpage-details"><div class="subpage-title" style="color: var(--text-color-3)">Nouveau doc</div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -139,12 +164,12 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import WysiwygEditor from './WysiwygEditor.client.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import { useWorkspace } from '../composables/useWorkspace'
 
-const { activeWorkspaceRole, workspaceMembers, sharePage, revokeShare } = useWorkspace()
+const { activeWorkspaceRole, workspaceMembers, sharePage, revokeShare, toggleFavorite, recordView, pages, createPage } = useWorkspace()
 
 const getMemberName = (id) => {
   const member = workspaceMembers.value?.find(m => m.user_id === id)
@@ -213,7 +238,6 @@ const updatePagePerm = async (userId, role) => {
   }
 }
 
-import { computed } from 'vue'
 const shareLink = computed(() => {
   if (!props.page.share_token) return ''
   return typeof window !== 'undefined' ? `${window.location.origin}/public/${props.page.share_token}` : ''
@@ -250,8 +274,45 @@ const copyShareLink = () => {
   }
 }
 
+const handleToggleFavorite = async () => {
+  try {
+    const current = props.page.is_favorite
+    props.page.is_favorite = !current
+    await toggleFavorite({ workspaceId: props.workspaceId, pageId: props.page.id })
+  } catch (e) {
+    props.page.is_favorite = !props.page.is_favorite
+    console.error(e)
+  }
+}
+
+const recordPageView = async () => {
+  if (props.page?.id) {
+    try {
+      await recordView({ workspaceId: props.workspaceId, pageId: props.page.id })
+    } catch(e) { console.error(e) }
+  }
+}
+
+const subpages = computed(() => {
+  return (pages.value || []).filter(p => p.parent_id === props.page.id).sort((a, b) => a.position - b.position)
+})
+
+const navigateToSubpage = (id) => {
+  window.location.hash = `#wiki-${id}`
+}
+
+const createNewSubpage = async () => {
+  try {
+    const newPage = await createPage({ workspaceId: props.workspaceId, title: '', parentId: props.page.id })
+    navigateToSubpage(newPage.id)
+  } catch(e) {
+    console.error(e)
+  }
+}
+
 onMounted(() => {
   isMounted.value = true
+  recordPageView()
 })
 
 watch(() => props.page.id, () => {
@@ -259,6 +320,7 @@ watch(() => props.page.id, () => {
   localIcon.value = props.page.icon || ''
   localContent.value = props.page.content || ''
   showEmojiPicker.value = false
+  recordPageView()
 })
 
 watch(() => props.page.title, (newTitle) => {
@@ -325,6 +387,7 @@ function formatRelativeDate(dateStr) {
   // Simple formatting for now
   return "récemment"
 }
+
 </script>
 
 <style scoped>
@@ -413,6 +476,27 @@ function formatRelativeDate(dateStr) {
   .page-title-input { font-size: 2rem; }
   .page-editor-wrapper { padding: 1rem 1rem 4rem 1rem; }
   .page-icon { font-size: 2rem; }
+}
+
+.favorite-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-color-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  margin-top: -12px;
+}
+.favorite-btn:hover {
+  color: var(--text-color);
+  background: var(--bg-color-2);
+}
+.favorite-btn.is-active {
+  color: #f59e0b;
 }
 
 .page-meta {

@@ -28,6 +28,20 @@ pub struct Page {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub share_token: Option<Uuid>,
     pub is_public: Option<bool>,
+    // Champs calculés par utilisateur : absents des colonnes de `pages`
+    // (donc `sqlx(default)` pour les `RETURNING *` / `SELECT *`)
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_favorite: Option<bool>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view_count: Option<i32>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_viewed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_view_count: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -51,6 +65,8 @@ pub fn page_routes(state: AuthState) -> Router {
     Router::new()
         .route("/", get(list_pages).post(create_page))
         .route("/:page_id", get(get_page).put(update_page).delete(delete_page))
+        .route("/:page_id/favorite", post(toggle_favorite))
+        .route("/:page_id/view", post(record_view))
         .route("/:page_id/share", post(share_page).delete(revoke_share))
         .route("/:page_id/permissions", get(get_page_permissions).put(set_page_permission))
         .with_state(state.pool)
@@ -76,8 +92,15 @@ async fn list_pages(
     let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
 
     let pages = sqlx::query_as::<_, Page>(
-        "SELECT p.* FROM pages p
+        "SELECT p.*, 
+            CASE WHEN pf.page_id IS NOT NULL THEN true ELSE false END as is_favorite,
+            pv.view_count,
+            pv.last_viewed_at,
+            (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) as total_view_count
+         FROM pages p
          LEFT JOIN page_permissions pp ON pp.page_id = p.id AND pp.user_id = $2
+         LEFT JOIN page_favorites pf ON pf.page_id = p.id AND pf.user_id = $2
+         LEFT JOIN page_views pv ON pv.page_id = p.id AND pv.user_id = $2
          WHERE p.workspace_id = $1 AND ($3 OR pp.role IS NULL OR pp.role != 'blocked')
          ORDER BY p.position ASC, p.created_at ASC"
     )
@@ -106,8 +129,15 @@ async fn get_page(
     let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
 
     let page = sqlx::query_as::<_, Page>(
-        "SELECT p.* FROM pages p
+        "SELECT p.*,
+            CASE WHEN pf.page_id IS NOT NULL THEN true ELSE false END as is_favorite,
+            pv.view_count,
+            pv.last_viewed_at,
+            (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) as total_view_count
+         FROM pages p
          LEFT JOIN page_permissions pp ON pp.page_id = p.id AND pp.user_id = $3
+         LEFT JOIN page_favorites pf ON pf.page_id = p.id AND pf.user_id = $3
+         LEFT JOIN page_views pv ON pv.page_id = p.id AND pv.user_id = $3
          WHERE p.id = $1 AND p.workspace_id = $2 AND ($4 OR pp.role IS NULL OR pp.role != 'blocked')"
     )
     .bind(page_id)
@@ -382,4 +412,49 @@ async fn set_page_permission(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(perm))
+}
+
+pub async fn toggle_favorite(
+    State(pool): State<PgPool>,
+    Path((_workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
+
+    let exists: Option<bool> = sqlx::query_scalar("SELECT true FROM page_favorites WHERE page_id = $1 AND user_id = $2")
+        .bind(page_id).bind(user_uuid).fetch_optional(&pool).await.unwrap_or(None);
+
+    if exists.is_some() {
+        sqlx::query("DELETE FROM page_favorites WHERE page_id = $1 AND user_id = $2")
+            .bind(page_id).bind(user_uuid).execute(&pool).await.ok();
+    } else {
+        sqlx::query("INSERT INTO page_favorites (page_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+            .bind(page_id).bind(user_uuid).execute(&pool).await.ok();
+    }
+
+    Ok(StatusCode::OK)
+}
+
+pub async fn record_view(
+    State(pool): State<PgPool>,
+    Path((_workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    session: Session,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
+    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
+
+    sqlx::query(
+        "INSERT INTO page_views (page_id, user_id, last_viewed_at, view_count) 
+         VALUES ($1, $2, CURRENT_TIMESTAMP, 1) 
+         ON CONFLICT (page_id, user_id) 
+         DO UPDATE SET last_viewed_at = CURRENT_TIMESTAMP, view_count = page_views.view_count + 1"
+    )
+    .bind(page_id)
+    .bind(user_uuid)
+    .execute(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::OK)
 }
