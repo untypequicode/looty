@@ -103,6 +103,22 @@ watch(() => boards.value, (newBoards) => {
   }
 }, { immediate: true })
 
+watch(() => activeBoard.value, (newBoard) => {
+  if (newBoard && taskStack.value.length > 0) {
+    for (let i = 0; i < taskStack.value.length; i++) {
+      const currentTask = taskStack.value[i]
+      for (const col of newBoard.columns) {
+        const updatedTask = col.tasks.find((t: any) => t.id === currentTask.id)
+        if (updatedTask) {
+          // Replace with the fresh reference so the slideover updates visually
+          taskStack.value[i] = updatedTask
+          break
+        }
+      }
+    }
+  }
+}, { deep: true })
+
 watch(activeWorkspaceId, (wsId) => {
   if (!wsId) {
     selectBoard(null)

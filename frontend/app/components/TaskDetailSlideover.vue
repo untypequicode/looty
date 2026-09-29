@@ -296,10 +296,10 @@ watch(() => props.editingTask, (task) => {
         </div>
         
         <div class="slideover-footer" v-if="activeWorkspaceRole !== 'viewer'">
-          <button type="button" v-if="editingTask" class="secondary-btn" style="color: #f87171" @click="emit('delete')">Supprimer la tâche</button>
+          <button type="button" v-if="editingTask" class="secondary-btn" style="color: var(--danger-color)" @click="emit('delete')">Supprimer la tâche</button>
           <div style="flex: 1"></div>
-          <button type="button" class="secondary-btn" @click="emit('close')">Annuler</button>
-          <button type="submit" class="primary-btn">{{ editingTask ? 'Enregistrer' : 'Créer' }}</button>
+          <button type="button" class="secondary-btn" @click="emit('close')">{{ editingTask ? 'Fermer' : 'Annuler' }}</button>
+          <button v-if="!editingTask" type="submit" class="primary-btn">Créer</button>
         </div>
         <div class="slideover-footer" v-else>
           <div style="flex: 1"></div>
