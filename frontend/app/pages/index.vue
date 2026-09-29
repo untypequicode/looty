@@ -388,6 +388,29 @@ const handleDeletePage = async (id: string) => {
 const handleToggleTaskValidation = async (task: any) => {
   if (activeWorkspaceRole.value === 'viewer') return
   const wasCompleted = task.is_completed;
+  
+  queryClient.setQueryData(['boards', activeBoardId.value], (oldBoard: any) => {
+    if (!oldBoard) return oldBoard
+    const newBoard = JSON.parse(JSON.stringify(oldBoard))
+    for (const col of newBoard.columns) {
+      const t = col.tasks.find((t: any) => t.id === task.id)
+      if (t) {
+        if (t.is_per_person && t.assignees?.length > 0) {
+          const hasValidated = t.validations?.includes(userStore.user.id)
+          if (hasValidated) {
+            t.validations = (t.validations || []).filter((id: string) => id !== userStore.user.id)
+          } else {
+            t.validations = [...(t.validations || []), userStore.user.id]
+          }
+          t.is_completed = t.assignees.every((id: string) => t.validations?.includes(id))
+        } else {
+          t.is_completed = !t.is_completed
+        }
+      }
+    }
+    return newBoard
+  })
+
   await toggleTaskValidation(task.id)
   const auto = activeBoard.value?.automations
   if (auto) {
@@ -404,12 +427,21 @@ const handleToggleTaskLabel = async (task: Task | null, label: Label) => {
   if (task) {
     const action = task.labels?.some(l => l.id === label.id) ? 'remove' : 'add'
     
-    // Optimistic update
-    if (action === 'add') {
-      task.labels = [...(task.labels || []), label]
-    } else {
-      task.labels = (task.labels || []).filter(l => l.id !== label.id)
-    }
+    queryClient.setQueryData(['boards', activeBoardId.value], (oldBoard: any) => {
+      if (!oldBoard) return oldBoard
+      const newBoard = JSON.parse(JSON.stringify(oldBoard))
+      for (const col of newBoard.columns) {
+        const t = col.tasks.find((t: any) => t.id === task.id)
+        if (t) {
+          if (action === 'add') {
+            t.labels = [...(t.labels || []), label]
+          } else {
+            t.labels = (t.labels || []).filter((l: any) => l.id !== label.id)
+          }
+        }
+      }
+      return newBoard
+    })
 
     await toggleTaskLabel({ taskId: task.id, labelId: label.id, action })
   }
@@ -419,12 +451,21 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
   if (task) {
     const action = task.assignees?.includes(userId) ? 'remove' : 'add'
     
-    // Optimistic update
-    if (action === 'add') {
-      task.assignees = [...(task.assignees || []), userId]
-    } else {
-      task.assignees = (task.assignees || []).filter(id => id !== userId)
-    }
+    queryClient.setQueryData(['boards', activeBoardId.value], (oldBoard: any) => {
+      if (!oldBoard) return oldBoard
+      const newBoard = JSON.parse(JSON.stringify(oldBoard))
+      for (const col of newBoard.columns) {
+        const t = col.tasks.find((t: any) => t.id === task.id)
+        if (t) {
+          if (action === 'add') {
+            t.assignees = [...(t.assignees || []), userId]
+          } else {
+            t.assignees = (t.assignees || []).filter((id: string) => id !== userId)
+          }
+        }
+      }
+      return newBoard
+    })
 
     await toggleTaskAssignee({ taskId: task.id, userId, action })
   }
