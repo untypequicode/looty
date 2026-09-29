@@ -54,7 +54,11 @@
       </template>
     </div>
 
-    <editor-content :editor="editor" class="editor-content-area" />
+    <editor-content v-if="isSynced" :editor="editor" class="editor-content-area" />
+    <div v-else class="editor-loading">
+      <div class="loading-spinner"></div>
+      Chargement du document...
+    </div>
   </div>
 </template>
 
@@ -229,6 +233,8 @@ async function uploadAndInsertImage(file, view, x, y) {
   }
 }
 
+const isSynced = ref(!props.documentId) // True if no collab
+
 // CRUCIAL: Pass an empty paragraph for Collaboration to prevent TextSelection crash on empty doc.
 // If it's not collaborative (no documentId), pass the actual modelValue.
 if (!props.documentId) {
@@ -241,6 +247,7 @@ const editor = useEditor(editorOptions)
 
 if (provider) {
   provider.on('synced', () => {
+    isSynced.value = true
     if (editor.value && editor.value.isEmpty && props.modelValue && props.modelValue !== '<p></p>') {
       editor.value.commands.setContent(props.modelValue)
     }
@@ -558,5 +565,29 @@ onBeforeUnmount(() => {
 
 :deep(.drag-handle:hover) {
   background-color: var(--bg-color-hover);
+}
+</style>
+
+<style scoped>
+.editor-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: var(--text-color-3);
+  font-size: 1.1rem;
+}
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
