@@ -54,8 +54,17 @@ const activePage = computed({
   set: (page: any) => { activePageId.value = page ? page.id : null }
 })
 
-const taskStack = ref<any[]>([])
-const editingTask = computed(() => taskStack.value[taskStack.value.length - 1] || null)
+const taskStackIds = ref<string[]>([])
+const editingTask = computed(() => {
+  if (taskStackIds.value.length === 0) return null
+  const currentId = taskStackIds.value[taskStackIds.value.length - 1]
+  if (!activeBoard.value) return null
+  for (const col of activeBoard.value.columns) {
+    const t = col.tasks.find((t: any) => t.id === currentId)
+    if (t) return t
+  }
+  return null
+})
 const targetColumnId = ref<string | null>(null)
 const isSidebarOpen = ref(false)
 
@@ -86,7 +95,7 @@ const wsUrl = computed(() => {
     ? `ws://127.0.0.1:8080/api/ws?workspace_id=${activeWorkspaceId.value}`
     : `${protocol}//${typeof window !== 'undefined' ? window.location.host : ''}/api/ws?workspace_id=${activeWorkspaceId.value}`
 })
-useKanbanWS(wsUrl, activeBoard, boards, taskStack, pages, activePage)
+useKanbanWS(wsUrl, activeBoard, boards, taskStackIds, pages, activePage)
 
 // --- Watchers & Lifecycle ---
 watch(() => boards.value, (newBoards) => {
@@ -103,21 +112,7 @@ watch(() => boards.value, (newBoards) => {
   }
 }, { immediate: true })
 
-watch(() => activeBoard.value, (newBoard) => {
-  if (newBoard && taskStack.value.length > 0) {
-    for (let i = 0; i < taskStack.value.length; i++) {
-      const currentTask = taskStack.value[i]
-      for (const col of newBoard.columns) {
-        const updatedTask = col.tasks.find((t: any) => t.id === currentTask.id)
-        if (updatedTask) {
-          // Replace with the fresh reference so the slideover updates visually
-          taskStack.value[i] = updatedTask
-          break
-        }
-      }
-    }
-  }
-}, { deep: true })
+
 
 watch(activeWorkspaceId, (wsId) => {
   if (!wsId) {
@@ -224,13 +219,13 @@ const handleSaveBoardSettings = async () => {
 }
 
 const openTaskModal = (colId: string) => {
-  taskStack.value = []
+  taskStackIds.value = []
   targetColumnId.value = colId
   showTaskDetailModal.value = true
 }
 
 const handleOpenTask = (task: any) => {
-  taskStack.value.push(task)
+  taskStackIds.value.push(task.id)
   showTaskDetailModal.value = true
 }
 
@@ -241,8 +236,8 @@ const currentSubtasks = computed(() => {
 })
 
 const closeTaskModal = () => {
-  taskStack.value.pop()
-  if (taskStack.value.length === 0) showTaskDetailModal.value = false
+  taskStackIds.value.pop()
+  if (taskStackIds.value.length === 0) showTaskDetailModal.value = false
 }
 
 const handleSaveTask = async (taskData: any) => {

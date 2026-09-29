@@ -215,7 +215,7 @@ const updatePagePerm = async (userId, role) => {
 import { computed } from 'vue'
 const shareLink = computed(() => {
   if (!props.page.share_token) return ''
-  return `${window.location.origin}/public/${props.page.share_token}`
+  return typeof window !== 'undefined' ? `${window.location.origin}/public/${props.page.share_token}` : ''
 })
 
 const handleSharePage = async () => {

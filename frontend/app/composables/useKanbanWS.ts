@@ -8,7 +8,7 @@ export const useKanbanWS = (
   wsUrl: Ref<string>, 
   activeBoard: Ref<Board | null>, 
   boards: Ref<Board[]>,
-  taskStack: Ref<any[]>,
+  taskStackIds: Ref<string[]>,
   pages?: Ref<any[]>,
   activePage?: Ref<any | null>
 ) => {
@@ -98,12 +98,7 @@ export const useKanbanWS = (
                 event.task.assignees = event.task.assignees || col.tasks[idx].assignees || []
                 event.task.validations = event.task.validations || col.tasks[idx].validations || []
                 col.tasks.splice(idx, 1, event.task)
-                // Update in taskStack if it is currently open
-                for (let i = 0; i < taskStack.value.length; i++) {
-                  if (taskStack.value[i].id === event.task.id) {
-                    Object.assign(taskStack.value[i], event.task)
-                  }
-                }
+                // Update in taskStack is no longer needed because it's computed from activeBoard
               }
             }
           } else if (event.task_id) {
@@ -133,13 +128,7 @@ export const useKanbanWS = (
                  col.tasks.splice(idx, 1, event.task)
               }
            }
-           // Update in taskStack
-           for (let i = 0; i < taskStack.value.length; i++) {
-              if (taskStack.value[i].id === event.task.id) {
-                 Object.assign(taskStack.value[i], event.task)
-              }
            }
-        }
         
         // Invalidate active board query so VueQuery fetches the fresh data
         if (activeBoard.value?.id) {
@@ -147,7 +136,7 @@ export const useKanbanWS = (
         }
         
         triggerRef(boards)
-        triggerRef(taskStack)
+        triggerRef(taskStackIds)
         if (pages) triggerRef(pages)
         if (activePage) triggerRef(activePage)
 
