@@ -24,6 +24,8 @@ import WorkspacePages from '../components/WorkspacePages.vue'
 import WorkspaceDashboard from '../components/WorkspaceDashboard.vue'
 
 // --- State ---
+import { useQueryClient } from '@tanstack/vue-query'
+const queryClient = useQueryClient()
 const { user, isLoading } = useAuth()
 const {
   activeWorkspaceId, activeWorkspaceRole, workspacesData, isLoadingWorkspaces, 

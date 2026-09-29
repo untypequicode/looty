@@ -52,6 +52,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-collab.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/collab`)"
+      - "traefik.http.middlewares.${APP_NAME}-collab-strip.stripprefix.prefixes=/collab"
+      - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
     restart: unless-stopped
 
