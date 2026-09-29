@@ -34,8 +34,9 @@
               <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
               {{ isReadonly ? 'Lecture' : 'Édition' }}
             </button>
-            <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn link-public-btn" @click="toggleShareModal = true" style="display: flex; align-items: center; gap: 4px;">
-              🔗 Partager
+            <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn action-btn-alpha" @click="toggleShareModal = true" style="display: flex; align-items: center; gap: 4px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              Publier
             </button>
             <button v-if="activeWorkspaceRole === 'admin' || activeWorkspaceRole === 'owner'" class="meta-btn perm-btn" @click="openPermissionsModal" style="display: flex; align-items: center; gap: 4px; margin-left: 8px;">
               🔐 Accès
@@ -88,7 +89,7 @@
       <Teleport to="body">
         <div v-if="toggleShareModal" class="modal-overlay" @click.self="toggleShareModal = false">
           <div class="modal-content">
-            <h2>Partager la page</h2>
+            <h2>Lien public la page</h2>
             <div v-if="page.is_public && page.share_token" class="share-info">
               <p>Cette page est accessible publiquement via ce lien :</p>
               <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 24px;">
