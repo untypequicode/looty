@@ -23,18 +23,33 @@ export const useKanbanWS = (
   const handlePresence = (event: any): boolean => {
     switch (event.type) {
       case 'PRESENCE_SYNC':
-        onlineUsers.value = Array.isArray(event.presence) ? event.presence : []
+        // Merge with existing to keep offline status if any, but backend gives fresh list
+        event.presence.forEach((p: any) => {
+          const idx = onlineUsers.value.findIndex(u => u.user_id === p.user_id)
+          if (idx !== -1) {
+            onlineUsers.value[idx] = { ...p, is_offline: false }
+          } else {
+            onlineUsers.value.push({ ...p, is_offline: false })
+          }
+        })
         return true
       case 'USER_PRESENCE_UPDATE': {
         const p = event.presence
         if (!p) return true
         const idx = onlineUsers.value.findIndex(u => u.user_id === p.user_id)
-        if (idx !== -1) onlineUsers.value.splice(idx, 1, p)
-        else onlineUsers.value.push(p)
+        if (idx !== -1) {
+          onlineUsers.value.splice(idx, 1, { ...p, is_offline: false })
+        } else {
+          onlineUsers.value.push({ ...p, is_offline: false })
+        }
         return true
       }
       case 'USER_OFFLINE':
-        onlineUsers.value = onlineUsers.value.filter(u => u.user_id !== event.user_id)
+        const uIdx = onlineUsers.value.findIndex(u => u.user_id === event.user_id)
+        if (uIdx !== -1) {
+          onlineUsers.value[uIdx].is_offline = true
+          onlineUsers.value[uIdx].last_seen_at = Date.now()
+        }
         return true
     }
     return false

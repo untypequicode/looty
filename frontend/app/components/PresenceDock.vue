@@ -1,27 +1,43 @@
 <template>
   <div class="presence-dock-wrapper" :class="{ 'is-expanded': isExpanded }">
-    <div class="presence-dock" @click="isExpanded = !isExpanded">
-      <div v-for="user in visibleUsers" :key="user.user_id" class="dock-avatar" :title="getUserLabel(user)">
-        {{ getUserInitials(user) }}
+    <div class="presence-docks-container" @click="isExpanded = !isExpanded">
+      
+      <!-- Global Pill -->
+      <div class="presence-dock">
+        <div v-for="user in visibleGlobalUsers" :key="'g'+user.user_id" class="dock-avatar" :title="getUserLabel(user)">
+          {{ getUserInitials(user) }}
+        </div>
+        <div v-if="globalOverflowCount > 0" class="dock-avatar overflow-avatar">
+          +{{ globalOverflowCount }}
+        </div>
+        <div v-if="globalUsers.length === 0" class="dock-empty">
+          Connexion...
+        </div>
       </div>
-      <div v-if="overflowCount > 0" class="dock-avatar overflow-avatar">
-        +{{ overflowCount }}
+
+      <!-- Local Pill -->
+      <div class="presence-dock local-dock" v-if="localUsers.length > 0">
+        <div v-for="user in visibleLocalUsers" :key="'l'+user.user_id" class="dock-avatar is-here" :class="{ 'is-offline': user.is_offline }" :title="getUserLabel(user)">
+          {{ getUserInitials(user) }}
+        </div>
+        <div v-if="localOverflowCount > 0" class="dock-avatar overflow-avatar is-here">
+          +{{ localOverflowCount }}
+        </div>
       </div>
-      <div v-if="users.length === 0" class="dock-empty">
-        Connexion...
-      </div>
+      
     </div>
     
     <!-- Expanded List -->
     <div v-if="isExpanded" class="presence-expanded-list">
       <div class="expanded-header">Personnes en ligne ({{ users.length }})</div>
-      <div v-for="user in sortedUsers" :key="user.user_id" class="expanded-user-item" @click="navigateToUser(user)">
+      <div v-for="user in sortedUsers" :key="user.user_id" class="expanded-user-item" :class="{ 'is-offline': user.is_offline }" @click="navigateToUser(user)">
         <div class="user-avatar-small">{{ getUserInitials(user) }}</div>
         <div class="user-info-small">
           <div class="user-name-small">{{ getUserName(user) }}</div>
           <div class="user-loc-small">
             <span v-if="user.location === currentLocation" class="same-loc-badge">Ici</span>
             {{ getLocationLabel(user.location) }}
+            <span v-if="user.is_offline" class="offline-badge">Hors ligne</span>
           </div>
         </div>
       </div>
@@ -70,12 +86,27 @@ const getLocationLabel = (loc: string) => {
   return 'En ligne'
 }
 
+const formatLastSeen = (timestamp: number) => {
+  if (!timestamp) return ''
+  const diff = Math.floor((Date.now() - timestamp) / 1000)
+  if (diff < 60) return `${diff} sec`
+  if (diff < 3600) return `${Math.floor(diff/60)} min`
+  return `${Math.floor(diff/3600)} h`
+}
+
 const getUserLabel = (user: any) => {
-  return `${getUserName(user)} - ${getLocationLabel(user.location)}`
+  let label = `${getUserName(user)} - ${getLocationLabel(user.location)}`
+  if (user.is_offline) {
+    label += ` (Hors ligne depuis ${formatLastSeen(user.last_seen_at)})`
+  }
+  return label
 }
 
 const sortedUsers = computed(() => {
   return [...(props.users || [])].sort((a, b) => {
+    // Offline users last
+    if (a.is_offline && !b.is_offline) return 1
+    if (!a.is_offline && b.is_offline) return -1
     // Current location first
     if (a.location === props.currentLocation && b.location !== props.currentLocation) return -1
     if (b.location === props.currentLocation && a.location !== props.currentLocation) return 1
@@ -83,13 +114,19 @@ const sortedUsers = computed(() => {
   })
 })
 
-const visibleUsers = computed(() => {
-  return sortedUsers.value.slice(0, 5)
+const globalUsers = computed(() => {
+  return props.users.filter(u => !u.is_offline)
 })
 
-const overflowCount = computed(() => {
-  return Math.max(0, (props.users?.length || 0) - 5)
+const localUsers = computed(() => {
+  return props.users.filter(u => u.location === props.currentLocation)
 })
+
+const visibleGlobalUsers = computed(() => globalUsers.value.slice(0, 5))
+const globalOverflowCount = computed(() => Math.max(0, globalUsers.value.length - 5))
+
+const visibleLocalUsers = computed(() => localUsers.value.slice(0, 5))
+const localOverflowCount = computed(() => Math.max(0, localUsers.value.length - 5))
 
 const navigateToUser = (user: any) => {
   if (user.location !== props.currentLocation) {
@@ -117,6 +154,12 @@ const navigateToUser = (user: any) => {
   gap: 12px;
 }
 
+.presence-docks-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .presence-dock {
   background: var(--bg-color-2);
   border: 1px solid var(--border-color);
@@ -131,6 +174,11 @@ const navigateToUser = (user: any) => {
 .presence-dock:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+.presence-dock.local-dock {
+  border-color: #2ecc71;
+  background: rgba(46, 204, 113, 0.05);
 }
 
 .dock-avatar {
@@ -206,6 +254,33 @@ const navigateToUser = (user: any) => {
   font-size: 0.9rem;
   font-weight: 600;
   flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.dock-avatar.is-here {
+  border: 2px solid #2ecc71; /* Highlight with green */
+  box-shadow: 0 0 6px rgba(46, 204, 113, 0.6);
+  z-index: 2;
+}
+
+.dock-avatar.is-offline {
+  opacity: 0.5;
+  filter: grayscale(100%);
+  border-color: #888;
+}
+
+.expanded-user-item.is-offline {
+  opacity: 0.6;
+}
+
+.offline-badge {
+  background: #888;
+  color: white;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-weight: 600;
+  margin-left: 4px;
 }
 
 .user-info-small {

@@ -46,18 +46,7 @@
               🔐 Accès
             </button>
             <span class="meta-dot">•</span>
-            <div class="collaborators-list" v-if="collaborators.length > 0">
-              <div 
-                v-for="user in collaborators" 
-                :key="user.name"
-                class="collaborator-avatar"
-                :style="{ backgroundColor: user.color }"
-                :title="user.name"
-              >
-                {{ user.name.charAt(0).toUpperCase() }}
-              </div>
-            </div>
-            
+
             <div class="recent-activity-block" v-if="page.updated_at && page.updated_by && !collaborators.some(c => c.id === page.updated_by)">
               <div class="activity-item" :title="`Dernière modification par ${getMemberName(page.updated_by)}`">
                  <div class="collaborator-avatar offline">
@@ -67,7 +56,7 @@
               </div>
             </div>
 
-            <span class="meta-dot" v-if="collaborators.length > 0 || page.updated_by">•</span>
+
             <span :class="['save-status', saveStatusClass]">
               {{ saveStatus || 'Sauvegardé' }}
             </span>
