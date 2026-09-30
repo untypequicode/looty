@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, watchEffect, nextTick } from 'vue'
-import { useSessionStorage } from '@vueuse/core'
+import { useSessionStorage, useOnline } from '@vueuse/core'
 import gsap from 'gsap'
 
 import { useAuth } from '../composables/useAuth'
@@ -27,6 +27,7 @@ import PresenceDock from '../components/PresenceDock.vue'
 // --- State ---
 import { useQueryClient } from '@tanstack/vue-query'
 const queryClient = useQueryClient()
+const isOnline = useOnline()
 const { user, isLoading } = useAuth()
 const {
   activeWorkspaceId, activeWorkspaceRole, workspacesData, isLoadingWorkspaces, 
@@ -642,6 +643,14 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       :boards="boards || []"
     />
     
+    <!-- Offline Indicator -->
+    <transition name="fade">
+      <div v-if="!isOnline" class="offline-indicator">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M11 11.5a8.5 8.5 0 0 1 7 0"/><path d="M3 3l18 18"/></svg>
+        <span>Vous êtes hors ligne. Vos modifications locales seront synchronisées au retour de la connexion.</span>
+      </div>
+    </transition>
+
     <!-- Modals -->
     <AppModal 
       v-if="showCreateModal" 
@@ -763,4 +772,29 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
 
 .secondary-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; background: transparent; color: var(--text-color-3); font-weight: 500; font-size: 0.85rem; transition: all 0.12s; }
 .secondary-btn:hover { background: var(--border-color); color: #eee; }
+
+.offline-indicator {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--warning-color, #f5a623);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
+}
 </style>
