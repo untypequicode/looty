@@ -210,44 +210,43 @@ const handleMentionClick = (mention: any) => {
 <style scoped>
 .presence-dock-wrapper {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 20px;
+  right: 20px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 12px;
+  gap: 8px;
 }
 
 .presence-docks-container {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .users-docks-wrapper {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   cursor: pointer;
 }
 
 .presence-dock {
-  background-color: var(--bg-color-modal);
+  background-color: var(--bg-color-elevated);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 6px 12px;
+  border-radius: var(--radius-lg);
+  padding: 5px 10px;
   display: flex;
   align-items: center;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   cursor: pointer;
-  opacity: 0.85;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: all var(--transition-smooth);
+  font-size: 0.75rem;
 }
 .presence-dock:hover {
-  opacity: 1;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-color-hover);
 }
 
 .presence-dock.local-dock {
@@ -255,53 +254,42 @@ const handleMentionClick = (mention: any) => {
 }
 
 .activity-dock {
-  background-color: var(--bg-color-modal);
-  border: 1px solid var(--border-color);
   color: var(--text-color-3);
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  border-radius: var(--radius-md);
+  font-size: 0.75rem;
   cursor: default;
-  opacity: 0.85;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.activity-dock:hover {
-  opacity: 1;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glass);
 }
 
 .activity-text {
-  margin-right: 8px;
+  margin-right: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .activity-avatar {
-  width: 24px;
-  height: 24px;
-  font-size: 0.75rem;
-  background: var(--bg-color-hover);
-  color: var(--text-color);
+  width: 20px;
+  height: 20px;
+  font-size: 0.625rem;
+  background: var(--bg-color-3);
+  color: var(--text-color-2);
   border: 1px solid var(--border-color);
 }
 
 .dock-avatar {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.625rem;
   font-weight: 600;
-  border: 2px solid var(--bg-color-modal);
-  margin-left: -6px;
+  border: 2px solid var(--bg-color-elevated);
+  margin-left: -5px;
   position: relative;
-  transition: all 0.2s;
+  transition: transform var(--transition-fast);
 }
 .dock-avatar:hover {
   z-index: 10;
@@ -311,61 +299,61 @@ const handleMentionClick = (mention: any) => {
   margin-left: 0;
 }
 .overflow-avatar {
-  background: var(--bg-color-hover);
-  color: var(--text-color);
+  background: var(--bg-color-3);
+  color: var(--text-color-2);
+  font-size: 0.5625rem;
 }
 .dock-empty {
-  padding: 0 12px;
-  font-size: 0.9rem;
+  padding: 0 8px;
+  font-size: 0.75rem;
   color: var(--text-color-3);
 }
 
 .presence-expanded-list {
-  background: var(--bg-color-modal);
+  background: var(--bg-color-elevated);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  width: 250px;
-  max-height: 400px;
+  box-shadow: var(--shadow-float);
+  width: 240px;
+  max-height: 360px;
   overflow-y: auto;
-  animation: slideUp 0.2s ease-out;
+  animation: slideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .expanded-header {
-  padding: 12px 16px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-color-2);
+  padding: 10px 14px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-color-3);
   border-bottom: 1px solid var(--border-color);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
 }
 
 .expanded-user-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 8px 14px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
 }
 .expanded-user-item:hover {
   background: var(--bg-color-hover);
 }
 
 .user-avatar-small {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   font-weight: 600;
   flex-shrink: 0;
-  transition: all 0.2s;
 }
 
 .dock-avatar.is-here {
@@ -374,21 +362,21 @@ const handleMentionClick = (mention: any) => {
 }
 
 .dock-avatar.is-offline {
-  opacity: 0.4;
+  opacity: 0.35;
   filter: grayscale(100%);
   border-color: var(--border-color);
 }
 
 .expanded-user-item.is-offline {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .offline-badge {
-  background: #888;
+  background: var(--text-color-3);
   color: white;
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 12px;
+  font-size: 0.5625rem;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
   font-weight: 600;
   margin-left: 4px;
 }
@@ -397,11 +385,12 @@ const handleMentionClick = (mention: any) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
 .user-name-small {
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: 0.8125rem;
   color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
@@ -409,66 +398,68 @@ const handleMentionClick = (mention: any) => {
 }
 
 .user-loc-small {
-  font-size: 0.8rem;
+  font-size: 0.6875rem;
   color: var(--text-color-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .same-loc-badge {
-  background: var(--success-color);
-  color: white;
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 12px;
+  background: var(--success-glass);
+  color: var(--success-color);
+  font-size: 0.5625rem;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
   font-weight: 600;
 }
 
 .empty-list {
-  padding: 24px;
+  padding: 20px;
   text-align: center;
   color: var(--text-color-3);
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .mention-dock {
   border-color: var(--primary-color);
+  background: var(--primary-color-subtle);
 }
 
 .mention-avatar {
   background: var(--primary-color);
   color: white;
-  border-color: var(--bg-color-modal);
+  border-color: var(--bg-color-elevated);
 }
 
 .close-mention-btn {
   background: none;
   border: none;
   color: var(--text-color-3);
-  font-size: 1.2rem;
+  font-size: 1rem;
   line-height: 1;
-  padding: 0 4px;
+  padding: 0 2px;
   cursor: pointer;
+  transition: color var(--transition-fast);
 }
 .close-mention-btn:hover {
-  color: var(--text-color-1);
+  color: var(--text-color);
 }
 
-/* Mobile responsive styles */
+/* Mobile */
 @media (max-width: 768px) {
   .presence-dock-wrapper {
-    bottom: 80px; /* Above the mobile toolbar */
-    right: 16px;
-    gap: 8px;
+    bottom: 72px;
+    right: 12px;
+    gap: 6px;
   }
   
   .presence-dock {
@@ -476,29 +467,23 @@ const handleMentionClick = (mention: any) => {
   }
   
   .dock-avatar {
-    width: 20px;
-    height: 20px;
-    font-size: 0.6rem;
+    width: 18px;
+    height: 18px;
+    font-size: 0.5rem;
   }
   
-  .presence-panel {
-    width: 280px;
-    right: -8px; /* Avoid overflowing screen edge */
+  .presence-expanded-list {
+    width: 260px;
   }
   
   .mention-dock {
-    max-width: 200px;
-    font-size: 0.75rem;
+    max-width: 180px;
+    font-size: 0.6875rem;
   }
   
   .activity-text {
-    max-width: 140px;
-  }
-  
-  .mention-dock span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: 120px;
   }
 }
 </style>
+.presence-dock-wrapper {

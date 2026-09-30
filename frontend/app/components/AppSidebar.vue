@@ -301,166 +301,173 @@ const favoritePages = computed(() => {
 </template>
 
 <style scoped>
-.sidebar { 
-  width: 250px; 
-  background-color: var(--bg-color-2); 
-  display: flex; 
-  flex-direction: column; 
-  border-right: 1px solid var(--border-color); 
+.sidebar {
+  width: 240px;
+  background-color: var(--bg-color-2);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
   z-index: 10;
   transition: width var(--transition-smooth);
 }
-.sidebar-header { 
-  padding: 1.25rem 1rem 0.5rem; 
+.sidebar-header {
+  padding: 16px 16px 8px;
 }
-.logo { 
-  font-size: 0.9rem; 
-  font-weight: 600; 
-  color: var(--text-color); 
-  letter-spacing: -0.3px; 
+.logo {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-color);
+  letter-spacing: -0.02em;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .logo::before {
   content: '✦';
   color: var(--primary-color);
+  font-size: 0.875rem;
 }
-.sidebar-content { 
-  flex: 1; 
-  padding: 0 0.75rem; 
-  overflow-y: auto; 
+.sidebar-content {
+  flex: 1;
+  padding: 0 8px;
+  overflow-y: auto;
 }
-.section-title { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  font-size: 0.65rem; 
-  color: var(--text-color-3); 
-  margin-bottom: 0.25rem; 
-  margin-top: 1.5rem; 
-  font-weight: 600; 
-  text-transform: uppercase; 
-  letter-spacing: 0.8px; 
-  padding: 0 0.5rem; 
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.6875rem;
+  color: var(--text-color-3);
+  margin-bottom: 2px;
+  margin-top: 20px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 8px;
 }
-.icon-btn { 
-  background: none; 
-  border: none; 
-  color: var(--text-color-3); 
-  cursor: pointer; 
-  padding: 4px; 
-  border-radius: var(--radius-sm); 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  font-size: 0.85rem; 
-  transition: all var(--transition-fast); 
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-color-3);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  transition: all var(--transition-fast);
+  line-height: 1;
 }
-.icon-btn:hover { 
-  background: var(--border-color); 
-  color: var(--text-color); 
+.icon-btn:hover {
+  background: var(--bg-color-hover);
+  color: var(--text-color);
 }
-.workspace-list { 
-  list-style: none; 
-  padding: 0; 
-  margin: 0; 
-  display: flex; 
-  flex-direction: column; 
-  gap: 2px; 
+.workspace-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.loading-item, .empty-item { 
-  color: var(--text-color-3); 
-  font-size: 0.8rem; 
-  padding: 0.5rem 0.75rem; 
+.loading-item, .empty-item {
+  color: var(--text-color-3);
+  font-size: 0.75rem;
+  padding: 6px 8px;
 }
-.workspace-item { 
-  display: flex; 
-  align-items: center; 
-  gap: 10px; 
-  padding: 6px 10px; 
-  border-radius: var(--radius-sm); 
-  cursor: pointer; 
-  color: var(--text-color-2); 
-  font-size: 0.875rem; 
-  font-weight: 500; 
-  transition: all var(--transition-fast); 
+.workspace-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-color-2);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  transition: all var(--transition-fast);
   position: relative;
 }
-.workspace-item:hover { 
-  background: var(--bg-color-hover); 
-  color: var(--text-color); 
+.workspace-item:hover {
+  background: var(--bg-color-hover);
+  color: var(--text-color);
 }
-.workspace-item.active { 
-  background: var(--bg-color-hover); 
-  color: var(--text-color); 
+.workspace-item.active {
+  background: var(--primary-color-subtle);
+  color: var(--primary-color);
+  font-weight: 500;
+}
+.ws-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  background: var(--border-color);
+  color: var(--text-color-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
   font-weight: 600;
+  flex-shrink: 0;
 }
-.ws-avatar { 
-  width: 20px; 
-  height: 20px; 
-  border-radius: 4px; 
-  background: var(--border-color); 
-  color: var(--text-color); 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  font-size: 0.65rem; 
-  font-weight: 600; 
-}
-.workspace-item.active .ws-avatar { 
-  background: var(--primary-color); 
+.workspace-item.active .ws-avatar {
+  background: var(--primary-color);
   color: #fff;
 }
-.ws-name { 
-  font-size: 0.875rem; 
+.ws-name {
+  font-size: 0.8125rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sidebar-footer { 
-  padding: 1rem; 
-  border-top: 1px solid var(--border-color); 
-  display: flex; 
-  flex-direction: column; 
-  gap: 0.75rem; 
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.user-profile { 
-  display: flex; 
-  align-items: center; 
-  gap: 10px; 
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.user-avatar { 
-  width: 28px; 
-  height: 28px; 
-  border-radius: 50%; 
-  background: var(--primary-color-glass); 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  font-size: 0.8rem; 
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--primary-color-glass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
   color: var(--primary-color);
   font-weight: 600;
+  flex-shrink: 0;
 }
 .user-info p { margin: 0; }
-.user-name { font-weight: 500; font-size: 0.85rem; color: var(--text-color); }
-.user-email { font-size: 0.75rem; color: var(--text-color-3); }
-.logout-btn { 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  text-decoration: none; 
-  color: var(--text-color-3); 
-  font-size: 0.85rem; 
+.user-name { font-weight: 500; font-size: 0.8125rem; color: var(--text-color); }
+.user-email { font-size: 0.6875rem; color: var(--text-color-3); }
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--text-color-3);
+  font-size: 0.75rem;
   transition: color var(--transition-fast);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
 }
-.logout-btn:hover { 
-  color: var(--danger-color); 
+.logout-btn:hover {
+  color: var(--danger-color);
+  background: var(--danger-glass);
 }
 .theme-toggle-btn {
   background: none;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1rem;
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
@@ -472,89 +479,93 @@ const favoritePages = computed(() => {
 }
 .theme-toggle-btn:hover {
   background: var(--bg-color-hover);
+  color: var(--text-color-2);
 }
-.item-actions { 
-  display: none; 
-  gap: 4px; 
+.item-actions {
+  display: none;
+  gap: 2px;
   position: absolute;
-  right: 6px;
-  background: var(--bg-color-hover);
+  right: 4px;
+  background: var(--bg-color-2);
   padding: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
 }
 .workspace-item:hover .item-actions {
   display: flex;
 }
-.item-actions button { 
-  background: none; 
-  border: none; 
-  color: var(--text-color-3); 
-  cursor: pointer; 
-  padding: 4px; 
-  border-radius: var(--radius-sm); 
-  font-size: 0.75rem; 
-  transition: all var(--transition-fast); 
+.item-actions button {
+  background: none;
+  border: none;
+  color: var(--text-color-3);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: var(--radius-xs);
+  font-size: 0.75rem;
+  transition: all var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.item-actions button:hover { 
-  background: var(--border-color); 
-  color: var(--text-color); 
+.item-actions button:hover {
+  background: var(--bg-color-hover);
+  color: var(--text-color);
 }
 
 /* Spotlight Search */
 .spotlight-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1000;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 15vh;
+  padding-top: 18vh;
 }
 
 .spotlight-modal {
   width: 100%;
-  max-width: 640px;
+  max-width: 560px;
   background: var(--bg-color-modal);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl), 0 20px 40px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-float);
   border: 1px solid var(--border-color);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: spotlightIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+@keyframes spotlightIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .spotlight-input-wrapper {
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border-color);
-  background: transparent;
 }
 
 .spotlight-icon {
   color: var(--text-color-3);
-  margin-right: 12px;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 
 .spotlight-input {
   flex: 1;
   background: transparent;
   border: none;
-  padding: 20px 0;
-  font-size: 1.25rem;
+  padding: 14px 0;
+  font-size: 1rem;
   color: var(--text-color);
   outline: none;
+  font-family: inherit;
 }
 .spotlight-input::placeholder {
   color: var(--text-color-3);
@@ -562,42 +573,43 @@ const favoritePages = computed(() => {
 }
 
 .spotlight-shortcut {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: var(--text-color-3);
-  background: var(--bg-color-2);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
+  background: var(--bg-color-3);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-weight: 500;
   border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
 }
 
 .spotlight-results {
-  max-height: 400px;
+  max-height: 320px;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px;
 }
 
 .spotlight-state {
-  padding: 32px 20px;
+  padding: 24px 16px;
   text-align: center;
   color: var(--text-color-3);
-  font-size: 0.95rem;
+  font-size: 0.875rem;
 }
 
 .spotlight-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .spotlight-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--transition-fast);
 }
 
 .spotlight-item:hover {
@@ -608,11 +620,12 @@ const favoritePages = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: var(--bg-color-2);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-color-3);
   color: var(--text-color-2);
+  flex-shrink: 0;
 }
 .spotlight-item:hover .spotlight-item-icon {
   background: var(--primary-color-glass);
@@ -622,14 +635,12 @@ const favoritePages = computed(() => {
 .spotlight-item-content {
   flex: 1;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  min-width: 0;
 }
 
 .spotlight-item-title {
   font-weight: 500;
-  font-size: 1rem;
+  font-size: 0.875rem;
   color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
@@ -637,7 +648,7 @@ const favoritePages = computed(() => {
 }
 
 .spotlight-item-snippet {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--text-color-3);
   white-space: nowrap;
   overflow: hidden;
@@ -647,12 +658,14 @@ const favoritePages = computed(() => {
 .spotlight-item-arrow {
   color: var(--text-color-3);
   opacity: 0;
-  transform: translateX(-8px);
-  transition: all 0.2s ease;
+  transform: translateX(-4px);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
 .spotlight-item:hover .spotlight-item-arrow {
   opacity: 1;
   transform: translateX(0);
-  color: var(--text-color);
+  color: var(--text-color-2);
 }
 </style>
+

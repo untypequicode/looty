@@ -119,8 +119,8 @@ const sortedPages = computed(() => {
 
 <style scoped>
 .workspace-dashboard {
-  padding: 48px;
-  max-width: 1000px;
+  padding: 40px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -128,23 +128,21 @@ const sortedPages = computed(() => {
   .workspace-dashboard {
     padding: 16px;
   }
-  .dashboard-header h2 {
-    font-size: 2rem;
-  }
 }
 
 .dashboard-header h2 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 24px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 20px;
   color: var(--text-color);
+  letter-spacing: -0.02em;
 }
 
 .tabs-container {
   display: flex;
-  gap: 24px;
+  gap: 0;
   border-bottom: 1px solid var(--border-color);
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -156,13 +154,14 @@ const sortedPages = computed(() => {
 .tab-btn {
   background: transparent;
   border: none;
-  padding: 12px 0;
-  font-size: 1rem;
+  padding: 8px 12px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-color-3);
   cursor: pointer;
   position: relative;
   white-space: nowrap;
+  transition: color var(--transition-fast);
 }
 
 .tab-btn:hover {
@@ -177,81 +176,85 @@ const sortedPages = computed(() => {
   content: '';
   position: absolute;
   bottom: -1px;
-  left: 0;
-  right: 0;
+  left: 12px;
+  right: 12px;
   height: 2px;
   background: var(--primary-color);
+  border-radius: 1px;
 }
 
 .filter-row {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .scope-select {
-  padding: 6px 12px;
-  font-size: 0.9rem;
+  padding: 5px 10px;
+  font-size: 0.8125rem;
   width: auto;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .page-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 
 .page-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
+  gap: 12px;
+  padding: 10px 12px;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
 }
 
 .page-item:hover {
-  background: var(--bg-color-2);
+  background: var(--bg-color-hover);
 }
 
 .page-icon {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   background: var(--bg-color-3);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
 
 .page-details {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .page-title {
   font-weight: 500;
-  font-size: 1.1rem;
+  font-size: 0.875rem;
   color: var(--text-color);
   display: flex;
   align-items: center;
 }
 
 .page-meta {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--text-color-3);
 }
 
 .empty-state {
   text-align: center;
-  padding: 48px;
+  padding: 40px;
   color: var(--text-color-3);
-  background: var(--bg-color-2);
-  border-radius: 8px;
+  font-size: 0.8125rem;
+  border-radius: var(--radius-md);
   border: 1px dashed var(--border-color);
-  margin-top: 24px;
+  margin-top: 16px;
 }
 </style>
+.workspace-dashboard {

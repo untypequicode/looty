@@ -88,25 +88,26 @@ const getMemberName = (userId: string) => {
 </template>
 
 <style scoped>
-.task-card { background: var(--bg-color-2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 12px; cursor: pointer; transition: all var(--transition-fast); box-shadow: var(--shadow-sm); }
-.task-card:hover { background: var(--bg-color-hover); border-color: var(--border-color-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
-.task-card:active { cursor: grabbing; transform: translateY(0); box-shadow: var(--shadow-sm); }
-.task-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.priority-dot-icon { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; flex-shrink: 0; display: inline-block; }
-.task-label-dot { padding: 2px 6px; border-radius: 12px; font-size: 0.65rem; font-weight: 500; display: inline-flex; align-items: center; }
-.task-card h4 { margin: 0; font-size: 0.875rem; font-weight: 500; color: var(--text-color); line-height: 1.4; display: flex; align-items: flex-start; gap: 8px; }
-.status-icon { font-size: 0.8rem; flex-shrink: 0; margin-top: 2px; }
+.task-card { background: var(--bg-color-2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 12px; cursor: pointer; transition: all var(--transition-fast); }
+.task-card:hover { background: var(--bg-color-hover); border-color: var(--border-color-hover); }
+.task-card:active { cursor: grabbing; }
+.task-card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.priority-dot-icon { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid; flex-shrink: 0; display: inline-block; }
+.task-label-dot { padding: 1px 6px; border-radius: var(--radius-full); font-size: 0.625rem; font-weight: 500; display: inline-flex; align-items: center; }
+.task-card h4 { margin: 0; font-size: 0.8125rem; font-weight: 500; color: var(--text-color); line-height: 1.4; display: flex; align-items: flex-start; gap: 6px; }
+.status-icon { font-size: 0.75rem; flex-shrink: 0; margin-top: 2px; }
 .status-icon.completed { color: var(--success-color); }
 .task-title-done { text-decoration: line-through; color: var(--text-color-3); font-weight: 400; }
-.task-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-.task-due-date { font-size: 0.75rem; color: var(--text-color-3); display: flex; align-items: center; gap: 4px; }
-.task-due-date::before { content: ''; display: inline-block; width: 12px; height: 12px; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%2371717a" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'); background-size: contain; background-repeat: no-repeat; }
-.task-due-date.overdue::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%23ef4444" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'); }
+.task-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.task-due-date { font-size: 0.6875rem; color: var(--text-color-3); display: flex; align-items: center; gap: 4px; }
+.task-due-date::before { content: ''; display: inline-block; width: 12px; height: 12px; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%239b9b9b" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'); background-size: contain; background-repeat: no-repeat; }
+.task-due-date.overdue::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%23d9534f" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'); }
 .task-due-date.overdue { color: var(--danger-color); }
 .task-labels { display: flex; gap: 4px; flex-wrap: wrap; }
-.task-assignees { display: flex; margin-left: 6px; }
-.assignee-avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--primary-color-glass); color: var(--primary-color); font-size: 0.65rem; display: flex; align-items: center; justify-content: center; font-weight: 600; margin-left: -6px; border: 2px solid var(--bg-color-2); transition: transform var(--transition-fast); }
-.assignee-avatar:hover { transform: translateY(-2px) scale(1.1); z-index: 2; border-color: var(--border-color); }
-.assignee-avatar.more { background: var(--bg-color-modal); color: var(--text-color-3); font-size: 0.6rem; }
-.validated-avatar { box-shadow: 0 0 0 2px var(--success-color); border-color: var(--success-color); }
+.task-assignees { display: flex; margin-left: 4px; }
+.assignee-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--primary-color-glass); color: var(--primary-color); font-size: 0.5625rem; display: flex; align-items: center; justify-content: center; font-weight: 600; margin-left: -4px; border: 2px solid var(--bg-color-2); transition: transform var(--transition-fast); }
+.assignee-avatar:hover { transform: scale(1.15); z-index: 2; }
+.assignee-avatar.more { background: var(--bg-color-3); color: var(--text-color-3); font-size: 0.5rem; }
+.validated-avatar { box-shadow: 0 0 0 1.5px var(--success-color); border-color: var(--success-color); }
 </style>
+.task-card { background: var(--bg-color-2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 12px; cursor: pointer; transition: all var(--transition-fast); box-shadow: var(--shadow-sm); }

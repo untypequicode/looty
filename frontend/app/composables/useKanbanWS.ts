@@ -63,6 +63,14 @@ export const useKanbanWS = (
           location: event.location,
           timestamp: Date.now()
         })
+
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          const author = onlineUsers.value.find(u => u.user_id === event.author_id)
+          const authorName = author ? author.name : 'Quelqu\'un'
+          new Notification('Nouvelle mention', {
+            body: `${authorName} vous a mentionné dans ${event.location || 'une page'}`,
+          })
+        }
       }
       return true
     }
