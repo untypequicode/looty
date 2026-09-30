@@ -71,6 +71,20 @@ const editingTask = computed(() => {
 })
 const targetColumnId = ref<string | null>(null)
 const isSidebarOpen = ref(false)
+const showLocalSearch = ref(false)
+const localSearchQuery = ref('')
+
+const handleLocalSearch = (direction: 'forward' | 'backward' = 'forward', isInput = false) => {
+  if (typeof window !== 'undefined' && localSearchQuery.value) {
+    if (isInput) {
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0) {
+        sel.collapseToStart()
+      }
+    }
+    window.find(localSearchQuery.value, false, direction === 'backward', true, false, false, false)
+  }
+}
 
 // --- Modals State ---
 const showCreateModal = ref(false)
@@ -157,6 +171,24 @@ const handleKeydown = (e: KeyboardEvent) => {
   } else if (e.key.toLowerCase() === 'c' && !isInput && activeBoard.value && activeBoard.value.columns.length > 0) {
     e.preventDefault()
     openTaskModal(activeBoard.value.columns[0].id)
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    if (currentModule.value === 'kanban') {
+      const searchInput = document.querySelector('.filter-bar .search-input') as HTMLInputElement
+      if (searchInput) {
+        searchInput.focus()
+        searchInput.select()
+      }
+    } else if (currentModule.value === 'wiki') {
+      showLocalSearch.value = true
+      nextTick(() => {
+        const localInput = document.getElementById('local-search-input') as HTMLInputElement
+        if (localInput) {
+          localInput.focus()
+          localInput.select()
+        }
+      })
+    }
   }
 }
 
@@ -451,6 +483,18 @@ const handleDeletePage = async (id: string) => {
   }
 }
 
+const handleOpenTaskFromSearch = (result: any) => {
+  if (result.parent_id && boards.value) {
+    const board = boards.value.find((b: any) => b.id === result.parent_id)
+    if (board) {
+      handleSelectBoard(board)
+      nextTick(() => {
+        handleOpenTask({ id: result.id })
+      })
+    }
+  }
+}
+
 const handleToggleTaskValidation = async (task: any) => {
   if (activeWorkspaceRole.value === 'viewer') return
   const wasCompleted = task.is_completed;
@@ -583,6 +627,7 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       @show-create-modal="showCreateModal = true"
       @show-board-modal="showBoardModal = true"
       @copy-invite-link="activeWorkspaceId && copyInviteLink(activeWorkspaceId)"
+      @open-task-from-search="handleOpenTaskFromSearch"
     />
 
     <main class="main-content">
@@ -700,6 +745,30 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       <div v-if="!isOnline" class="offline-indicator">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M11 11.5a8.5 8.5 0 0 1 7 0"/><path d="M3 3l18 18"/></svg>
         <span>Vous êtes hors ligne. Vos modifications locales seront synchronisées au retour de la connexion.</span>
+      </div>
+    </transition>
+
+    <!-- Local Search UI for Wiki -->
+    <transition name="fade">
+      <div v-if="showLocalSearch" class="local-search-widget">
+        <div class="local-search-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="local-search-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input 
+            id="local-search-input"
+            type="text" 
+            v-model="localSearchQuery" 
+            @input="handleLocalSearch('forward', true)"
+            @keydown.enter="handleLocalSearch('forward')"
+            @keydown.shift.enter="handleLocalSearch('backward')"
+            @keydown.esc="showLocalSearch = false"
+            placeholder="Rechercher dans la page..." 
+            class="local-search-input"
+          />
+          <button @click="handleLocalSearch('backward')" class="local-search-btn" title="Précédent (Shift+Enter)">↑</button>
+          <button @click="handleLocalSearch('forward')" class="local-search-btn" title="Suivant (Enter)">↓</button>
+          <div style="width: 1px; height: 16px; background: var(--border-color); margin: 0 4px;"></div>
+          <button @click="showLocalSearch = false" class="local-search-btn" title="Fermer (Esc)">✕</button>
+        </div>
       </div>
     </transition>
 
@@ -847,5 +916,53 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
   opacity: 0;
   transform: translate(-50%, 12px);
 }
-</style>
 
+.local-search-widget {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2000;
+  background: var(--bg-color-modal);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: 6px 12px;
+}
+.local-search-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.local-search-icon {
+  color: var(--text-color-3);
+}
+.local-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-color);
+  font-size: 0.8125rem;
+  width: 180px;
+}
+.local-search-input::placeholder {
+  color: var(--text-color-3);
+}
+.local-search-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color-2);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  transition: all var(--transition-fast);
+}
+.local-search-btn:hover {
+  background: var(--bg-color-hover);
+  color: var(--text-color);
+}
+</style>

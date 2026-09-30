@@ -416,6 +416,7 @@ pub struct SearchResult {
     pub title: String,
     pub r#type: String, // "page"
     pub snippet: Option<String>,
+    pub parent_id: Option<Uuid>,
 }
 
 pub async fn search_workspace(
@@ -445,7 +446,8 @@ pub async fn search_workspace(
     // Basic ILIKE search for pages (title or content)
     let pages = sqlx::query_as::<_, SearchResult>(
         "SELECT id, title, 'page' as type, 
-         substring(content from 1 for 100) as snippet
+         substring(content from 1 for 100) as snippet,
+         parent_id
          FROM pages 
          WHERE workspace_id = $1 
          AND (title ILIKE $2 OR content ILIKE $2)
@@ -460,7 +462,8 @@ pub async fn search_workspace(
     // Basic ILIKE search for tasks
     let tasks = sqlx::query_as::<_, SearchResult>(
         "SELECT t.id, t.title, 'task' as type, 
-         substring(t.description from 1 for 100) as snippet
+         substring(t.description from 1 for 100) as snippet,
+         b.id as parent_id
          FROM tasks t
          JOIN board_columns c ON c.id = t.column_id
          JOIN boards b ON b.id = c.board_id

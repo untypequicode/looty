@@ -78,6 +78,49 @@ const showSearch = ref(false)
 const searchQuery = ref('')
 const searchResults = ref([])
 const isSearching = ref(false)
+const selectedIndex = ref(0)
+
+const onSearchKeyDown = (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (selectedIndex.value < searchResults.value.length - 1) selectedIndex.value++
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (selectedIndex.value > 0) selectedIndex.value--
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    if (searchResults.value.length > 0 && searchResults.value[selectedIndex.value]) {
+      selectSearchResult(searchResults.value[selectedIndex.value])
+    }
+  } else if (e.key === 'Escape') {
+    showSearch.value = false
+  }
+}
+
+const handleGlobalKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault()
+    if (props.activeWorkspaceId) {
+      showSearch.value = true
+      nextTick(() => {
+        const input = document.querySelector('.spotlight-input')
+        if (input) input.focus()
+      })
+    }
+  }
+}
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleGlobalKeydown)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleGlobalKeydown)
+  }
+})
 
 const handleSearch = async () => {
   if (!searchQuery.value || searchQuery.value.trim().length < 2) {
@@ -88,6 +131,7 @@ const handleSearch = async () => {
   try {
     const res = await $fetch(`/api/workspaces/${props.activeWorkspaceId}/search?q=${encodeURIComponent(searchQuery.value)}`)
     searchResults.value = res.results || []
+    selectedIndex.value = 0
   } catch (e) {
     console.error("Search error", e)
   }
@@ -96,14 +140,31 @@ const handleSearch = async () => {
 
 const selectSearchResult = (result) => {
   if (result.type === 'page') {
-    const p = props.pages.find(page => page.id === result.id)
+    const findPage = (pages, id) => {
+      for (const p of pages) {
+        if (p.id === id) return p
+        if (p.children && p.children.length > 0) {
+          const found = findPage(p.children, id)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const p = findPage(props.pages || [], result.id)
     if (p) {
       emit('select-page', p)
+    } else {
+      emit('select-page', { id: result.id, title: result.title })
     }
+  } else if (result.type === 'task') {
+    // Navigate to the board and open the task
+    // It emits an event to index.vue to handle it
+    emit('open-task-from-search', result)
   }
   showSearch.value = false
   searchQuery.value = ''
   searchResults.value = []
+  selectedIndex.value = 0
 }
 
 let searchTimeout = null
@@ -139,8 +200,9 @@ const favoritePages = computed(() => {
                 <input 
                   v-model="searchQuery" 
                   @input="onSearchInput"
+                  @keydown="onSearchKeyDown"
                   type="text" 
-                  placeholder="Rechercher des documents, pages..." 
+                  placeholder="Rechercher des documents, pages, tâches..." 
                   class="spotlight-input" 
                   autofocus
                 />
@@ -158,10 +220,12 @@ const favoritePages = computed(() => {
                 </div>
                 <div v-else class="spotlight-list">
                   <div 
-                    v-for="res in searchResults" 
+                    v-for="(res, index) in searchResults" 
                     :key="res.id"
                     @click="selectSearchResult(res)"
+                    @mouseover="selectedIndex = index"
                     class="spotlight-item"
+                    :class="{ 'is-selected': selectedIndex === index }"
                   >
                     <div class="spotlight-item-icon">
                       <svg v-if="res.type === 'page'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
@@ -171,7 +235,7 @@ const favoritePages = computed(() => {
                       <div class="spotlight-item-title">{{ res.title }}</div>
                       <div class="spotlight-item-snippet" v-if="res.snippet">{{ res.snippet.replace(/<[^>]*>?/gm, '') }}...</div>
                     </div>
-                    <div class="spotlight-item-arrow">
+                    <div class="spotlight-item-arrow" v-if="selectedIndex === index">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
                     </div>
                   </div>
@@ -624,7 +688,7 @@ const favoritePages = computed(() => {
   transition: background var(--transition-fast);
 }
 
-.spotlight-item:hover {
+.spotlight-item:hover, .spotlight-item.is-selected {
   background: var(--bg-color-hover);
 }
 
@@ -639,7 +703,7 @@ const favoritePages = computed(() => {
   color: var(--text-color-2);
   flex-shrink: 0;
 }
-.spotlight-item:hover .spotlight-item-icon {
+.spotlight-item:hover .spotlight-item-icon, .spotlight-item.is-selected .spotlight-item-icon {
   background: var(--primary-color-glass);
   color: var(--primary-color);
 }
@@ -674,7 +738,7 @@ const favoritePages = computed(() => {
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
-.spotlight-item:hover .spotlight-item-arrow {
+.spotlight-item:hover .spotlight-item-arrow, .spotlight-item.is-selected .spotlight-item-arrow {
   opacity: 1;
   transform: translateX(0);
   color: var(--text-color-2);
