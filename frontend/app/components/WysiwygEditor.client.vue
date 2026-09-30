@@ -333,13 +333,20 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: nowrap;
   gap: 4px;
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: var(--bg-color-modal);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
   opacity: 0.6;
   transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.editor-toolbar::-webkit-scrollbar {
+  display: none;
 }
 
 .editor-toolbar::after {

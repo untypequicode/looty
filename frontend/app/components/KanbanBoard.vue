@@ -59,10 +59,10 @@ const emit = defineEmits<{
 
 <style scoped>
 .kanban-board { display: flex; gap: 1rem; align-items: flex-start; overflow-x: auto; overflow-y: hidden; flex: 1; padding: 1.5rem 2rem; background: var(--bg-color-main); -webkit-overflow-scrolling: touch; }
-.columns-container { display: flex; gap: 1.5rem; align-items: flex-start; height: 100%; min-height: 100px; }
+.columns-container { display: flex; gap: 1.25rem; align-items: flex-start; height: 100%; min-height: 100px; }
 .kanban-column { background: transparent; border: none; border-radius: 0; width: 300px; min-width: 300px; display: flex; flex-direction: column; max-height: 100%; }
-.add-column { background: transparent; border: 1px solid transparent; color: var(--text-color-3); cursor: pointer; align-items: center; justify-content: center; padding: 0.75rem 1rem; font-size: 0.875rem; border-radius: var(--radius-md); font-weight: 500; transition: all var(--transition-fast); display: flex; flex-shrink: 0; }
-.add-column:hover { background: var(--bg-color-2); color: var(--text-color); border-color: var(--border-color); }
+.add-column { background: transparent; border: 1px solid transparent; color: var(--text-color-3); cursor: pointer; align-items: center; justify-content: center; padding: 8px; font-size: 0.8125rem; border-radius: var(--radius-md); font-weight: 500; transition: all var(--transition-fast); display: flex; flex-shrink: 0; }
+.add-column:hover { background: var(--bg-color-hover); color: var(--text-color); border-color: var(--border-color); }
 .ghost-column { opacity: 0.5; background: var(--bg-color-2); border-radius: var(--radius-md); }
 
 @media (max-width: 768px) {

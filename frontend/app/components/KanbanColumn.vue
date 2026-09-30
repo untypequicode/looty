@@ -68,14 +68,14 @@ const emit = defineEmits<{
 
 <style scoped>
 .kanban-column { background: transparent; border: none; border-radius: 0; width: 300px; min-width: 300px; display: flex; flex-direction: column; max-height: 100%; }
-.column-header { padding: 0 4px 12px; display: flex; justify-content: space-between; align-items: center; }
-.column-header h3 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-color); letter-spacing: 0px; }
-.task-count { color: var(--text-color-3); font-size: 0.75rem; padding: 2px 6px; background: var(--bg-color-2); border-radius: 12px; font-weight: 500; }
-.icon-btn { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 4px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all var(--transition-fast); opacity: 0; }
+.column-header { padding: 0 4px 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid transparent; margin-bottom: 8px; transition: border-color var(--transition-fast); }
+.column-header h3 { margin: 0; font-size: 0.8125rem; font-weight: 500; color: var(--text-color); letter-spacing: 0px; }
+.task-count { color: var(--text-color-3); font-size: 0.6875rem; padding: 2px 6px; background: var(--bg-color-2); border-radius: var(--radius-full); font-weight: 500; }
+.icon-btn { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 4px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 0.8125rem; transition: all var(--transition-fast); opacity: 0; }
 .column-header:hover .icon-btn { opacity: 1; }
-.icon-btn:hover { background: var(--border-color); color: var(--text-color); }
-.task-list { padding: 2px 2px 8px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 50px; }
+.icon-btn:hover { background: var(--bg-color-hover); color: var(--text-color); }
+.task-list { padding: 2px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 50px; }
 .ghost-task { opacity: 0.4; background: var(--bg-color-2); border-radius: var(--radius-md); border: 1px dashed var(--border-color); }
-.add-task-btn { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 8px; text-align: left; font-size: 0.85rem; border-radius: var(--radius-md); transition: all var(--transition-fast); margin-top: 4px; }
+.add-task-btn { background: none; border: none; color: var(--text-color-3); cursor: pointer; padding: 6px 8px; text-align: left; font-size: 0.8125rem; border-radius: var(--radius-md); transition: all var(--transition-fast); margin-top: 4px; }
 .add-task-btn:hover { color: var(--text-color); background: var(--bg-color-hover); }
 </style>

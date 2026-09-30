@@ -374,6 +374,7 @@ function formatRelativeDate(dateStr) {
   justify-content: center;
   padding: 2rem 1rem 40vh 1rem; /* Large space at bottom */
   height: 100%;
+  overflow-y: auto;
 }
 
 .page-editor-inner {

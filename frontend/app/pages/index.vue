@@ -606,9 +606,6 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
           </template>
           <template v-else-if="activeWorkspaceId && currentModule === 'wiki'">
             <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
-              <div style="color: var(--text-color-3); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                Wiki / {{ activePage ? (activePage.title || 'Nouvelle page') : 'Sélectionnez une page' }}
-              </div>
               <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;" id="wiki-header-actions">
               </div>
             </div>
