@@ -132,34 +132,48 @@ const favoritePages = computed(() => {
       <!-- Search Modal -->
       <ClientOnly>
         <Teleport to="body">
-          <div v-if="showSearch" class="modal-overlay" @click.self="showSearch = false">
-            <div class="modal-content search-modal" style="margin-top: 10vh; max-width: 600px; padding: 0;">
-              <input 
-                v-model="searchQuery" 
-                @input="onSearchInput"
-                type="text" 
-                placeholder="Rechercher dans l'espace (pages, contenus)..." 
-                class="modern-input search-modal-input" 
-                style="border: none; border-bottom: 1px solid var(--border-color); border-radius: var(--radius-md) var(--radius-md) 0 0; margin-bottom: 0; padding: 16px; font-size: 1.1rem; box-shadow: none;"
-                autofocus
-              />
-              <div class="search-results" style="max-height: 400px; overflow-y: auto; padding: 8px;">
-                <div v-if="isSearching" style="padding: 16px; text-align: center; color: var(--text-color-3);">Recherche en cours...</div>
-                <div v-else-if="searchResults.length === 0 && searchQuery.length >= 2" style="padding: 16px; text-align: center; color: var(--text-color-3);">Aucun résultat trouvé</div>
-                <div v-else-if="searchQuery.length < 2" style="padding: 16px; text-align: center; color: var(--text-color-3);">Tapez au moins 2 caractères</div>
-                <div 
-                  v-else
-                  v-for="res in searchResults" 
-                  :key="res.id"
-                  @click="selectSearchResult(res)"
-                  class="search-result-item"
-                  style="padding: 12px; cursor: pointer; border-radius: var(--radius-md); transition: background 0.1s;"
-                >
-                  <div style="font-weight: 500; color: var(--text-color); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-                    <span v-if="res.type === 'page'">📄</span> {{ res.title }}
-                  </div>
-                  <div v-if="res.snippet" style="font-size: 0.85rem; color: var(--text-color-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                    {{ res.snippet.replace(/<[^>]*>?/gm, '') }}...
+          <div v-if="showSearch" class="modal-overlay spotlight-overlay" @click.self="showSearch = false">
+            <div class="spotlight-modal">
+              <div class="spotlight-input-wrapper">
+                <svg class="spotlight-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input 
+                  v-model="searchQuery" 
+                  @input="onSearchInput"
+                  type="text" 
+                  placeholder="Rechercher des documents, pages..." 
+                  class="spotlight-input" 
+                  autofocus
+                />
+                <div class="spotlight-shortcut">ESC</div>
+              </div>
+              <div class="spotlight-results" v-if="searchQuery.length > 0">
+                <div v-if="isSearching" class="spotlight-state">
+                  Recherche...
+                </div>
+                <div v-else-if="searchResults.length === 0 && searchQuery.length >= 2" class="spotlight-state">
+                  Aucun résultat pour "<span style="color: var(--text-color);">{{ searchQuery }}</span>"
+                </div>
+                <div v-else-if="searchQuery.length < 2" class="spotlight-state">
+                  Tapez au moins 2 lettres...
+                </div>
+                <div v-else class="spotlight-list">
+                  <div 
+                    v-for="res in searchResults" 
+                    :key="res.id"
+                    @click="selectSearchResult(res)"
+                    class="spotlight-item"
+                  >
+                    <div class="spotlight-item-icon">
+                      <svg v-if="res.type === 'page'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                      <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </div>
+                    <div class="spotlight-item-content">
+                      <div class="spotlight-item-title">{{ res.title }}</div>
+                      <div class="spotlight-item-snippet" v-if="res.snippet">{{ res.snippet.replace(/<[^>]*>?/gm, '') }}...</div>
+                    </div>
+                    <div class="spotlight-item-arrow">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -487,5 +501,158 @@ const favoritePages = computed(() => {
 .item-actions button:hover { 
   background: var(--border-color); 
   color: var(--text-color); 
+}
+
+/* Spotlight Search */
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+}
+
+.spotlight-modal {
+  width: 100%;
+  max-width: 640px;
+  background: var(--bg-color-modal);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl), 0 20px 40px rgba(0,0,0,0.2);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.spotlight-input-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+}
+
+.spotlight-icon {
+  color: var(--text-color-3);
+  margin-right: 12px;
+}
+
+.spotlight-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 20px 0;
+  font-size: 1.25rem;
+  color: var(--text-color);
+  outline: none;
+}
+.spotlight-input::placeholder {
+  color: var(--text-color-3);
+  font-weight: 400;
+}
+
+.spotlight-shortcut {
+  font-size: 0.75rem;
+  color: var(--text-color-3);
+  background: var(--bg-color-2);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+}
+
+.spotlight-results {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.spotlight-state {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-color-3);
+  font-size: 0.95rem;
+}
+
+.spotlight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spotlight-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.spotlight-item:hover {
+  background: var(--bg-color-hover);
+}
+
+.spotlight-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-color-2);
+  color: var(--text-color-2);
+}
+.spotlight-item:hover .spotlight-item-icon {
+  background: var(--primary-color-glass);
+  color: var(--primary-color);
+}
+
+.spotlight-item-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spotlight-item-title {
+  font-weight: 500;
+  font-size: 1rem;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotlight-item-snippet {
+  font-size: 0.85rem;
+  color: var(--text-color-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotlight-item-arrow {
+  color: var(--text-color-3);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.2s ease;
+}
+.spotlight-item:hover .spotlight-item-arrow {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--text-color);
 }
 </style>
