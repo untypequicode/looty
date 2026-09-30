@@ -90,8 +90,9 @@ import MentionSuggestion from './MentionSuggestion'
 import { TrailingNode } from './TrailingNode'
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import Dropcursor from '@tiptap/extension-dropcursor'
-import { watch, onBeforeUnmount, markRaw, onMounted } from 'vue'
+import { watch, onBeforeUnmount, markRaw, onMounted, inject, ref } from 'vue'
 import 'katex/dist/katex.min.css'
+import { SearchExtension, searchPluginKey } from '../utils/tiptapSearch'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -105,6 +106,8 @@ const emit = defineEmits(['update:modelValue', 'update:collaborators', 'mention'
 
 const colors = ['#f56565', '#ed8936', '#ecc94b', '#48bb78', '#38b2ac', '#4299e1', '#667eea', '#9f7aea', '#ed64a6']
 const userColor = colors[Math.floor(Math.random() * colors.length)]
+
+const localSearchQuery = inject('localSearchQuery', ref(''))
 
 let provider = null
 let ydoc = null
@@ -138,6 +141,7 @@ const extensions = [
   EmojiExtension.configure({
     suggestion: { items: getEmojiItems, render: renderEmojiItems },
   }),
+  SearchExtension,
   TrailingNode,
   GlobalDragHandle.configure({
     dragHandleWidth: 20,
@@ -262,6 +266,12 @@ if (provider) {
     }
   })
 }
+
+watch(localSearchQuery, (val) => {
+  if (editor.value && editor.value.view) {
+    editor.value.view.dispatch(editor.value.view.state.tr.setMeta(searchPluginKey, val))
+  }
+})
 
 watch(() => props.modelValue, (value) => {
   if (!editor.value) return
@@ -628,5 +638,15 @@ onBeforeUnmount(() => {
     min-width: 32px;
     height: 32px;
   }
+}
+</style>
+
+<style>
+/* Global style to guarantee the highlight is applied regardless of scoping */
+.search-highlight {
+  background-color: rgba(255, 212, 0, 0.7) !important;
+  color: #000 !important;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgba(255, 212, 0, 0.4);
 }
 </style>

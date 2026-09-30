@@ -74,17 +74,23 @@ const isSidebarOpen = ref(false)
 const showLocalSearch = ref(false)
 const localSearchQuery = ref('')
 
+provide('localSearchQuery', localSearchQuery)
+
 const handleLocalSearch = (direction: 'forward' | 'backward' = 'forward', isInput = false) => {
-  if (typeof window !== 'undefined' && localSearchQuery.value) {
-    if (isInput) {
-      const sel = window.getSelection()
-      if (sel && sel.rangeCount > 0) {
-        sel.collapseToStart()
-      }
-    }
-    window.find(localSearchQuery.value, false, direction === 'backward', true, false, false, false)
+  if (typeof window === 'undefined') return
+  const query = localSearchQuery.value
+
+  // For physically navigating matches, we use window.find
+  if (!isInput && query) {
+    window.find(query, false, direction === 'backward', true, false, false, false)
   }
 }
+
+watch(showLocalSearch, (val) => {
+  if (!val) {
+    localSearchQuery.value = ''
+  }
+})
 
 // --- Modals State ---
 const showCreateModal = ref(false)
@@ -912,6 +918,13 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
+
+:deep(.search-highlight) {
+  background-color: rgba(255, 212, 0, 0.6) !important;
+  color: #000 !important;
+  border-radius: 2px;
+}
+
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
   transform: translate(-50%, 12px);
