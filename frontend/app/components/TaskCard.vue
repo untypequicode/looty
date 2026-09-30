@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Task, WorkspaceMember } from '../types'
 import SubtaskTree from './SubtaskTree.vue'
+import { useAuth } from '../composables/useAuth'
+
+const { user } = useAuth()
 
 const props = defineProps<{
   task: Task
@@ -49,7 +52,8 @@ const getMemberName = (userId: string) => {
     <h4>
       <div @click.stop="emit('toggle-validation', task)" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-top: 2px;" title="Valider la tâche">
         <svg v-if="task.is_completed" class="status-icon completed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-        <div v-else style="width: 12px; height: 12px; border: 1.5px solid var(--text-color-3); border-radius: 3px; display: inline-block;"></div>
+        <svg v-else-if="task.is_per_person && task.validations?.includes(user?.id)" class="status-icon partially-completed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="color: var(--primary-color);"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+        <div v-else style="width: 12px; height: 12px; border: 1.5px solid var(--text-color-3); border-radius: 3px; display: inline-block;" :style="task.is_per_person ? 'border-style: dashed; border-color: var(--primary-color);' : ''"></div>
       </div>
       <span :class="{ 'task-title-done': task.is_completed }">{{ task.title }}</span>
     </h4>

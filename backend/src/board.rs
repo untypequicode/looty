@@ -142,6 +142,7 @@ pub struct CreateTaskReq {
     pub labels: Option<Vec<Uuid>>,
     pub assignees: Option<Vec<String>>,
     pub priority: Option<i32>,
+    pub is_per_person: Option<bool>,
     pub require_all_validations: Option<bool>,
 }
 
@@ -448,9 +449,9 @@ async fn create_task(
     let next_pos = max_pos.unwrap_or(0.0) + 65536.0;
 
     let task = sqlx::query_as::<_, Task>(
-        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, require_all_validations, created_at, updated_at"
+        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true)) RETURNING id, column_id, parent_id, title, description, position, previous_column_id, is_per_person, is_completed, priority, start_date, due_date, require_all_validations, created_at, updated_at"
     )
-    .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date).bind(req.priority.unwrap_or(0))
+    .bind(column_id).bind(&req.title).bind(&req.description).bind(next_pos).bind(&req.start_date).bind(&req.due_date).bind(req.priority.unwrap_or(0)).bind(req.is_per_person).bind(req.require_all_validations)
     .fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Handle initial labels and assignees if provided
@@ -1072,7 +1073,15 @@ async fn toggle_task_validation(
         let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1")
             .bind(task_id).fetch_all(&state.pool).await.unwrap_or_default();
             
-        if task.require_all_validations { task.is_completed = !assignees.is_empty() && assignees.iter().all(|a| validations.contains(a)); } else { task.is_completed = !validations.is_empty(); }
+        if task.require_all_validations {
+            if assignees.is_empty() {
+                task.is_completed = !validations.is_empty();
+            } else {
+                task.is_completed = assignees.iter().all(|a| validations.contains(a));
+            }
+        } else { 
+            task.is_completed = !validations.is_empty(); 
+        }
         sqlx::query("UPDATE tasks SET is_completed = $1 WHERE id = $2").bind(task.is_completed).bind(task_id).execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     } else {
         task.is_completed = !task.is_completed;

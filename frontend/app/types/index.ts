@@ -66,6 +66,7 @@ export interface Task {
   start_date?: string | null
   due_date?: string | null
   is_per_person: boolean
+  require_all_validations: boolean
   is_completed: boolean
   labels: Label[]
   assignees: string[]
