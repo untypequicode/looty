@@ -27,29 +27,26 @@
         </div>
         <Teleport to="#wiki-header-actions" v-if="isMounted">
           <div class="page-meta">
-            <span v-if="page.created_at">Créée {{ formatRelativeDate(page.created_at) }}</span>
-            <span v-else>Créée à l'instant</span>
-            <span class="meta-dot" v-if="activeWorkspaceRole !== 'viewer'">•</span>
-            <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn" @click="isReadonly = !isReadonly" style="display: flex; align-items: center; gap: 4px;">
-              <svg v-if="isReadonly" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-              {{ isReadonly ? 'Lecture' : 'Édition' }}
-            </button>
-            <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn action-btn-alpha" @click="toggleShareModal = true" style="display: flex; align-items: center; gap: 4px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-              Publier
-            </button>
-            <button v-if="activeWorkspaceRole === 'admin' || activeWorkspaceRole === 'owner'" class="meta-btn perm-btn" @click="openPermissionsModal" style="display: flex; align-items: center; gap: 4px; margin-left: 8px;">
-              🔐 Accès
-            </button>
-            <span class="meta-dot">•</span>
+            <div class="meta-actions-group" v-if="activeWorkspaceRole !== 'viewer'">
+              <button class="icon-btn" @click="isReadonly = !isReadonly" :title="isReadonly ? 'Passer en mode édition' : 'Passer en lecture seule'">
+                <svg v-if="isReadonly" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+              </button>
+              
+              <button class="icon-btn" @click="toggleShareModal = true" title="Partager / Publier">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              </button>
+              
+              <button v-if="activeWorkspaceRole === 'admin' || activeWorkspaceRole === 'owner'" class="icon-btn" @click="openPermissionsModal" title="Gérer les accès">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              </button>
 
-
-
-
-            <span :class="['save-status', saveStatusClass]">
-              {{ saveStatus || 'Sauvegardé' }}
-            </span>
+              <span :class="['save-status-icon-inline', saveStatusClass]" :title="saveStatus || 'Sauvegardé'">
+                <svg v-if="saveStatusClass === 'saving'" class="spin-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                <svg v-else-if="saveStatusClass === 'error'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              </span>
+            </div>
           </div>
         </Teleport>
       </div>
@@ -443,6 +440,8 @@ function formatRelativeDate(dateStr) {
   font-weight: 700;
   color: var(--text-color);
   width: 100%;
+  flex: 1;
+  min-width: 0;
   outline: none;
   margin: 0 0 1rem 0;
   padding: 0;
@@ -457,6 +456,11 @@ function formatRelativeDate(dateStr) {
   .page-title-input { font-size: 2rem; }
   .page-editor-wrapper { padding: 1rem 1rem 4rem 1rem; }
   .page-icon { font-size: 2rem; }
+  .page-meta {
+    flex-wrap: wrap;
+    gap: 8px;
+    line-height: 1.4;
+  }
 }
 
 .favorite-btn {
@@ -488,16 +492,34 @@ function formatRelativeDate(dateStr) {
   font-size: 0.85rem;
 }
 
-.meta-dot {
+.meta-date {
   color: var(--text-color-3);
+  font-size: 0.85rem;
 }
 
-.meta-action {
-  cursor: pointer;
-  transition: color 0.2s;
+.meta-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
-.meta-action:hover {
-  color: #fff;
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color-3);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  background: var(--bg-color-hover);
+  color: var(--text-color);
 }
 
 .page-content {
@@ -509,21 +531,6 @@ function formatRelativeDate(dateStr) {
   padding: 0 !important;
   font-size: 1.05rem;
   line-height: 1.6;
-}
-
-.meta-btn {
-  background: var(--bg-color-2);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-.meta-btn:hover {
-  background: var(--bg-color-hover);
 }
 
 .collaborators-list {
@@ -573,14 +580,25 @@ function formatRelativeDate(dateStr) {
   color: var(--text-color-2);
 }
 
-.save-status {
-  font-size: 0.85rem;
+.save-status-icon-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   color: var(--text-color-3);
   transition: color 0.2s;
 }
-.save-status.saving { color: var(--warning-color); }
-.save-status.saved { color: var(--success-color); }
-.save-status.error { color: var(--danger-color); font-weight: bold; }
+.save-status-icon-inline.saving { color: var(--warning-color); }
+.save-status-icon-inline.saved { color: var(--success-color); }
+.save-status-icon-inline.error { color: var(--danger-color); font-weight: bold; }
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* Modals */
 .modal-overlay {
@@ -612,5 +630,86 @@ function formatRelativeDate(dateStr) {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* Subpages section */
+.subpages-section {
+  margin-top: 4rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 2rem;
+}
+
+.subpages-title {
+  font-size: 1.1rem;
+  color: var(--text-color);
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.subpages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.subpage-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.subpage-card:hover {
+  background: var(--bg-color-hover);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.new-subpage-card {
+  border-style: dashed;
+  background: transparent;
+}
+.new-subpage-card:hover {
+  background: var(--bg-color-2);
+  border-color: var(--text-color-3);
+}
+
+.subpage-icon {
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subpage-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.subpage-title {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subpage-meta {
+  font-size: 0.75rem;
+  color: var(--text-color-3);
+}
+
+@media (max-width: 768px) {
+  .subpages-grid {
+    grid-template-columns: 1fr; /* 1 column on mobile */
+  }
 }
 </style>

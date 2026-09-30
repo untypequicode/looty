@@ -599,4 +599,27 @@ onBeforeUnmount(() => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Responsive design for the editor toolbar */
+@media (max-width: 768px) {
+  .editor-toolbar {
+    width: 95vw;
+    max-width: 95vw;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+    bottom: 20px;
+    border-radius: var(--radius-lg);
+  }
+  .editor-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .toolbar-btn {
+    min-width: 32px;
+    height: 32px;
+  }
+}
 </style>

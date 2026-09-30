@@ -273,6 +273,9 @@ const handleMentionClick = (mention: any) => {
 
 .activity-text {
   margin-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .activity-avatar {
@@ -458,5 +461,44 @@ const handleMentionClick = (mention: any) => {
 }
 .close-mention-btn:hover {
   color: var(--text-color-1);
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .presence-dock-wrapper {
+    bottom: 80px; /* Above the mobile toolbar */
+    right: 16px;
+    gap: 8px;
+  }
+  
+  .presence-dock {
+    padding: 4px 8px;
+  }
+  
+  .dock-avatar {
+    width: 20px;
+    height: 20px;
+    font-size: 0.6rem;
+  }
+  
+  .presence-panel {
+    width: 280px;
+    right: -8px; /* Avoid overflowing screen edge */
+  }
+  
+  .mention-dock {
+    max-width: 200px;
+    font-size: 0.75rem;
+  }
+  
+  .activity-text {
+    max-width: 140px;
+  }
+  
+  .mention-dock span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 </style>
