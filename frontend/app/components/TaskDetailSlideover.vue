@@ -178,7 +178,7 @@ watch(() => props.editingTask, (task) => {
       <div class="slideover-panel">
       <form @submit.prevent="submitTask" style="display: flex; flex-direction: column; height: 100%;">
         <div class="slideover-header" style="display: flex; align-items: center;">
-          <div v-if="editingTask" @click="emit('toggle-validation')" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 8px;" title="Valider la tâche">
+          <div v-if="editingTask" @click="emit('toggle-validation', editingTask)" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 8px;" title="Valider la tâche">
             <svg v-if="editingTask.is_completed" style="color: var(--success-color);" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
             <svg v-else-if="editingTask.is_per_person && editingTask.validations?.includes(currentUser.id)" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" style="color: var(--primary-color);"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
             <div v-else style="width: 16px; height: 16px; border: 2px solid var(--text-color-3); border-radius: 4px; display: inline-block;" :style="editingTask.is_per_person ? 'border-style: dashed; border-color: var(--primary-color);' : ''"></div>
