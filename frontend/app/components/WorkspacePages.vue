@@ -63,6 +63,8 @@
           :editable="!isReadonly && activeWorkspaceRole !== 'viewer'"
           @update:modelValue="debouncedSavePage" 
           @update:collaborators="collaborators = $event"
+          :workspace-members="workspaceMembers"
+          @mention="$emit('mention', $event)"
         />
         
         <!-- Subpages section -->
@@ -170,7 +172,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update-title'])
+const emit = defineEmits(['update-title', 'mention'])
 
 const localTitle = ref(props.page.title || '')
 const localIcon = ref(props.page.icon || '')
@@ -373,7 +375,7 @@ function formatRelativeDate(dateStr) {
 .page-editor-wrapper {
   display: flex;
   justify-content: center;
-  padding: 2rem 1rem 6rem 1rem; /* Space at bottom like Notion */
+  padding: 2rem 1rem 40vh 1rem; /* Large space at bottom */
   height: 100%;
 }
 

@@ -97,10 +97,11 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   documentId: { type: String, default: null },
   currentUser: { type: Object, default: () => ({ name: 'Anonyme' }) },
-  editable: { type: Boolean, default: true }
+  editable: { type: Boolean, default: true },
+  workspaceMembers: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['update:modelValue', 'update:collaborators'])
+const emit = defineEmits(['update:modelValue', 'update:collaborators', 'mention'])
 
 const colors = ['#f56565', '#ed8936', '#ecc94b', '#48bb78', '#38b2ac', '#4299e1', '#667eea', '#9f7aea', '#ed64a6']
 const userColor = colors[Math.floor(Math.random() * colors.length)]
@@ -127,7 +128,9 @@ const extensions = [
     HTMLAttributes: {
       class: 'mention',
     },
-    suggestion: MentionSuggestion,
+    suggestion: MentionSuggestion(props.workspaceMembers, (userId) => {
+      emit('mention', userId)
+    }),
   }),
   CommandsExtension.configure({
     suggestion: { items: getSuggestionItems, render: renderItems },
@@ -154,7 +157,6 @@ if (props.documentId && typeof window !== 'undefined') {
   const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   
-  // Use direct port 8082 for local development to bypass Nuxt proxy (which doesn't support WS upgrade)
   const wsUrl = typeof window !== 'undefined' 
     ? (isLocal ? `ws://${window.location.hostname}:8082` : `${protocol}//${window.location.host}/collab`) 
     : ''

@@ -99,7 +99,7 @@ const wsUrl = computed(() => {
     ? `ws://${window.location.hostname}:8080/api/ws?workspace_id=${activeWorkspaceId.value}`
     : `${protocol}//${typeof window !== 'undefined' ? window.location.host : ''}/api/ws?workspace_id=${activeWorkspaceId.value}`
 })
-const { send, onlineUsers, status } = useKanbanWS(wsUrl, activeBoard, boards, taskStackIds, pages, activePage)
+const { send, onlineUsers, activeMentions, status } = useKanbanWS(wsUrl, activeBoard, boards, taskStackIds, pages, activePage)
 
 const currentLocationStr = computed(() => {
   if (currentModule.value === 'wiki' && activePageId.value) return `page:${activePageId.value}`
@@ -413,6 +413,17 @@ const handleCreatePage = async () => {
   }
 }
 
+const handleMention = (userId: string) => {
+  if (send) {
+    send(JSON.stringify({
+      type: 'USER_MENTIONED',
+      target_user_id: userId,
+      location: currentLocationStr.value,
+      author_id: user.value?.user?.id || '',
+    }))
+  }
+}
+
 const handleCreateSubpage = async (parentId: string) => {
   if (activeWorkspaceId.value) {
     const page = await createPage({ workspaceId: activeWorkspaceId.value, parentId })
@@ -655,7 +666,9 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
           :workspace-id="activeWorkspaceId" 
           :page="activePage" 
           :current-user="user?.user"
+          :workspace-members="workspaceMembers || []"
           @update-title="(t) => { activePage.title = t; /* Note: could trigger query invalidation if needed */ }"
+          @mention="handleMention"
         />
         <div v-else style="display: flex; height: 100%; align-items: center; justify-content: center; color: #8a8f98;">
           Sélectionnez une page dans le menu de gauche ou créez-en une nouvelle.
@@ -681,6 +694,8 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
       :workspace-members="workspaceMembers || []"
       :pages="pages || []"
       :boards="boards || []"
+      :active-mentions="activeMentions"
+      @clear-mention="(id) => activeMentions = activeMentions.filter(m => m.id !== id)"
     />
     
     <!-- Offline Indicator -->

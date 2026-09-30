@@ -2,22 +2,11 @@ import { VueRenderer } from '@tiptap/vue-3'
 import tippy from 'tippy.js'
 import MentionList from './MentionList.vue'
 
-export default {
+export default (members = [], onMention) => ({
   items: ({ query }) => {
-    // In a real app, you would filter members from the workspace here.
-    // For now, we mock it. You should pass the actual members list into this suggestion config from the Vue component.
-    const mockMembers = [
-      'Alice',
-      'Bob',
-      'Charlie',
-      'David',
-      'Eve',
-    ]
-
-    return mockMembers
-      .filter(item => item.toLowerCase().startsWith(query.toLowerCase()))
+    return members
+      .filter(item => item.name.toLowerCase().startsWith(query.toLowerCase()))
       .slice(0, 5)
-      .map(name => ({ name }))
   },
 
   render: () => {
@@ -27,7 +16,7 @@ export default {
     return {
       onStart: props => {
         component = new VueRenderer(MentionList, {
-          props,
+          props: { ...props, onMention },
           editor: props.editor,
         })
 
@@ -77,4 +66,4 @@ export default {
       },
     }
   },
-}
+})

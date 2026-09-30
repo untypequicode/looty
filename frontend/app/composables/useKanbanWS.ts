@@ -3,6 +3,7 @@ import type { Ref } from 'vue'
 import { useWebSocket } from '@vueuse/core'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { Board } from '../types'
+import { useAuth } from './useAuth'
 
 export const useKanbanWS = (
   wsUrl: Ref<string | undefined>,
@@ -13,8 +14,10 @@ export const useKanbanWS = (
   activePage?: Ref<any | null>
 ) => {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   const onlineUsers = ref<any[]>([])
+  const activeMentions = ref<any[]>([])
 
   // Pas d'URL (aucun workspace) => pas de connexion (évite new WebSocket(''))
   const url = computed(() => wsUrl.value || undefined)
@@ -50,8 +53,20 @@ export const useKanbanWS = (
           onlineUsers.value[uIdx].is_offline = true
           onlineUsers.value[uIdx].last_seen_at = Date.now()
         }
-        return true
     }
+    
+    if (event.type === 'USER_MENTIONED') {
+      if (user.value && event.target_user_id === user.value.user?.id) {
+        activeMentions.value.push({
+          id: Date.now().toString() + Math.random().toString(),
+          author_id: event.author_id,
+          location: event.location,
+          timestamp: Date.now()
+        })
+      }
+      return true
+    }
+    
     return false
   }
 
@@ -199,5 +214,5 @@ export const useKanbanWS = (
     if (s !== 'OPEN') onlineUsers.value = []
   })
 
-  return { wsData, send, onlineUsers, status }
+  return { wsData, send, onlineUsers, activeMentions, status }
 }

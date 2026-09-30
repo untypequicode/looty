@@ -28,6 +28,10 @@ export default {
       type: Function,
       required: true,
     },
+    onMention: {
+      type: Function,
+      required: false,
+    },
   },
 
   data() {
@@ -77,7 +81,10 @@ export default {
     selectItem(index) {
       const item = this.items[index]
       if (item) {
-        this.command({ id: item.name })
+        this.command({ id: item.user_id, label: item.name })
+        if (this.onMention) {
+          this.onMention(item.user_id)
+        }
       }
     },
   },

@@ -1,7 +1,17 @@
 <template>
   <div class="presence-dock-wrapper" :class="{ 'is-expanded': isExpanded }">
     <div class="presence-docks-container">
-      
+      <!-- Mentions Pills -->
+      <div v-for="mention in (activeMentions || [])" :key="mention.id" class="presence-dock mention-dock" @click="handleMentionClick(mention)">
+        <div class="dock-avatar mention-avatar">
+          💬
+        </div>
+        <div class="activity-text">
+          {{ getMemberName(mention.author_id) }} vous a mentionné !
+        </div>
+        <button class="close-mention-btn" @click.stop="$emit('clear-mention', mention.id)">×</button>
+      </div>
+
       <!-- Recent Activity Pill -->
       <div class="presence-dock activity-dock" v-if="currentPage && currentPage.updated_at" :title="currentPage.updated_by ? `Dernière modification par ${getMemberName(currentPage.updated_by)}` : 'Dernière modification'">
         <div class="activity-text">
@@ -70,6 +80,8 @@ const props = defineProps<{
   workspaceMembers: any[]
   pages: any[]
   boards: any[]
+  currentPage?: any
+  activeMentions?: any[]
 }>()
 
 const emit = defineEmits(['navigate'])
@@ -180,6 +192,19 @@ const navigateToUser = (user: any) => {
   }
   isExpanded.value = false
 }
+
+const handleMentionClick = (mention: any) => {
+  if (mention.location !== props.currentLocation) {
+    if (mention.location.startsWith('page:')) {
+      window.location.hash = `#wiki-${mention.location.split(':')[1]}`
+    } else if (mention.location.startsWith('board:')) {
+      window.location.hash = `#kanban-${mention.location.split(':')[1]}`
+    } else {
+      window.location.hash = `#dashboard`
+    }
+  }
+  emit('clear-mention', mention.id)
+}
 </script>
 
 <style scoped>
@@ -208,38 +233,42 @@ const navigateToUser = (user: any) => {
 }
 
 .presence-dock {
-  background: var(--bg-color-2);
+  background-color: var(--bg-color-modal);
   border: 1px solid var(--border-color);
-  border-radius: 32px;
-  padding: 6px;
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
   display: flex;
   align-items: center;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   cursor: pointer;
-  transition: all 0.2s;
+  opacity: 0.85;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .presence-dock:hover {
+  opacity: 1;
   transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-glass);
 }
 
 .presence-dock.local-dock {
-  border-color: #2ecc71;
-  background: rgba(46, 204, 113, 0.05);
+  border-color: var(--success-color);
 }
 
 .activity-dock {
-  background: var(--bg-color-2);
+  background-color: var(--bg-color-modal);
   border: 1px solid var(--border-color);
   color: var(--text-color-3);
-  padding: 4px 6px 4px 12px;
+  padding: 6px 12px;
   font-size: 0.8rem;
-  border-radius: 32px;
+  border-radius: var(--radius-md);
   cursor: default;
+  opacity: 0.85;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .activity-dock:hover {
-  transform: none;
-  box-shadow: var(--shadow-md);
+  opacity: 1;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glass);
 }
 
 .activity-text {
@@ -247,28 +276,33 @@ const navigateToUser = (user: any) => {
 }
 
 .activity-avatar {
-  width: 28px;
-  height: 28px;
-  font-size: 0.8rem;
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
   background: var(--bg-color-hover);
   color: var(--text-color);
   border: 1px solid var(--border-color);
 }
 
 .dock-avatar {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  border: 2px solid var(--bg-color-2);
-  margin-left: -8px;
+  border: 2px solid var(--bg-color-modal);
+  margin-left: -6px;
   position: relative;
+  transition: all 0.2s;
+}
+.dock-avatar:hover {
+  z-index: 10;
+  transform: scale(1.1);
 }
 .dock-avatar:first-child {
   margin-left: 0;
@@ -332,15 +366,14 @@ const navigateToUser = (user: any) => {
 }
 
 .dock-avatar.is-here {
-  border: 2px solid #2ecc71; /* Highlight with green */
-  box-shadow: 0 0 6px rgba(46, 204, 113, 0.6);
+  border-color: var(--success-color);
   z-index: 2;
 }
 
 .dock-avatar.is-offline {
-  opacity: 0.5;
+  opacity: 0.4;
   filter: grayscale(100%);
-  border-color: #888;
+  border-color: var(--border-color);
 }
 
 .expanded-user-item.is-offline {
@@ -402,5 +435,28 @@ const navigateToUser = (user: any) => {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.mention-dock {
+  border-color: var(--primary-color);
+}
+
+.mention-avatar {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--bg-color-modal);
+}
+
+.close-mention-btn {
+  background: none;
+  border: none;
+  color: var(--text-color-3);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.close-mention-btn:hover {
+  color: var(--text-color-1);
 }
 </style>
