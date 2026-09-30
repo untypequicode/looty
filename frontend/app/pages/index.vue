@@ -406,14 +406,23 @@ const handleToggleTaskValidation = async (task: any) => {
     for (const col of newBoard.columns) {
       const t = col.tasks.find((t: any) => t.id === task.id)
       if (t) {
-        if (t.is_per_person && t.assignees?.length > 0) {
-          const hasValidated = t.validations?.includes(userStore.user.id)
+        if (t.is_per_person) {
+          const hasValidated = t.validations?.includes(user.value?.user?.id)
           if (hasValidated) {
-            t.validations = (t.validations || []).filter((id: string) => id !== userStore.user.id)
+            t.validations = (t.validations || []).filter((id: string) => id !== user.value?.user?.id)
           } else {
-            t.validations = [...(t.validations || []), userStore.user.id]
+            t.validations = [...(t.validations || []), user.value?.user?.id]
           }
-          t.is_completed = t.assignees.every((id: string) => t.validations?.includes(id))
+          
+          if (t.require_all_validations !== false) { // Default true
+            if (!t.assignees || t.assignees.length === 0) {
+              t.is_completed = t.validations.length > 0
+            } else {
+              t.is_completed = t.assignees.every((id: string) => t.validations.includes(id))
+            }
+          } else {
+            t.is_completed = t.validations.length > 0
+          }
         } else {
           t.is_completed = !t.is_completed
         }
