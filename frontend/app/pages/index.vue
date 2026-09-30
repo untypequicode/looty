@@ -611,15 +611,12 @@ const handleToggleTaskAssignee = async (task: Task | null, userId: string) => {
             </div>
           </template>
         </div>
-        <div v-if="!activeBoard && (!activeWorkspaceId || currentModule !== 'wiki')" style="display: flex; align-items: center; gap: 12px;">
-           <button v-if="!isSidebarOpen" class="mobile-menu-btn" @click="isSidebarOpen = true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
-          </button>
-          <div v-if="activeWorkspaceId">
+        <div v-if="!activeBoard && (!activeWorkspaceId || currentModule === 'kanban' || currentModule === 'home')" style="display: flex; align-items: center; gap: 12px;">
+          <div v-if="activeWorkspaceId && currentModule === 'kanban'">
             <h1>Sélectionnez un tableau</h1>
             <p class="subtitle">Créez ou sélectionnez un tableau Kanban dans la barre latérale.</p>
           </div>
-          <div v-else>
+          <div v-else-if="!activeWorkspaceId">
             <h1>Bienvenue sur Looty</h1>
             <p class="subtitle">Sélectionnez ou créez un espace de travail pour commencer.</p>
           </div>

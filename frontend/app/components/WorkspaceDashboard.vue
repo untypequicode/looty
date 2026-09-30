@@ -124,6 +124,15 @@ const sortedPages = computed(() => {
   margin: 0 auto;
 }
 
+@media (max-width: 768px) {
+  .workspace-dashboard {
+    padding: 16px;
+  }
+  .dashboard-header h2 {
+    font-size: 2rem;
+  }
+}
+
 .dashboard-header h2 {
   font-size: 2.5rem;
   font-weight: 700;
@@ -136,6 +145,12 @@ const sortedPages = computed(() => {
   gap: 24px;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tabs-container::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
@@ -147,6 +162,7 @@ const sortedPages = computed(() => {
   color: var(--text-color-3);
   cursor: pointer;
   position: relative;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
