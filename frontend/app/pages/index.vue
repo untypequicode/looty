@@ -160,8 +160,43 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 }
 
-onMounted(() => { window.addEventListener('keydown', handleKeydown) })
-onUnmounted(() => { window.removeEventListener('keydown', handleKeydown) })
+const syncHash = () => {
+  if (typeof window === 'undefined') return
+  const hash = window.location.hash
+  if (hash.startsWith('#wiki-')) {
+    const pageId = hash.replace('#wiki-', '')
+    const page = pages.value?.find((p: any) => p.id === pageId)
+    if (page && (!activePage.value || activePage.value.id !== pageId)) {
+      handleSelectPage(page)
+    }
+  } else if (hash.startsWith('#kanban-')) {
+    const boardId = hash.replace('#kanban-', '')
+    const board = boards.value?.find((b: any) => b.id === boardId)
+    if (board && activeBoardId.value !== boardId) {
+      handleSelectBoard(board)
+    }
+  } else if (hash === '#dashboard') {
+    if (currentModule.value !== 'dashboard') handleSelectWorkspaceDashboard()
+  }
+}
+
+let initialHashSynced = false
+watch([pages, boards], () => {
+  if (initialHashSynced) return
+  if (pages.value && boards.value) {
+    syncHash()
+    initialHashSynced = true
+  }
+}, { immediate: true })
+
+onMounted(() => { 
+  window.addEventListener('keydown', handleKeydown) 
+  window.addEventListener('hashchange', syncHash)
+})
+onUnmounted(() => { 
+  window.removeEventListener('keydown', handleKeydown) 
+  window.removeEventListener('hashchange', syncHash)
+})
 
 // --- GSAP Animations ---
 function animateSlideoverOpen() {
@@ -344,6 +379,7 @@ const handleSelectPage = (page: any) => {
   activeBoardId.value = null
   activePage.value = page
   isSidebarOpen.value = false
+  if (typeof window !== 'undefined') window.location.hash = `#wiki-${page.id}`
 }
 
 const handleSelectBoard = (board: any) => {
@@ -352,6 +388,7 @@ const handleSelectBoard = (board: any) => {
   currentModule.value = 'kanban'
   activePage.value = null
   isSidebarOpen.value = false
+  if (typeof window !== 'undefined' && board) window.location.hash = `#kanban-${board.id}`
 }
 
 const handleSelectWorkspaceDashboard = () => {
@@ -359,11 +396,14 @@ const handleSelectWorkspaceDashboard = () => {
   activeBoardId.value = null
   activePage.value = null
   isSidebarOpen.value = false
+  if (typeof window !== 'undefined') window.location.hash = `#dashboard`
 }
 
 const handleSelectWorkspace = (id: string) => {
   selectWorkspace(id)
-  handleSelectWorkspaceDashboard()
+  if (typeof window !== 'undefined' && (!window.location.hash || window.location.hash === '#dashboard')) {
+    handleSelectWorkspaceDashboard()
+  }
 }
 
 const handleCreatePage = async () => {

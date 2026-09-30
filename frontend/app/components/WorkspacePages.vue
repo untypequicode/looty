@@ -27,10 +27,7 @@
         </div>
         <Teleport to="#wiki-header-actions" v-if="isMounted">
           <div class="page-meta">
-            <span v-if="page.updated_at && page.updated_by" class="meta-updated">
-              Dernière modification par {{ getMemberName(page.updated_by) }} il y a {{ formatRelativeDate(page.updated_at) }}
-            </span>
-            <span v-else-if="page.created_at">Créée {{ formatRelativeDate(page.created_at) }}</span>
+            <span v-if="page.created_at">Créée {{ formatRelativeDate(page.created_at) }}</span>
             <span v-else>Créée à l'instant</span>
             <span class="meta-dot" v-if="activeWorkspaceRole !== 'viewer'">•</span>
             <button v-if="activeWorkspaceRole !== 'viewer'" class="meta-btn" @click="isReadonly = !isReadonly" style="display: flex; align-items: center; gap: 4px;">
@@ -47,14 +44,7 @@
             </button>
             <span class="meta-dot">•</span>
 
-            <div class="recent-activity-block" v-if="page.updated_at && page.updated_by && !collaborators.some(c => c.id === page.updated_by)">
-              <div class="activity-item" :title="`Dernière modification par ${getMemberName(page.updated_by)}`">
-                 <div class="collaborator-avatar offline">
-                    {{ getMemberName(page.updated_by).charAt(0).toUpperCase() }}
-                 </div>
-                 <span class="activity-text">Modifié il y a {{ formatRelativeDate(page.updated_at) }}</span>
-              </div>
-            </div>
+
 
 
             <span :class="['save-status', saveStatusClass]">

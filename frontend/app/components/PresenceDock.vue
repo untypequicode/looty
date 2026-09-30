@@ -1,9 +1,24 @@
 <template>
   <div class="presence-dock-wrapper" :class="{ 'is-expanded': isExpanded }">
-    <div class="presence-docks-container" @click="isExpanded = !isExpanded">
+    <div class="presence-docks-container">
       
-      <!-- Global Pill -->
-      <div class="presence-dock">
+      <!-- Recent Activity Pill -->
+      <div class="presence-dock activity-dock" v-if="currentPage && currentPage.updated_at" :title="currentPage.updated_by ? `Dernière modification par ${getMemberName(currentPage.updated_by)}` : 'Dernière modification'">
+        <div class="activity-text">
+          Modifié il y a {{ formatRelativeDate(currentPage.updated_at) }}
+        </div>
+        <div class="dock-avatar activity-avatar" v-if="currentPage.updated_by">
+          {{ getMemberInitials(currentPage.updated_by) }}
+        </div>
+        <div class="dock-avatar activity-avatar" v-else>
+          ✏️
+        </div>
+      </div>
+
+      <!-- Users Pills -->
+      <div class="users-docks-wrapper" @click="isExpanded = !isExpanded">
+        <!-- Global Pill -->
+        <div class="presence-dock">
         <div v-for="user in visibleGlobalUsers" :key="'g'+user.user_id" class="dock-avatar" :title="getUserLabel(user)">
           {{ getUserInitials(user) }}
         </div>
@@ -23,8 +38,8 @@
         <div v-if="localOverflowCount > 0" class="dock-avatar overflow-avatar is-here">
           +{{ localOverflowCount }}
         </div>
+        </div>
       </div>
-      
     </div>
     
     <!-- Expanded List -->
@@ -62,13 +77,21 @@ const emit = defineEmits(['navigate'])
 const isExpanded = ref(false)
 
 const getUserName = (user: any) => {
-  const member = props.workspaceMembers?.find(m => m.user_id === user.user_id)
+  return getMemberName(user.user_id)
+}
+
+const getMemberName = (userId: string) => {
+  const member = props.workspaceMembers?.find(m => m.user_id === userId)
   return member ? member.name : 'Inconnu'
 }
 
-const getUserInitials = (user: any) => {
-  const name = getUserName(user)
+const getMemberInitials = (userId: string) => {
+  const name = getMemberName(userId)
   return name.charAt(0).toUpperCase()
+}
+
+const getUserInitials = (user: any) => {
+  return getMemberInitials(user.user_id)
 }
 
 const getLocationLabel = (loc: string) => {
@@ -84,6 +107,15 @@ const getLocationLabel = (loc: string) => {
     return board ? `Tableau : ${board.name}` : 'Tableau'
   }
   return 'En ligne'
+}
+
+const formatRelativeDate = (dateStr: string) => {
+  if (!dateStr) return ''
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (diff < 60) return `quelques secondes`
+  if (diff < 3600) return `${Math.floor(diff/60)} minutes`
+  if (diff < 86400) return `${Math.floor(diff/3600)} heures`
+  return `${Math.floor(diff/86400)} jours`
 }
 
 const formatLastSeen = (timestamp: number) => {
@@ -128,12 +160,20 @@ const globalOverflowCount = computed(() => Math.max(0, globalUsers.value.length 
 const visibleLocalUsers = computed(() => localUsers.value.slice(0, 5))
 const localOverflowCount = computed(() => Math.max(0, localUsers.value.length - 5))
 
+const currentPage = computed(() => {
+  if (props.currentLocation.startsWith('page:')) {
+    const id = props.currentLocation.split(':')[1]
+    return props.pages?.find(p => p.id === id)
+  }
+  return null
+})
+
 const navigateToUser = (user: any) => {
   if (user.location !== props.currentLocation) {
     if (user.location.startsWith('page:')) {
       window.location.hash = `#wiki-${user.location.split(':')[1]}`
     } else if (user.location.startsWith('board:')) {
-      emit('navigate', { type: 'kanban', id: user.location.split(':')[1] })
+      window.location.hash = `#kanban-${user.location.split(':')[1]}`
     } else {
       window.location.hash = `#dashboard`
     }
@@ -160,6 +200,13 @@ const navigateToUser = (user: any) => {
   align-items: center;
 }
 
+.users-docks-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
 .presence-dock {
   background: var(--bg-color-2);
   border: 1px solid var(--border-color);
@@ -179,6 +226,33 @@ const navigateToUser = (user: any) => {
 .presence-dock.local-dock {
   border-color: #2ecc71;
   background: rgba(46, 204, 113, 0.05);
+}
+
+.activity-dock {
+  background: var(--bg-color-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-color-3);
+  padding: 4px 6px 4px 12px;
+  font-size: 0.8rem;
+  border-radius: 32px;
+  cursor: default;
+}
+.activity-dock:hover {
+  transform: none;
+  box-shadow: var(--shadow-md);
+}
+
+.activity-text {
+  margin-right: 8px;
+}
+
+.activity-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 0.8rem;
+  background: var(--bg-color-hover);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .dock-avatar {
