@@ -37,7 +37,7 @@ async fn archive_old_activities(pool: &PgPool) -> Result<(), Box<dyn std::error:
         activity_type: String,
         old_value: Option<serde_json::Value>,
         new_value: Option<serde_json::Value>,
-        created_at: chrono::NaiveDateTime,
+        created_at: chrono::DateTime<chrono::Utc>,
     }
 
     let old_activities = sqlx::query_as::<_, ActivityRow>(
@@ -73,10 +73,10 @@ async fn archive_old_activities(pool: &PgPool) -> Result<(), Box<dyn std::error:
     let json_data = serde_json::to_string(&json_records)?;
     
     // Ensure archive directory exists
-    let _ = fs::create_dir_all("uploads/archives");
+    let _ = fs::create_dir_all("uploads/.archives");
     
     // Compress and save
-    let filename = format!("uploads/archives/activities_{}.json.gz", Utc::now().timestamp());
+    let filename = format!("uploads/.archives/activities_{}.json.gz", Utc::now().timestamp());
     let file = fs::File::create(&filename)?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder.write_all(json_data.as_bytes())?;

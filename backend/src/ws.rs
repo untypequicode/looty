@@ -1,37 +1,47 @@
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Query},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Query, State,
+    },
     response::IntoResponse,
-    Extension,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
-use tower_sessions::Session;
 use uuid::Uuid;
+
+use crate::access::{require_member, AuthUser};
+use crate::error::ApiResult;
+use crate::state::AppState;
 
 #[derive(Deserialize)]
 pub struct WsQuery {
-    pub workspace_id: String,
+    pub workspace_id: Uuid,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct UserPresence {
     pub user_id: String,
-    pub location: String, // e.g., "page:uuid", "board:uuid", "home"
+    pub location: String, // "page:<uuid>", "board:<uuid>", "home"...
     pub updated_at: i64,
 }
 
-// Global state for WebSockets
-pub struct AppState {
-    pub rooms: RwLock<HashMap<String, broadcast::Sender<String>>>,
-    // workspace_id -> user_id -> UserPresence
-    pub presence: RwLock<HashMap<String, HashMap<String, UserPresence>>>,
-    // workspace_id -> user_id -> nombre de connexions ouvertes (onglets / reconnexions)
-    pub connections: RwLock<HashMap<String, HashMap<String, usize>>>,
+/// Message diffusé dans une room. `to` restreint la livraison à un seul utilisateur.
+#[derive(Clone, Debug)]
+pub struct Envelope {
+    pub to: Option<Uuid>,
+    pub payload: Arc<str>,
 }
 
-impl AppState {
+/// Hub temps réel : une room par workspace.
+pub struct Hub {
+    rooms: RwLock<HashMap<Uuid, broadcast::Sender<Envelope>>>,
+    presence: RwLock<HashMap<Uuid, HashMap<Uuid, UserPresence>>>,
+    connections: RwLock<HashMap<Uuid, HashMap<Uuid, usize>>>,
+}
+
+impl Hub {
     pub fn new() -> Self {
         Self {
             rooms: RwLock::new(HashMap::new()),
@@ -40,158 +50,143 @@ impl AppState {
         }
     }
 
-    pub async fn get_or_create_room(&self, workspace_id: &str) -> broadcast::Sender<String> {
-        let rooms = self.rooms.read().await;
-        if let Some(tx) = rooms.get(workspace_id) {
+    async fn room(&self, workspace_id: Uuid) -> broadcast::Sender<Envelope> {
+        if let Some(tx) = self.rooms.read().await.get(&workspace_id) {
             return tx.clone();
         }
-        drop(rooms);
-
         let mut rooms = self.rooms.write().await;
-        if let Some(tx) = rooms.get(workspace_id) {
-            return tx.clone();
-        }
-        let (tx, _rx) = broadcast::channel(256);
-        rooms.insert(workspace_id.to_string(), tx.clone());
-        tx
+        rooms
+            .entry(workspace_id)
+            .or_insert_with(|| broadcast::channel(512).0)
+            .clone()
     }
 
-    async fn presence_list(&self, workspace_id: &str) -> Vec<UserPresence> {
-        let presence = self.presence.read().await;
-        presence
-            .get(workspace_id)
+    pub async fn broadcast(&self, workspace_id: Uuid, event: serde_json::Value) {
+        let tx = self.room(workspace_id).await;
+        let _ = tx.send(Envelope { to: None, payload: event.to_string().into() });
+    }
+
+    pub async fn send_to(&self, workspace_id: Uuid, user_id: Uuid, event: serde_json::Value) {
+        let tx = self.room(workspace_id).await;
+        let _ = tx.send(Envelope { to: Some(user_id), payload: event.to_string().into() });
+    }
+
+    async fn presence_list(&self, workspace_id: Uuid) -> Vec<UserPresence> {
+        self.presence
+            .read()
+            .await
+            .get(&workspace_id)
             .map(|m| m.values().cloned().collect())
             .unwrap_or_default()
     }
 
-    /// Enregistre une connexion et publie immédiatement la présence (location "home" par défaut).
-    async fn user_connected(&self, workspace_id: &str, user_id: &str, tx: &broadcast::Sender<String>) {
-        {
-            let mut conns = self.connections.write().await;
-            *conns
-                .entry(workspace_id.to_string())
-                .or_default()
-                .entry(user_id.to_string())
-                .or_insert(0) += 1;
-        }
+    async fn connected(&self, workspace_id: Uuid, user_id: Uuid) {
+        *self
+            .connections
+            .write()
+            .await
+            .entry(workspace_id)
+            .or_default()
+            .entry(user_id)
+            .or_insert(0) += 1;
 
         let presence = {
             let mut p = self.presence.write().await;
-            p.entry(workspace_id.to_string())
+            p.entry(workspace_id)
                 .or_default()
-                .entry(user_id.to_string())
+                .entry(user_id)
                 .or_insert_with(|| UserPresence {
                     user_id: user_id.to_string(),
-                    location: "home".to_string(),
+                    location: "home".into(),
                     updated_at: chrono::Utc::now().timestamp_millis(),
                 })
                 .clone()
         };
-
-        let _ = tx.send(
-            serde_json::json!({ "type": "USER_PRESENCE_UPDATE", "presence": presence }).to_string(),
-        );
+        self.broadcast(workspace_id, serde_json::json!({ "type": "USER_PRESENCE_UPDATE", "presence": presence }))
+            .await;
     }
 
-    /// Ne passe l'utilisateur hors ligne que lorsque sa dernière connexion se ferme.
-    async fn user_disconnected(&self, workspace_id: &str, user_id: &str, tx: &broadcast::Sender<String>) {
+    async fn disconnected(&self, workspace_id: Uuid, user_id: Uuid) {
         let is_last = {
             let mut conns = self.connections.write().await;
-            let remaining = match conns.get_mut(workspace_id).and_then(|m| m.get_mut(user_id)) {
-                Some(count) => {
-                    *count = count.saturating_sub(1);
-                    *count
-                }
-                None => 0,
-            };
-            if remaining == 0 {
-                if let Some(m) = conns.get_mut(workspace_id) {
-                    m.remove(user_id);
-                }
+            let m = conns.entry(workspace_id).or_default();
+            let remaining = m.get_mut(&user_id).map(|c| {
+                *c = c.saturating_sub(1);
+                *c
+            });
+            if remaining.unwrap_or(0) == 0 {
+                m.remove(&user_id);
+                true
+            } else {
+                false
             }
-            remaining == 0
         };
-
         if is_last {
-            {
-                let mut p = self.presence.write().await;
-                if let Some(ws_p) = p.get_mut(workspace_id) {
-                    ws_p.remove(user_id);
-                }
+            if let Some(m) = self.presence.write().await.get_mut(&workspace_id) {
+                m.remove(&user_id);
             }
-            let _ = tx.send(
-                serde_json::json!({ "type": "USER_OFFLINE", "user_id": user_id }).to_string(),
-            );
+            self.broadcast(workspace_id, serde_json::json!({ "type": "USER_OFFLINE", "user_id": user_id }))
+                .await;
         }
     }
 
-    async fn set_location(
-        &self,
-        workspace_id: &str,
-        user_id: &str,
-        location: String,
-        tx: &broadcast::Sender<String>,
-    ) {
+    async fn set_location(&self, workspace_id: Uuid, user_id: Uuid, location: String) {
         let presence = UserPresence {
             user_id: user_id.to_string(),
             location,
             updated_at: chrono::Utc::now().timestamp_millis(),
         };
-        {
-            let mut p = self.presence.write().await;
-            p.entry(workspace_id.to_string())
-                .or_default()
-                .insert(user_id.to_string(), presence.clone());
-        }
-        let _ = tx.send(
-            serde_json::json!({ "type": "USER_PRESENCE_UPDATE", "presence": presence }).to_string(),
-        );
+        self.presence
+            .write()
+            .await
+            .entry(workspace_id)
+            .or_default()
+            .insert(user_id, presence.clone());
+        self.broadcast(workspace_id, serde_json::json!({ "type": "USER_PRESENCE_UPDATE", "presence": presence }))
+            .await;
     }
 }
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    user: AuthUser,
     Query(query): Query<WsQuery>,
-    Extension(state): Extension<Arc<AppState>>,
-    session: Session,
-) -> impl IntoResponse {
-    // On lit la session AVANT l'upgrade (la requête HTTP est encore "vivante")
-    let user_id = session
-        .get::<Uuid>("user_id")
-        .await
-        .ok()
-        .flatten()
-        .map(|u| u.to_string())
-        .unwrap_or_default();
-
-    ws.on_upgrade(move |socket| handle_socket(socket, query.workspace_id, state, user_id))
+) -> ApiResult<impl IntoResponse> {
+    // Vérifie l'appartenance AVANT l'upgrade : impossible d'écouter un workspace étranger.
+    require_member(&state.pool, &user, query.workspace_id).await?;
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, query.workspace_id, user.id)))
 }
 
-async fn handle_socket(socket: WebSocket, workspace_id: String, state: Arc<AppState>, user_id: String) {
-    println!(">>> NOUVELLE CONNEXION WS POUR WORKSPACE {} (User: '{}')", workspace_id, user_id);
+fn sanitize_location(raw: &str) -> String {
+    // Format attendu : "home" | "<kind>:<uuid>"
+    let valid = raw == "home"
+        || raw
+            .split_once(':')
+            .map(|(kind, id)| {
+                matches!(kind, "page" | "board" | "task" | "settings") && Uuid::parse_str(id).is_ok()
+            })
+            .unwrap_or(false);
+    if valid { raw.to_string() } else { "home".into() }
+}
+
+async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, user_id: Uuid) {
+    let hub = state.hub.clone();
     let (mut sender, mut receiver) = socket.split();
+    let mut rx = hub.room(workspace_id).await.subscribe();
 
-    let tx = state.get_or_create_room(&workspace_id).await;
-    let mut rx = tx.subscribe();
-
-    if !user_id.is_empty() {
-        state.user_connected(&workspace_id, &user_id, &tx).await;
-
-        // Snapshot complet (incluant soi-même) envoyé uniquement au nouvel arrivant
-        let presence_list = state.presence_list(&workspace_id).await;
-        let msg = serde_json::json!({
-            "type": "PRESENCE_SYNC",
-            "presence": presence_list
-        })
-        .to_string();
-        let _ = sender.send(Message::Text(msg)).await;
-    }
+    hub.connected(workspace_id, user_id).await;
+    let snapshot = serde_json::json!({ "type": "PRESENCE_SYNC", "presence": hub.presence_list(workspace_id).await });
+    let _ = sender.send(Message::Text(snapshot.to_string())).await;
 
     let mut send_task = tokio::spawn(async move {
         loop {
             match rx.recv().await {
-                Ok(msg) => {
-                    if sender.send(Message::Text(msg)).await.is_err() {
+                Ok(env) => {
+                    if env.to.is_some_and(|to| to != user_id) {
+                        continue;
+                    }
+                    if sender.send(Message::Text(env.payload.to_string())).await.is_err() {
                         break;
                     }
                 }
@@ -201,42 +196,59 @@ async fn handle_socket(socket: WebSocket, workspace_id: String, state: Arc<AppSt
         }
     });
 
-    let tx_clone = tx.clone();
-    let state_clone = state.clone();
-    let workspace_id_clone = workspace_id.clone();
-    let user_id_clone = user_id.clone();
-
+    let hub_rx = hub.clone();
+    let pool = state.pool.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             let text = match msg {
                 Ok(Message::Text(t)) => t,
                 Ok(Message::Close(_)) | Err(_) => break,
-                Ok(_) => continue, // ping / pong / binaire : on ignore sans couper la connexion
+                Ok(_) => continue,
             };
-
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                if json["type"] == "USER_LOCATION" {
-                    if !user_id_clone.is_empty() {
-                        let location = json["location"].as_str().unwrap_or("home").to_string();
-                        state_clone
-                            .set_location(&workspace_id_clone, &user_id_clone, location, &tx_clone)
-                            .await;
-                    }
-                    continue;
-                }
+            if text.len() > 4096 {
+                continue;
             }
-            let _ = tx_clone.send(text);
+            let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
+            match json["type"].as_str() {
+                Some("USER_LOCATION") => {
+                    let loc = sanitize_location(json["location"].as_str().unwrap_or("home"));
+                    hub_rx.set_location(workspace_id, user_id, loc).await;
+                }
+                Some("USER_MENTIONED") => {
+                    // L'auteur est imposé par le serveur ; la cible doit être membre.
+                    let Some(target) = json["target_user_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) else {
+                        continue;
+                    };
+                    if target == user_id {
+                        continue;
+                    }
+                    let ok = crate::access::is_member(&pool, workspace_id, &target.to_string())
+                        .await
+                        .unwrap_or(false);
+                    if !ok {
+                        continue;
+                    }
+                    let loc = sanitize_location(json["location"].as_str().unwrap_or("home"));
+                    crate::notifications::notify(
+                        &pool,
+                        &hub_rx,
+                        workspace_id,
+                        target,
+                        Some(user_id),
+                        "mention",
+                        &loc,
+                        serde_json::json!({}),
+                    )
+                    .await;
+                }
+                _ => {} // Tout autre message client est ignoré (pas de relais arbitraire).
+            }
         }
     });
 
     tokio::select! {
-        _ = (&mut send_task) => recv_task.abort(),
-        _ = (&mut recv_task) => send_task.abort(),
-    };
-
-    if !user_id.is_empty() {
-        state.user_disconnected(&workspace_id, &user_id, &tx).await;
+        _ = &mut send_task => recv_task.abort(),
+        _ = &mut recv_task => send_task.abort(),
     }
-
-    println!("<<< CONNEXION WS FERMÉE POUR WORKSPACE {}", workspace_id);
+    hub.disconnected(workspace_id, user_id).await;
 }
