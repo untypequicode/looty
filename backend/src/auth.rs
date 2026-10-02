@@ -190,10 +190,26 @@ async fn callback_handler(
     let user_count: i64 = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM users").fetch_one(&state.pool).await.unwrap_or(0);
     let is_super_admin = user_count == 0;
 
-    let user_id = sqlx::query_scalar::<_, uuid::Uuid>(
+    let user_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
+        .bind(&email)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(false);
+
+    if !user_exists && !is_super_admin {
+        let allow_signups: bool = sqlx::query_scalar("SELECT allow_public_signups FROM global_settings WHERE id = 1")
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or(true);
+        if !allow_signups {
+            return axum::response::Html(r#"<script>window.location.href = "/login?error=signups_disabled";</script>"#).into_response();
+        }
+    }
+
+    let user_record = sqlx::query_as::<_, (uuid::Uuid, bool)>(
         "INSERT INTO users (email, name, is_super_admin) VALUES ($1, $2, $3)
          ON CONFLICT (email) DO UPDATE SET name = $2
-         RETURNING id"
+         RETURNING id, is_suspended"
     )
     .bind(&email)
     .bind(&name)
@@ -201,6 +217,12 @@ async fn callback_handler(
     .fetch_one(&state.pool)
     .await
     .unwrap();
+
+    let user_id = user_record.0;
+
+    if user_record.1 {
+        return axum::response::Html(r#"<script>window.location.href = "/login?error=suspended";</script>"#).into_response();
+    }
 
     sqlx::query(
         "INSERT INTO identities (user_id, provider, provider_user_id) 
@@ -224,7 +246,10 @@ struct UserProfile {
     id: uuid::Uuid,
     email: String,
     name: String,
+    avatar_url: Option<String>,
+    theme: Option<String>,
     is_super_admin: bool,
+    is_suspended: bool,
 }
 
 async fn me_handler(session: Session, State(state): State<AuthState>) -> impl IntoResponse {
@@ -233,14 +258,21 @@ async fn me_handler(session: Session, State(state): State<AuthState>) -> impl In
     match user_id {
         Some(uid) => {
             let user = sqlx::query_as::<_, UserProfile>(
-                "SELECT id, email, name, is_super_admin FROM users WHERE id = $1"
+                "SELECT id, email, name, avatar_url, theme, is_super_admin, is_suspended FROM users WHERE id = $1"
             )
             .bind(uid)
             .fetch_one(&state.pool)
             .await;
 
             match user {
-                Ok(u) => Json(serde_json::json!({ "authenticated": true, "user": u })),
+                Ok(u) => {
+                    if u.is_suspended {
+                        session.delete().await.ok();
+                        Json(serde_json::json!({ "authenticated": false, "error": "suspended" }))
+                    } else {
+                        Json(serde_json::json!({ "authenticated": true, "user": u }))
+                    }
+                },
                 Err(_) => Json(serde_json::json!({ "authenticated": false }))
             }
         },

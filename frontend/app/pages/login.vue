@@ -6,6 +6,14 @@ const isRedirecting = ref(false)
 const providers = ref<any[]>([])
 const isLoadingProviders = ref(true)
 
+const route = useRoute()
+const errorMessage = computed(() => {
+  if (route.query.error === 'signups_disabled') return "Les inscriptions sont désactivées sur ce serveur."
+  if (route.query.error === 'suspended') return "Votre compte a été suspendu par un administrateur."
+  if (route.query.error) return "Une erreur est survenue lors de l'authentification."
+  return ""
+})
+
 // Redirige vers / si déjà authentifié
 watchEffect(() => {
   if (user.value?.authenticated) {
@@ -37,10 +45,14 @@ async function loginWithProvider(providerId: string) {
 
 <template>
   <div style="font-family: sans-serif; display: flex; height: 100vh; align-items: center; justify-content: center; background: var(--bg-color-main);">
-    <div style="background: var(--bg-color-2); padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; border: 1px solid var(--border-color);">
+    <div style="background: var(--bg-color-2); padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; border: 1px solid var(--border-color); max-width: 400px; width: 100%;">
       <h1 style="margin-top: 0;">Connexion</h1>
       <p style="color: var(--text-color-2); margin-bottom: 2rem;">Veuillez vous authentifier pour continuer</p>
       
+      <div v-if="errorMessage" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.5); padding: 12px; border-radius: 6px; margin-bottom: 1.5rem; font-weight: 500;">
+        {{ errorMessage }}
+      </div>
+
       <p v-if="isLoading || isRedirecting || isLoadingProviders">Chargement...</p>
       <div v-else style="display: flex; flex-direction: column; gap: 12px;">
         <button 

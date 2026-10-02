@@ -161,10 +161,9 @@ if (props.documentId && typeof window !== 'undefined') {
   }
 
   const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   
   const wsUrl = typeof window !== 'undefined' 
-    ? (isLocal ? `ws://${window.location.hostname}:8082` : `${protocol}//${window.location.host}/collab`) 
+    ? `${protocol}//${window.location.host}/collab`
     : ''
 
   provider = markRaw(new HocuspocusProvider({

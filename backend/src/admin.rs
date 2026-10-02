@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
-    routing::{get, put},
+    routing::{get, put, delete, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,13 @@ pub fn admin_routes(state: AuthState) -> Router {
         .route("/providers", get(list_providers).post(create_provider))
         .route("/providers/:id", put(update_provider).delete(delete_provider))
         .route("/users", get(list_users))
+        .route("/users/:id", delete(delete_user))
         .route("/users/:id/role", put(update_user_role))
+        .route("/users/:id/suspend", put(suspend_user))
+        .route("/settings", get(get_settings).put(update_settings))
+        .route("/workspaces", get(list_workspaces))
+        .route("/workspaces/:id", delete(delete_workspace))
+        .route("/stats", get(get_stats))
         .with_state(state)
 }
 
@@ -140,6 +146,7 @@ struct UserInfo {
     name: String,
     email: String,
     is_super_admin: bool,
+    is_suspended: bool,
 }
 
 async fn list_users(session: Session, State(state): State<AuthState>) -> impl IntoResponse {
@@ -148,7 +155,7 @@ async fn list_users(session: Session, State(state): State<AuthState>) -> impl In
     }
     
     let users = sqlx::query_as::<_, UserInfo>(
-        "SELECT id, name, email, is_super_admin FROM users"
+        "SELECT id, name, email, is_super_admin, is_suspended FROM users"
     )
     .fetch_all(&state.pool)
     .await
@@ -182,4 +189,188 @@ async fn update_user_role(
         Ok(_) => (axum::http::StatusCode::OK).into_response(),
         Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed").into_response(),
     }
+}
+
+#[derive(Serialize, Deserialize, sqlx::FromRow)]
+pub struct GlobalSettings {
+    pub app_name: String,
+    pub favicon_url: Option<String>,
+    pub allow_public_signups: bool,
+    pub umami_website_id: Option<String>,
+    pub umami_script_url: Option<String>,
+}
+
+async fn get_settings(session: Session, State(state): State<AuthState>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+    
+    let settings = sqlx::query_as::<_, GlobalSettings>(
+        "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url FROM global_settings WHERE id = 1"
+    )
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(GlobalSettings {
+        app_name: "Looty".to_string(),
+        favicon_url: None,
+        allow_public_signups: true,
+        umami_website_id: None,
+        umami_script_url: None,
+    });
+
+    Json(settings).into_response()
+}
+
+async fn update_settings(session: Session, State(state): State<AuthState>, Json(payload): Json<GlobalSettings>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+    
+    sqlx::query(
+        "UPDATE global_settings SET app_name = $1, favicon_url = $2, allow_public_signups = $3, umami_website_id = $4, umami_script_url = $5, updated_at = NOW() WHERE id = 1"
+    )
+    .bind(&payload.app_name)
+    .bind(&payload.favicon_url)
+    .bind(payload.allow_public_signups)
+    .bind(&payload.umami_website_id)
+    .bind(&payload.umami_script_url)
+    .execute(&state.pool)
+    .await
+    .ok();
+
+    Json(payload).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct SuspendUserRequest {
+    pub is_suspended: bool,
+}
+
+async fn suspend_user(session: Session, State(state): State<AuthState>, Path(id): Path<Uuid>, Json(payload): Json<SuspendUserRequest>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let user_id: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    if user_id == Some(id) {
+        return (axum::http::StatusCode::BAD_REQUEST, "Cannot suspend yourself").into_response();
+    }
+
+    sqlx::query("UPDATE users SET is_suspended = $1 WHERE id = $2")
+        .bind(payload.is_suspended)
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .ok();
+
+    (axum::http::StatusCode::OK, "Updated").into_response()
+}
+
+async fn delete_user(session: Session, State(state): State<AuthState>, Path(id): Path<Uuid>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let user_id: Option<Uuid> = session.get("user_id").await.unwrap_or(None);
+    if user_id == Some(id) {
+        return (axum::http::StatusCode::BAD_REQUEST, "Cannot delete yourself").into_response();
+    }
+
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .ok();
+
+    (axum::http::StatusCode::OK, "Deleted").into_response()
+}
+
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct AdminWorkspaceDto {
+    pub id: Uuid,
+    pub name: String,
+    pub members_count: Option<i64>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+async fn list_workspaces(session: Session, State(state): State<AuthState>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let workspaces = sqlx::query_as::<_, AdminWorkspaceDto>(
+        "SELECT w.id, w.name, w.created_at, (SELECT count(*) FROM workspace_members m WHERE m.workspace_id = w.id) as members_count FROM workspaces w"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    Json(workspaces).into_response()
+}
+
+async fn delete_workspace(session: Session, State(state): State<AuthState>, Path(id): Path<Uuid>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    sqlx::query("DELETE FROM workspaces WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .ok();
+
+    (axum::http::StatusCode::OK, "Deleted").into_response()
+}
+
+#[derive(Serialize)]
+pub struct AdminStatsDto {
+    pub total_users: i64,
+    pub total_workspaces: i64,
+    pub total_pages: i64,
+    pub total_attachments_size: i64,
+}
+
+async fn get_stats(session: Session, State(state): State<AuthState>) -> impl IntoResponse {
+    if !is_super_admin(&session, &state.pool).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+
+    let total_users: i64 = sqlx::query_scalar("SELECT count(*) FROM users").fetch_one(&state.pool).await.unwrap_or(0);
+    let total_workspaces: i64 = sqlx::query_scalar("SELECT count(*) FROM workspaces").fetch_one(&state.pool).await.unwrap_or(0);
+    let total_pages: i64 = sqlx::query_scalar("SELECT count(*) FROM pages").fetch_one(&state.pool).await.unwrap_or(0);
+    let total_attachments_size: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(file_size), 0) FROM attachments").fetch_one(&state.pool).await.unwrap_or(0);
+
+    Json(AdminStatsDto {
+        total_users,
+        total_workspaces,
+        total_pages,
+        total_attachments_size,
+    }).into_response()
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct PublicSettings {
+    pub app_name: String,
+    pub favicon_url: Option<String>,
+    pub allow_public_signups: bool,
+    pub umami_website_id: Option<String>,
+    pub umami_script_url: Option<String>,
+}
+
+pub async fn get_public_settings(State(state): State<AuthState>) -> impl IntoResponse {
+    let settings = sqlx::query_as::<_, PublicSettings>(
+        "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url FROM global_settings WHERE id = 1"
+    )
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(PublicSettings {
+        app_name: "Looty".to_string(),
+        favicon_url: None,
+        allow_public_signups: true,
+        umami_website_id: None,
+        umami_script_url: None,
+    });
+
+    Json(settings).into_response()
 }

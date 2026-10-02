@@ -112,12 +112,10 @@ const confirmAction = (msg: string) => window.confirm(msg)
 
 // --- WebSockets ---
 const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 const wsUrl = computed(() => {
-  if (!activeWorkspaceId.value) return ''
-  return isLocal 
-    ? `ws://${window.location.hostname}:8080/api/ws?workspace_id=${activeWorkspaceId.value}`
-    : `${protocol}//${typeof window !== 'undefined' ? window.location.host : ''}/api/ws?workspace_id=${activeWorkspaceId.value}`
+  if (!activeWorkspaceId.value || typeof window === 'undefined') return ''
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/api/ws?workspace_id=${activeWorkspaceId.value}`
 })
 const { send, onlineUsers, activeMentions, status } = useKanbanWS(wsUrl, activeBoard, boards, taskStackIds, pages, activePage)
 

@@ -7,6 +7,7 @@ mod archive;
 mod page;
 mod upload;
 mod admin;
+mod user_settings;
 
 use axum::{routing::get, Router, Json, Extension, extract::DefaultBodyLimit};
 use serde::Serialize;
@@ -80,11 +81,13 @@ async fn main() {
     let app = Router::new()
         .nest_service("/uploads", tower_http::services::ServeDir::new("uploads"))
         .route("/api/health", get(health_handler))
+        .route("/api/settings", get(admin::get_public_settings).with_state(auth_state.clone()))
         .route("/api/ws", get(ws::ws_handler))
         .route("/api/upload", axum::routing::post(upload::upload_file))
         .route("/api/public/pages/:token", get(page::get_public_page).with_state(pool.clone()))
         .nest("/api/auth", auth::auth_routes(auth_state.clone()))
         .nest("/api/admin", admin::admin_routes(auth_state.clone()))
+        .nest("/api/user", user_settings::user_settings_routes(auth_state.clone()))
         .nest("/api/workspaces", workspace::workspace_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/boards", board::workspace_board_routes(auth_state.clone()))
         .nest("/api/workspaces/:workspace_id/pages", page::page_routes(auth_state.clone()))
