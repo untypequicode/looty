@@ -20,4 +20,10 @@ target/
 
 # Nix
 .direnv/
-backend/uploads/*.tar
+
+# Ignore uploads, backups, and large archives
+backend/uploads/
+backups/
+*.tar
+*.tar.gz
+*.zip
