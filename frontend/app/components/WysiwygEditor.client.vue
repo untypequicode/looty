@@ -93,6 +93,7 @@ import Dropcursor from '@tiptap/extension-dropcursor'
 import { watch, onBeforeUnmount, markRaw, onMounted, inject, ref } from 'vue'
 import 'katex/dist/katex.min.css'
 import { SearchExtension, searchPluginKey } from '../utils/tiptapSearch'
+import { NoticeExtension } from './NoticeExtension'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -141,6 +142,7 @@ const extensions = [
   EmojiExtension.configure({
     suggestion: { items: getEmojiItems, render: renderEmojiItems },
   }),
+  NoticeExtension,
   SearchExtension,
   TrailingNode,
   GlobalDragHandle.configure({
@@ -318,6 +320,12 @@ onBeforeUnmount(() => {
     provider.destroy()
   }
   if (editor.value) editor.value.destroy()
+})
+
+defineExpose({
+  getHTML: () => {
+    return editor.value ? editor.value.getHTML() : ''
+  }
 })
 </script>
 
@@ -648,5 +656,75 @@ onBeforeUnmount(() => {
   color: #000 !important;
   border-radius: 2px;
   box-shadow: 0 0 0 2px rgba(255, 212, 0, 0.4);
+}
+
+.notice-block {
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+  border-radius: var(--radius-md);
+  border-left: 4px solid;
+  position: relative;
+}
+
+.notice-block::before {
+  content: '';
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+}
+
+.notice-block p:last-child {
+  margin-bottom: 0;
+}
+
+.notice-block p:first-of-type {
+  margin-top: 0;
+}
+
+/* Info Notice */
+.notice-info {
+  background-color: rgba(56, 189, 248, 0.1);
+  border-color: #38bdf8;
+  color: var(--text-color);
+}
+.notice-info::before {
+  content: 'ℹ️ Info notice';
+  color: #38bdf8;
+}
+
+/* Success Notice */
+.notice-success {
+  background-color: rgba(74, 222, 128, 0.1);
+  border-color: #4ade80;
+  color: var(--text-color);
+}
+.notice-success::before {
+  content: '✅ Success notice';
+  color: #4ade80;
+}
+
+/* Warning Notice */
+.notice-warning {
+  background-color: rgba(250, 204, 21, 0.1);
+  border-color: #facc15;
+  color: var(--text-color);
+}
+.notice-warning::before {
+  content: '⚠️ Warning notice';
+  color: #facc15;
+}
+
+/* Tip Notice */
+.notice-tip {
+  background-color: rgba(167, 139, 250, 0.1);
+  border-color: #a78bfa;
+  color: var(--text-color);
+}
+.notice-tip::before {
+  content: '💡 Tip notice';
+  color: #a78bfa;
 }
 </style>

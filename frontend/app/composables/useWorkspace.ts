@@ -104,10 +104,10 @@ export const useWorkspace = () => {
   })
 
   const createPageMutation = useMutation({
-    mutationFn: async ({ workspaceId, parentId }: { workspaceId: string, parentId?: string }) => {
+    mutationFn: async ({ workspaceId, parentId, title, content }: { workspaceId: string, parentId?: string, title?: string, content?: string }) => {
       return await $fetch(`/api/workspaces/${workspaceId}/pages`, {
         method: 'POST',
-        body: { title: 'Nouvelle page', parent_id: parentId || null, content: '' }
+        body: { title: title || 'Nouvelle page', parent_id: parentId || null, content: content || '' }
       }) as Page
     },
     onSuccess: () => {

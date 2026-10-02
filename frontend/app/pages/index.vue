@@ -447,9 +447,9 @@ const handleSelectWorkspace = (id: string) => {
   }
 }
 
-const handleCreatePage = async () => {
+const handleCreatePage = async (title?: string, content?: string) => {
   if (activeWorkspaceId.value) {
-    const page = await createPage({ workspaceId: activeWorkspaceId.value })
+    const page = await createPage({ workspaceId: activeWorkspaceId.value, title, content })
     if (page) handleSelectPage(page)
   }
 }
@@ -465,9 +465,9 @@ const handleMention = (userId: string) => {
   }
 }
 
-const handleCreateSubpage = async (parentId: string) => {
+const handleCreateSubpage = async (parentId: string, title?: string, content?: string) => {
   if (activeWorkspaceId.value) {
-    const page = await createPage({ workspaceId: activeWorkspaceId.value, parentId })
+    const page = await createPage({ workspaceId: activeWorkspaceId.value, parentId, title, content })
     if (page) handleSelectPage(page)
   }
 }

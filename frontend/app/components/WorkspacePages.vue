@@ -36,7 +36,13 @@
               <button class="icon-btn" @click="toggleShareModal = true" title="Partager / Publier">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
               </button>
-              
+              <button class="icon-btn" @click="exportMarkdown" title="Exporter en Markdown">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+              <button class="icon-btn" @click="exportZip" title="Exporter en ZIP (avec sous-pages et images)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+              </button>
+
               <button v-if="activeWorkspaceRole === 'admin' || activeWorkspaceRole === 'owner'" class="icon-btn" @click="openPermissionsModal" title="Gérer les accès">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
               </button>
@@ -53,6 +59,7 @@
       
       <div class="page-content">
         <WysiwygEditor 
+          ref="editorRef"
           :key="page.id"
           v-model="localContent" 
           :document-id="page.id"
@@ -146,6 +153,8 @@ import { ref, watch, onMounted, computed } from 'vue'
 import WysiwygEditor from './WysiwygEditor.client.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import { useWorkspace } from '../composables/useWorkspace'
+import TurndownService from 'turndown'
+import JSZip from 'jszip'
 
 const { activeWorkspaceRole, workspaceMembers, sharePage, revokeShare, toggleFavorite, recordView, pages, createPage } = useWorkspace()
 
@@ -169,6 +178,8 @@ const props = defineProps({
   }
 })
 
+
+
 const emit = defineEmits(['update-title', 'mention'])
 
 const localTitle = ref(props.page.title || '')
@@ -181,6 +192,152 @@ const saveStatusClass = ref('')
 const isMounted = ref(false)
 const collaborators = ref([])
 let saveTimeout = null
+
+const editorRef = ref(null)
+
+const createTurndownService = () => {
+  const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    blankReplacement: function (content, node) {
+      if (node.nodeName === 'SPAN' && node.getAttribute('data-type') === 'math-inline') {
+        return '$' + (node.getAttribute('latex') || '') + '$'
+      }
+      if (node.nodeName === 'DIV' && node.getAttribute('data-type') === 'math-block') {
+        return '\n$$\n' + (node.getAttribute('latex') || '') + '\n$$\n'
+      }
+      return node.isBlock ? '\n\n' : ''
+    }
+  })
+  turndownService.addRule('task-list', {
+    filter: function (node) {
+      return node.nodeName === 'LI' && node.hasAttribute('data-type') && node.getAttribute('data-type') === 'taskItem'
+    },
+    replacement: function (content, node) {
+      const isChecked = node.hasAttribute('data-checked')
+      return (isChecked ? '- [x] ' : '- [ ] ') + content + '\n'
+    }
+  })
+  return turndownService
+}
+
+const htmlToMarkdown = (html) => {
+  const turndownService = createTurndownService()
+  return turndownService.turndown(html || '')
+}
+
+const exportMarkdown = () => {
+  if (!props.page) return
+  const htmlContent = editorRef.value ? editorRef.value.getHTML() : localContent.value
+  const markdown = htmlToMarkdown(htmlContent)
+  
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${localTitle.value || 'Page'}.md`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const findPageChildren = (parentId) => {
+  if (!pages.value) return []
+  const findInTree = (list, id) => {
+    for (const p of list) {
+      if (p.id === id) return p.children || []
+      if (p.children && p.children.length > 0) {
+        const found = findInTree(p.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  return findInTree(pages.value, parentId) || []
+}
+
+const fetchPageContent = async (pageId) => {
+  try {
+    const page = await $fetch(`/api/workspaces/${props.workspaceId}/pages/${pageId}`)
+    return page
+  } catch (e) {
+    console.error('Failed to fetch page', pageId, e)
+    return null
+  }
+}
+
+const collectImages = (markdown) => {
+  const images = []
+  const regex = /!\[([^\]]*)\]\(([^)]+)\)/g
+  let match
+  while ((match = regex.exec(markdown)) !== null) {
+    const url = match[2].split(' ')[0]
+    if (url.startsWith('/uploads/') || url.startsWith('uploads/')) {
+      images.push(url.startsWith('/') ? url : '/' + url)
+    }
+  }
+  return images
+}
+
+const addPageToZip = async (zip, page, dirPath, turndownService) => {
+  let fullPage = page
+  if (!page.content && page.content !== '') {
+    fullPage = await fetchPageContent(page.id)
+    if (!fullPage) return
+  }
+  
+  let markdown = htmlToMarkdown(fullPage.content || '')
+  
+  // Collect and download images
+  const images = collectImages(markdown)
+  const uploadsDir = dirPath + 'uploads/'
+  
+  for (const imgUrl of images) {
+    try {
+      const resp = await fetch(imgUrl)
+      if (resp.ok) {
+        const blob = await resp.blob()
+        const filename = imgUrl.split('/').pop()
+        zip.file(uploadsDir + filename, blob)
+        // Replace the URL in markdown to use relative path
+        markdown = markdown.replace(imgUrl, 'uploads/' + filename)
+      }
+    } catch (e) {
+      console.error('Failed to download image', imgUrl, e)
+    }
+  }
+  
+  const safeName = (fullPage.title || 'Untitled').replace(/[/\\?%*:|"<>]/g, '-')
+  zip.file(dirPath + safeName + '.md', markdown)
+  
+  // Recurse into children
+  const children = findPageChildren(fullPage.id)
+  if (children && children.length > 0) {
+    for (const child of children) {
+      await addPageToZip(zip, child, dirPath + safeName + '/', turndownService)
+    }
+  }
+}
+
+const exportZip = async () => {
+  if (!props.page) return
+  
+  const zip = new JSZip()
+  const turndownService = createTurndownService()
+  
+  await addPageToZip(zip, props.page, '', turndownService)
+  
+  const content = await zip.generateAsync({ type: 'blob' })
+  const url = URL.createObjectURL(content)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${localTitle.value || 'Page'}.zip`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 const toggleShareModal = ref(false)
 const isSharing = ref(false)

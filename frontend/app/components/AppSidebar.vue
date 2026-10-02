@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import type { User, Workspace, Board, Page } from '../types'
 import PageTree from './PageTree.vue'
+import { marked, Marked } from 'marked'
+import JSZip from 'jszip'
+import TurndownService from 'turndown'
 
 const props = defineProps<{
   user: { authenticated: boolean, user?: User }
@@ -27,8 +30,8 @@ const emit = defineEmits<{
   (e: 'delete-workspace', id: string): void
   (e: 'delete-board', id: string): void
   (e: 'delete-page', id: string): void
-  (e: 'create-page'): void
-  (e: 'create-subpage', id: string): void
+  (e: 'create-page', title?: string, content?: string): void
+  (e: 'create-subpage', id: string, title?: string, content?: string): void
   (e: 'show-create-modal'): void
   (e: 'show-board-modal'): void
   (e: 'copy-invite-link'): void
@@ -37,8 +40,6 @@ const emit = defineEmits<{
 
 const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : '?'
 const colorMode = ref('auto')
-
-import { onMounted } from 'vue'
 
 const applyTheme = () => {
   if (typeof document === 'undefined') return
@@ -79,6 +80,500 @@ const searchQuery = ref('')
 const searchResults = ref([])
 const isSearching = ref(false)
 const selectedIndex = ref(0)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const folderInput = ref<HTMLInputElement | null>(null)
+
+const isProcessingZip = ref(false)
+const zipProgress = ref({ current: 0, total: 0, message: '' })
+
+const triggerImportFiles = () => {
+  if (fileInput.value) fileInput.value.click()
+}
+const triggerImportFolder = () => {
+  if (folderInput.value) folderInput.value.click()
+}
+
+const handleImportMarkdown = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const filesArray = Array.from(target.files || [])
+  if (filesArray.length === 0) return
+
+  const markdownFiles = filesArray.filter(f => f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+  const imageFiles = filesArray.filter(f => !f.name.endsWith('.md') && !f.name.endsWith('.markdown'))
+
+  const uploadCache: Record<string, string> = {}
+
+  async function resolveImage(href: string, mdFile: File) {
+    if (href.startsWith('http')) return href
+
+    let mdDir = ''
+    if (mdFile.webkitRelativePath) {
+      const parts = mdFile.webkitRelativePath.split('/')
+      parts.pop()
+      if (parts.length > 0) mdDir = parts.join('/') + '/'
+    }
+
+    const targetPath = mdDir + href
+
+    let matchedFile = imageFiles.find(f => {
+      let p1 = f.webkitRelativePath || f.name
+      let p2 = targetPath.replace(/^\.\//, '')
+      return p1.endsWith(p2) || p2.endsWith(p1)
+    })
+
+    if (!matchedFile) {
+      const basename = href.split('/').pop()
+      if (basename) {
+        matchedFile = imageFiles.find(f => f.name === basename)
+      }
+    }
+
+    if (matchedFile) {
+      const cacheKey = matchedFile.webkitRelativePath || matchedFile.name
+      if (uploadCache[cacheKey]) return uploadCache[cacheKey]
+
+      const formData = new FormData()
+      formData.append('file', matchedFile)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await res.json()
+        if (data.url) {
+          uploadCache[cacheKey] = data.url
+          return data.url
+        }
+      } catch (e) {
+        console.error('Failed to upload image', e)
+      }
+    }
+    return href
+  }
+
+  const mathBlockExtension = {
+    name: 'math-block',
+    level: 'block',
+    start(src: string) { return src.match(/\$\$/)?.index; },
+    tokenizer(src: string, tokens: any) {
+      const rule = /^\$\$([^$]+)\$\$/;
+      const match = rule.exec(src);
+      if (match) {
+        return {
+          type: 'math-block',
+          raw: match[0],
+          text: match[1].trim()
+        };
+      }
+    },
+    renderer(token: any) {
+      const escapedLatex = token.text.replace(/"/g, '&quot;');
+      return `<div data-type="math-block" latex="${escapedLatex}"></div>`;
+    }
+  };
+
+  const mathInlineExtension = {
+    name: 'math-inline',
+    level: 'inline',
+    start(src: string) { return src.match(/\$/)?.index; },
+    tokenizer(src: string, tokens: any) {
+      const rule = /^\$([^$]+)\$/;
+      const match = rule.exec(src);
+      if (match) {
+        return {
+          type: 'math-inline',
+          raw: match[0],
+          text: match[1].trim()
+        };
+      }
+    },
+    renderer(token: any) {
+      const escapedLatex = token.text.replace(/"/g, '&quot;');
+      return `<span data-type="math-inline" latex="${escapedLatex}"></span>`;
+    }
+  };
+
+  let currentMdFile: File | null = null;
+  const markedInstance = new Marked();
+  markedInstance.use({ extensions: [mathBlockExtension, mathInlineExtension] });
+  markedInstance.use({
+    async walkTokens(token: any) {
+      if (token.type === 'image' && currentMdFile) {
+        token.href = await resolveImage(token.href, currentMdFile);
+      }
+    }
+  });
+
+  for (let i = 0; i < markdownFiles.length; i++) {
+    const file = markdownFiles[i]
+    currentMdFile = file
+    const text = await file.text()
+    const html = await markedInstance.parse(text, { async: true })
+    const title = file.name.replace(/\.md$/i, '')
+    
+    emit('create-page', title, html)
+  }
+  target.value = ''
+}
+
+const zipInput = ref<HTMLInputElement | null>(null)
+const triggerImportZip = () => {
+  if (zipInput.value) zipInput.value.click()
+}
+
+const createMarkedInstance = () => {
+  const mathBlockExtension = {
+    name: 'math-block',
+    level: 'block',
+    start(src: string) { return src.match(/\$\$/)?.index; },
+    tokenizer(src: string, tokens: any) {
+      const rule = /^\$\$([^$]+)\$\$/;
+      const match = rule.exec(src);
+      if (match) {
+        return { type: 'math-block', raw: match[0], text: match[1].trim() };
+      }
+    },
+    renderer(token: any) {
+      const escapedLatex = token.text.replace(/"/g, '&quot;');
+      return `<div data-type="math-block" latex="${escapedLatex}"></div>`;
+    }
+  };
+  const mathInlineExtension = {
+    name: 'math-inline',
+    level: 'inline',
+    start(src: string) { return src.match(/\$/)?.index; },
+    tokenizer(src: string, tokens: any) {
+      const rule = /^\$([^$]+)\$/;
+      const match = rule.exec(src);
+      if (match) {
+        return { type: 'math-inline', raw: match[0], text: match[1].trim() };
+      }
+    },
+    renderer(token: any) {
+      const escapedLatex = token.text.replace(/"/g, '&quot;');
+      return `<span data-type="math-inline" latex="${escapedLatex}"></span>`;
+    }
+  };
+  const noticeExtension = {
+    name: 'notice',
+    level: 'block',
+    start(src: string) { return src.match(/^:::[a-z]+\n/)?.index; },
+    tokenizer(src: string) {
+      const rule = /^:::([a-z]+)\n([\s\S]*?)\n:::/;
+      const match = rule.exec(src);
+      if (match) {
+        return {
+          type: 'notice',
+          raw: match[0],
+          noticeType: match[1],
+          text: match[2].trim(),
+          tokens: this.lexer.blockTokens(match[2].trim())
+        };
+      }
+    },
+    renderer(token: any) {
+      // For now, render as a blockquote with a special class.
+      // A full Tiptap extension will be added to WysiwygEditor to parse this properly.
+      return `<blockquote data-type="notice" data-notice-type="${token.noticeType}">${this.parser.parse(token.tokens)}</blockquote>\n`;
+    }
+  };
+  const inst = new Marked();
+  inst.use({ extensions: [mathBlockExtension, mathInlineExtension, noticeExtension] });
+  return inst;
+}
+
+const handleImportZip = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  const zip = await JSZip.loadAsync(file)
+  const uploadCache: Record<string, string> = {}
+
+  // Upload a file from zip and return the new URL
+  async function uploadZipFile(zipEntry: any): Promise<string> {
+    const path = zipEntry.name
+    if (uploadCache[path]) return uploadCache[path]
+    
+    const blob = await zipEntry.async('blob')
+    const ext = path.split('.').pop() || 'bin'
+    const filename = path.split('/').pop() || 'file'
+    const fileObj = new File([blob], filename, { type: `image/${ext}` })
+    const formData = new FormData()
+    formData.append('file', fileObj)
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.url) {
+        uploadCache[path] = data.url
+        return data.url
+      }
+    } catch (e) {
+      console.error('Failed to upload from zip', path, e)
+    }
+    return path
+  }
+
+  // Build a tree from the zip file paths
+  // Structure: folder = page with children, .md = page content
+  interface PageNode {
+    name: string
+    mdPath?: string
+    children: PageNode[]
+    dirPath: string
+  }
+
+  const allPaths = Object.keys(zip.files)
+  const mdFiles = allPaths.filter(p => p.endsWith('.md') && !zip.files[p].dir)
+  
+  // Build hierarchy
+  // Outline structure: Dir/Page.md + Dir/Page/SubPage.md
+  const rootNodes: PageNode[] = []
+  const nodeMap: Record<string, PageNode> = {}
+
+  // Sort md files by depth (shallowest first)
+  mdFiles.sort((a, b) => a.split('/').length - b.split('/').length)
+
+  for (const mdPath of mdFiles) {
+    const parts = mdPath.split('/')
+    const filename = parts.pop()!
+    const dirPath = parts.join('/')
+    const name = filename.replace(/\.md$/i, '')
+
+    const node: PageNode = { name, mdPath, children: [], dirPath }
+    nodeMap[mdPath] = node
+
+    // Check if there's a parent md at the level above
+    // e.g., for CMI/S7/Programmation Linéaire/TDs/TD2.md,
+    //   parent dir = CMI/S7/Programmation Linéaire/TDs
+    //   parent md = CMI/S7/Programmation Linéaire/TDs.md
+    if (parts.length >= 2) {
+      const parentDir = parts.slice(0, -1).join('/')
+      const parentName = parts[parts.length - 1]
+      const parentMdPath = parentDir + '/' + parentName + '.md'
+      
+      if (nodeMap[parentMdPath]) {
+        nodeMap[parentMdPath].children.push(node)
+        continue
+      }
+    }
+
+    // Check if it's a top-level page (depth 2: Collection/Page.md)
+    if (parts.length <= 1) {
+      rootNodes.push(node)
+    } else {
+      // Try to find any ancestor
+      let placed = false
+      for (let i = parts.length - 1; i >= 1; i--) {
+        const ancestorDir = parts.slice(0, i).join('/')
+        const ancestorName = parts[i - 1] === parts[0] && i === 1 ? parts[0] : parts[i]
+        const tryPath = parts.slice(0, i).join('/') + '.md'
+        // Try: parent-dir-name.md in grandparent
+        const tryPath2 = (i >= 2 ? parts.slice(0, i - 1).join('/') + '/' : '') + parts[i - 1] + '.md'
+        
+        if (nodeMap[tryPath]) {
+          nodeMap[tryPath].children.push(node)
+          placed = true
+          break
+        }
+        if (nodeMap[tryPath2]) {
+          nodeMap[tryPath2].children.push(node)
+          placed = true
+          break
+        }
+      }
+      if (!placed) {
+        rootNodes.push(node)
+      }
+    }
+  }
+
+  const markedInstance = createMarkedInstance()
+
+  // Process images in markdown text
+  async function processMarkdown(text: string, basePath: string): Promise<string> {
+    // Find all image references and upload them
+    const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
+    let result = text
+    const matches = [...text.matchAll(imgRegex)]
+    
+    for (const match of matches) {
+      const rawUrl = match[2].split('"')[0].trim()  // Remove title part like ' " =100x100"'
+      if (rawUrl.startsWith('http')) continue
+      
+      // Try to find the file in the zip
+      const tryPaths = [
+        basePath + '/' + rawUrl,
+        rawUrl,
+        basePath + '/' + rawUrl.replace(/^\.\//,'')
+      ].map(p => p.replace(/^\//, ''))
+      
+      for (const tryPath of tryPaths) {
+        const zipEntry = zip.files[tryPath]
+        if (zipEntry && !zipEntry.dir) {
+          const newUrl = await uploadZipFile(zipEntry)
+          result = result.replace(match[0], `![${match[1]}](${newUrl})`)
+          break
+        }
+      }
+    }
+    return result
+  }
+
+  // Recursively create pages using direct API calls to get page IDs back
+  async function createPageTree(node: PageNode, parentId?: string) {
+    let mdText = ''
+    if (node.mdPath) {
+      const zipEntry = zip.files[node.mdPath]
+      if (zipEntry) {
+        mdText = await zipEntry.async('string')
+      }
+    }
+    
+    let title = node.name
+    let icon = null
+    mdText = mdText.trimStart()
+    const firstLineMatch = mdText.match(/^#\s+(?:([\p{Emoji_Presentation}\p{Extended_Pictographic}])\s+)?(.*)/u)
+    if (firstLineMatch) {
+      icon = firstLineMatch[1] || null
+      title = firstLineMatch[2] || node.name
+      mdText = mdText.replace(/^#.*\n?/, '') // remove the title line
+    }
+
+    const processedMd = await processMarkdown(mdText, node.dirPath)
+    const html = await markedInstance.parse(processedMd, { async: false })
+    
+    zipProgress.value.message = `Importation de : ${title}`
+    zipProgress.value.current++
+    
+    try {
+      const createdPage = await $fetch(`/api/workspaces/${props.activeWorkspaceId}/pages`, {
+        method: 'POST',
+        body: { title, content: html, parent_id: parentId || null, icon }
+      }) as any
+      
+      // Recursively create children with this page as parent
+      for (const child of node.children) {
+        await createPageTree(child, createdPage.id)
+      }
+    } catch (e) {
+      console.error('Failed to create page', title, e)
+    }
+  }
+
+  isProcessingZip.value = true
+  zipProgress.value = { current: 0, total: mdFiles.length, message: 'Analyse du ZIP...' }
+
+  try {
+    for (const rootNode of rootNodes) {
+      await createPageTree(rootNode)
+    }
+    emit('create-page') // refresh
+  } finally {
+    isProcessingZip.value = false
+    target.value = ''
+  }
+}
+
+// Export full workspace as ZIP
+const exportWorkspaceZip = async () => {
+  if (!props.activeWorkspaceId) return
+  
+  const zip = new JSZip()
+  const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    blankReplacement: function (content: string, node: any) {
+      if (node.nodeName === 'SPAN' && node.getAttribute('data-type') === 'math-inline') {
+        return '$' + (node.getAttribute('latex') || '') + '$'
+      }
+      if (node.nodeName === 'DIV' && node.getAttribute('data-type') === 'math-block') {
+        return '\n$$\n' + (node.getAttribute('latex') || '') + '\n$$\n'
+      }
+      return node.isBlock ? '\n\n' : ''
+    }
+  })
+  turndownService.addRule('task-list', {
+    filter: (node: any) => node.nodeName === 'LI' && node.getAttribute('data-type') === 'taskItem',
+    replacement: (content: string, node: any) => {
+      const isChecked = node.hasAttribute('data-checked')
+      return (isChecked ? '- [x] ' : '- [ ] ') + content + '\n'
+    }
+  })
+  turndownService.addRule('notice', {
+    filter: (node: any) => node.getAttribute('data-type') === 'notice',
+    replacement: (content: string, node: any) => {
+      const type = node.getAttribute('data-notice-type') || 'info'
+      return `\n:::${type}\n${content.trim()}\n:::\n\n`
+    }
+  })
+
+  isProcessingZip.value = true
+  zipProgress.value = { current: 0, total: props.pages.length, message: 'Préparation...' }
+  
+  async function addPageToZip(page: any, dirPath: string) {
+    let fullPage = page
+    try {
+      fullPage = await $fetch(`/api/workspaces/${props.activeWorkspaceId}/pages/${page.id}`)
+    } catch (e) {
+      console.error('Failed to fetch page', page.id)
+    }
+    
+    zipProgress.value.message = `Exportation de : ${fullPage.title}`
+    zipProgress.value.current++
+    
+    let markdown = turndownService.turndown(fullPage.content || '')
+    
+    // Add Outline title
+    markdown = `# ${fullPage.icon ? fullPage.icon + ' ' : ''}${fullPage.title || 'Untitled'}\n\n` + markdown
+    
+    // Download and include images
+    const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
+    const matches = [...markdown.matchAll(imgRegex)]
+    for (const match of matches) {
+      const url = match[2].split(' ')[0]
+      if (url.startsWith('/uploads/') || url.startsWith('uploads/')) {
+        try {
+          const resp = await fetch(url.startsWith('/') ? url : '/' + url)
+          if (resp.ok) {
+            const blob = await resp.blob()
+            const filename = url.split('/').pop()!
+            zip.file(dirPath + 'uploads/' + filename, blob)
+            markdown = markdown.replaceAll(url, 'uploads/' + filename)
+          }
+        } catch (e) { /* skip */ }
+      }
+    }
+    
+    const safeName = (fullPage.title || 'Untitled').replace(/[/\\?%*:|"<>]/g, '-')
+    zip.file(dirPath + safeName + '.md', markdown)
+    
+    const children = fullPage.children || []
+    if (children.length > 0) {
+      for (const child of children) {
+        await addPageToZip(child, dirPath + safeName + '/')
+      }
+    }
+  }
+
+  try {
+    for (const page of props.pages) {
+      await addPageToZip(page, '')
+    }
+
+    zipProgress.value.message = 'Compression...'
+    const workspaceName = props.workspacesData?.workspaces?.find(w => w.id === props.activeWorkspaceId)?.name || 'workspace'
+    const content = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(content)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${workspaceName}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } finally {
+    isProcessingZip.value = false
+  }
+}
 
 const onSearchKeyDown = (e) => {
   if (e.key === 'ArrowDown') {
@@ -334,7 +829,30 @@ const favoritePages = computed(() => {
 
       <div v-if="activeWorkspaceId" class="section-title" style="margin-top:2rem;">
         <span>Wiki (Pages)</span>
-        <button @click="emit('create-page')" class="icon-btn" title="Créer une page">+</button>
+        <div style="display: flex; gap: 0.5rem;" v-if="!isProcessingZip">
+          <button @click="triggerImportFiles" class="icon-btn" title="Importer fichier(s) Markdown">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+          </button>
+          <input type="file" ref="fileInput" multiple style="display: none;" @change="handleImportMarkdown" />
+          <button @click="triggerImportFolder" class="icon-btn" title="Importer un dossier entier (avec images)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+          </button>
+          <input type="file" ref="folderInput" webkitdirectory directory multiple style="display: none;" @change="handleImportMarkdown" />
+          <button @click="triggerImportZip" class="icon-btn" title="Importer un ZIP (Outline / Looty)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+          </button>
+          <input type="file" ref="zipInput" accept=".zip" style="display: none;" @change="handleImportZip" />
+          <button @click="exportWorkspaceZip" class="icon-btn" title="Exporter tout le wiki en ZIP">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+          </button>
+          <button @click="emit('create-page')" class="icon-btn" title="Créer une page">+</button>
+        </div>
+      </div>
+      
+      <div v-if="isProcessingZip" style="padding: 1rem; text-align: center; font-size: 0.85rem; color: var(--text-color-2); background: var(--bg-color-2); border-radius: var(--radius-md); margin: 0 1rem 1rem 1rem;">
+        <svg class="spin-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto 0.5rem auto; display: block;"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+        <div style="font-weight: 500; margin-bottom: 0.25rem;">{{ zipProgress.message }}</div>
+        <div v-if="zipProgress.total > 0">{{ zipProgress.current }} / {{ zipProgress.total }}</div>
       </div>
       
       <div v-if="activeWorkspaceId && !isLoadingPages && pages.length === 0" class="empty-item">Aucune page</div>
@@ -743,5 +1261,16 @@ const favoritePages = computed(() => {
   transform: translateX(0);
   color: var(--text-color-2);
 }
-</style>
 
+
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+</style>

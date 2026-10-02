@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-looty_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-looty_db}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/untypequicode/looty-backend:latest
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+      PORT: 8080
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`))"
+      - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
+    restart: unless-stopped
+
+  collaboration:
+    image: ghcr.io/untypequicode/looty-collaboration:latest
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-collab.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/collab`)"
+      - "traefik.http.middlewares.${APP_NAME}-collab-strip.stripprefix.prefixes=/collab"
+      - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
+      - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/untypequicode/looty-frontend:latest
+    environment:
+      NUXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}/api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import MathInline from './MathInline.vue'
-import { InputRule } from '@tiptap/core'
+import { InputRule, nodePasteRule } from '@tiptap/core'
 
 export const CustomMathInlineExtension = Node.create({
   name: 'mathInline',
@@ -13,6 +13,7 @@ export const CustomMathInlineExtension = Node.create({
     return {
       latex: {
         default: '',
+        parseHTML: element => element.getAttribute('latex'),
       },
     }
   },
@@ -45,6 +46,17 @@ export const CustomMathInlineExtension = Node.create({
 
           tr.replaceWith(start, end, this.type.create({ latex }))
         },
+      }),
+    ]
+  },
+
+  
+  addPasteRules() {
+    return [
+      nodePasteRule({
+        find: /(?:\$)([^$\n]+)(?:\$)/g,
+        type: this.type,
+        getAttributes: match => ({ latex: match[1].trim() }),
       }),
     ]
   },
