@@ -10,16 +10,55 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      components: ${{ steps.set-changes.outputs.components }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - 'docker-compose*'
+              - '.github/workflows/**'
+              - '.env*'
+            backend:
+              - 'backend/**'
+              - 'docker-compose*'
+              - '.github/workflows/**'
+              - '.env*'
+            collaboration:
+              - 'collaboration/**'
+              - 'docker-compose*'
+              - '.github/workflows/**'
+              - '.env*'
+
+      - name: Set components to build
+        id: set-changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo 'components=["frontend", "backend", "collaboration"]' >> $GITHUB_OUTPUT
+          else
+            echo "components=${{ steps.filter.outputs.changes }}" >> $GITHUB_OUTPUT
+          fi
+
   build-and-push:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.components != '[]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     strategy:
+      fail-fast: false
       matrix:
-        component: [frontend, backend, collaboration]
-
+        component: ${{ fromJSON(needs.detect-changes.outputs.components) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
