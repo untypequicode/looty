@@ -1,41 +1,33 @@
 <script setup lang="ts">
-import { useHead } from '#imports'
+import { useQuery } from '@tanstack/vue-query'
+import { motion } from '~/composables/useMotion'
+import { api } from '~/composables/api'
 
-const { data: settings } = await useAsyncData('public-settings', () => $fetch('/api/settings'))
+const { data: settings } = useQuery({
+  queryKey: ['public-settings'],
+  queryFn: () => api<{ app_name: string; favicon_url?: string | null; umami_website_id?: string | null; umami_script_url?: string | null }>('/api/settings', { silent: true }),
+  staleTime: 10 * 60_000,
+})
 
-if (settings.value) {
-  const headConfig: any = {
-    titleTemplate: (titleChunk: string) => {
-      return titleChunk ? `${titleChunk} - ${settings.value.app_name}` : settings.value.app_name
-    },
-    link: [],
-    script: []
-  }
+useHead(() => ({
+  titleTemplate: (chunk?: string) => {
+    const name = settings.value?.app_name || 'Looty'
+    return chunk ? `${chunk} · ${name}` : name
+  },
+  link: settings.value?.favicon_url ? [{ rel: 'icon', href: settings.value.favicon_url }] : [],
+  script:
+    settings.value?.umami_website_id && settings.value?.umami_script_url
+      ? [{ src: settings.value.umami_script_url, 'data-website-id': settings.value.umami_website_id, defer: true }]
+      : [],
+}))
 
-  if (settings.value.favicon_url) {
-    headConfig.link.push({ rel: 'icon', href: settings.value.favicon_url })
-  }
-
-  if (settings.value.umami_website_id && settings.value.umami_script_url) {
-    headConfig.script.push({
-      src: settings.value.umami_script_url,
-      'data-website-id': settings.value.umami_website_id,
-      async: true,
-      defer: true
-    })
-  }
-
-  useHead(headConfig)
-}
+const pageTransition = { css: false, mode: 'out-in' as const, onEnter: motion.page.onEnter, onLeave: motion.page.onLeave }
 </script>
 
 <template>
-  <NuxtPage />
+  <NuxtLayout>
+    <NuxtPage :transition="pageTransition" />
+  </NuxtLayout>
+  <UiToaster />
+  <UiConfirmHost />
 </template>
-
-<style>
-body {
-  margin: 0;
-  padding: 0;
-}
-</style>

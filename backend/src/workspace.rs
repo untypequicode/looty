@@ -56,6 +56,7 @@ pub fn routes() -> Router<AppState> {
         .route("/:workspace_id/invites", get(list_invites).post(create_invite))
         .route("/:workspace_id/invites/:invite_id", delete(revoke_invite))
         .route("/:workspace_id/my_tasks", get(get_my_tasks))
+        .route("/:workspace_id/overview", get(get_overview))
         .route("/:workspace_id/search", get(search_workspace))
 }
 
@@ -546,4 +547,116 @@ async fn search_workspace(
     let mut results: Vec<SearchResult> = pages.collect();
     results.extend(tasks);
     Ok(Json(serde_json::json!({ "results": results })))
+}
+
+// ---------------------------------------------------------------------------
+// Vue d'ensemble (page d'accueil)
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, sqlx::FromRow)]
+struct BoardStats {
+    id: Uuid,
+    name: String,
+    total: i64,
+    done: i64,
+    overdue: i64,
+    due_soon: i64,
+    updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct ActivityItem {
+    id: Uuid,
+    task_id: Uuid,
+    task_title: String,
+    board_id: Uuid,
+    board_name: String,
+    user_id: Uuid,
+    user_name: Option<String>,
+    activity_type: String,
+    new_value: Option<serde_json::Value>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct MyCounts {
+    open: i64,
+    overdue: i64,
+    due_week: i64,
+    completed_week: i64,
+}
+
+async fn get_overview(
+    State(pool): State<PgPool>,
+    user: AuthUser,
+    Path(workspace_id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let role = require_member(&pool, &user, workspace_id).await?;
+    let boards: Vec<BoardStats> = sqlx::query_as(
+        "SELECT b.id, b.name,
+            count(t.id) FILTER (WHERE t.parent_id IS NULL) AS total,
+            count(t.id) FILTER (WHERE t.parent_id IS NULL AND t.is_completed) AS done,
+            count(t.id) FILTER (WHERE t.parent_id IS NULL AND NOT t.is_completed AND t.due_date < NOW()) AS overdue,
+            count(t.id) FILTER (WHERE t.parent_id IS NULL AND NOT t.is_completed AND t.due_date BETWEEN NOW() AND NOW() + INTERVAL '7 days') AS due_soon,
+            max(t.updated_at) AS updated_at
+         FROM boards b
+         LEFT JOIN board_columns c ON c.board_id = b.id
+         LEFT JOIN tasks t ON t.column_id = c.id
+         WHERE b.workspace_id = $1
+         GROUP BY b.id ORDER BY max(t.updated_at) DESC NULLS LAST, b.created_at",
+    )
+    .bind(workspace_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let me = user.id.to_string();
+    let counts: MyCounts = sqlx::query_as(
+        "SELECT
+            count(*) FILTER (WHERE NOT t.is_completed) AS open,
+            count(*) FILTER (WHERE NOT t.is_completed AND t.due_date < NOW()) AS overdue,
+            count(*) FILTER (WHERE NOT t.is_completed AND t.due_date BETWEEN NOW() AND NOW() + INTERVAL '7 days') AS due_week,
+            count(*) FILTER (WHERE t.is_completed AND t.updated_at > NOW() - INTERVAL '7 days') AS completed_week
+         FROM tasks t
+         JOIN task_assignees ta ON ta.task_id = t.id AND ta.user_id = $2
+         JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+         WHERE b.workspace_id = $1",
+    )
+    .bind(workspace_id)
+    .bind(&me)
+    .fetch_one(&pool)
+    .await?;
+
+    let activity: Vec<ActivityItem> = sqlx::query_as(
+        "SELECT a.id, a.task_id, t.title AS task_title, b.id AS board_id, b.name AS board_name,
+                a.user_id, u.name AS user_name, a.activity_type, a.new_value, a.created_at
+         FROM task_activities a
+         JOIN tasks t ON t.id = a.task_id
+         JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+         LEFT JOIN users u ON u.id = a.user_id
+         WHERE b.workspace_id = $1 AND a.activity_type IN ('create', 'move_column', 'toggle_validation', 'add_assignee', 'update_title')
+         ORDER BY a.created_at DESC LIMIT 25",
+    )
+    .bind(workspace_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let visible = visible_pages(&pool, &user, workspace_id, role).await?;
+    let week_ago = chrono::Utc::now() - chrono::Duration::days(7);
+    let recent_pages: Vec<(Uuid, chrono::DateTime<chrono::Utc>)> =
+        sqlx::query_as("SELECT id, updated_at FROM pages WHERE workspace_id = $1 AND updated_at > $2")
+            .bind(workspace_id)
+            .bind(week_ago)
+            .fetch_all(&pool)
+            .await?;
+    let docs_updated_week = recent_pages
+        .iter()
+        .filter(|(id, _)| visible.get(id).is_some_and(|a| *a != PageAccess::None))
+        .count();
+
+    Ok(Json(serde_json::json!({
+        "boards": boards,
+        "my": counts,
+        "activity": activity,
+        "docs_updated_week": docs_updated_week,
+    })))
 }

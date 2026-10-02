@@ -1,241 +1,101 @@
-import { ref, computed } from 'vue'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { useSessionStorage } from '@vueuse/core'
-import type { Workspace, WorkspaceMember, Page, Board } from '../types'
+import { computed, type Ref } from 'vue'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import type { BoardSummary, Page, Workspace, WorkspaceMember, MyTask } from '~/types'
+import { api } from './api'
 
-export const useWorkspace = () => {
-  const queryClient = useQueryClient()
-  const activeWorkspaceId = useSessionStorage<string | null>('looty_active_workspace', null)
+export const wsKeys = {
+  list: ['workspaces'] as const,
+  one: (id: string) => ['ws', id] as const,
+  members: (id: string) => ['ws', id, 'members'] as const,
+  boards: (id: string) => ['ws', id, 'boards'] as const,
+  pages: (id: string) => ['ws', id, 'pages'] as const,
+  myTasks: (id: string) => ['ws', id, 'my-tasks'] as const,
+  notifications: (id: string) => ['ws', id, 'notifications'] as const,
+}
 
-  const { data: workspacesData, isLoading: isLoadingWorkspaces } = useQuery({
-    queryKey: ['workspaces'],
-    queryFn: async () => {
-      const response = await $fetch('/api/workspaces')
-      return response as { workspaces: Workspace[] }
-    }
+export function useWorkspaces() {
+  return useQuery({
+    queryKey: wsKeys.list,
+    queryFn: async () => (await api<{ workspaces: Workspace[] }>('/api/workspaces')).workspaces,
+  })
+}
+
+/** Identifiant du workspace courant, déduit de la route `/w/:ws/...`. */
+export function useWorkspaceId(): Ref<string> {
+  const route = useRoute()
+  return computed(() => (route.params.ws as string) || '')
+}
+
+/**
+ * Données partagées du workspace courant (membres, tableaux, pages).
+ * Les requêtes sont mises en cache par Vue Query et tenues à jour par le temps réel.
+ */
+export function useWorkspace() {
+  const wsId = useWorkspaceId()
+  const enabled = computed(() => !!wsId.value)
+  const qc = useQueryClient()
+
+  const workspace = useQuery({
+    queryKey: computed(() => wsKeys.one(wsId.value)),
+    queryFn: () => api<Workspace>(`/api/workspaces/${wsId.value}`, { silent: true }),
+    enabled,
+  })
+  const members = useQuery({
+    queryKey: computed(() => wsKeys.members(wsId.value)),
+    queryFn: async () => (await api<{ members: WorkspaceMember[] }>(`/api/workspaces/${wsId.value}/members`)).members,
+    enabled,
+  })
+  const boards = useQuery({
+    queryKey: computed(() => wsKeys.boards(wsId.value)),
+    queryFn: () => api<BoardSummary[]>(`/api/workspaces/${wsId.value}/boards`),
+    enabled,
+  })
+  const pages = useQuery({
+    queryKey: computed(() => wsKeys.pages(wsId.value)),
+    queryFn: () => api<Page[]>(`/api/workspaces/${wsId.value}/pages`),
+    enabled,
   })
 
-  const { data: workspaceMembers, isLoading: isLoadingMembers } = useQuery({
-    queryKey: ['workspaces', activeWorkspaceId, 'members'],
-    queryFn: async () => {
-      if (!activeWorkspaceId.value) return []
-      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/members`) as { members: WorkspaceMember[] }
-      return response.members
-    },
-    enabled: computed(() => !!activeWorkspaceId.value)
+  const role = computed(() => workspace.data.value?.role ?? null)
+  const canWrite = computed(() => role.value === 'owner' || role.value === 'admin' || role.value === 'member')
+  const isAdmin = computed(() => role.value === 'owner' || role.value === 'admin')
+
+  const memberById = computed(() => {
+    const m = new Map<string, WorkspaceMember>()
+    for (const x of members.data.value ?? []) m.set(x.user_id, x)
+    return m
   })
 
-  const { data: pages, isLoading: isLoadingPages } = useQuery({
-    queryKey: ['workspaces', activeWorkspaceId, 'pages'],
-    queryFn: async () => {
-      if (!activeWorkspaceId.value) return []
-      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/pages`)
-      return response as Page[]
-    },
-    enabled: computed(() => !!activeWorkspaceId.value)
-  })
-  
-  const { data: boards, isLoading: isLoadingBoards } = useQuery({
-    queryKey: ['workspaces', activeWorkspaceId, 'boards'],
-    queryFn: async () => {
-      if (!activeWorkspaceId.value) return []
-      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/boards`)
-      return response as Board[]
-    },
-    enabled: computed(() => !!activeWorkspaceId.value)
-  })
-
-  const { data: myTasks, isLoading: isLoadingMyTasks } = useQuery({
-    queryKey: ['workspaces', activeWorkspaceId, 'my_tasks'],
-    queryFn: async () => {
-      if (!activeWorkspaceId.value) return []
-      const response = await $fetch(`/api/workspaces/${activeWorkspaceId.value}/my_tasks`) as { tasks: any[] }
-      return response.tasks
-    },
-    enabled: computed(() => !!activeWorkspaceId.value)
-  })
-
-  const activeWorkspaceRole = computed(() => {
-    const ws = workspacesData.value?.workspaces?.find((w: Workspace) => w.id === activeWorkspaceId.value)
-    return ws ? ws.role : null
-  })
-
-  const selectWorkspace = (id: string | null) => {
-    activeWorkspaceId.value = id
+  function member(id: string | null | undefined) {
+    return id ? memberById.value.get(id) : undefined
   }
 
-  // Mutations
-  const createWorkspaceMutation = useMutation({
-    mutationFn: async (name: string) => {
-      return await $fetch('/api/workspaces', {
-        method: 'POST',
-        body: { name }
-      }) as Workspace
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
-    }
-  })
-
-  const renameWorkspaceMutation = useMutation({
-    mutationFn: async ({ id, name }: { id: string, name: string }) => {
-      return await $fetch(`/api/workspaces/${id}`, {
-        method: 'PUT',
-        body: { name }
-      }) as Workspace
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
-    }
-  })
-
-  const deleteWorkspaceMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await $fetch(`/api/workspaces/${id}`, {
-        method: 'DELETE'
-      })
-    },
-    onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
-      if (activeWorkspaceId.value === id) {
-        activeWorkspaceId.value = null
-      }
-    }
-  })
-
-  const createPageMutation = useMutation({
-    mutationFn: async ({ workspaceId, parentId, title, content }: { workspaceId: string, parentId?: string, title?: string, content?: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages`, {
-        method: 'POST',
-        body: { title: title || 'Nouvelle page', parent_id: parentId || null, content: content || '' }
-      }) as Page
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
-    }
-  })
-  
-  const deletePageMutation = useMutation({
-    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}`, {
-        method: 'DELETE'
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
-    }
-  })
-
-  const updatePageMutation = useMutation({
-    mutationFn: async ({ workspaceId, pageId, data }: { workspaceId: string, pageId: string, data: Partial<Page> }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}`, {
-        method: 'PUT',
-        body: data
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
-    }
-  })
-
-  const sharePageMutation = useMutation({
-    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/share`, {
-        method: 'POST'
-      }) as Page
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
-    }
-  })
-
-  const revokeShareMutation = useMutation({
-    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/share`, {
-        method: 'DELETE'
-      }) as Page
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
-    }
-  })
-
-  const toggleFavoriteMutation = useMutation({
-    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/favorite`, {
-        method: 'POST'
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'pages'] })
-    }
-  })
-
-  const recordViewMutation = useMutation({
-    mutationFn: async ({ workspaceId, pageId }: { workspaceId: string, pageId: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/pages/${pageId}/view`, {
-        method: 'POST'
-      })
-    }
-    // No invalidate query here to avoid excessive re-renders, it updates in background
-  })
-
-  const changeMemberRoleMutation = useMutation({
-    mutationFn: async ({ workspaceId, memberId, role }: { workspaceId: string, memberId: string, role: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
-        method: 'PUT',
-        body: { role }
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'members'] })
-    }
-  })
-
-  const kickMemberMutation = useMutation({
-    mutationFn: async ({ workspaceId, memberId }: { workspaceId: string, memberId: string }) => {
-      return await $fetch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
-        method: 'DELETE'
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', activeWorkspaceId, 'members'] })
-    }
-  })
-
-  const copyInviteLink = (workspaceId: string) => {
-    const url = `${window.location.origin}/invite/${workspaceId}`
-    navigator.clipboard.writeText(url)
-    alert("Lien d'invitation copié : " + url)
+  function invalidate(part: 'members' | 'boards' | 'pages' | 'one') {
+    const k = part === 'one' ? wsKeys.one(wsId.value) : (wsKeys as any)[part](wsId.value)
+    return qc.invalidateQueries({ queryKey: k })
   }
 
-  return {
-    activeWorkspaceId,
-    activeWorkspaceRole,
-    workspacesData,
-    isLoadingWorkspaces,
-    workspaceMembers,
-    isLoadingMembers,
-    pages,
-    isLoadingPages,
-    boards,
-    isLoadingBoards,
-    myTasks,
-    isLoadingMyTasks,
-    selectWorkspace,
-    createWorkspace: createWorkspaceMutation.mutateAsync,
-    isCreatingWorkspace: createWorkspaceMutation.isPending,
-    renameWorkspace: renameWorkspaceMutation.mutateAsync,
-    deleteWorkspace: deleteWorkspaceMutation.mutateAsync,
-    createPage: createPageMutation.mutateAsync,
-    updatePage: updatePageMutation.mutateAsync,
-    deletePage: deletePageMutation.mutateAsync,
-    sharePage: sharePageMutation.mutateAsync,
-    revokeShare: revokeShareMutation.mutateAsync,
-    toggleFavorite: toggleFavoriteMutation.mutateAsync,
-    recordView: recordViewMutation.mutateAsync,
-    changeMemberRole: changeMemberRoleMutation.mutateAsync,
-    kickMember: kickMemberMutation.mutateAsync,
-    copyInviteLink
-  }
+  return { wsId, workspace, members, boards, pages, role, canWrite, isAdmin, member, memberById, invalidate }
+}
+
+export function useMyTasks() {
+  const wsId = useWorkspaceId()
+  return useQuery({
+    queryKey: computed(() => wsKeys.myTasks(wsId.value)),
+    queryFn: async () => (await api<{ tasks: MyTask[] }>(`/api/workspaces/${wsId.value}/my_tasks`)).tasks,
+    enabled: computed(() => !!wsId.value),
+  })
+}
+
+/** Liens canoniques : chaque ressource a sa propre URL partageable. */
+export const links = {
+  home: (ws: string) => `/w/${ws}`,
+  inbox: (ws: string) => `/w/${ws}/inbox`,
+  myTasks: (ws: string) => `/w/${ws}/my-tasks`,
+  docs: (ws: string) => `/w/${ws}/docs`,
+  board: (ws: string, board: string) => `/w/${ws}/board/${board}`,
+  task: (ws: string, board: string, task: string) => `/w/${ws}/board/${board}?task=${task}`,
+  taskById: (ws: string, task: string) => `/w/${ws}/task/${task}`,
+  doc: (ws: string, page: string, anchor?: string) => `/w/${ws}/doc/${page}${anchor ? `#${anchor}` : ''}`,
+  settings: (ws: string, section = 'profile') => `/w/${ws}/settings/${section}`,
 }

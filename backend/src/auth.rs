@@ -31,6 +31,7 @@ pub fn routes() -> Router<AppState> {
         .route("/callback/:provider_id", get(callback_handler))
         .route("/me", get(me_handler))
         .route("/logout", get(logout_handler).post(logout_handler))
+        .route("/dev-login", get(dev_login_handler))
 }
 
 async fn get_active_providers(State(state): State<AppState>) -> ApiResult<Json<Vec<ProviderDto>>> {
@@ -320,4 +321,44 @@ async fn me_handler(State(state): State<AppState>, user: Option<AuthUser>) -> Ap
 async fn logout_handler(session: Session) -> Response {
     let _ = session.flush().await;
     Redirect::to("/login").into_response()
+}
+
+
+#[derive(Deserialize)]
+struct DevLoginQuery {
+    email: String,
+    name: Option<String>,
+    redirect: Option<String>,
+}
+
+/// Connexion de développement SANS mot de passe, uniquement si `LOOTY_DEV_LOGIN=true`.
+/// Ne jamais activer en production.
+async fn dev_login_handler(
+    session: Session,
+    State(state): State<AppState>,
+    Query(q): Query<DevLoginQuery>,
+) -> Response {
+    if std::env::var("LOOTY_DEV_LOGIN").as_deref() != Ok("true") {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
+    }
+    let email = q.email.trim().to_lowercase();
+    let name = q.name.unwrap_or_else(|| email.split('@').next().unwrap_or("dev").to_string());
+    let first: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM users)")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(false);
+    let id: Result<Uuid, _> = sqlx::query_scalar(
+        "INSERT INTO users (email, name, is_super_admin) VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
+    )
+    .bind(&email)
+    .bind(&name)
+    .bind(first)
+    .fetch_one(&state.pool)
+    .await;
+    let Ok(id) = id else { return login_error("database_error") };
+    if session.cycle_id().await.is_err() || session.insert(SESSION_USER_KEY, id).await.is_err() {
+        return login_error("session_error");
+    }
+    Redirect::to(&safe_redirect(q.redirect.as_deref())).into_response()
 }

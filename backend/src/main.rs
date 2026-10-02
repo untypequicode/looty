@@ -37,6 +37,9 @@ async fn main() {
         )
         .init();
 
+    if std::env::var("LOOTY_DEV_LOGIN").as_deref() == Ok("true") {
+        tracing::warn!("LOOTY_DEV_LOGIN is enabled: passwordless login at /api/auth/dev-login. NEVER enable this in production.");
+    }
     let pool = db::init_db().await.expect("Failed to initialize database");
     archive::start_archive_cron(pool.clone());
     seed_default_provider(&pool).await;
