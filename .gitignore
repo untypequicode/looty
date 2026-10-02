@@ -4,7 +4,6 @@
 !.env.example
 docker-compose.override.yml
 digest.txt
-outline-export.markdown/
 
 # Node/Frontend
 node_modules/
@@ -21,5 +20,4 @@ target/
 
 # Nix
 .direnv/
-backend/uploads/
-*.zip
+backend/uploads/*.tar
