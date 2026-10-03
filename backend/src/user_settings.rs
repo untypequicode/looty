@@ -90,13 +90,14 @@ async fn update_preferences(
 struct ApiTokenDto {
     id: Uuid,
     name: String,
+    scope: String,
     created_at: chrono::DateTime<chrono::Utc>,
     last_used_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 async fn list_tokens(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<Vec<ApiTokenDto>>> {
     Ok(Json(
-        sqlx::query_as("SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC")
+        sqlx::query_as("SELECT id, name, scope, created_at, last_used_at FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC")
             .bind(user.id)
             .fetch_all(&pool)
             .await?,
@@ -106,6 +107,8 @@ async fn list_tokens(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Js
 #[derive(Deserialize)]
 struct CreateTokenRequest {
     name: String,
+    /// 'api' (par défaut) ou 'caldav' (mot de passe d'application CalDAV).
+    scope: Option<String>,
 }
 
 async fn create_token(
@@ -117,11 +120,16 @@ async fn create_token(
     if name.is_empty() || name.chars().count() > 80 {
         return Err(ApiError::bad_request("invalid_name"));
     }
+    let scope = p.scope.as_deref().unwrap_or("api");
+    if !matches!(scope, "api" | "caldav") {
+        return Err(ApiError::bad_request("invalid_scope"));
+    }
     let raw = format!("looty_{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-    let id: Uuid = sqlx::query_scalar("INSERT INTO api_tokens (user_id, name, token_hash) VALUES ($1, $2, $3) RETURNING id")
+    let id: Uuid = sqlx::query_scalar("INSERT INTO api_tokens (user_id, name, token_hash, scope) VALUES ($1, $2, $3, $4) RETURNING id")
         .bind(user.id)
         .bind(name)
         .bind(hash_token(&raw))
+        .bind(scope)
         .fetch_one(&pool)
         .await?;
     // Le jeton brut n'est renvoyé qu'une seule fois : seul son hash est stocké.

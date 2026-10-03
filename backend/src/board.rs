@@ -925,6 +925,13 @@ async fn delete_task(
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
     require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    remove_task(&state, task_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Supprime une tâche (et ses fichiers) sans contrôle d'accès : l'appelant l'a fait.
+pub async fn remove_task(state: &AppState, task_id: Uuid) -> ApiResult<()> {
+    let ctx = task_ctx(&state.pool, task_id).await?;
     // Les fichiers joints (et ceux des sous-tâches) sont supprimés du disque.
     let files: Vec<String> = sqlx::query_scalar(
         "WITH RECURSIVE sub AS (SELECT id FROM tasks WHERE id = $1 UNION ALL SELECT t.id FROM tasks t JOIN sub ON t.parent_id = sub.id)
@@ -943,7 +950,7 @@ async fn delete_task(
             serde_json::json!({ "type": "TASK_DELETED", "task_id": task_id, "column_id": ctx.column_id, "board_id": ctx.board_id }),
         )
         .await;
-    Ok(StatusCode::NO_CONTENT)
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -1554,6 +1561,52 @@ impl RemoteChanges {
         self.title.is_none() && self.description.is_none() && self.due.is_none() && self.start.is_none()
             && self.priority.is_none() && self.completed.is_none()
     }
+}
+
+/// Crée une tâche dans la première colonne d'un tableau depuis un client CalDAV
+/// (droits vérifiés ici), puis applique l'état « terminé » éventuel.
+pub async fn dav_create_task(state: &AppState, user_id: Uuid, board_id: Uuid, f: &crate::ical::TodoFields) -> ApiResult<Uuid> {
+    let pool = &state.pool;
+    let workspace_id: Uuid = sqlx::query_scalar("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
+    let role = crate::access::workspace_role(pool, user_id, workspace_id).await?.ok_or(ApiError::Forbidden)?;
+    if !role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let column_id: Uuid = sqlx::query_scalar("SELECT id FROM board_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1")
+        .bind(board_id).fetch_optional(pool).await?.ok_or_else(|| ApiError::bad_request("board_has_no_column"))?;
+    let title = check_name(if f.summary.trim().is_empty() { "Untitled" } else { f.summary.trim() }, 255)?;
+    let description = crate::ical::text_to_html(&f.description);
+    let task_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+    )
+    .bind(column_id)
+    .bind(&title)
+    .bind(if description.is_empty() { None } else { Some(description) })
+    .bind(next_task_position(pool, column_id).await?)
+    .bind(f.start)
+    .bind(f.due)
+    .bind(check_priority(f.priority).unwrap_or(0))
+    .fetch_one(pool)
+    .await?;
+    log_activity(pool, task_id, user_id, "create", None, Some(serde_json::json!({ "title": title }))).await;
+    let t = load_task_enriched(pool, task_id).await?;
+    state.emit(workspace_id, serde_json::json!({ "type": "TASK_CREATED", "task": &t })).await;
+    if f.completed {
+        sync_apply_remote(state, task_id, user_id, RemoteChanges { completed: Some(true), ..Default::default() }).await?;
+    }
+    Ok(task_id)
+}
+
+/// Retire `user_id` des personnes assignées (suppression depuis le calendrier « Assignées »).
+pub async fn dav_unassign(state: &AppState, task_id: Uuid, user_id: Uuid) -> ApiResult<()> {
+    let pool = &state.pool;
+    let ctx = task_ctx(pool, task_id).await?;
+    crate::access::workspace_role(pool, user_id, ctx.workspace_id).await?.ok_or(ApiError::Forbidden)?;
+    sqlx::query("DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2").bind(task_id).bind(user_id.to_string()).execute(pool).await?;
+    sqlx::query("UPDATE tasks SET updated_at = NOW() WHERE id = $1").bind(task_id).execute(pool).await?;
+    let t = load_task_enriched(pool, task_id).await?;
+    state.emit(ctx.workspace_id, serde_json::json!({ "type": "TASK_UPDATED", "task": &t })).await;
+    Ok(())
 }
 
 /// Applique des modifications faites dans le calendrier de `user_id`, avec les mêmes

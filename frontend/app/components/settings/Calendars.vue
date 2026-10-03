@@ -150,7 +150,8 @@ const host = (u: string) => { try { return new URL(u).host } catch { return u } 
 </script>
 
 <template>
-  <SettingsSection :description="t('settings.caldav.description')">
+  <SettingsCalDavServer />
+  <SettingsSection :title="t('settings.caldav.syncTitle')" :description="t('settings.caldav.description')">
     <template #actions><UiButton size="sm" variant="primary" :icon="Plus" @click="openWizard">{{ t('settings.caldav.connect') }}</UiButton></template>
     <div v-if="isLoading" class="skeleton" style="height: 64px; margin: 12px" />
     <div v-for="a in accounts ?? []" :key="a.id" class="acc" :class="{ paused: !a.enabled }">

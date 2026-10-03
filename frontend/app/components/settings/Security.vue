@@ -8,7 +8,9 @@ import { toast } from '~/composables/useToast'
 
 const { t, relativeTime, formatDate } = useI18n()
 const qc = useQueryClient()
-const { data: tokens } = useQuery({ queryKey: ['me', 'tokens'], queryFn: () => api<{ id: string; name: string; created_at: string; last_used_at?: string | null }[]>('/api/user/tokens') })
+const { data: tokens } = useQuery({ queryKey: ['me', 'tokens'], queryFn: () => api<{ id: string; name: string; scope?: string; created_at: string; last_used_at?: string | null }[]>('/api/user/tokens') })
+// Les mots de passe CalDAV sont gérés dans Calendriers.
+const apiTokens = computed(() => (tokens.value ?? []).filter((tk) => tk.scope !== 'caldav'))
 const { data: identities } = useQuery({ queryKey: ['me', 'identities'], queryFn: () => api<{ provider: string; provider_name?: string | null; created_at: string }[]>('/api/user/identities') })
 
 const createOpen = ref(false)
@@ -48,10 +50,10 @@ function copy() { navigator.clipboard.writeText(created.value!); toast.success(t
 
   <SettingsSection :title="t('settings.security.tokens')" :description="t('settings.security.tokensHint')">
     <template #actions><UiButton size="sm" :icon="Plus" @click="createOpen = true">{{ t('settings.security.newToken') }}</UiButton></template>
-    <SettingsRow v-for="tk in tokens ?? []" :key="tk.id" :label="tk.name" :hint="`${t('settings.security.createdOn', { date: formatDate(tk.created_at) })} · ${tk.last_used_at ? t('settings.security.lastUsed', { time: relativeTime(tk.last_used_at) }) : t('settings.security.neverUsed')}`">
+    <SettingsRow v-for="tk in apiTokens" :key="tk.id" :label="tk.name" :hint="`${t('settings.security.createdOn', { date: formatDate(tk.created_at) })} · ${tk.last_used_at ? t('settings.security.lastUsed', { time: relativeTime(tk.last_used_at) }) : t('settings.security.neverUsed')}`">
       <UiButton size="sm" variant="ghost" :icon="Trash2" @click="revoke(tk)">{{ t('common.revoke') }}</UiButton>
     </SettingsRow>
-    <div v-if="!tokens?.length" class="empty"><KeyRound :size="16" /> {{ t('settings.security.noTokens') }}</div>
+    <div v-if="!apiTokens.length" class="empty"><KeyRound :size="16" /> {{ t('settings.security.noTokens') }}</div>
   </SettingsSection>
 
   <UiDialog :open="createOpen" :title="t('settings.security.newToken')" @update:open="(v) => !v && closeCreate()">
