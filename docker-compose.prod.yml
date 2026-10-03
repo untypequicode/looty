@@ -22,6 +22,10 @@ services:
     image: ghcr.io/untypequicode/looty-backend:latest
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+      # Clé de chiffrement des mots de passe CalDAV (recommandé ; sinon générée dans uploads/.secret.key)
+      LOOTY_SECRET_KEY: ${LOOTY_SECRET_KEY:-}
+      # Autorise les serveurs CalDAV sur le réseau local / http (ex. Nextcloud interne)
+      CALDAV_ALLOW_PRIVATE: ${CALDAV_ALLOW_PRIVATE:-false}
       PORT: 8080
       OIDC_ISSUER: ${OIDC_ISSUER}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}

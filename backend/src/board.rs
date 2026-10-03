@@ -1533,3 +1533,116 @@ async fn delete_task_comment(
         .await;
     Ok(StatusCode::NO_CONTENT)
 }
+
+// ---------------------------------------------------------------------------
+// Synchronisation CalDAV : modifications venant d'un calendrier externe
+// ---------------------------------------------------------------------------
+
+/// Changements détectés côté calendrier (seuls les champs `Some` sont appliqués).
+#[derive(Default, Debug)]
+pub struct RemoteChanges {
+    pub title: Option<String>,
+    pub description: Option<Option<String>>,
+    pub due: Option<Option<DateTime<Utc>>>,
+    pub start: Option<Option<DateTime<Utc>>>,
+    pub priority: Option<i32>,
+    pub completed: Option<bool>,
+}
+
+impl RemoteChanges {
+    pub fn is_empty(&self) -> bool {
+        self.title.is_none() && self.description.is_none() && self.due.is_none() && self.start.is_none()
+            && self.priority.is_none() && self.completed.is_none()
+    }
+}
+
+/// Applique des modifications faites dans le calendrier de `user_id`, avec les mêmes
+/// règles que l'interface : droits, historique, validation par personne, automatisations.
+pub async fn sync_apply_remote(state: &AppState, task_id: Uuid, user_id: Uuid, ch: RemoteChanges) -> ApiResult<()> {
+    if ch.is_empty() {
+        return Ok(());
+    }
+    let pool = &state.pool;
+    let ctx = task_ctx(pool, task_id).await?;
+    let role = crate::access::workspace_role(pool, user_id, ctx.workspace_id).await?.ok_or(ApiError::Forbidden)?;
+    if !role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    let old = fetch_task(pool, task_id).await?;
+    let title = ch.title.as_deref().map(|t| check_name(t, 255)).transpose().ok().flatten();
+    let priority = ch.priority.and_then(|p| check_priority(p).ok());
+
+    sqlx::query(
+        "UPDATE tasks SET
+            title = COALESCE($1, title),
+            description = CASE WHEN $2 THEN $3 ELSE description END,
+            due_date = CASE WHEN $4 THEN $5 ELSE due_date END,
+            start_date = CASE WHEN $6 THEN $7 ELSE start_date END,
+            priority = COALESCE($8, priority),
+            updated_at = NOW()
+         WHERE id = $9",
+    )
+    .bind(&title)
+    .bind(ch.description.is_some())
+    .bind(ch.description.clone().flatten())
+    .bind(ch.due.is_some())
+    .bind(ch.due.flatten())
+    .bind(ch.start.is_some())
+    .bind(ch.start.flatten())
+    .bind(priority)
+    .bind(task_id)
+    .execute(pool)
+    .await?;
+
+    if let Some(t) = &title {
+        if *t != old.title {
+            log_activity(pool, task_id, user_id, "update_title", Some(serde_json::json!({ "title": old.title })), Some(serde_json::json!({ "title": t }))).await;
+        }
+    }
+    if ch.description.is_some() {
+        log_activity(pool, task_id, user_id, "update_description", Some(serde_json::json!({ "description": old.description })), Some(serde_json::json!({ "description": ch.description.clone().flatten() }))).await;
+    }
+    if let Some(d) = ch.due {
+        if d != old.due_date {
+            log_activity(pool, task_id, user_id, "update_due_date", Some(serde_json::json!({ "due_date": old.due_date })), Some(serde_json::json!({ "due_date": d }))).await;
+        }
+    }
+    if let Some(p) = priority {
+        if p != old.priority {
+            log_activity(pool, task_id, user_id, "update_priority", Some(serde_json::json!({ "priority": old.priority })), Some(serde_json::json!({ "priority": p }))).await;
+        }
+    }
+
+    if let Some(done) = ch.completed {
+        let mut task = fetch_task(pool, task_id).await?;
+        let was = task.is_completed;
+        if task.is_per_person {
+            let me = user_id.to_string();
+            if done {
+                sqlx::query("INSERT INTO task_validations (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+                    .bind(task_id).bind(&me).execute(pool).await?;
+            } else {
+                sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2")
+                    .bind(task_id).bind(&me).execute(pool).await?;
+            }
+            let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
+            let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
+            task.is_completed = if task.require_all_validations && !assignees.is_empty() {
+                assignees.iter().all(|a| validations.contains(a))
+            } else {
+                !validations.is_empty()
+            };
+        } else {
+            task.is_completed = done;
+        }
+        if task.is_completed != was {
+            sqlx::query("UPDATE tasks SET is_completed = $1, updated_at = NOW() WHERE id = $2").bind(task.is_completed).bind(task_id).execute(pool).await?;
+            log_activity(pool, task_id, user_id, "toggle_validation", Some(serde_json::json!({ "is_completed": was })), Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
+            apply_completion_automation(pool, ctx.board_id, &task).await?;
+        }
+    }
+
+    let t = load_task_enriched(pool, task_id).await?;
+    state.emit(ctx.workspace_id, serde_json::json!({ "type": "TASK_UPDATED", "task": &t })).await;
+    Ok(())
+}

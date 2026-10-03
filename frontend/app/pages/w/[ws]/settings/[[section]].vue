@@ -7,6 +7,7 @@ import { motion } from '~/composables/useMotion'
 import Profile from '~/components/settings/Profile.vue'
 import Preferences from '~/components/settings/Preferences.vue'
 import Security from '~/components/settings/Security.vue'
+import Calendars from '~/components/settings/Calendars.vue'
 import Workspace from '~/components/settings/Workspace.vue'
 import Members from '~/components/settings/Members.vue'
 import AdminOverview from '~/components/settings/AdminOverview.vue'
@@ -24,6 +25,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   profile: { comp: Profile, title: 'settings.nav.profile' },
   preferences: { comp: Preferences, title: 'settings.nav.preferences' },
   security: { comp: Security, title: 'settings.nav.security' },
+  calendars: { comp: Calendars, title: 'settings.nav.calendars' },
   workspace: { comp: Workspace, title: 'settings.nav.general' },
   members: { comp: Members, title: 'settings.nav.members' },
   admin: { comp: AdminOverview, title: 'settings.nav.overview', admin: true },

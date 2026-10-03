@@ -3,6 +3,9 @@ mod admin;
 mod archive;
 mod auth;
 mod board;
+mod caldav;
+mod crypto;
+mod ical;
 mod db;
 mod error;
 mod notifications;
@@ -61,7 +64,9 @@ async fn main() {
         oidc_clients: Arc::new(dashmap::DashMap::new()),
         hub: Arc::new(ws::Hub::new()),
         base_url,
+        caldav_notify: Arc::new(tokio::sync::Notify::new()),
     };
+    caldav::start_sync_loop(state.clone(), state.caldav_notify.clone());
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -72,6 +77,8 @@ async fn main() {
         .nest("/auth", auth::routes())
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes())
+        .nest("/user/caldav", caldav::routes())
+        .route("/boards/tasks/:task_id/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
         .nest("/pages", page::access_routes())
