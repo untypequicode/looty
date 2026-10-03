@@ -214,3 +214,36 @@ html.light .hljs-string, html.light .hljs-title, html.light .hljs-section, html.
 html.light .hljs-number, html.light .hljs-symbol, html.light .hljs-bullet, html.light .hljs-link, html.light .hljs-meta { color: #fe640b; }
 html.light .hljs-variable, html.light .hljs-params, html.light .hljs-attr { color: #04a5e5; }
 html.light .hljs-function, html.light .hljs-title.function_ { color: #1e66f5; }
+
+/* Encadrés (callouts) */
+.prose .callout {
+  position: relative;
+  margin: 0.8em 0;
+  padding: 10px 14px 10px 42px;
+  border-radius: var(--r-md);
+  border: none;
+  color: var(--text);
+  background: var(--c-bg);
+}
+.prose .callout::before {
+  position: absolute;
+  left: 14px;
+  top: 10px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.prose .callout > :first-child { margin-top: 0; }
+.prose .callout-info { --c-bg: rgba(78, 167, 252, 0.1); }
+.prose .callout-info::before { content: 'ℹ️'; }
+.prose .callout-success { --c-bg: rgba(76, 183, 130, 0.12); }
+.prose .callout-success::before { content: '✅'; }
+.prose .callout-warning { --c-bg: rgba(242, 153, 74, 0.13); }
+.prose .callout-warning::before { content: '⚠️'; }
+.prose .callout-tip { --c-bg: rgba(177, 140, 255, 0.12); }
+.prose .callout-tip::before { content: '💡'; }
+
+/* Bloc dépliable rendu hors éditeur */
+.prose details[data-type='toggle'] > summary { font-weight: 600; cursor: pointer; }
+
+/* Ancres de titres : lien « # » au survol */
+.doc-prose h1, .doc-prose h2, .doc-prose h3, .doc-prose h4 { position: relative; }
