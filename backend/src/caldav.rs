@@ -38,7 +38,7 @@ fn allow_private() -> bool {
     std::env::var("CALDAV_ALLOW_PRIVATE").as_deref() == Ok("true")
 }
 
-fn is_private(ip: IpAddr) -> bool {
+pub(crate) fn is_private(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v) => v.is_private() || v.is_loopback() || v.is_link_local() || v.is_unspecified() || v.is_broadcast()
             || v.octets()[0] == 100 && (v.octets()[1] & 0xC0) == 64 // CGNAT

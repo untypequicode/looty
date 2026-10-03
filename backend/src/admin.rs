@@ -26,7 +26,7 @@ pub fn routes() -> Router<AppState> {
         .route("/stats", get(get_stats))
 }
 
-fn require_super_admin(user: &AuthUser) -> ApiResult<()> {
+pub(crate) fn require_super_admin(user: &AuthUser) -> ApiResult<()> {
     if user.is_super_admin { Ok(()) } else { Err(ApiError::Forbidden) }
 }
 

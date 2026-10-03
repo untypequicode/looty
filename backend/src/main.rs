@@ -8,8 +8,11 @@ mod crypto;
 mod ical;
 mod dav;
 mod db;
+mod delivery;
 mod error;
+mod mail;
 mod notifications;
+mod push;
 mod page;
 mod state;
 mod upload;
@@ -68,6 +71,7 @@ async fn main() {
         caldav_notify: Arc::new(tokio::sync::Notify::new()),
     };
     caldav::start_sync_loop(state.clone(), state.caldav_notify.clone());
+    delivery::start_worker(state.clone());
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -79,6 +83,9 @@ async fn main() {
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes())
         .nest("/user/caldav", caldav::routes())
+        .nest("/user/notifications", delivery::routes())
+        .nest("/user/push", push::routes())
+        .nest("/admin/mail", mail::admin_routes())
         .route("/boards/tasks/:task_id/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())

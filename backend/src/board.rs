@@ -263,6 +263,18 @@ async fn log_activity(
     }
 }
 
+/// Prévient les personnes assignées (sauf l'auteur) qu'une tâche vient d'être terminée.
+async fn notify_completed(state: &AppState, task_id: Uuid, actor: Uuid) {
+    let pool = &state.pool;
+    let Ok(ctx) = task_ctx(pool, task_id).await else { return };
+    let title: String = sqlx::query_scalar("SELECT title FROM tasks WHERE id = $1").bind(task_id).fetch_one(pool).await.unwrap_or_default();
+    let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1").bind(task_id).fetch_all(pool).await.unwrap_or_default();
+    for a in assignees.iter().filter_map(|a| Uuid::parse_str(a).ok()) {
+        crate::notifications::notify(pool, &state.hub, ctx.workspace_id, a, Some(actor), "completed", &format!("task:{task_id}"),
+            serde_json::json!({ "title": title, "board_id": ctx.board_id })).await;
+    }
+}
+
 async fn next_task_position(pool: &PgPool, column_id: Uuid) -> ApiResult<f64> {
     Ok(sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 65536 FROM tasks WHERE column_id = $1")
         .bind(column_id)
@@ -911,6 +923,9 @@ async fn update_task(
             Some(serde_json::json!({ "is_completed": old.is_completed })),
             Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
         apply_completion_automation(pool, ctx.board_id, &task).await?;
+        if task.is_completed {
+            notify_completed(&state, task_id, user.id).await;
+        }
     }
 
     let t = load_task_enriched(pool, task_id).await?;
@@ -1003,6 +1018,7 @@ async fn move_task(
                         .bind(old.column_id)
                         .execute(pool)
                         .await?;
+                    notify_completed(&state, task_id, user.id).await;
                 } else if old.column_id == done && req.column_id != done && old.is_completed {
                     sqlx::query("UPDATE tasks SET is_completed = false, previous_column_id = NULL WHERE id = $1")
                         .bind(task_id)
@@ -1208,6 +1224,9 @@ async fn toggle_task_validation(
             Some(serde_json::json!({ "is_completed": was_completed })),
             Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
         apply_completion_automation(pool, ctx.board_id, &task).await?;
+        if task.is_completed {
+            notify_completed(&state, task_id, user.id).await;
+        }
     }
 
     let t = load_task_enriched(pool, task_id).await?;
@@ -1692,6 +1711,9 @@ pub async fn sync_apply_remote(state: &AppState, task_id: Uuid, user_id: Uuid, c
             sqlx::query("UPDATE tasks SET is_completed = $1, updated_at = NOW() WHERE id = $2").bind(task.is_completed).bind(task_id).execute(pool).await?;
             log_activity(pool, task_id, user_id, "toggle_validation", Some(serde_json::json!({ "is_completed": was })), Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
             apply_completion_automation(pool, ctx.board_id, &task).await?;
+            if task.is_completed {
+                notify_completed(state, task_id, user_id).await;
+            }
         }
     }
 

@@ -9,7 +9,6 @@ import { toast } from '~/composables/useToast'
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
 const { sidebarCollapsed } = useUi()
-const permission = ref(typeof window !== 'undefined' && 'Notification' in window ? window.Notification.permission : 'denied')
 
 async function persist(body: Record<string, string>) {
   await api('/api/user/preferences', { method: 'PUT', body })
@@ -17,10 +16,6 @@ async function persist(body: Record<string, string>) {
 }
 function onTheme(m: ThemeMode) { setTheme(m); persist({ theme: m }) }
 function onLocale(l: Locale) { setLocale(l); persist({ locale: l }) }
-async function enableNotifications() {
-  permission.value = await window.Notification.requestPermission()
-  if (permission.value === 'granted') new window.Notification('Looty', { body: t('settings.prefs.notifTest') })
-}
 const themes = computed(() => [
   { value: 'system' as ThemeMode, label: t('settings.themeSystem'), icon: Monitor },
   { value: 'light' as ThemeMode, label: t('settings.themeLight'), icon: Sun },
@@ -43,13 +38,6 @@ const themes = computed(() => [
     </SettingsRow>
     <SettingsRow :label="t('settings.prefs.compactSidebar')" :hint="t('settings.prefs.compactSidebarHint')">
       <UiSwitch v-model="sidebarCollapsed" />
-    </SettingsRow>
-  </SettingsSection>
-  <SettingsSection :title="t('settings.prefs.notifications')">
-    <SettingsRow :label="t('settings.prefs.desktop')" :hint="t('settings.prefs.desktopHint')">
-      <span v-if="permission === 'granted'" class="ok">{{ t('settings.prefs.enabled') }}</span>
-      <span v-else-if="permission === 'denied'" class="muted">{{ t('settings.prefs.blocked') }}</span>
-      <UiButton v-else size="sm" @click="enableNotifications">{{ t('common.enable') }}</UiButton>
     </SettingsRow>
   </SettingsSection>
 </template>
