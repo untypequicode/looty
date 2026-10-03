@@ -1,123 +1,41 @@
+<script setup lang="ts">
+import { FileQuestion } from 'lucide-vue-next'
+import { api } from '~/composables/api'
+import { useI18n } from '~/composables/useI18n'
+
+const route = useRoute()
+const { t, formatDate } = useI18n()
+const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string } | null>(null)
+const missing = ref(false)
+
+onMounted(async () => {
+  try {
+    page.value = await api(`/api/public/pages/${route.params.token}`, { silent: true })
+  } catch {
+    missing.value = true
+  }
+})
+useHead({ title: () => page.value?.title || t('docs.untitled') })
+</script>
+
 <template>
-  <div class="public-page-container">
-    <div v-if="pending" class="loading-state">
-      Chargement de la page...
-    </div>
-    <div v-else-if="error" class="error-state">
-      <h2>Page introuvable</h2>
-      <p>Cette page n'existe pas ou n'est plus partagée publiquement.</p>
-    </div>
-    <div v-else-if="page" class="public-page-content">
-      <div class="page-header">
-        <div class="page-title-row">
-          <div class="page-icon readonly" v-if="page.icon">{{ page.icon }}</div>
-          <h1 class="page-title">{{ page.title }}</h1>
-        </div>
-        <div class="page-meta">
-          <span class="meta-readonly">Lecture seule (Lien public)</span>
-        </div>
-      </div>
-      <div class="page-body">
-        <WysiwygEditor 
-          :key="page.id"
-          :modelValue="page.content || ''" 
-          :document-id="page.id"
-          :editable="false"
-          :isPublic="true"
-        />
-      </div>
-    </div>
+  <div class="public">
+    <UiEmpty v-if="missing" :icon="FileQuestion" :title="t('public.notFound')" :description="t('public.notFoundHint')" />
+    <article v-else-if="page" class="doc">
+      <div v-if="page.icon" class="icon">{{ page.icon }}</div>
+      <h1 class="title">{{ page.title || t('docs.untitled') }}</h1>
+      <p class="meta">{{ t('docs.updatedOn', { date: formatDate(page.updated_at) }) }}</p>
+      <DocViewer :html="page.content" />
+    </article>
+    <div v-else class="doc"><div class="skeleton" style="height: 40px; width: 60%" /><div class="skeleton" style="height: 300px; margin-top: 24px" /></div>
   </div>
 </template>
 
-<script setup lang="ts">
-import { useRoute } from 'vue-router'
-import WysiwygEditor from '~/components/WysiwygEditor.client.vue'
-import { computed } from 'vue'
-
-const route = useRoute()
-const token = route.params.token as string
-
-const { data: page, pending, error } = useFetch(`/api/public/pages/${token}`)
-
-// We don't have real-time collaborative editing on public view (or maybe read-only).
-// We set editable to false.
-
-// Update head for SEO
-useHead(computed(() => ({
-  title: page.value ? `${page.value.title} - Looty` : 'Chargement... - Looty',
-})))
-</script>
-
 <style scoped>
-.public-page-container {
-  min-height: 100vh;
-  background: var(--bg-color);
-  color: var(--text-color);
-  padding: 48px 24px;
-  display: flex;
-  justify-content: center;
-}
-
-.public-page-content {
-  width: 100%;
-  max-width: 900px;
-  background: var(--bg-color-2);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 48px;
-  box-shadow: var(--shadow-md);
-}
-
-.page-header {
-  margin-bottom: 32px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 24px;
-}
-
-.page-title-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.page-icon {
-  font-size: 2.5rem;
-}
-
-.page-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.page-meta {
-  color: var(--text-color-3);
-  font-size: 0.9rem;
-}
-
-.meta-readonly {
-  background: var(--primary-color-alpha);
-  color: var(--primary-color);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.loading-state, .error-state {
-  text-align: center;
-  margin-top: 100px;
-  color: var(--text-color-2);
-}
-
-.error-state h2 {
-  color: var(--danger-color);
-  margin-bottom: 16px;
-}
-
-.page-body {
-  font-size: 1.1rem;
-  line-height: 1.6;
-}
+.public { min-height: 100dvh; padding: 64px 24px 96px; }
+.doc { max-width: 760px; margin: 0 auto; }
+.icon { font-size: 48px; line-height: 1; margin-bottom: 12px; }
+.title { font-family: var(--font-display); font-size: 36px; font-weight: 700; letter-spacing: -0.025em; margin: 0; line-height: 1.2; }
+.meta { color: var(--text-3); margin: 10px 0 32px; font-size: var(--fs-sm); }
+@media (max-width: 639px) { .public { padding: 32px 18px 64px; } .title { font-size: 28px; } }
 </style>

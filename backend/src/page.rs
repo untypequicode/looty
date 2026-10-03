@@ -1,19 +1,21 @@
 use axum::{
-    extract::{Path, State, Extension},
+    extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, FromRow};
+use serde::{Deserialize, Deserializer, Serialize};
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
-use tower_sessions::Session;
-use crate::auth::AuthState;
-use crate::workspace::get_workspace_role;
-use std::sync::Arc;
 
-#[derive(Serialize, Deserialize, FromRow)]
+use crate::access::{
+    is_member, require_member, require_page_read, require_page_write, require_writer, visible_pages, AuthUser,
+    PageAccess,
+};
+use crate::error::{ApiError, ApiResult};
+use crate::state::AppState;
+
+#[derive(Serialize, Deserialize, FromRow, Clone)]
 pub struct Page {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -28,8 +30,7 @@ pub struct Page {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub share_token: Option<Uuid>,
     pub is_public: Option<bool>,
-    // Champs calculés par utilisateur : absents des colonnes de `pages`
-    // (donc `sqlx(default)` pour les `RETURNING *` / `SELECT *`)
+    // Champs calculés par utilisateur (absents de la table `pages`).
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_favorite: Option<bool>,
@@ -42,11 +43,27 @@ pub struct Page {
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total_view_count: Option<i64>,
+    #[sqlx(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub can_edit: Option<bool>,
+}
+
+/// Version allégée pour les listes / l'arbre (sans le contenu HTML).
+const PAGE_LIST_COLUMNS: &str = "p.id, p.workspace_id, p.parent_id, p.icon, p.title, NULL::text AS content,
+    p.created_by, p.updated_by, p.position, p.created_at, p.updated_at, p.share_token, p.is_public";
+
+/// Distingue un champ absent (`None`) d'un champ explicitement `null` (`Some(None)`).
+fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(de).map(Some)
 }
 
 #[derive(Deserialize)]
 pub struct CreatePage {
-    pub title: String,
+    pub title: Option<String>,
     pub icon: Option<String>,
     pub parent_id: Option<Uuid>,
     pub content: Option<String>,
@@ -55,13 +72,15 @@ pub struct CreatePage {
 #[derive(Deserialize)]
 pub struct UpdatePage {
     pub title: Option<String>,
-    pub icon: Option<String>,
-    pub parent_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub icon: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub parent_id: Option<Option<Uuid>>,
     pub content: Option<String>,
     pub position: Option<f64>,
 }
 
-pub fn page_routes(state: AuthState) -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_pages).post(create_page))
         .route("/:page_id", get(get_page).put(update_page).delete(delete_page))
@@ -69,281 +88,283 @@ pub fn page_routes(state: AuthState) -> Router {
         .route("/:page_id/view", post(record_view))
         .route("/:page_id/share", post(share_page).delete(revoke_share))
         .route("/:page_id/permissions", get(get_page_permissions).put(set_page_permission))
-        .with_state(state.pool)
 }
 
-async fn get_user_id(session: &Session) -> Option<String> {
-    session.get("user_id").await.unwrap_or(None)
+/// Routes hors workspace : contrôle d'accès pour le serveur de collaboration.
+pub fn access_routes() -> Router<AppState> {
+    Router::new().route("/:page_id/access", get(page_access_check))
+}
+
+fn check_title(t: &str) -> ApiResult<String> {
+    let t = t.trim();
+    if t.chars().count() > 255 {
+        return Err(ApiError::bad_request("title_too_long"));
+    }
+    Ok(t.to_string())
+}
+
+fn check_icon(icon: &str) -> ApiResult<()> {
+    if icon.chars().count() > 32 {
+        return Err(ApiError::bad_request("invalid_icon"));
+    }
+    Ok(())
+}
+
+async fn ensure_in_workspace(pool: &PgPool, page_id: Uuid, workspace_id: Uuid) -> ApiResult<()> {
+    if crate::access::page_workspace(pool, page_id).await? != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    Ok(())
 }
 
 async fn list_pages(
     State(pool): State<PgPool>,
+    user: AuthUser,
     Path(workspace_id): Path<Uuid>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role.is_none() {
-        return Err((StatusCode::FORBIDDEN, "Forbidden".to_string()));
-    }
-    
-    let is_admin = role == Some("owner".to_string()) || role == Some("admin".to_string());
-    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
-
-    let pages = sqlx::query_as::<_, Page>(
-        "SELECT p.*, 
-            CASE WHEN pf.page_id IS NOT NULL THEN true ELSE false END as is_favorite,
-            pv.view_count,
-            pv.last_viewed_at,
-            (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) as total_view_count
+) -> ApiResult<Json<Vec<Page>>> {
+    let role = require_member(&pool, &user, workspace_id).await?;
+    let visible = visible_pages(&pool, &user, workspace_id, role).await?;
+    let sql = format!(
+        "SELECT {PAGE_LIST_COLUMNS},
+            (pf.page_id IS NOT NULL) AS is_favorite,
+            pv.view_count, pv.last_viewed_at,
+            (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) AS total_view_count
          FROM pages p
-         LEFT JOIN page_permissions pp ON pp.page_id = p.id AND pp.user_id = $2
          LEFT JOIN page_favorites pf ON pf.page_id = p.id AND pf.user_id = $2
          LEFT JOIN page_views pv ON pv.page_id = p.id AND pv.user_id = $2
-         WHERE p.workspace_id = $1 AND ($3 OR pp.role IS NULL OR pp.role != 'blocked')
+         WHERE p.workspace_id = $1
          ORDER BY p.position ASC, p.created_at ASC"
-    )
-    .bind(workspace_id)
-    .bind(user_uuid)
-    .bind(is_admin)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(pages))
+    );
+    let pages: Vec<Page> = sqlx::query_as(&sql).bind(workspace_id).bind(user.id).fetch_all(&pool).await?;
+    Ok(Json(
+        pages
+            .into_iter()
+            .filter_map(|mut p| match visible.get(&p.id) {
+                Some(PageAccess::None) | None => None,
+                Some(a) => {
+                    p.can_edit = Some(*a == PageAccess::Write);
+                    Some(p)
+                }
+            })
+            .collect(),
+    ))
 }
 
 async fn get_page(
     State(pool): State<PgPool>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role.is_none() {
-        return Err((StatusCode::FORBIDDEN, "Forbidden".to_string()));
+) -> ApiResult<Json<Page>> {
+    let (ws, _, access) = require_page_read(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
     }
-    let is_admin = role == Some("owner".to_string()) || role == Some("admin".to_string());
-    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
-
-    let page = sqlx::query_as::<_, Page>(
+    let mut page: Page = sqlx::query_as(
         "SELECT p.*,
-            CASE WHEN pf.page_id IS NOT NULL THEN true ELSE false END as is_favorite,
-            pv.view_count,
-            pv.last_viewed_at,
-            (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) as total_view_count
+            (pf.page_id IS NOT NULL) AS is_favorite,
+            pv.view_count, pv.last_viewed_at,
+            (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) AS total_view_count
          FROM pages p
-         LEFT JOIN page_permissions pp ON pp.page_id = p.id AND pp.user_id = $3
-         LEFT JOIN page_favorites pf ON pf.page_id = p.id AND pf.user_id = $3
-         LEFT JOIN page_views pv ON pv.page_id = p.id AND pv.user_id = $3
-         WHERE p.id = $1 AND p.workspace_id = $2 AND ($4 OR pp.role IS NULL OR pp.role != 'blocked')"
+         LEFT JOIN page_favorites pf ON pf.page_id = p.id AND pf.user_id = $2
+         LEFT JOIN page_views pv ON pv.page_id = p.id AND pv.user_id = $2
+         WHERE p.id = $1",
     )
     .bind(page_id)
-    .bind(workspace_id)
-    .bind(user_uuid)
-    .bind(is_admin)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Page not found".to_string()))?;
-
+    .bind(user.id)
+    .fetch_one(&pool)
+    .await?;
+    page.can_edit = Some(access == PageAccess::Write);
     Ok(Json(page))
 }
 
 async fn create_page(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
+    user: AuthUser,
     Path(workspace_id): Path<Uuid>,
-    Extension(ws_state): Extension<Arc<crate::ws::AppState>>,
-    session: Session,
     Json(payload): Json<CreatePage>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    let user_uuid = Uuid::parse_str(&user_id).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid User ID".to_string()))?;
-
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role.is_none() || role == Some("viewer".to_string()) {
-        return Err((StatusCode::FORBIDDEN, "Forbidden: Viewers cannot create pages".to_string()));
+) -> ApiResult<(StatusCode, Json<Page>)> {
+    let pool = &state.pool;
+    require_writer(pool, &user, workspace_id).await?;
+    if let Some(parent) = payload.parent_id {
+        let (ws, _) = require_page_write(pool, &user, parent).await?;
+        if ws != workspace_id {
+            return Err(ApiError::NotFound);
+        }
     }
+    let title = check_title(payload.title.as_deref().unwrap_or(""))?;
+    if let Some(i) = &payload.icon {
+        check_icon(i)?;
+    }
+    let position: f64 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(position), 0) + 65536 FROM pages WHERE workspace_id = $1 AND parent_id IS NOT DISTINCT FROM $2",
+    )
+    .bind(workspace_id)
+    .bind(payload.parent_id)
+    .fetch_one(pool)
+    .await?;
 
-    let page = sqlx::query_as::<_, Page>(
-        "INSERT INTO pages (workspace_id, parent_id, icon, title, content, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *"
+    let page: Page = sqlx::query_as(
+        "INSERT INTO pages (workspace_id, parent_id, icon, title, content, created_by, updated_by, position)
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $7) RETURNING *",
     )
     .bind(workspace_id)
     .bind(payload.parent_id)
     .bind(payload.icon)
-    .bind(payload.title)
+    .bind(title)
     .bind(payload.content)
-    .bind(user_uuid)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    .bind(user.id)
+    .bind(position)
+    .fetch_one(pool)
+    .await?;
 
-    let ws_msg = serde_json::json!({
-        "type": "PAGE_CREATED",
-        "page": &page
-    }).to_string();
-    let tx = ws_state.get_or_create_room(&workspace_id.to_string()).await;
-    let _ = tx.send(ws_msg);
-
+    let mut lite = page.clone();
+    lite.content = None;
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_CREATED", "page": lite })).await;
     Ok((StatusCode::CREATED, Json(page)))
 }
 
 async fn update_page(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    Extension(ws_state): Extension<Arc<crate::ws::AppState>>,
-    session: Session,
     Json(payload): Json<UpdatePage>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    let user_uuid = Uuid::parse_str(&user_id).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid User ID".to_string()))?;
-    
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role.is_none() || role == Some("viewer".to_string()) {
-        return Err((StatusCode::FORBIDDEN, "Forbidden: Viewers cannot edit pages".to_string()));
+) -> ApiResult<Json<Page>> {
+    let pool = &state.pool;
+    let (ws, _) = require_page_write(pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
     }
 
-    let page = sqlx::query_as::<_, Page>(
-        "UPDATE pages SET 
+    let title = payload.title.as_deref().map(check_title).transpose()?;
+    if let Some(Some(i)) = &payload.icon {
+        check_icon(i)?;
+    }
+
+    // Déplacement : le nouveau parent doit être modifiable, du même workspace,
+    // et ne pas être la page elle-même ni l'un de ses descendants.
+    if let Some(Some(new_parent)) = payload.parent_id {
+        let (pws, _) = require_page_write(pool, &user, new_parent).await?;
+        if pws != workspace_id || new_parent == page_id {
+            return Err(ApiError::bad_request("invalid_parent"));
+        }
+        let creates_cycle: bool = sqlx::query_scalar(
+            "WITH RECURSIVE anc AS (
+                SELECT id, parent_id, 0 AS depth FROM pages WHERE id = $1
+                UNION ALL
+                SELECT p.id, p.parent_id, anc.depth + 1 FROM pages p JOIN anc ON p.id = anc.parent_id WHERE anc.depth < 64
+             ) SELECT EXISTS(SELECT 1 FROM anc WHERE id = $2)",
+        )
+        .bind(new_parent)
+        .bind(page_id)
+        .fetch_one(pool)
+        .await?;
+        if creates_cycle {
+            return Err(ApiError::bad_request("invalid_parent"));
+        }
+    }
+
+    let page: Page = sqlx::query_as(
+        "UPDATE pages SET
             title = COALESCE($1, title),
-            icon = COALESCE($2, icon),
-            parent_id = $3,
-            content = COALESCE($4, content),
-            position = COALESCE($5, position),
-            updated_by = $6,
+            icon = CASE WHEN $2 THEN $3 ELSE icon END,
+            parent_id = CASE WHEN $4 THEN $5 ELSE parent_id END,
+            content = COALESCE($6, content),
+            position = COALESCE($7, position),
+            updated_by = $8,
             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $7 AND workspace_id = $8
-         RETURNING *"
+         WHERE id = $9 RETURNING *",
     )
-    .bind(payload.title)
-    .bind(payload.icon)
-    .bind(payload.parent_id)
+    .bind(title)
+    .bind(payload.icon.is_some())
+    .bind(payload.icon.clone().flatten())
+    .bind(payload.parent_id.is_some())
+    .bind(payload.parent_id.flatten())
     .bind(payload.content)
     .bind(payload.position)
-    .bind(user_uuid)
+    .bind(user.id)
     .bind(page_id)
-    .bind(workspace_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    .fetch_one(pool)
+    .await?;
 
-    let ws_msg = serde_json::json!({
-        "type": "PAGE_UPDATED",
-        "page": &page
-    }).to_string();
-    let tx = ws_state.get_or_create_room(&workspace_id.to_string()).await;
-    let _ = tx.send(ws_msg);
-
+    let mut lite = page.clone();
+    lite.content = None;
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_UPDATED", "page": lite })).await;
     Ok(Json(page))
 }
 
 async fn delete_page(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    Extension(ws_state): Extension<Arc<crate::ws::AppState>>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role.is_none() || role == Some("viewer".to_string()) {
-        return Err((StatusCode::FORBIDDEN, "Forbidden: Viewers cannot delete pages".to_string()));
+) -> ApiResult<StatusCode> {
+    let (ws, _) = require_page_write(&state.pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
     }
-
-    let result = sqlx::query(
-        "DELETE FROM pages WHERE id = $1 AND workspace_id = $2"
-    )
-    .bind(page_id)
-    .bind(workspace_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Page not found".to_string()));
-    }
-
-    let ws_msg = serde_json::json!({
-        "type": "PAGE_DELETED",
-        "page_id": page_id
-    }).to_string();
-    let tx = ws_state.get_or_create_room(&workspace_id.to_string()).await;
-    let _ = tx.send(ws_msg);
-
+    sqlx::query("DELETE FROM pages WHERE id = $1").bind(page_id).execute(&state.pool).await?;
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": page_id })).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn share_page(
+async fn share_page(
     State(pool): State<PgPool>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await.ok_or((StatusCode::FORBIDDEN, "Forbidden".to_string()))?;
-    
-    if role == "viewer" {
-        return Err((StatusCode::FORBIDDEN, "Viewers cannot share pages".to_string()));
+) -> ApiResult<Json<Page>> {
+    let (ws, _) = require_page_write(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
     }
-
-    let token = Uuid::new_v4();
-    let page = sqlx::query_as::<_, Page>(
-        "UPDATE pages SET share_token = $1, is_public = true WHERE id = $2 AND workspace_id = $3 RETURNING *"
-    )
-    .bind(token)
-    .bind(page_id)
-    .bind(workspace_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(page))
+    Ok(Json(
+        sqlx::query_as(
+            "UPDATE pages SET share_token = COALESCE(share_token, gen_random_uuid()), is_public = true
+             WHERE id = $1 RETURNING *",
+        )
+        .bind(page_id)
+        .fetch_one(&pool)
+        .await?,
+    ))
 }
 
-pub async fn revoke_share(
+async fn revoke_share(
     State(pool): State<PgPool>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await.ok_or((StatusCode::FORBIDDEN, "Forbidden".to_string()))?;
-    
-    if role == "viewer" {
-        return Err((StatusCode::FORBIDDEN, "Viewers cannot revoke share".to_string()));
+) -> ApiResult<Json<Page>> {
+    let (ws, _) = require_page_write(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
     }
-
-    let page = sqlx::query_as::<_, Page>(
-        "UPDATE pages SET share_token = NULL, is_public = false WHERE id = $1 AND workspace_id = $2 RETURNING *"
-    )
-    .bind(page_id)
-    .bind(workspace_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(page))
+    Ok(Json(
+        sqlx::query_as("UPDATE pages SET share_token = NULL, is_public = false WHERE id = $1 RETURNING *")
+            .bind(page_id)
+            .fetch_one(&pool)
+            .await?,
+    ))
 }
 
-pub async fn get_public_page(
-    State(pool): State<PgPool>,
-    Path(token): Path<Uuid>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let page = sqlx::query_as::<_, Page>(
-        "SELECT * FROM pages WHERE share_token = $1 AND is_public = true"
-    )
-    .bind(token)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Page not found or not public".to_string()))?;
-
-    Ok(Json(page))
+#[derive(Serialize, FromRow)]
+pub struct PublicPage {
+    pub id: Uuid,
+    pub title: String,
+    pub icon: Option<String>,
+    pub content: Option<String>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize, sqlx::FromRow)]
+pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResult<Json<PublicPage>> {
+    Ok(Json(
+        sqlx::query_as(
+            "SELECT id, title, icon, content, updated_at FROM pages WHERE share_token = $1 AND is_public = true",
+        )
+        .bind(token)
+        .fetch_optional(&pool)
+        .await?
+        .ok_or(ApiError::NotFound)?,
+    ))
+}
+
+#[derive(Serialize, FromRow)]
 pub struct PagePermission {
     pub id: Uuid,
     pub page_id: Uuid,
@@ -360,101 +381,123 @@ pub struct SetPagePermissionReq {
 
 async fn get_page_permissions(
     State(pool): State<PgPool>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
-) -> Result<Json<Vec<PagePermission>>, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role.is_none() {
-        return Err((StatusCode::FORBIDDEN, "Forbidden".to_string()));
+) -> ApiResult<Json<Vec<PagePermission>>> {
+    let (ws, role, _) = require_page_read(&pool, &user, page_id).await?;
+    if ws != workspace_id || !role.is_admin() {
+        return Err(ApiError::Forbidden);
     }
-
-    let perms = sqlx::query_as::<_, PagePermission>(
-        "SELECT id, page_id, user_id, role, created_at FROM page_permissions WHERE page_id = $1"
-    )
-    .bind(page_id)
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
-    Ok(Json(perms))
+    Ok(Json(
+        sqlx::query_as("SELECT id, page_id, user_id, role, created_at FROM page_permissions WHERE page_id = $1")
+            .bind(page_id)
+            .fetch_all(&pool)
+            .await?,
+    ))
 }
 
 async fn set_page_permission(
     State(pool): State<PgPool>,
+    user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
     Json(payload): Json<SetPagePermissionReq>,
-) -> Result<Json<PagePermission>, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    
-    let role = get_workspace_role(&pool, &user_id, &workspace_id).await;
-    if role != Some("admin".to_string()) && role != Some("owner".to_string()) {
-        return Err((StatusCode::FORBIDDEN, "Forbidden: Only admins can change permissions".to_string()));
+) -> ApiResult<StatusCode> {
+    ensure_in_workspace(&pool, page_id, workspace_id).await?;
+    let role = require_member(&pool, &user, workspace_id).await?;
+    if !role.is_admin() {
+        return Err(ApiError::Forbidden);
     }
-
-    if payload.role == "none" {
-        sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
-            .bind(page_id).bind(payload.user_id).execute(&pool).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        return Err((StatusCode::NO_CONTENT, "".to_string())); // Special return just to signal success for delete
+    if !is_member(&pool, workspace_id, &payload.user_id.to_string()).await? {
+        return Err(ApiError::bad_request("not_a_member"));
     }
-
-    let perm = sqlx::query_as::<_, PagePermission>(
-        "INSERT INTO page_permissions (page_id, user_id, role) VALUES ($1, $2, $3) 
-         ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3 RETURNING *"
-    )
-    .bind(page_id)
-    .bind(payload.user_id)
-    .bind(payload.role)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(perm))
+    match payload.role.as_str() {
+        "none" => {
+            sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
+                .bind(page_id)
+                .bind(payload.user_id)
+                .execute(&pool)
+                .await?;
+        }
+        "viewer" | "editor" | "blocked" => {
+            sqlx::query(
+                "INSERT INTO page_permissions (page_id, user_id, role) VALUES ($1, $2, $3)
+                 ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3",
+            )
+            .bind(page_id)
+            .bind(payload.user_id)
+            .bind(&payload.role)
+            .execute(&pool)
+            .await?;
+        }
+        _ => return Err(ApiError::bad_request("invalid_role")),
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn toggle_favorite(
+async fn toggle_favorite(
     State(pool): State<PgPool>,
-    Path((_workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
-
-    let exists: Option<bool> = sqlx::query_scalar("SELECT true FROM page_favorites WHERE page_id = $1 AND user_id = $2")
-        .bind(page_id).bind(user_uuid).fetch_optional(&pool).await.unwrap_or(None);
-
-    if exists.is_some() {
-        sqlx::query("DELETE FROM page_favorites WHERE page_id = $1 AND user_id = $2")
-            .bind(page_id).bind(user_uuid).execute(&pool).await.ok();
-    } else {
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let (ws, _, _) = require_page_read(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    let removed = sqlx::query("DELETE FROM page_favorites WHERE page_id = $1 AND user_id = $2")
+        .bind(page_id)
+        .bind(user.id)
+        .execute(&pool)
+        .await?
+        .rows_affected();
+    if removed == 0 {
         sqlx::query("INSERT INTO page_favorites (page_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-            .bind(page_id).bind(user_uuid).execute(&pool).await.ok();
+            .bind(page_id)
+            .bind(user.id)
+            .execute(&pool)
+            .await?;
     }
-
-    Ok(StatusCode::OK)
+    Ok(Json(serde_json::json!({ "is_favorite": removed == 0 })))
 }
 
-pub async fn record_view(
+async fn record_view(
     State(pool): State<PgPool>,
-    Path((_workspace_id, page_id)): Path<(Uuid, Uuid)>,
-    session: Session,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let user_id = get_user_id(&session).await.ok_or((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))?;
-    let user_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
-
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<StatusCode> {
+    let (ws, _, _) = require_page_read(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
     sqlx::query(
-        "INSERT INTO page_views (page_id, user_id, last_viewed_at, view_count) 
-         VALUES ($1, $2, CURRENT_TIMESTAMP, 1) 
-         ON CONFLICT (page_id, user_id) 
-         DO UPDATE SET last_viewed_at = CURRENT_TIMESTAMP, view_count = page_views.view_count + 1"
+        "INSERT INTO page_views (page_id, user_id, last_viewed_at, view_count) VALUES ($1, $2, CURRENT_TIMESTAMP, 1)
+         ON CONFLICT (page_id, user_id)
+         DO UPDATE SET last_viewed_at = CURRENT_TIMESTAMP, view_count = page_views.view_count + 1",
     )
     .bind(page_id)
-    .bind(user_uuid)
+    .bind(user.id)
     .execute(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
 
-    Ok(StatusCode::OK)
+#[derive(Serialize)]
+struct AccessCheck {
+    user_id: Uuid,
+    name: String,
+    can_write: bool,
+}
+
+/// Utilisé par le serveur Hocuspocus (cookie de session transmis) pour autoriser
+/// la connexion à un document et décider du mode lecture seule.
+async fn page_access_check(
+    State(pool): State<PgPool>,
+    user: AuthUser,
+    Path(page_id): Path<Uuid>,
+) -> ApiResult<Json<AccessCheck>> {
+    let (_, _, access) = require_page_read(&pool, &user, page_id).await?;
+    let name: String = sqlx::query_scalar("SELECT name FROM users WHERE id = $1")
+        .bind(user.id)
+        .fetch_one(&pool)
+        .await?;
+    Ok(Json(AccessCheck { user_id: user.id, name, can_write: access == PageAccess::Write }))
 }

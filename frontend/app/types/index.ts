@@ -1,24 +1,35 @@
+export type Role = 'owner' | 'admin' | 'member' | 'viewer'
+
 export interface User {
   id: string
   email: string
   name: string
+  avatar_url?: string | null
+  theme?: 'system' | 'light' | 'dark' | null
+  locale?: 'fr' | 'en' | null
   is_super_admin?: boolean
+}
+
+export interface Me {
+  authenticated: boolean
+  user?: User
+}
+
+export interface Workspace {
+  id: string
+  name: string
+  role: Role
+  created_at?: string
+  updated_at?: string
 }
 
 export interface WorkspaceMember {
   user_id: string
   name: string
   email: string
-  role: 'owner' | 'admin' | 'member'
+  avatar_url?: string | null
+  role: Role
   joined_at?: string
-}
-
-export interface Workspace {
-  id: string
-  name: string
-  role: 'owner' | 'admin' | 'member'
-  created_at?: string
-  updated_at?: string
 }
 
 export interface Label {
@@ -29,20 +40,23 @@ export interface Label {
 }
 
 export interface BoardAutomation {
-  on_complete_move_to?: string
+  on_complete_move_to?: string | null
   apply_to_subtasks?: boolean
   auto_validate_on_move?: boolean
 }
 
-export interface Board {
+export interface BoardSummary {
   id: string
   workspace_id: string
   name: string
-  columns: Column[]
-  labels?: Label[]
   automations?: BoardAutomation
   created_at?: string
   updated_at?: string
+}
+
+export interface Board extends BoardSummary {
+  columns: Column[]
+  labels: Label[]
 }
 
 export interface Column {
@@ -51,18 +65,18 @@ export interface Column {
   name: string
   position: number
   tasks: Task[]
-  created_at?: string
-  updated_at?: string
 }
+
+export type Priority = 0 | 1 | 2 | 3 | 4
 
 export interface Task {
   id: string
   column_id: string
   parent_id?: string | null
   title: string
-  description?: string
+  description?: string | null
   position: number
-  priority: number
+  priority: Priority
   start_date?: string | null
   due_date?: string | null
   is_per_person: boolean
@@ -82,10 +96,19 @@ export interface Page {
   parent_id?: string | null
   icon?: string | null
   title: string
-  content?: string
+  content?: string | null
   created_by?: string
+  updated_by?: string | null
+  position: number
   created_at?: string
   updated_at?: string
+  share_token?: string | null
+  is_public?: boolean | null
+  is_favorite?: boolean
+  view_count?: number | null
+  last_viewed_at?: string | null
+  total_view_count?: number | null
+  can_edit?: boolean
 }
 
 export interface TaskActivity {
@@ -104,8 +127,8 @@ export interface TaskAttachment {
   uploaded_by: string
   filename: string
   file_path: string
-  mime_type?: string
-  size_bytes?: number
+  mime_type?: string | null
+  size_bytes?: number | null
   created_at: string
 }
 
@@ -116,4 +139,43 @@ export interface TaskComment {
   content: string
   created_at: string
   updated_at: string
+}
+
+export interface Notification {
+  id: string
+  workspace_id: string
+  actor_id?: string | null
+  actor_name?: string | null
+  kind: 'mention' | 'assigned' | 'comment' | string
+  target: string
+  data: Record<string, any>
+  read_at?: string | null
+  created_at: string
+}
+
+export interface MyTask {
+  id: string
+  title: string
+  due_date?: string | null
+  priority: Priority
+  is_completed: boolean
+  board_id: string
+  board_name: string
+  column_name: string
+  updated_at: string
+}
+
+export interface SearchResult {
+  id: string
+  title: string
+  type: 'page' | 'task'
+  icon?: string | null
+  snippet?: string | null
+  parent_id?: string | null
+}
+
+export interface Presence {
+  user_id: string
+  location: string
+  updated_at: number
 }

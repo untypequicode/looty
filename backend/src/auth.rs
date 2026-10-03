@@ -1,27 +1,22 @@
 use axum::{
     extract::{Path, Query, State},
-    response::IntoResponse,
+    response::{IntoResponse, Redirect, Response},
     routing::get,
     Json, Router,
 };
 use openidconnect::{
     core::{CoreClient, CoreProviderMetadata, CoreResponseType, CoreUserInfoClaims},
     reqwest::async_http_client,
-    AuthenticationFlow, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, OAuth2TokenResponse,
+    AuthenticationFlow, AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce,
+    OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
-use std::{env, sync::Arc};
 use tower_sessions::Session;
 use uuid::Uuid;
-use dashmap::DashMap;
 
-#[derive(Clone)]
-pub struct AuthState {
-    pub pool: PgPool,
-    pub oidc_clients: Arc<DashMap<Uuid, CoreClient>>,
-}
+use crate::access::{AuthUser, SESSION_USER_KEY};
+use crate::error::{ApiError, ApiResult};
+use crate::state::AppState;
 
 #[derive(Serialize, sqlx::FromRow)]
 pub struct ProviderDto {
@@ -29,25 +24,22 @@ pub struct ProviderDto {
     pub name: String,
 }
 
-pub fn auth_routes(state: AuthState) -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/providers", get(get_active_providers))
         .route("/login/:provider_id", get(login_handler))
         .route("/callback/:provider_id", get(callback_handler))
         .route("/me", get(me_handler))
-        .route("/logout", get(logout_handler))
-        .with_state(state)
+        .route("/logout", get(logout_handler).post(logout_handler))
+        .route("/dev-login", get(dev_login_handler))
 }
 
-async fn get_active_providers(State(state): State<AuthState>) -> impl IntoResponse {
-    let providers = sqlx::query_as::<_, ProviderDto>(
-        "SELECT id, name FROM oauth_providers WHERE is_active = TRUE"
-    )
-    .fetch_all(&state.pool)
-    .await
-    .unwrap_or_default();
-
-    Json(providers)
+async fn get_active_providers(State(state): State<AppState>) -> ApiResult<Json<Vec<ProviderDto>>> {
+    Ok(Json(
+        sqlx::query_as("SELECT id, name FROM oauth_providers WHERE is_active = TRUE ORDER BY name")
+            .fetch_all(&state.pool)
+            .await?,
+    ))
 }
 
 #[derive(sqlx::FromRow)]
@@ -57,72 +49,80 @@ struct ProviderConfig {
     client_secret: String,
 }
 
-async fn get_oidc_client(state: &AuthState, provider_id: Uuid) -> Result<CoreClient, String> {
+async fn get_oidc_client(state: &AppState, provider_id: Uuid) -> Result<CoreClient, String> {
     if let Some(client) = state.oidc_clients.get(&provider_id) {
         return Ok(client.clone());
     }
-
     let provider = sqlx::query_as::<_, ProviderConfig>(
-        "SELECT issuer_url, client_id, client_secret FROM oauth_providers WHERE id = $1 AND is_active = TRUE"
+        "SELECT issuer_url, client_id, client_secret FROM oauth_providers WHERE id = $1 AND is_active = TRUE",
     )
     .bind(provider_id)
     .fetch_optional(&state.pool)
     .await
-    .map_err(|e| e.to_string())?;
-
-    let provider = provider.ok_or_else(|| "Provider not found or inactive".to_string())?;
+    .map_err(|e| e.to_string())?
+    .ok_or_else(|| "provider_not_found".to_string())?;
 
     let issuer_url = IssuerUrl::new(provider.issuer_url).map_err(|e| e.to_string())?;
-    let client_id = ClientId::new(provider.client_id);
-    let client_secret = ClientSecret::new(provider.client_secret);
-    
-    // We assume backend runs on localhost:8080 or behind a proxy. 
-    // Ideally we should have a BASE_URL in env for the callback.
-    let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
-    let redirect_url = RedirectUrl::new(format!("{}/api/auth/callback/{}", base_url, provider_id))
+    let redirect_url = RedirectUrl::new(format!("{}/api/auth/callback/{}", state.base_url, provider_id))
         .map_err(|e| e.to_string())?;
-
-    let provider_metadata = CoreProviderMetadata::discover_async(issuer_url, async_http_client)
+    let metadata = CoreProviderMetadata::discover_async(issuer_url, async_http_client)
         .await
         .map_err(|e| e.to_string())?;
-
-    let client = CoreClient::from_provider_metadata(provider_metadata, client_id, Some(client_secret))
-        .set_redirect_uri(redirect_url);
-
+    let client = CoreClient::from_provider_metadata(
+        metadata,
+        ClientId::new(provider.client_id),
+        Some(ClientSecret::new(provider.client_secret)),
+    )
+    .set_redirect_uri(redirect_url);
     state.oidc_clients.insert(provider_id, client.clone());
-
     Ok(client)
 }
 
+/// N'accepte que des chemins internes (évite les redirections ouvertes).
+pub fn safe_redirect(target: Option<&str>) -> String {
+    match target {
+        Some(t) if t.starts_with('/') && !t.starts_with("//") && !t.starts_with("/\\") && !t.contains("://") => {
+            t.to_string()
+        }
+        _ => "/".to_string(),
+    }
+}
+
+#[derive(Deserialize)]
+struct LoginQuery {
+    redirect: Option<String>,
+}
+
 async fn login_handler(
-    session: Session, 
-    State(state): State<AuthState>,
+    session: Session,
+    State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
-) -> impl IntoResponse {
-    let client = match get_oidc_client(&state, provider_id).await {
-        Ok(c) => c,
-        Err(e) => return Json(serde_json::json!({ "error": e })).into_response(),
-    };
-
+    Query(q): Query<LoginQuery>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let client = get_oidc_client(&state, provider_id)
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("provider_error: {e}")))?;
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-
     let (auth_url, csrf_token, nonce) = client
         .authorize_url(
             AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
             CsrfToken::new_random,
             Nonce::new_random,
         )
-        .add_scope(Scope::new("openid".to_string()))
-        .add_scope(Scope::new("profile".to_string()))
-        .add_scope(Scope::new("email".to_string()))
+        .add_scope(Scope::new("openid".into()))
+        .add_scope(Scope::new("profile".into()))
+        .add_scope(Scope::new("email".into()))
         .set_pkce_challenge(pkce_challenge)
         .url();
 
-    session.insert("pkce_verifier", pkce_verifier.secret()).await.unwrap();
-    session.insert("csrf_token", csrf_token.secret()).await.unwrap();
-    session.insert("nonce", nonce.secret()).await.unwrap();
-
-    Json(serde_json::json!({ "url": auth_url.as_str() })).into_response()
+    let store = async {
+        session.insert("pkce_verifier", pkce_verifier.secret()).await?;
+        session.insert("csrf_token", csrf_token.secret()).await?;
+        session.insert("nonce", nonce.secret()).await?;
+        session.insert("post_login_redirect", safe_redirect(q.redirect.as_deref())).await
+    };
+    store.await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "url": auth_url.as_str() })))
 }
 
 #[derive(Deserialize)]
@@ -131,124 +131,234 @@ struct AuthCallback {
     state: String,
 }
 
+fn login_error(code: &str) -> Response {
+    Redirect::to(&format!("/login?error={code}")).into_response()
+}
+
 async fn callback_handler(
     session: Session,
-    State(state): State<AuthState>,
+    State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
     Query(params): Query<AuthCallback>,
-) -> impl IntoResponse {
-    let stored_csrf: String = session.get("csrf_token").await.unwrap().unwrap_or_default();
-    if params.state != stored_csrf {
-        return axum::response::Html(r#"<script>window.location.href = "/login?error=csrf_mismatch";</script>"#).into_response();
+) -> Response {
+    let stored_csrf: Option<String> = session.remove("csrf_token").await.ok().flatten();
+    if stored_csrf.as_deref() != Some(params.state.as_str()) {
+        return login_error("csrf_mismatch");
+    }
+    let Some(pkce_secret) = session.remove::<String>("pkce_verifier").await.ok().flatten() else {
+        return login_error("missing_pkce");
+    };
+    let Ok(client) = get_oidc_client(&state, provider_id).await else {
+        return login_error("provider_error");
+    };
+
+    let Ok(token) = client
+        .exchange_code(AuthorizationCode::new(params.code))
+        .set_pkce_verifier(PkceCodeVerifier::new(pkce_secret))
+        .request_async(async_http_client)
+        .await
+    else {
+        return login_error("exchange_failed");
+    };
+
+    let Ok(req) = client.user_info(token.access_token().clone(), None) else {
+        return login_error("userinfo_failed");
+    };
+    let userinfo: CoreUserInfoClaims = match req.request_async(async_http_client).await {
+        Ok(u) => u,
+        Err(_) => return login_error("userinfo_failed"),
+    };
+
+    let email = userinfo.email().map(|e| e.as_str().trim().to_lowercase()).unwrap_or_default();
+    let email_verified = userinfo.email_verified().unwrap_or(true);
+    let name = userinfo
+        .name()
+        .and_then(|n| n.get(None))
+        .map(|n| n.as_str().to_string())
+        .or_else(|| userinfo.preferred_username().map(|u| u.as_str().to_string()))
+        .unwrap_or_else(|| email.split('@').next().unwrap_or("User").to_string());
+    let picture = userinfo.picture().and_then(|p| p.get(None)).map(|p| p.as_str().to_string());
+    let subject = userinfo.subject().as_str().to_string();
+    let provider_key = provider_id.to_string();
+
+    match resolve_user(&state, &provider_key, &subject, &email, email_verified, &name, picture).await {
+        Ok(user_id) => {
+            // Rotation de l'identifiant de session (anti fixation) puis connexion.
+            let redirect: String = session
+                .remove("post_login_redirect")
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "/".into());
+            let _ = session.remove::<String>("nonce").await;
+            if session.cycle_id().await.is_err() || session.insert(SESSION_USER_KEY, user_id).await.is_err() {
+                return login_error("session_error");
+            }
+            Redirect::to(&safe_redirect(Some(&redirect))).into_response()
+        }
+        Err(code) => login_error(code),
+    }
+}
+
+/// Trouve ou crée l'utilisateur correspondant à une identité OIDC.
+///
+/// 1. identité (provider, sub) déjà liée -> cet utilisateur ;
+/// 2. sinon e-mail vérifié correspondant à un compte -> on lie l'identité ;
+/// 3. sinon création du compte (si les inscriptions sont ouvertes ou premier utilisateur).
+async fn resolve_user(
+    state: &AppState,
+    provider: &str,
+    subject: &str,
+    email: &str,
+    email_verified: bool,
+    name: &str,
+    picture: Option<String>,
+) -> Result<Uuid, &'static str> {
+    let pool = &state.pool;
+    let db = |_| "database_error";
+
+    let existing: Option<(Uuid, bool)> = sqlx::query_as(
+        "SELECT u.id, u.is_suspended FROM identities i JOIN users u ON u.id = i.user_id
+         WHERE i.provider = $1 AND i.provider_user_id = $2",
+    )
+    .bind(provider)
+    .bind(subject)
+    .fetch_optional(pool)
+    .await
+    .map_err(db)?;
+
+    if let Some((id, suspended)) = existing {
+        if suspended {
+            return Err("suspended");
+        }
+        return Ok(id);
     }
 
-    let client = match get_oidc_client(&state, provider_id).await {
-        Ok(c) => c,
-        Err(_) => return axum::response::Html(r#"<script>window.location.href = "/login?error=provider_error";</script>"#).into_response(),
-    };
+    if email.is_empty() {
+        return Err("missing_email");
+    }
 
-    let pkce_secret_opt: Option<String> = session.get("pkce_verifier").await.unwrap();
-    let pkce_secret = match pkce_secret_opt {
-        Some(secret) => secret,
-        None => return axum::response::Html(r#"<script>window.location.href = "/login?error=missing_pkce";</script>"#).into_response(),
-    };
-    let pkce_verifier = PkceCodeVerifier::new(pkce_secret);
+    let by_email: Option<(Uuid, bool)> = sqlx::query_as("SELECT id, is_suspended FROM users WHERE lower(email) = $1")
+        .bind(email)
+        .fetch_optional(pool)
+        .await
+        .map_err(db)?;
 
-    let token_response_res = client
-        .exchange_code(AuthorizationCode::new(params.code))
-        .set_pkce_verifier(pkce_verifier)
-        .request_async(async_http_client)
-        .await;
-
-    let token_response = match token_response_res {
-        Ok(t) => t,
-        Err(_) => {
-            return axum::response::Html(r#"<script>window.location.href = "/login?error=exchange_failed";</script>"#).into_response();
+    let user_id = match by_email {
+        Some((id, suspended)) => {
+            if suspended {
+                return Err("suspended");
+            }
+            if !email_verified {
+                return Err("email_not_verified");
+            }
+            id
+        }
+        None => {
+            let user_count: i64 = sqlx::query_scalar("SELECT count(*) FROM users").fetch_one(pool).await.map_err(db)?;
+            let first = user_count == 0;
+            if !first {
+                let allow: bool = sqlx::query_scalar("SELECT allow_public_signups FROM global_settings WHERE id = 1")
+                    .fetch_optional(pool)
+                    .await
+                    .map_err(db)?
+                    .unwrap_or(true);
+                if !allow {
+                    return Err("signups_disabled");
+                }
+            }
+            sqlx::query_scalar(
+                "INSERT INTO users (email, name, avatar_url, is_super_admin) VALUES ($1, $2, $3, $4) RETURNING id",
+            )
+            .bind(email)
+            .bind(name)
+            .bind(picture)
+            .bind(first)
+            .fetch_one(pool)
+            .await
+            .map_err(db)?
         }
     };
-
-    let access_token = token_response.access_token().clone();
-    
-    let userinfo_res = client
-        .user_info(access_token, None)
-        .expect("Failed to create userinfo request")
-        .request_async(async_http_client)
-        .await;
-
-    let userinfo: CoreUserInfoClaims = match userinfo_res {
-        Ok(u) => u,
-        Err(_) => {
-            return axum::response::Html(r#"<script>window.location.href = "/login?error=userinfo_failed";</script>"#).into_response();
-        }
-    };
-
-    let email = userinfo.email().map(|e| e.as_str().to_string()).unwrap_or_default();
-    let name = userinfo.name().and_then(|n| n.get(None)).map(|n| n.as_str().to_string()).unwrap_or_default();
-    let provider_user_id = userinfo.subject().as_str().to_string();
-    let provider_name = provider_id.to_string(); // we use provider_id as string for identities table provider column
-
-    let user_count: i64 = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM users").fetch_one(&state.pool).await.unwrap_or(0);
-    let is_super_admin = user_count == 0;
-
-    let user_id = sqlx::query_scalar::<_, uuid::Uuid>(
-        "INSERT INTO users (email, name, is_super_admin) VALUES ($1, $2, $3)
-         ON CONFLICT (email) DO UPDATE SET name = $2
-         RETURNING id"
-    )
-    .bind(&email)
-    .bind(&name)
-    .bind(is_super_admin)
-    .fetch_one(&state.pool)
-    .await
-    .unwrap();
 
     sqlx::query(
-        "INSERT INTO identities (user_id, provider, provider_user_id) 
-         VALUES ($1, $2, $3) 
-         ON CONFLICT (provider, provider_user_id) DO NOTHING"
+        "INSERT INTO identities (user_id, provider, provider_user_id) VALUES ($1, $2, $3)
+         ON CONFLICT (provider, provider_user_id) DO NOTHING",
     )
     .bind(user_id)
-    .bind(&provider_name)
-    .bind(&provider_user_id)
-    .execute(&state.pool)
+    .bind(provider)
+    .bind(subject)
+    .execute(pool)
     .await
-    .unwrap();
+    .map_err(db)?;
 
-    session.insert("user_id", user_id).await.unwrap();
-
-    axum::response::Html(r#"<script>window.location.href = "/";</script>"#).into_response()
+    Ok(user_id)
 }
 
 #[derive(Serialize, sqlx::FromRow)]
-struct UserProfile {
-    id: uuid::Uuid,
+pub struct UserProfile {
+    pub id: Uuid,
+    pub email: String,
+    pub name: String,
+    pub avatar_url: Option<String>,
+    pub theme: Option<String>,
+    pub locale: Option<String>,
+    pub is_super_admin: bool,
+}
+
+async fn me_handler(State(state): State<AppState>, user: Option<AuthUser>) -> ApiResult<Json<serde_json::Value>> {
+    let Some(user) = user else {
+        return Ok(Json(serde_json::json!({ "authenticated": false })));
+    };
+    let profile: UserProfile = sqlx::query_as(
+        "SELECT id, email, name, avatar_url, theme, locale, is_super_admin FROM users WHERE id = $1",
+    )
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await?;
+    Ok(Json(serde_json::json!({ "authenticated": true, "user": profile })))
+}
+
+async fn logout_handler(session: Session) -> Response {
+    let _ = session.flush().await;
+    Redirect::to("/login").into_response()
+}
+
+
+#[derive(Deserialize)]
+struct DevLoginQuery {
     email: String,
-    name: String,
-    is_super_admin: bool,
+    name: Option<String>,
+    redirect: Option<String>,
 }
 
-async fn me_handler(session: Session, State(state): State<AuthState>) -> impl IntoResponse {
-    let user_id: Option<uuid::Uuid> = session.get("user_id").await.unwrap_or(None);
-    
-    match user_id {
-        Some(uid) => {
-            let user = sqlx::query_as::<_, UserProfile>(
-                "SELECT id, email, name, is_super_admin FROM users WHERE id = $1"
-            )
-            .bind(uid)
-            .fetch_one(&state.pool)
-            .await;
-
-            match user {
-                Ok(u) => Json(serde_json::json!({ "authenticated": true, "user": u })),
-                Err(_) => Json(serde_json::json!({ "authenticated": false }))
-            }
-        },
-        None => Json(serde_json::json!({ "authenticated": false }))
+/// Connexion de développement SANS mot de passe, uniquement si `LOOTY_DEV_LOGIN=true`.
+/// Ne jamais activer en production.
+async fn dev_login_handler(
+    session: Session,
+    State(state): State<AppState>,
+    Query(q): Query<DevLoginQuery>,
+) -> Response {
+    if std::env::var("LOOTY_DEV_LOGIN").as_deref() != Ok("true") {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
     }
-}
-
-async fn logout_handler(session: Session) -> impl IntoResponse {
-    session.delete().await.unwrap();
-    axum::response::Html(r#"<script>window.location.href = "/login";</script>"#).into_response()
+    let email = q.email.trim().to_lowercase();
+    let name = q.name.unwrap_or_else(|| email.split('@').next().unwrap_or("dev").to_string());
+    let first: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM users)")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(false);
+    let id: Result<Uuid, _> = sqlx::query_scalar(
+        "INSERT INTO users (email, name, is_super_admin) VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
+    )
+    .bind(&email)
+    .bind(&name)
+    .bind(first)
+    .fetch_one(&state.pool)
+    .await;
+    let Ok(id) = id else { return login_error("database_error") };
+    if session.cycle_id().await.is_err() || session.insert(SESSION_USER_KEY, id).await.is_err() {
+        return login_error("session_error");
+    }
+    Redirect::to(&safe_redirect(q.redirect.as_deref())).into_response()
 }

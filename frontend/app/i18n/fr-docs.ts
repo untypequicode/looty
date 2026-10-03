@@ -1,0 +1,35 @@
+export default {
+  common: { download: 'Télécharger' },
+  docs: { notFound: 'Document introuvable', notFoundHint: 'Il a peut-être été supprimé ou vous n’y avez pas accès.' },
+  editor: {
+    placeholder: 'Écrivez quelque chose, ou tapez « / » pour insérer un bloc…', emptyLine: 'Tapez « / » pour les commandes',
+    headingPlaceholder: 'Titre {level}', togglePlaceholder: 'Résumé du bloc dépliable', mathPlaceholder: 'Cliquez pour saisir une formule LaTeX',
+    toValidate: 'pour valider', addBlock: 'Ajouter un bloc dessous', dragHint: 'Glisser pour déplacer · cliquer pour le menu',
+    turnInto: 'Transformer en', copySectionLink: 'Copier le lien vers cette section', moveUp: 'Monter', moveDown: 'Descendre',
+    addIcon: 'Ajouter une icône', searchEmoji: 'Rechercher un émoji…', suggested: 'Suggestions', allEmojis: 'Tous les émojis',
+    underline: 'Souligné', strike: 'Barré', code: 'Code', highlight: 'Surligner', linkPlaceholder: 'Coller un lien ou rechercher un document…',
+    removeLink: 'Retirer le lien', language: 'Langage…', alignLeft: 'Aligner à gauche', alignCenter: 'Centrer', fullWidth: 'Pleine largeur',
+    contents: 'Sommaire', findInPage: 'Rechercher dans la page', findPlaceholder: 'Rechercher dans la page…',
+    fullWidthPage: 'Pleine largeur', normalWidth: 'Largeur normale', exportMarkdown: 'Exporter en Markdown', exportZip: 'Exporter en ZIP (avec sous-pages)',
+    readOnly: 'Lecture seule', offline: 'Hors ligne', connecting: 'Connexion…', saving: 'Enregistrement…',
+    lastEdited: 'Modifié par {name} · {time}', subDocuments: 'Sous-documents', searchDocs: 'Rechercher un document…',
+    slash: {
+      basic: 'Texte', blocks: 'Blocs', media: 'Médias', advanced: 'Avancé', empty: 'Aucune commande',
+      text: 'Texte', h1: 'Titre 1', h2: 'Titre 2', h3: 'Titre 3', bullet: 'Liste à puces', ordered: 'Liste numérotée', todo: 'Liste de tâches',
+      toggle: 'Bloc dépliable', toggleHint: 'Contenu masquable', quote: 'Citation', calloutInfo: 'Encadré info', calloutWarning: 'Encadré attention',
+      calloutSuccess: 'Encadré succès', calloutTip: 'Encadré astuce', code: 'Bloc de code', table: 'Tableau', divider: 'Séparateur',
+      image: 'Image', imageHint: 'Importer une image', file: 'Fichier', fileHint: 'Joindre un fichier', math: 'Formule (bloc)', mathInline: 'Formule en ligne',
+      date: 'Date du jour', docLink: 'Lien vers un document',
+    },
+    table: {
+      rowAbove: 'Ligne au-dessus', rowBelow: 'Ligne en dessous', deleteRow: 'Supprimer la ligne', colLeft: 'Colonne à gauche',
+      colRight: 'Colonne à droite', deleteCol: 'Supprimer la colonne', toggleHeader: 'Ligne d’en-tête', delete: 'Supprimer le tableau',
+    },
+  },
+  share: {
+    title: 'Partager le document', share: 'Partager', access: 'Accès', internal: 'Lien interne', internalHint: 'Pour les membres de l’espace qui ont accès.',
+    public: 'Publier sur le web', publicOn: 'Toute personne disposant du lien peut lire ce document.', publicOff: 'Seuls les membres autorisés y ont accès.',
+    accessHint: 'Les droits s’appliquent aussi aux sous-documents. Les administrateurs ont toujours un accès complet.',
+    inherit: 'Selon son rôle', editor: 'Peut modifier', viewer: 'Lecture seule', blocked: 'Aucun accès', fullAccess: 'Accès complet',
+  },
+}

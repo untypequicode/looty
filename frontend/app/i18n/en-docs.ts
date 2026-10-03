@@ -1,0 +1,35 @@
+export default {
+  common: { download: 'Download' },
+  docs: { notFound: 'Document not found', notFoundHint: 'It may have been deleted, or you don’t have access.' },
+  editor: {
+    placeholder: 'Write something, or type “/” to insert a block…', emptyLine: 'Type “/” for commands',
+    headingPlaceholder: 'Heading {level}', togglePlaceholder: 'Toggle summary', mathPlaceholder: 'Click to enter a LaTeX formula',
+    toValidate: 'to confirm', addBlock: 'Add a block below', dragHint: 'Drag to move · click for menu',
+    turnInto: 'Turn into', copySectionLink: 'Copy link to section', moveUp: 'Move up', moveDown: 'Move down',
+    addIcon: 'Add icon', searchEmoji: 'Search emoji…', suggested: 'Suggested', allEmojis: 'All emojis',
+    underline: 'Underline', strike: 'Strikethrough', code: 'Code', highlight: 'Highlight', linkPlaceholder: 'Paste a link or search documents…',
+    removeLink: 'Remove link', language: 'Language…', alignLeft: 'Align left', alignCenter: 'Center', fullWidth: 'Full width',
+    contents: 'Contents', findInPage: 'Find in page', findPlaceholder: 'Find in page…',
+    fullWidthPage: 'Full width', normalWidth: 'Normal width', exportMarkdown: 'Export as Markdown', exportZip: 'Export as ZIP (with sub-pages)',
+    readOnly: 'Read only', offline: 'Offline', connecting: 'Connecting…', saving: 'Saving…',
+    lastEdited: 'Edited by {name} · {time}', subDocuments: 'Sub-documents', searchDocs: 'Search documents…',
+    slash: {
+      basic: 'Text', blocks: 'Blocks', media: 'Media', advanced: 'Advanced', empty: 'No commands',
+      text: 'Text', h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', bullet: 'Bulleted list', ordered: 'Numbered list', todo: 'To-do list',
+      toggle: 'Toggle', toggleHint: 'Collapsible content', quote: 'Quote', calloutInfo: 'Info callout', calloutWarning: 'Warning callout',
+      calloutSuccess: 'Success callout', calloutTip: 'Tip callout', code: 'Code block', table: 'Table', divider: 'Divider',
+      image: 'Image', imageHint: 'Upload an image', file: 'File', fileHint: 'Attach a file', math: 'Math block', mathInline: 'Inline math',
+      date: 'Today’s date', docLink: 'Link to document',
+    },
+    table: {
+      rowAbove: 'Row above', rowBelow: 'Row below', deleteRow: 'Delete row', colLeft: 'Column left',
+      colRight: 'Column right', deleteCol: 'Delete column', toggleHeader: 'Header row', delete: 'Delete table',
+    },
+  },
+  share: {
+    title: 'Share document', share: 'Share', access: 'Access', internal: 'Internal link', internalHint: 'For workspace members who have access.',
+    public: 'Publish to the web', publicOn: 'Anyone with the link can read this document.', publicOff: 'Only authorized members have access.',
+    accessHint: 'Permissions also apply to sub-documents. Admins always have full access.',
+    inherit: 'Based on role', editor: 'Can edit', viewer: 'Read only', blocked: 'No access', fullAccess: 'Full access',
+  },
+}

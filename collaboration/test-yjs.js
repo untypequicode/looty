@@ -1,7 +1,0 @@
-const Y = require('yjs')
-const ydoc = new Y.Doc()
-const xml = ydoc.getXmlFragment('default')
-const p = new Y.XmlElement('paragraph')
-xml.insert(0, [p])
-const state = Y.encodeStateAsUpdate(ydoc)
-console.log(Buffer.from(state).toString('hex'))

@@ -46,6 +46,7 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+      BACKEND_URL: http://backend:8080
     depends_on:
       postgres:
         condition: service_healthy
