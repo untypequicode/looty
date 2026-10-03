@@ -17,6 +17,8 @@ const uploading = ref(0)
 const dragOver = ref(false)
 const input = ref<HTMLInputElement | null>(null)
 const preview = ref<TaskAttachment | null>(null)
+const pdfPreview = ref<TaskAttachment | null>(null)
+const pdfOpen = computed({ get: () => !!pdfPreview.value, set: (v) => { if (!v) pdfPreview.value = null } })
 
 const url = (a: TaskAttachment) => `/${a.file_path}`
 const isImage = (a: TaskAttachment) => (a.mime_type ?? '').startsWith('image/')
@@ -61,6 +63,7 @@ async function remove(a: TaskAttachment) {
 }
 function open(a: TaskAttachment) {
   if (isImage(a)) preview.value = a
+  else if (isPdf(a)) pdfPreview.value = a
   else window.open(url(a), '_blank', 'noopener')
 }
 
@@ -99,6 +102,9 @@ watch(preview, (p) => { if (p) nextTick(() => motion.dialog.onEnter(lightbox.val
       <Upload :size="15" /> {{ t('attachments.drop') }}
     </button>
 
+    <UiDialog v-model:open="pdfOpen" :title="pdfPreview?.filename" :width="960">
+      <ViewerPdf v-if="pdfPreview" :src="url(pdfPreview)" :name="pdfPreview.filename" height="72vh" />
+    </UiDialog>
     <Teleport to="body">
       <div v-if="preview" class="lb" @click="preview = null">
         <div ref="lightbox" class="lb-inner" @click.stop>

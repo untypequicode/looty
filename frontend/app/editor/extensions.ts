@@ -25,6 +25,7 @@ import { EmojiSuggestion } from './emoji'
 import { slashCommands, type SlashContext } from './slash'
 import { mentionExtension } from './mention'
 import { TrailingNode } from './TrailingNode'
+import { embedExtensions, EmbedPaste } from './embeds'
 import { translate as t } from '~/composables/useI18n'
 
 /** Schéma commun : identique en édition et en lecture pour un rendu fidèle. */
@@ -60,6 +61,7 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
     ToggleSummary,
     ToggleContent,
     HeadingAnchors,
+    ...embedExtensions,
   ]
 }
 
@@ -91,6 +93,7 @@ export function docExtensions(o: DocEditorOptions): Extensions {
     EmojiSuggestion,
     FindInPage,
     BlockKeymap,
+    EmbedPaste,
     TrailingNode,
   ]
   if (o.ydoc) {

@@ -7,6 +7,8 @@ import frDocs from '~/i18n/fr-docs'
 import enDocs from '~/i18n/en-docs'
 import frSettings from '~/i18n/fr-settings'
 import enSettings from '~/i18n/en-settings'
+import frEmbeds from '~/i18n/fr-embeds'
+import enEmbeds from '~/i18n/en-embeds'
 
 export type Locale = 'fr' | 'en'
 type Messages = Record<string, any>
@@ -20,7 +22,7 @@ function merge(...parts: Messages[]): Messages {
   return out
 }
 
-const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard, frDocs, frSettings), en: merge(enCore, enBoard, enDocs, enSettings) }
+const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard, frDocs, frSettings, frEmbeds), en: merge(enCore, enBoard, enDocs, enSettings, enEmbeds) }
 export const LOCALES: { code: Locale; label: string }[] = [
   { code: 'fr', label: 'Français' },
   { code: 'en', label: 'English' },

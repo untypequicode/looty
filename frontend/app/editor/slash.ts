@@ -4,7 +4,7 @@ import { PluginKey } from '@tiptap/pm/state'
 import type { Component } from 'vue'
 import {
   Pilcrow, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code2, Sigma, Table, Image, Minus,
-  Info, AlertTriangle, CheckCircle2, Lightbulb, ChevronRightSquare, Paperclip, CalendarDays, FileText, Superscript,
+  Info, AlertTriangle, CheckCircle2, Lightbulb, ChevronRightSquare, Paperclip, CalendarDays, FileText, Superscript, Workflow, PenTool, FileType2, Clapperboard,
 } from 'lucide-vue-next'
 import { suggestionRenderer } from './suggestion'
 import { translate as t } from '~/composables/useI18n'
@@ -32,6 +32,8 @@ function pickFile(accept: string, onFile: (f: File) => void) {
 export interface SlashContext {
   /** Recherche de documents pour l'insertion de lien interne. */
   pickDoc?: (editor: Editor) => void
+  /** Demande une URL à intégrer (YouTube, Figma...). */
+  askEmbed?: (editor: Editor) => void
 }
 
 export function slashItems(ctx: SlashContext = {}): SlashItem[] {
@@ -39,6 +41,7 @@ export function slashItems(ctx: SlashContext = {}): SlashItem[] {
   const blocks = t('editor.slash.blocks')
   const media = t('editor.slash.media')
   const adv = t('editor.slash.advanced')
+  const emb = t('editor.slash.embeds')
   const chain = (e: Editor, r: Range) => e.chain().focus().deleteRange(r)
   return [
     { id: 'p', group: basic, label: t('editor.slash.text'), icon: Pilcrow, keywords: 'paragraph texte', run: (e, r) => chain(e, r).setParagraph().run() },
@@ -67,9 +70,18 @@ export function slashItems(ctx: SlashContext = {}): SlashItem[] {
       chain(e, r).run()
       pickFile('*/*', async (f) => {
         const u = await uploadFile(f)
+        if (u.mime === 'application/pdf') return e.chain().focus().insertPdf(u.url, u.name).run()
         e.chain().focus().insertContent([{ type: 'text', text: `📎 ${u.name}`, marks: [{ type: 'link', attrs: { href: u.url } }] }, { type: 'text', text: ' ' }]).run()
       })
     } },
+
+    { id: 'pdf', group: emb, label: t('editor.slash.pdf'), hint: t('editor.slash.pdfHint'), icon: FileType2, keywords: 'pdf document viewer lecteur', run: (e, r) => {
+      chain(e, r).run()
+      pickFile('application/pdf', async (f) => { const u = await uploadFile(f); e.chain().focus().insertPdf(u.url, u.name).run() })
+    } },
+    { id: 'mermaid', group: emb, label: t('editor.slash.mermaid'), hint: t('editor.slash.mermaidHint'), icon: Workflow, keywords: 'mermaid diagram diagramme flowchart graph sequence gantt', run: (e, r) => chain(e, r).insertMermaid('graph TD\n  A[Idée] --> B{Validée ?}\n  B -- Oui --> C[Réalisation]\n  B -- Non --> A').run() },
+    { id: 'excalidraw', group: emb, label: t('editor.slash.excalidraw'), hint: t('editor.slash.excalidrawHint'), icon: PenTool, keywords: 'excalidraw drawing dessin schéma sketch whiteboard tableau blanc', run: (e, r) => chain(e, r).insertExcalidraw().run() },
+    ...(ctx.askEmbed ? [{ id: 'embed', group: emb, label: t('editor.slash.embed'), hint: 'YouTube, Figma, Loom…', icon: Clapperboard, keywords: 'embed intégrer youtube vimeo loom figma codepen google miro video vidéo', run: (e: Editor, r: Range) => { chain(e, r).run(); ctx.askEmbed!(e) } }] : []),
 
     { id: 'math', group: adv, label: t('editor.slash.math'), hint: '$$', icon: Sigma, keywords: 'math latex formula équation formule katex', run: (e, r) => chain(e, r).insertMathBlock('').run() },
     { id: 'mathi', group: adv, label: t('editor.slash.mathInline'), hint: '$x$', icon: Superscript, keywords: 'math inline latex formule', run: (e, r) => chain(e, r).insertMathInline('x').run() },

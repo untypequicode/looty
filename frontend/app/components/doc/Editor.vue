@@ -10,6 +10,9 @@ import { useWorkspace, links } from '~/composables/useWorkspace'
 import { sendMention, socketBase } from '~/composables/useRealtime'
 import { uploadFile } from '~/composables/api'
 import { motion } from '~/composables/useMotion'
+import { resolveEmbed } from '~/editor/embeds'
+import { toast } from '~/composables/useToast'
+import { translate } from '~/composables/useI18n'
 
 /**
  * Éditeur de document collaboratif (Yjs + Hocuspocus).
@@ -45,6 +48,18 @@ const wrapper = ref<HTMLElement | null>(null)
 const docPickerOpen = ref(false)
 const docPickerPos = ref<{ x: number; y: number } | null>(null)
 const docPickerValue = ref<string | null>(null)
+// Intégration par URL (YouTube, Figma...) depuis « / »
+const embedOpen = ref(false)
+const embedPos = ref<{ x: number; y: number } | null>(null)
+const embedUrl = ref('')
+function submitEmbed() {
+  const url = embedUrl.value.trim()
+  if (!url) return
+  if (!resolveEmbed(url)) { toast.error(translate('embeds.unsupported')); return }
+  editor.value?.chain().focus().insertEmbed(url).run()
+  embedOpen.value = false
+}
+
 const docItems = computed(() => (pages.data.value ?? []).filter((p) => p.id !== props.pageId).map((p) => ({ value: p.id, label: `${p.icon ? `${p.icon} ` : ''}${p.title || '…'}` })))
 
 const editor = useEditor({
@@ -61,6 +76,12 @@ const editor = useEditor({
         docPickerPos.value = { x: c.left, y: c.bottom + 4 }
         docPickerValue.value = null
         docPickerOpen.value = true
+      },
+      askEmbed: (e) => {
+        const c = e.view.coordsAtPos(e.state.selection.from)
+        embedPos.value = { x: c.left, y: c.bottom + 4 }
+        embedUrl.value = ''
+        embedOpen.value = true
       },
     },
   }),
@@ -192,12 +213,22 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
       <DocBlockHandle :editor="editor" :container="wrapper" />
       <DocBubble :editor="editor" />
     </template>
+    <UiPopover v-model:open="embedOpen" :virtual-rect="embedPos" :width="360">
+      <form class="embed-ask" @submit.prevent="submitEmbed">
+        <input v-model="embedUrl" autofocus :placeholder="$t('embeds.urlPlaceholder')" />
+        <UiButton size="sm" variant="primary" type="submit" :disabled="!embedUrl.trim()">{{ $t('embeds.insert') }}</UiButton>
+      </form>
+      <p class="embed-hint">{{ $t('embeds.supported') }}</p>
+    </UiPopover>
     <UiCombobox v-model="docPickerValue" v-model:open="docPickerOpen" :items="docItems" :virtual-rect="docPickerPos" :placeholder="$t('editor.searchDocs')" :width="300" @update:model-value="insertDocLink" />
   </div>
 </template>
 
 <style scoped>
 .doc-editor { position: relative; }
+.embed-ask { display: flex; gap: 6px; padding: 8px; }
+.embed-ask input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-input); outline: none; }
+.embed-hint { margin: 0; padding: 0 10px 10px; font-size: var(--fs-xs); color: var(--text-3); }
 .doc-loading { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }
 .doc-editor :deep(.ProseMirror) { outline: none; min-height: 50vh; padding-bottom: 30vh; }
 .doc-editor :deep(.ProseMirror .is-empty::before) {

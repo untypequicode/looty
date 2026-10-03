@@ -29,6 +29,18 @@ export function htmlToMarkdown(html: string): string {
       return `\n\n<details>\n<summary>${summary}</summary>\n\n${c.replace(summary, '').trim()}\n\n</details>\n\n`
     },
   })
+  td.addRule('mermaid', {
+    filter: (n) => n.nodeName === 'DIV' && (n as HTMLElement).dataset.type === 'mermaid',
+    replacement: (_c, n) => `\n\n\`\`\`mermaid\n${(n as HTMLElement).textContent ?? ''}\n\`\`\`\n\n`,
+  })
+  td.addRule('embedLike', {
+    filter: (n) => n.nodeName === 'DIV' && ['embed', 'pdf'].includes((n as HTMLElement).dataset.type ?? ''),
+    replacement: (_c, n) => { const el = n as HTMLElement; const src = el.dataset.src ?? ''; return `\n\n[${el.dataset.name || src}](${src})\n\n` },
+  })
+  td.addRule('excalidraw', {
+    filter: (n) => n.nodeName === 'DIV' && (n as HTMLElement).dataset.type === 'excalidraw',
+    replacement: () => '\n\n_(Excalidraw)_\n\n',
+  })
   td.keep(['mark', 'u'])
   return td.turndown(html || '')
 }
