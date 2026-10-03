@@ -42,12 +42,15 @@ export default defineNuxtConfig({
         // doivent atteindre le navigateur avec leur Set-Cookie, pas être suivies par le proxy.
         '/api/**': { proxy: { to: `${backend}/api/**`, fetchOptions: { redirect: 'manual' } } },
         '/uploads/**': { proxy: { to: `${backend}/uploads/**`, fetchOptions: { redirect: 'manual' } } },
+        // /dav et /.well-known/caldav : voir server/routes (corps PROPFIND / REPORT).
       },
 
   nitro: {
     devProxy: {
       '/api': { target: `${backend}/api`, ws: true, changeOrigin: true },
       '/uploads': { target: `${backend}/uploads`, changeOrigin: true },
+      '/dav': { target: `${backend}/dav`, changeOrigin: true },
+      '/.well-known/caldav': { target: `${backend}/.well-known/caldav`, changeOrigin: true },
       '/collab': { target: collab, ws: true, changeOrigin: true },
     },
   },

@@ -47,7 +47,7 @@ where
                 let row: Option<(Uuid, bool, bool)> = sqlx::query_as(
                     "UPDATE api_tokens t SET last_used_at = NOW()
                      FROM users u
-                     WHERE t.token_hash = $1 AND u.id = t.user_id
+                     WHERE t.token_hash = $1 AND t.scope = 'api' AND u.id = t.user_id
                      RETURNING u.id, u.is_super_admin, u.is_suspended",
                 )
                 .bind(hash_token(raw.trim()))

@@ -6,6 +6,7 @@ mod board;
 mod caldav;
 mod crypto;
 mod ical;
+mod dav;
 mod db;
 mod error;
 mod notifications;
@@ -90,6 +91,7 @@ async fn main() {
     let app = Router::new()
         .route("/uploads/:name", get(upload::serve_upload))
         .nest("/api", api)
+        .merge(dav::routes())
         .with_state(state)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(session_layer)
