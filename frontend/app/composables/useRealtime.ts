@@ -5,6 +5,7 @@ import type { Board, Notification, Page, Presence, Task, TaskComment } from '~/t
 import { wsKeys } from './useWorkspace'
 import { toast } from './useToast'
 import { translate } from './useI18n'
+import { pushActiveHere } from './usePush'
 
 /** Base ws(s):// : même origine en production, configurable en développement. */
 export function socketBase(override?: string) {
@@ -235,7 +236,8 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       toast(translate(`inbox.kinds.${n.kind}`, { name: n.actor_name || '?', title: n.data?.title || '' }), {
         action: { label: translate('common.open'), run: () => navigateTo(`/w/${wsId}/inbox`) },
       })
-      if (document.hidden && 'Notification' in window && window.Notification.permission === 'granted') {
+      // Avec le push actif sur cet appareil, le service worker affiche déjà la notification.
+      if (document.hidden && !pushActiveHere() && 'Notification' in window && window.Notification.permission === 'granted') {
         new window.Notification(translate(`inbox.kinds.${n.kind}`, { name: n.actor_name || '?', title: n.data?.title || '' }))
       }
       break

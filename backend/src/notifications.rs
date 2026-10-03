@@ -60,6 +60,7 @@ pub async fn notify(
     .await;
     match res {
         Ok(n) => {
+            crate::delivery::enqueue(pool, n.id, user_id, &n.kind, &n.target).await;
             hub.send_to(workspace_id, user_id, serde_json::json!({ "type": "NOTIFICATION", "notification": n }))
                 .await
         }
