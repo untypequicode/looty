@@ -10,7 +10,7 @@ export default {
     underline: 'Souligné', strike: 'Barré', code: 'Code', highlight: 'Surligner', linkPlaceholder: 'Coller un lien ou rechercher un document…',
     removeLink: 'Retirer le lien', language: 'Langage…', alignLeft: 'Aligner à gauche', alignCenter: 'Centrer', fullWidth: 'Pleine largeur',
     contents: 'Sommaire', findInPage: 'Rechercher dans la page', findPlaceholder: 'Rechercher dans la page…',
-    fullWidthPage: 'Pleine largeur', normalWidth: 'Largeur normale', exportMarkdown: 'Exporter en Markdown', exportZip: 'Exporter en ZIP (avec sous-pages)',
+    fullWidthPage: 'Pleine largeur', normalWidth: 'Largeur normale', exportMarkdown: 'Exporter en Markdown',
     readOnly: 'Lecture seule', offline: 'Hors ligne', connecting: 'Connexion…', saving: 'Enregistrement…',
     lastEdited: 'Modifié par {name} · {time}', subDocuments: 'Sous-documents', searchDocs: 'Rechercher un document…',
     slash: {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LogOut, Trash2 } from 'lucide-vue-next'
+import { LogOut, Trash2, Upload, Download } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useWorkspace, wsKeys } from '~/composables/useWorkspace'
 import { api } from '~/composables/api'
@@ -7,7 +7,9 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 
-const { wsId, workspace, role, isAdmin } = useWorkspace()
+const { wsId, workspace, role, isAdmin, canWrite } = useWorkspace()
+const importOpen = ref(false)
+const exportOpen = ref(false)
 const { t } = useI18n()
 const qc = useQueryClient()
 const name = ref('')
@@ -47,6 +49,16 @@ async function remove() {
       <UiButton v-if="isAdmin" variant="primary" size="sm" :disabled="!name.trim() || name.trim() === workspace.data.value?.name" :loading="saving" @click="save">{{ t('common.save') }}</UiButton>
     </SettingsRow>
     <SettingsRow :label="t('settings.ws.yourRole')"><span class="muted">{{ role ? t(`roles.${role}`) : '' }}</span></SettingsRow>
+  </SettingsSection>
+  <SettingsSection :title="t('transfer.sectionTitle')" :description="t('transfer.sectionHint')">
+    <SettingsRow v-if="canWrite" :label="t('transfer.importTitle')" :hint="t('transfer.importRowHint')">
+      <UiButton size="sm" :icon="Upload" @click="importOpen = true">{{ t('transfer.import') }}</UiButton>
+    </SettingsRow>
+    <SettingsRow :label="t('transfer.exportWorkspace')" :hint="t('transfer.exportRowHint')">
+      <UiButton size="sm" :icon="Download" @click="exportOpen = true">{{ t('transfer.export') }}</UiButton>
+    </SettingsRow>
+    <DocImportDialog v-model:open="importOpen" />
+    <DocExportDialog v-model:open="exportOpen" />
   </SettingsSection>
   <SettingsSection :title="t('settings.ws.danger')" danger>
     <SettingsRow :label="t('settings.ws.leave')" :hint="t('settings.ws.leaveHint')">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, Plus, LayoutGrid, List, Search, Star } from 'lucide-vue-next'
+import { FileText, Plus, LayoutGrid, List, Search, Star, Upload, Download } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
@@ -14,6 +14,8 @@ const { t, relativeTime } = useI18n()
 const view = useLocalStorage<'grid' | 'list'>('looty.docs.view', 'list')
 const sort = ref<'updated' | 'created' | 'title' | 'popular'>('updated')
 const q = ref('')
+const importOpen = ref(false)
+const exportOpen = ref(false)
 
 const list = computed(() => {
   let l = [...(pages.data.value ?? [])]
@@ -37,8 +39,12 @@ useHead({ title: () => t('nav.allDocs') })
   <div class="page">
     <AppPageHeader :crumbs="[{ label: t('nav.allDocs'), icon: FileText }]">
       <UiSegmented v-model="view" :options="[{ value: 'list', icon: List, title: t('docs.listView') }, { value: 'grid', icon: LayoutGrid, title: t('docs.gridView') }]" />
+      <UiTooltip v-if="canWrite" :text="t('transfer.importTitle')"><UiButton size="sm" variant="ghost" :icon="Upload" :aria-label="t('transfer.importTitle')" @click="importOpen = true" /></UiTooltip>
+      <UiTooltip :text="t('transfer.exportWorkspace')"><UiButton size="sm" variant="ghost" :icon="Download" :aria-label="t('transfer.exportWorkspace')" @click="exportOpen = true" /></UiTooltip>
       <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
     </AppPageHeader>
+    <DocImportDialog v-model:open="importOpen" />
+    <DocExportDialog v-model:open="exportOpen" />
   
     <div ref="root" class="docs">
       <div class="docs-bar">

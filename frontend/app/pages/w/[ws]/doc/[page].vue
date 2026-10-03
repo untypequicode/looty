@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
 import type { Page } from '~/types'
@@ -14,7 +14,7 @@ import { useShortcuts } from '~/composables/useShortcuts'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { motion } from '~/composables/useMotion'
-import { exportMarkdown, exportZip } from '~/editor/export'
+import { exportMarkdown } from '~/editor/export'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -92,6 +92,8 @@ async function saveHtml(html: string) {
 const fullWidth = useLocalStorage<boolean>('looty.doc.fullWidth', false)
 const findOpen = ref(false)
 const shareOpen = ref(false)
+const exportOpen = ref(false)
+const importOpen = ref(false)
 const menuOpen = ref(false)
 const scroller = ref<HTMLElement | null>(null)
 
@@ -105,7 +107,8 @@ const menu = computed<MenuItem[]>(() => {
     { divider: true },
     ...(canEdit.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },
-    { label: t('editor.exportZip'), icon: FileArchive, onSelect: () => exportZip(wsId.value, { ...p, title: title.value }, pages.data.value ?? [], editorInst.value?.getHTML() ?? '') },
+    { label: t('transfer.exportMenu'), icon: FileArchive, onSelect: () => (exportOpen.value = true) },
+    ...(canEdit.value ? [{ label: t('transfer.importHere'), icon: Upload, onSelect: () => (importOpen.value = true) }] : []),
     ...(canEdit.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await deletePage(p)) navigateTo(p.parent_id ? links.doc(wsId.value, p.parent_id) : links.docs(wsId.value)) } }] : []),
   ]
 })
@@ -215,6 +218,8 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
     </div>
 
     <DocShareDialog v-if="live" v-model:open="shareOpen" :page="live" />
+    <DocExportDialog v-if="live" v-model:open="exportOpen" :page="{ ...live, title }" :get-html="() => editorInst?.getHTML() ?? ''" />
+    <DocImportDialog v-if="live" v-model:open="importOpen" :parent="live" />
   </div>
 </template>
 
