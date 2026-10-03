@@ -1,11 +1,19 @@
 import TurndownService from 'turndown'
-import JSZip from 'jszip'
-import type { Page } from '~/types'
-import { api } from '~/composables/api'
 
 /** HTML de l'éditeur -> Markdown (formules, cases à cocher, encadrés, toggles). */
 export function htmlToMarkdown(html: string): string {
-  const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' })
+  const td = new TurndownService({
+    headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-',
+    // Les nœuds sans texte (formules, dessins) sont « vides » pour Turndown : on applique quand même leur règle.
+    blankReplacement: (_c, n) => {
+      const el = n as HTMLElement
+      if (el.nodeName === 'TH' || el.nodeName === 'TD') return '  |'
+      if (el.dataset?.type === 'math-block') return `\n\n$$\n${el.getAttribute('latex') ?? ''}\n$$\n\n`
+      if (el.dataset?.type === 'math-inline') return `$${el.getAttribute('latex') ?? ''}$`
+      if (el.dataset?.type === 'excalidraw') return '\n\n_(Excalidraw)_\n\n'
+      return (n as any).isBlock ? '\n\n' : ''
+    },
+  })
   td.addRule('mathBlock', {
     filter: (n) => n.nodeName === 'DIV' && (n as HTMLElement).dataset.type === 'math-block',
     replacement: (_c, n) => `\n\n$$\n${(n as HTMLElement).getAttribute('latex') ?? ''}\n$$\n\n`,
@@ -41,8 +49,24 @@ export function htmlToMarkdown(html: string): string {
     filter: (n) => n.nodeName === 'DIV' && (n as HTMLElement).dataset.type === 'excalidraw',
     replacement: () => '\n\n_(Excalidraw)_\n\n',
   })
+  // Tableaux GFM (cellules sur une ligne)
+  const cell = (c: string) => c.trim().replace(/\n+/g, ' ').replace(/\|/g, '\\|')
+  td.addRule('tableCell', { filter: ['th', 'td'], replacement: (c) => ` ${cell(c)} |` })
+  td.addRule('tableRow', {
+    filter: 'tr',
+    replacement: (c, n) => {
+      const row = `|${c}\n`
+      const first = n.parentNode?.firstElementChild === n && (n.parentNode?.nodeName !== 'TBODY' || !n.parentNode.previousElementSibling || n.parentNode.previousElementSibling.nodeName === 'COLGROUP')
+      return first ? `${row}|${' --- |'.repeat((n as HTMLElement).children.length)}\n` : row
+    },
+  })
+  td.addRule('table', { filter: 'table', replacement: (c) => `\n\n${c.trim()}\n\n` })
+  td.addRule('tableSection', { filter: ['thead', 'tbody', 'tfoot', 'colgroup', 'col'], replacement: (c) => c })
   td.keep(['mark', 'u'])
-  return td.turndown(html || '')
+  // Les formules n'ont pas de texte : on y place le LaTeX pour que Turndown ne les traite pas comme vides.
+  const doc = new DOMParser().parseFromString(`<body>${html || ''}</body>`, 'text/html')
+  for (const el of Array.from(doc.querySelectorAll('[data-type="math-inline"], [data-type="math-block"]'))) el.textContent = el.getAttribute('latex') ?? ''
+  return td.turndown(doc.body)
 }
 
 function download(blob: Blob, name: string) {
@@ -56,31 +80,4 @@ const safe = (s: string) => (s || 'Untitled').replace(/[/\\?%*:|"<>]/g, '-').sli
 
 export function exportMarkdown(title: string, html: string) {
   download(new Blob([`# ${title}\n\n${htmlToMarkdown(html)}`], { type: 'text/markdown;charset=utf-8' }), `${safe(title)}.md`)
-}
-
-/** Export ZIP : la page, ses sous-pages (récursif) et les images importées. */
-export async function exportZip(wsId: string, root: Page, all: Page[], currentHtml: string) {
-  const zip = new JSZip()
-  const fetched = new Map<string, string>()
-  async function add(page: Page, dir: string, html?: string) {
-    const content = html ?? (await api<Page>(`/api/workspaces/${wsId}/pages/${page.id}`)).content ?? ''
-    let md = `# ${page.title}\n\n${htmlToMarkdown(content)}`
-    for (const m of md.matchAll(/!\[[^\]]*\]\((\/uploads\/[^)\s]+)\)/g)) {
-      const url = m[1]
-      if (!fetched.has(url)) {
-        const res = await fetch(url)
-        if (res.ok) {
-          const name = url.split('/').pop()!
-          zip.file(`assets/${name}`, await res.blob())
-          fetched.set(url, name)
-        }
-      }
-      const name = fetched.get(url)
-      if (name) md = md.split(url).join(`${'../'.repeat(dir.split('/').filter(Boolean).length)}assets/${name}`)
-    }
-    zip.file(`${dir}${safe(page.title)}.md`, md)
-    for (const child of all.filter((p) => p.parent_id === page.id)) await add(child, `${dir}${safe(page.title)}/`)
-  }
-  await add(root, '', currentHtml)
-  download(await zip.generateAsync({ type: 'blob' }), `${safe(root.title)}.zip`)
 }

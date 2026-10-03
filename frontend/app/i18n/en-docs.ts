@@ -10,7 +10,7 @@ export default {
     underline: 'Underline', strike: 'Strikethrough', code: 'Code', highlight: 'Highlight', linkPlaceholder: 'Paste a link or search documents…',
     removeLink: 'Remove link', language: 'Language…', alignLeft: 'Align left', alignCenter: 'Center', fullWidth: 'Full width',
     contents: 'Contents', findInPage: 'Find in page', findPlaceholder: 'Find in page…',
-    fullWidthPage: 'Full width', normalWidth: 'Normal width', exportMarkdown: 'Export as Markdown', exportZip: 'Export as ZIP (with sub-pages)',
+    fullWidthPage: 'Full width', normalWidth: 'Normal width', exportMarkdown: 'Export as Markdown',
     readOnly: 'Read only', offline: 'Offline', connecting: 'Connecting…', saving: 'Saving…',
     lastEdited: 'Edited by {name} · {time}', subDocuments: 'Sub-documents', searchDocs: 'Search documents…',
     slash: {

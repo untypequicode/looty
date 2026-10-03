@@ -121,6 +121,8 @@ export const ResizableImage = Image.extend({
  */
 export const Callout = Node.create({
   name: 'notice',
+  // Avant le blockquote standard, sinon le HTML est analysé comme une citation.
+  priority: 101,
   group: 'block',
   content: 'block+',
   defining: true,
