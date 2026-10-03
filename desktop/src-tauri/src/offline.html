@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Looty</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fbfbfc; --text: #1b1b1f; --muted: #6b6b76; --accent: #5e6ad2; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e0e11; --text: #ececf1; --muted: #8a8a96; --accent: #7170ff; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 14px/1.5 Inter, -apple-system, Cantarell, "Noto Sans", sans-serif; text-align: center; }
+  h1 { font-size: 18px; margin: 12px 0 4px; } p { color: var(--muted); margin: 0 0 16px; }
+  button { height: 34px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  a { color: var(--muted); font-size: 13px; display: block; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div>
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6"><path d="M2 2l20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 13a10 10 0 0 1 5.24-2.76"/><circle cx="12" cy="20" r="1"/></svg>
+  <h1 id="t">Server unreachable</h1>
+  <p id="d">Looty will reconnect as soon as the server is reachable.</p>
+  <button id="r" onclick="location.reload()">Retry</button>
+  <a id="c" href="/__looty/setup">Change server</a>
+</div>
+<script>
+  if ((navigator.language || '').toLowerCase().startsWith('fr')) {
+    t.textContent = 'Serveur injoignable'; d.textContent = 'Looty se reconnectera dès que le serveur sera joignable.'; r.textContent = 'Réessayer'; c.textContent = 'Changer de serveur'
+  }
+  setTimeout(() => location.reload(), 15000)
+</script>
+</body>
+</html>

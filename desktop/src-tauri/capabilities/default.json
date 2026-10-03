@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Aucune commande Tauri n'est exposée : la fenêtre affiche le contenu du serveur Looty (non privilégié).",
+  "windows": [],
+  "permissions": []
+}

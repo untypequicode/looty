@@ -27,3 +27,7 @@ backups/
 *.tar
 *.tar.gz
 *.zip
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+result
+desktop/dist/
