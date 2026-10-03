@@ -33,7 +33,8 @@ use tower_sessions::{Expiry, SessionManagerLayer};
 use tower_sessions_sqlx_store::PostgresStore;
 
 async fn health_handler() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION") }))
+    // `desktop_sso` : l'application de bureau peut se connecter via le navigateur système.
+    Json(serde_json::json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION"), "desktop_sso": true }))
 }
 
 #[tokio::main]

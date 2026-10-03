@@ -1,9 +1,11 @@
 use axum::{
     extract::{Path, Query, State},
     response::{IntoResponse, Redirect, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
+use base64::Engine;
+use sha2::{Digest, Sha256};
 use openidconnect::{
     core::{CoreClient, CoreProviderMetadata, CoreResponseType, CoreUserInfoClaims},
     reqwest::async_http_client,
@@ -32,6 +34,9 @@ pub fn routes() -> Router<AppState> {
         .route("/me", get(me_handler))
         .route("/logout", get(logout_handler).post(logout_handler))
         .route("/dev-login", get(dev_login_handler))
+        .route("/desktop/start", get(desktop_start))
+        .route("/desktop/complete", get(desktop_complete))
+        .route("/desktop/exchange", post(desktop_exchange))
 }
 
 async fn get_active_providers(State(state): State<AppState>) -> ApiResult<Json<Vec<ProviderDto>>> {
@@ -99,6 +104,12 @@ async fn login_handler(
     Path(provider_id): Path<Uuid>,
     Query(q): Query<LoginQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let url = begin_login(&session, &state, provider_id, q.redirect.as_deref()).await?;
+    Ok(Json(serde_json::json!({ "url": url })))
+}
+
+/// Prépare la connexion OIDC (PKCE, CSRF, nonce en session) et renvoie l'URL du fournisseur.
+async fn begin_login(session: &Session, state: &AppState, provider_id: Uuid, redirect: Option<&str>) -> ApiResult<String> {
     let client = get_oidc_client(&state, provider_id)
         .await
         .map_err(|e| ApiError::BadRequest(format!("provider_error: {e}")))?;
@@ -119,10 +130,114 @@ async fn login_handler(
         session.insert("pkce_verifier", pkce_verifier.secret()).await?;
         session.insert("csrf_token", csrf_token.secret()).await?;
         session.insert("nonce", nonce.secret()).await?;
-        session.insert("post_login_redirect", safe_redirect(q.redirect.as_deref())).await
+        session.insert("post_login_redirect", safe_redirect(redirect)).await
     };
     store.await.map_err(|e| ApiError::Internal(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "url": auth_url.as_str() })))
+    Ok(auth_url.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Application de bureau : connexion dans le navigateur système (RFC 8252)
+// ---------------------------------------------------------------------------
+//
+// Le moteur web de l'application (WebKitGTK) ne gère pas WebAuthn (clés d'accès,
+// empreinte…). L'application ouvre donc le navigateur sur `desktop/start` ; une fois
+// connecté, `desktop/complete` renvoie le navigateur vers l'application
+// (http://127.0.0.1:<port>, uniquement) avec un code à usage unique, que l'application
+// échange contre sa propre session (`desktop/exchange`) en prouvant qu'elle détient le
+// secret PKCE dont le navigateur n'a vu que l'empreinte.
+
+#[derive(Deserialize)]
+struct DesktopParams {
+    port: u16,
+    state: String,
+    challenge: String,
+    provider: Option<Uuid>,
+}
+
+fn token_ok(s: &str) -> bool {
+    (16..=128).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+impl DesktopParams {
+    fn valid(&self) -> bool {
+        self.port >= 1024 && token_ok(&self.state) && token_ok(&self.challenge)
+    }
+    fn complete_path(&self) -> String {
+        format!("/api/auth/desktop/complete?port={}&state={}&challenge={}", self.port, self.state, self.challenge)
+    }
+}
+
+async fn desktop_start(session: Session, State(state): State<AppState>, Query(p): Query<DesktopParams>) -> Response {
+    if !p.valid() {
+        return login_error("invalid_request");
+    }
+    let Some(provider) = p.provider else {
+        return Redirect::to(&format!("/login?redirect={}", urlencode(&p.complete_path()))).into_response();
+    };
+    match begin_login(&session, &state, provider, Some(&p.complete_path())).await {
+        Ok(url) => Redirect::to(&url).into_response(),
+        Err(_) => login_error("provider_error"),
+    }
+}
+
+fn urlencode(s: &str) -> String {
+    s.bytes()
+        .map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .collect()
+}
+
+async fn desktop_complete(State(state): State<AppState>, user: Option<AuthUser>, Query(p): Query<DesktopParams>) -> Response {
+    if !p.valid() {
+        return login_error("invalid_request");
+    }
+    let Some(user) = user else {
+        return Redirect::to(&format!("/login?redirect={}", urlencode(&p.complete_path()))).into_response();
+    };
+    let mut raw = [0u8; 32];
+    rand::Rng::fill(&mut rand::thread_rng(), &mut raw);
+    let code = hex::encode(raw);
+    let _ = sqlx::query("DELETE FROM desktop_login_codes WHERE expires_at < NOW()").execute(&state.pool).await;
+    let stored = sqlx::query(
+        "INSERT INTO desktop_login_codes (code_hash, user_id, challenge, expires_at) VALUES ($1, $2, $3, NOW() + interval '2 minutes')",
+    )
+    .bind(crate::access::hash_token(&code))
+    .bind(user.id)
+    .bind(&p.challenge)
+    .execute(&state.pool)
+    .await;
+    if stored.is_err() {
+        return login_error("database_error");
+    }
+    // Destination fixe : la boucle locale de l'application (jamais un autre hôte).
+    Redirect::to(&format!("http://127.0.0.1:{}/__looty/sso?code={}&state={}", p.port, code, p.state)).into_response()
+}
+
+#[derive(Deserialize)]
+struct DesktopExchange {
+    code: String,
+    verifier: String,
+}
+
+async fn desktop_exchange(session: Session, State(state): State<AppState>, Json(p): Json<DesktopExchange>) -> ApiResult<Json<serde_json::Value>> {
+    let row: Option<(Uuid, String)> = sqlx::query_as(
+        "DELETE FROM desktop_login_codes WHERE code_hash = $1 AND expires_at > NOW() RETURNING user_id, challenge",
+    )
+    .bind(crate::access::hash_token(p.code.trim()))
+    .fetch_optional(&state.pool)
+    .await?;
+    let (user_id, challenge) = row.ok_or(ApiError::Unauthorized)?;
+    let computed = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(p.verifier.as_bytes()));
+    if computed != challenge {
+        return Err(ApiError::Unauthorized);
+    }
+    let suspended: bool = sqlx::query_scalar("SELECT is_suspended FROM users WHERE id = $1").bind(user_id).fetch_one(&state.pool).await?;
+    if suspended {
+        return Err(ApiError::Forbidden);
+    }
+    session.cycle_id().await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    session.insert(SESSION_USER_KEY, user_id).await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 #[derive(Deserialize)]

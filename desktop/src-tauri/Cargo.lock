@@ -2212,6 +2212,7 @@ name = "looty-desktop"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bytes",
  "cookie_store 0.21.1",
  "dirs 5.0.1",
@@ -2222,6 +2223,7 @@ dependencies = [
  "reqwest_cookie_store",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",

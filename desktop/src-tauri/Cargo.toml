@@ -32,6 +32,8 @@ dirs = "5"
 url = "2"
 rand = "0.8"
 hex = "0.4"
+sha2 = "0.10"
+base64 = "0.22"
 bytes = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
