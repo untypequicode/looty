@@ -116,6 +116,6 @@ export default {
   },
   editor: { bold: 'Gras', italic: 'Italique', link: 'Lien' },
   settings: {
-    theme: 'Thème', themeSystem: 'Système', themeLight: 'Clair', themeDark: 'Sombre', members: 'Membres',
+    theme: 'Thème', themeSystem: 'Système', themeLight: 'Clair', themeDark: 'Sombre',
   },
 }

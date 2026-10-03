@@ -66,7 +66,7 @@ const staticCommands = computed<Cmd[]>(() => {
     { id: 'my', group: nav, label: t('nav.myTasks'), icon: CircleUserRound, shortcut: ['G', 'M'], run: () => go(links.myTasks(wsId.value)) },
     { id: 'docs', group: nav, label: t('nav.allDocs'), icon: FileText, shortcut: ['G', 'D'], run: () => go(links.docs(wsId.value)) },
     { id: 'settings', group: nav, label: t('nav.settings'), icon: Settings, shortcut: ['G', 'S'], run: () => go(links.settings(wsId.value)) },
-    { id: 'members', group: nav, label: t('settings.members'), icon: Users, run: () => go(links.settings(wsId.value, 'members')) },
+    { id: 'members', group: nav, label: t('settings.nav.members'), icon: Users, run: () => go(links.settings(wsId.value, 'members')) },
     ...(canWrite.value
       ? [
           { id: 'new-task', group: act, label: t('task.new'), icon: SquarePen, shortcut: 'C', run: () => { commandOpen.value = false; openCreateTask() } },
