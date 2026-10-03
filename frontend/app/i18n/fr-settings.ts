@@ -1,5 +1,10 @@
 export default {
   settings: {
+    latex: {
+      title: 'Macros LaTeX', description: 'Définitions partagées par toutes les formules des pages de cet espace : \\newcommand, \\DeclareMathOperator, \\usepackage… Une page peut toujours ajouter ou redéfinir les siennes.',
+      ignored: 'Seules les déclarations sont conservées ; le reste est ignoré.', tryPlaceholder: 'Essayez une formule, ex. x \\in \\R \\eq \\abs{x} \\geq 0',
+      hint: 'Appliquées immédiatement à toutes les pages, pour tous les membres.', adminOnly: 'Seuls les administrateurs de l’espace peuvent modifier ces macros.',
+    },
     backToApp: 'Retour à l’application',
     groups: { account: 'Mon compte', workspace: 'Espace de travail', admin: 'Administration' },
     nav: { profile: 'Profil', preferences: 'Préférences', security: 'Sécurité & accès', general: 'Général', members: 'Membres', overview: 'Vue d’ensemble', users: 'Utilisateurs', workspaces: 'Espaces de travail', auth: 'Authentification', instance: 'Instance' },

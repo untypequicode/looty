@@ -51,6 +51,11 @@ function lookup(dict: Messages, key: string): any {
  * Traduit une clé. Paramètres interpolés via `{name}`.
  * Pluriel : si la valeur est un objet `{ one, other }` (et `zero` optionnel), `params.count` choisit la forme.
  */
+/** Langue courante, hors composant. */
+export function currentLocale(): Locale {
+  return locale.value
+}
+
 export function translate(key: string, params?: Record<string, any>): string {
   let msg = lookup(dictionaries[locale.value], key) ?? lookup(dictionaries.fr, key)
   if (msg && typeof msg === 'object' && params && 'count' in params) {

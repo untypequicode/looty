@@ -43,6 +43,12 @@ export default defineNuxtConfig({
         '/api/**': { proxy: { to: `${backend}/api/**`, fetchOptions: { redirect: 'manual' } } },
         '/uploads/**': { proxy: { to: `${backend}/uploads/**`, fetchOptions: { redirect: 'manual' } } },
         // /dav et /.well-known/caldav : voir server/routes (corps PROPFIND / REPORT).
+        // La page HTML ne doit pas être mise en cache : elle référence les fichiers de la
+        // version déployée (eux sont immuables). Sinon un ancien index pointe vers des
+        // fichiers supprimés au redéploiement (« error loading dynamically imported module »).
+        '/**': { headers: { 'cache-control': 'no-cache' } },
+        '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+        '/sw.js': { headers: { 'cache-control': 'no-cache' } },
       },
 
   nitro: {

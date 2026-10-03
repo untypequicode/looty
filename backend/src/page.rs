@@ -350,12 +350,16 @@ pub struct PublicPage {
     pub icon: Option<String>,
     pub content: Option<String>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// Préambule LaTeX de l'espace, pour un rendu identique des formules.
+    pub latex_preamble: String,
 }
 
 pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResult<Json<PublicPage>> {
     Ok(Json(
         sqlx::query_as(
-            "SELECT id, title, icon, content, updated_at FROM pages WHERE share_token = $1 AND is_public = true",
+            "SELECT p.id, p.title, p.icon, p.content, p.updated_at, w.latex_preamble
+             FROM pages p JOIN workspaces w ON w.id = p.workspace_id
+             WHERE p.share_token = $1 AND p.is_public = true",
         )
         .bind(token)
         .fetch_optional(&pool)

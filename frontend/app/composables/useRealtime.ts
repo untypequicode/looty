@@ -224,6 +224,9 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.invalidateQueries({ queryKey: wsKeys.one(wsId) })
       qc.invalidateQueries({ queryKey: wsKeys.list })
       break
+    case 'WORKSPACE_LATEX_UPDATED':
+      qc.setQueryData(wsKeys.latex(wsId), { preamble: ev.preamble ?? '' })
+      break
     case 'WORKSPACE_DELETED':
       qc.invalidateQueries({ queryKey: wsKeys.list })
       navigateTo('/')

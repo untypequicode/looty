@@ -50,6 +50,7 @@ async function remove() {
     </SettingsRow>
     <SettingsRow :label="t('settings.ws.yourRole')"><span class="muted">{{ role ? t(`roles.${role}`) : '' }}</span></SettingsRow>
   </SettingsSection>
+  <SettingsLatexPreamble />
   <SettingsSection :title="t('transfer.sectionTitle')" :description="t('transfer.sectionHint')">
     <SettingsRow v-if="canWrite" :label="t('transfer.importTitle')" :hint="t('transfer.importRowHint')">
       <UiButton size="sm" :icon="Upload" @click="importOpen = true">{{ t('transfer.import') }}</UiButton>
