@@ -9,7 +9,10 @@
 //! ouverts dans un navigateur. Seule la fenêtre de l'application est servie :
 //! - l'en-tête Host doit être l'adresse locale (protection contre le DNS rebinding) ;
 //! - chaque requête doit porter le cookie `looty_local`, posé au démarrage via une URL
-//!   à secret aléatoire et marqué SameSite=Strict (jamais envoyé par un autre site).
+//!   à secret aléatoire. Il n'existe que dans le profil WebKit de l'application (jamais dans
+//!   un navigateur) ; SameSite=Lax empêche les pages tierces affichées pendant une connexion
+//!   SSO de l'utiliser en arrière-plan, tout en l'envoyant au retour de la chaîne de
+//!   redirections du fournisseur (qu'une valeur Strict bloquerait).
 
 use axum::{
     body::Body,
@@ -19,9 +22,9 @@ use axum::{
     Router,
 };
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
-use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 use url::Url;
 
 use crate::config::{self, Config, Jar};
@@ -34,9 +37,13 @@ pub struct Proxy {
     pub config: RwLock<Config>,
     pub jar: Jar,
     client: reqwest::Client,
-    /// Hôtes de connexion (fournisseur SSO) vers lesquels la fenêtre peut naviguer.
-    pub auth_hosts: Mutex<HashSet<String>>,
+    /// Connexion SSO en cours (jusqu'à cette échéance) : la fenêtre peut parcourir toute
+    /// la chaîne de fournisseurs (ex. Zitadel → GitHub → Zitadel) sans en sortir.
+    sign_in: Mutex<Option<Instant>>,
 }
+
+/// Durée maximale d'une connexion SSO.
+const SIGN_IN_WINDOW: Duration = Duration::from_secs(600);
 
 impl Proxy {
     pub fn server(&self) -> Option<Url> {
@@ -44,6 +51,15 @@ impl Proxy {
     }
     pub fn local_origin(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
+    }
+    pub fn start_sign_in(&self) {
+        *self.sign_in.lock().unwrap() = Some(Instant::now() + SIGN_IN_WINDOW);
+    }
+    pub fn signing_in(&self) -> bool {
+        self.sign_in.lock().unwrap().is_some_and(|until| Instant::now() < until)
+    }
+    pub fn end_sign_in(&self) {
+        *self.sign_in.lock().unwrap() = None;
     }
     /// URL d'amorçage de la fenêtre (pose le cookie d'accès).
     pub fn boot_url(&self) -> String {
@@ -71,7 +87,7 @@ pub async fn start(config: Config, jar: Jar) -> std::io::Result<Shared> {
         config: RwLock::new(config),
         jar,
         client,
-        auth_hosts: Mutex::new(HashSet::new()),
+        sign_in: Mutex::new(None),
     });
     let app = Router::new().fallback(handle).with_state(proxy.clone());
     tokio::spawn(async move {
@@ -113,7 +129,7 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
         // Tests automatisés (versions de débogage uniquement) : page de départ imposée.
         let start = if cfg!(debug_assertions) { std::env::var("LOOTY_START_PATH").ok().filter(|v| v.starts_with('/')) } else { None };
         let mut res = Redirect::to(start.as_deref().unwrap_or("/")).into_response();
-        let cookie = format!("{COOKIE}={}; Path=/; HttpOnly; SameSite=Strict", p.secret);
+        let cookie = format!("{COOKIE}={}; Path=/; HttpOnly; SameSite=Lax", p.secret);
         res.headers_mut().insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
         return res;
     }
@@ -251,13 +267,9 @@ async fn proxy_http(p: &Shared, server: &Url, req: Request) -> Result<Response, 
                 builder = builder.header(k, if rest.is_empty() { "/" } else { rest });
                 continue;
             }
-            // Redirection vers le fournisseur SSO : la fenêtre a le droit d'y aller.
-            if parts.uri.path().starts_with("/api/auth/") {
-                if let Ok(u) = Url::parse(loc) {
-                    if let Some(h) = u.host_str() {
-                        p.auth_hosts.lock().unwrap().insert(h.to_string());
-                    }
-                }
+            // Redirection vers le fournisseur SSO : début de la connexion.
+            if parts.uri.path().starts_with("/api/auth/") && Url::parse(loc).is_ok() {
+                p.start_sign_in();
             }
         }
         builder = builder.header(k, v);
@@ -266,11 +278,11 @@ async fn proxy_http(p: &Shared, server: &Url, req: Request) -> Result<Response, 
         config::save_jar(&p.jar);
     }
     // La page de connexion obtient l'adresse du fournisseur SSO en JSON ({ "url": … })
-    // puis y navigue : on mémorise cet hôte pour autoriser la navigation.
+    // puis y navigue : début de la connexion.
     if status.is_success() && parts.uri.path().starts_with("/api/auth/login/") {
         let bytes = res.bytes().await?;
-        if let Some(h) = serde_json::from_slice::<serde_json::Value>(&bytes).ok().and_then(|v| v["url"].as_str().and_then(|u| Url::parse(u).ok())).and_then(|u| u.host_str().map(str::to_string)) {
-            p.auth_hosts.lock().unwrap().insert(h);
+        if serde_json::from_slice::<serde_json::Value>(&bytes).ok().and_then(|v| v["url"].as_str().and_then(|u| Url::parse(u).ok())).is_some() {
+            p.start_sign_in();
         }
         return Ok(builder.body(Body::from(bytes)).unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response()));
     }

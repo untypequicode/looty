@@ -62,11 +62,14 @@ to your server.
   `~/.local/share/looty/session.json` (mode 0600), not by the web view, so the tray
   and notifications can work while the window is closed.
 - Only the app's window can use the proxy: requests must carry the right `Host`
-  and an access cookie set at startup from a random secret (`SameSite=Strict`),
+  and an access cookie set at startup from a random secret, which only exists in the
+  app's own web view profile,
   so other local programs and websites get `403`.
 - The interface comes from your server, so the app always matches the deployed
   version of Looty.
-- Links to other sites open in your default browser; SSO sign-in stays in the app.
+- Links to other sites open in your default browser. During an SSO sign-in, every page
+  of the chain stays in the app (e.g. Zitadel → GitHub → Zitadel): identity providers
+  tie the sign-in to the window that started it.
 
 Files: `~/.config/looty/config.toml` (server, preferences),
 `~/.local/share/looty/` (session), `~/.local/share/app.looty.desktop/` (web view data).

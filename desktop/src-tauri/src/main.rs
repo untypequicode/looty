@@ -39,7 +39,9 @@ fn navigate_local(app: &AppHandle, path: &str) {
 /// Règles de navigation de la fenêtre :
 /// - l'application locale : autorisée ;
 /// - le serveur Looty lui-même (retour SSO, lien copié depuis le site) : ramené en local ;
-/// - le fournisseur SSO pendant une connexion : autorisé ;
+/// - pendant une connexion SSO : toutes les pages de la chaîne (fournisseur, fournisseur
+///   externe comme GitHub…) restent dans la fenêtre — elles partagent ainsi leurs cookies,
+///   sinon le fournisseur refuse le retour (« User Agent does not correspond ») ;
 /// - tout autre site : ouvert dans le navigateur par défaut.
 fn on_navigation(app: &AppHandle, url: &Url) -> bool {
     let allowed = decide_navigation(app, url);
@@ -49,7 +51,14 @@ fn on_navigation(app: &AppHandle, url: &Url) -> bool {
 
 fn decide_navigation(app: &AppHandle, url: &Url) -> bool {
     let proxy = app.state::<proxy::Shared>();
-    if url.scheme() == "about" || url.origin().ascii_serialization() == proxy.local_origin() {
+    if url.scheme() == "about" {
+        return true;
+    }
+    if url.origin().ascii_serialization() == proxy.local_origin() {
+        // De retour dans Looty : la connexion est terminée (ou abandonnée).
+        if !url.path().starts_with("/api/auth/") {
+            proxy.end_sign_in();
+        }
         return true;
     }
     if let Some(server) = proxy.server() {
@@ -66,7 +75,7 @@ fn decide_navigation(app: &AppHandle, url: &Url) -> bool {
             return false;
         }
     }
-    if url.host_str().is_some_and(|h| proxy.auth_hosts.lock().unwrap().contains(h)) {
+    if proxy.signing_in() && matches!(url.scheme(), "http" | "https") {
         return true;
     }
     if matches!(url.scheme(), "http" | "https" | "mailto") {
