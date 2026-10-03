@@ -38,8 +38,10 @@ export default defineNuxtConfig({
   routeRules: isDev
     ? {}
     : {
-        '/api/**': { proxy: `${backend}/api/**` },
-        '/uploads/**': { proxy: `${backend}/uploads/**` },
+        // redirect: 'manual' : les redirections du backend (callback OAuth -> /, /login...)
+        // doivent atteindre le navigateur avec leur Set-Cookie, pas être suivies par le proxy.
+        '/api/**': { proxy: { to: `${backend}/api/**`, fetchOptions: { redirect: 'manual' } } },
+        '/uploads/**': { proxy: { to: `${backend}/uploads/**`, fetchOptions: { redirect: 'manual' } } },
       },
 
   nitro: {
