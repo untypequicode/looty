@@ -1,5 +1,10 @@
 export default {
   settings: {
+    latex: {
+      title: 'LaTeX macros', description: 'Definitions shared by every formula in this workspace’s pages: \\newcommand, \\DeclareMathOperator, \\usepackage… A page can still add or override its own.',
+      ignored: 'Only declarations are kept; other content is ignored.', tryPlaceholder: 'Try a formula, e.g. x \\in \\R \\eq \\abs{x} \\geq 0',
+      hint: 'Applied right away to every page, for all members.', adminOnly: 'Only workspace admins can edit these macros.',
+    },
     backToApp: 'Back to app',
     groups: { account: 'My account', workspace: 'Workspace', admin: 'Administration' },
     nav: { profile: 'Profile', preferences: 'Preferences', security: 'Security & access', general: 'General', members: 'Members', overview: 'Overview', users: 'Users', workspaces: 'Workspaces', auth: 'Authentication', instance: 'Instance' },

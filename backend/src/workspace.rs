@@ -50,6 +50,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_workspaces).post(create_workspace))
         .route("/:workspace_id", get(get_workspace).put(update_workspace).delete(delete_workspace))
+        .route("/:workspace_id/latex", get(get_latex).put(put_latex))
         .route("/:workspace_id/members", get(list_members))
         .route("/:workspace_id/members/:member_id", put(update_member_role).delete(remove_member))
         .route("/:workspace_id/leave", post(leave_workspace))
@@ -145,6 +146,33 @@ async fn update_workspace(
         .emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_UPDATED", "workspace": &ws }))
         .await;
     Ok(Json(serde_json::json!({ "workspace": ws })))
+}
+
+#[derive(Deserialize)]
+struct LatexPayload {
+    preamble: String,
+}
+
+/// Préambule LaTeX partagé par toutes les pages de l'espace.
+async fn get_latex(State(pool): State<PgPool>, user: AuthUser, Path(workspace_id): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
+    require_member(&pool, &user, workspace_id).await?;
+    let preamble: String = sqlx::query_scalar("SELECT latex_preamble FROM workspaces WHERE id = $1").bind(workspace_id).fetch_one(&pool).await?;
+    Ok(Json(serde_json::json!({ "preamble": preamble })))
+}
+
+async fn put_latex(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(workspace_id): Path<Uuid>,
+    Json(p): Json<LatexPayload>,
+) -> ApiResult<Json<serde_json::Value>> {
+    require_ws_admin(&state.pool, &user, workspace_id).await?;
+    if p.preamble.len() > 20_000 {
+        return Err(ApiError::bad_request("latex_preamble_too_long"));
+    }
+    sqlx::query("UPDATE workspaces SET latex_preamble = $1, updated_at = NOW() WHERE id = $2").bind(&p.preamble).bind(workspace_id).execute(&state.pool).await?;
+    state.emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_LATEX_UPDATED", "preamble": &p.preamble })).await;
+    Ok(Json(serde_json::json!({ "preamble": p.preamble })))
 }
 
 async fn delete_workspace(

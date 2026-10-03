@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Home, Inbox, CircleUserRound, Search, SquarePen } from 'lucide-vue-next'
 import gsap from 'gsap'
-import { useWorkspace, links } from '~/composables/useWorkspace'
+import { useQuery } from '@tanstack/vue-query'
+import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
+import { api } from '~/composables/api'
+import { workspacePreamble } from '~/editor/mathScope'
 import { useRealtime, sendLocation } from '~/composables/useRealtime'
 import { useAuth } from '~/composables/useAuth'
 import { useUi } from '~/composables/useUi'
@@ -21,6 +24,11 @@ const { isTablet } = useBreakpoint()
 const { t } = useI18n()
 
 useRealtime(wsId, computed(() => user.value?.id))
+
+// Préambule LaTeX de l'espace : appliqué à toutes les formules des pages.
+const latex = useQuery({ queryKey: computed(() => wsKeys.latex(wsId.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${wsId.value}/latex`, { silent: true }), enabled: computed(() => !!wsId.value) })
+watch(() => latex.data.value?.preamble, (p) => { workspacePreamble.value = p ?? '' }, { immediate: true })
+onBeforeUnmount(() => { workspacePreamble.value = '' })
 
 // Workspace inaccessible (supprimé, exclu...) -> retour à l'accueil global
 watch(() => workspace.error.value, (e: any) => {

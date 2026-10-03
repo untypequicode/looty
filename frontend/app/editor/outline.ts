@@ -26,6 +26,13 @@ const exts = () => (_exts ??= readonlyExtensions())
 
 const uuid = () => crypto.randomUUID()
 const isEmoji = (s?: string | null) => !!s && /\p{Extended_Pictographic}/u.test(s)
+/** Émoji en tête de titre (« 🚀 Feuille de route ») : séquences ZWJ, variantes, tons, drapeaux, touches. */
+const LEADING_EMOJI = /^\s*((?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})*(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})*)*)|\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3)\s*/u
+export function splitTitleEmoji(title: string): { emoji: string | null; title: string } {
+  const m = LEADING_EMOJI.exec(title)
+  const rest = m ? title.slice(m[0].length).trim() : ''
+  return m && rest ? { emoji: m[1]!, title: rest } : { emoji: null, title }
+}
 const safeName = (s: string) => (s || 'Untitled').replace(/[/\\?%*:|"<>\u0000-\u001f]/g, '-').trim().slice(0, 120) || 'Untitled'
 const slugify = (s: string) => (s || 'untitled').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'untitled'
 const urlIdOf = (id: string) => id.replace(/-/g, '').slice(0, 10)
@@ -595,7 +602,9 @@ export async function runImport(files: File[], plan: ImportPlan, o: ImportOption
   }
   async function create(l: ImportNode[], parentId: string | null) {
     for (const n of l) {
-      const page = await api<Page>(`/api/workspaces/${o.wsId}/pages`, { method: 'POST', body: { title: (await titleOf(n)).slice(0, 255), icon: n.icon ?? undefined, parent_id: parentId } })
+      // L'émoji en tête de titre devient l'icône de la page.
+      const { emoji, title } = splitTitleEmoji(await titleOf(n))
+      const page = await api<Page>(`/api/workspaces/${o.wsId}/pages`, { method: 'POST', body: { title: title.slice(0, 255), icon: n.icon ?? emoji ?? undefined, parent_id: parentId } })
       created.set(n.key, page)
       order.push({ node: n, page })
       o.onProgress?.(++done, total)

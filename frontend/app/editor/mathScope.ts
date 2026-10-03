@@ -1,8 +1,14 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { computed, shallowRef, type ShallowRef } from 'vue'
+import { computed, shallowRef, watch, type ShallowRef } from 'vue'
 import { scopeBuilder, ensureMhchem, type Scope } from './latex'
+
+/**
+ * Préambule LaTeX de l'espace de travail courant (réglages de l'espace) :
+ * ses macros et paquets s'appliquent avant celles de chaque document.
+ */
+export const workspacePreamble = shallowRef('')
 
 export interface MathScopeStorage {
   /** Incrémenté quand les déclarations du document (ou leur ordre) changent. */
@@ -10,6 +16,8 @@ export interface MathScopeStorage {
   /** Portée de chaque formule, indexée par sa position. */
   scopes: Map<number, Scope>
   signature: string
+  rebuild?: () => void
+  stop?: () => void
 }
 
 const MATH = new Set(['mathBlock', 'mathInline'])
@@ -23,11 +31,19 @@ export const MathScope = Extension.create<object, MathScopeStorage>({
   addStorage() {
     return { version: shallowRef(0), scopes: new Map(), signature: '' }
   },
+  onCreate() {
+    this.storage.stop = watch(workspacePreamble, () => this.storage.rebuild?.())
+  },
+  onDestroy() {
+    this.storage.stop?.()
+  },
   addProseMirrorPlugins() {
     const storage = this.storage
     const bump = () => { storage.version.value++ }
     const build = (doc: PMNode) => {
-      const builder = scopeBuilder()
+      // Le préambule de l'espace sert de point de départ (comme un \input commun).
+      const base = scopeBuilder().next(workspacePreamble.value)
+      const builder = scopeBuilder(base.macros, base.needsMhchem)
       const scopes = new Map<number, Scope>()
       const parts: string[] = []
       let seen = 0
@@ -42,13 +58,15 @@ export const MathScope = Extension.create<object, MathScopeStorage>({
         mhchem ||= s.needsMhchem
       })
       storage.scopes = scopes
-      const signature = parts.join('\u0002')
+      const signature = `${workspacePreamble.value}\u0003${parts.join('\u0002')}`
       if (signature !== storage.signature) {
         storage.signature = signature
         bump()
       }
-      if (mhchem) ensureMhchem(bump)
+      if (mhchem || base.needsMhchem) ensureMhchem(bump)
     }
+    const editor = this.editor
+    storage.rebuild = () => build(editor.state.doc)
     return [
       new Plugin({
         key: new PluginKey('mathScope'),

@@ -11,6 +11,7 @@ export const wsKeys = {
   pages: (id: string) => ['ws', id, 'pages'] as const,
   myTasks: (id: string) => ['ws', id, 'my-tasks'] as const,
   notifications: (id: string) => ['ws', id, 'notifications'] as const,
+  latex: (id: string) => ['ws', id, 'latex'] as const,
 }
 
 export function useWorkspaces() {
