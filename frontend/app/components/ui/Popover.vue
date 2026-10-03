@@ -29,6 +29,8 @@ const virtualEl = computed(() => props.virtualRect
 const { floatingStyles } = useFloating(computed(() => (virtualEl.value as any) ?? reference.value), floating, {
   placement: computed(() => props.placement),
   open,
+  // left/top plutôt que transform : les animations GSAP manipulent transform.
+  transform: false,
   whileElementsMounted: autoUpdate,
   middleware: computed(() => [
     offset(props.offset),

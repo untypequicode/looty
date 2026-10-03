@@ -22,6 +22,7 @@ const props = withDefaults(defineProps<{
   /** Permet de créer une entrée à partir de la recherche (ex. nouveau label). */
   creatable?: boolean
   createLabel?: string
+  virtualRect?: { x: number; y: number } | null
 }>(), { placement: 'bottom-start', width: 240 })
 const emit = defineEmits<{
   (e: 'update:modelValue', v: T | T[]): void
@@ -83,7 +84,7 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <UiPopover v-model:open="open" :placement="placement" :width="width">
+  <UiPopover v-model:open="open" :placement="placement" :width="width" :virtual-rect="virtualRect">
     <template v-if="$slots.default" #trigger="{ open: o }"><slot :open="o" /></template>
     <div class="combo">
       <div class="combo-search">

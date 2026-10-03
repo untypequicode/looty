@@ -1,3 +1,4 @@
+import { clone } from '~/utils/clone'
 import { computed, toRaw, type Ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Board, Column, Label, Task, Priority } from '~/types'
@@ -49,7 +50,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
   const board = computed(() => (boardId.value ? qc.getQueryData<Board>(boardKey(boardId.value)) : undefined))
 
   function snapshot() {
-    return boardId.value ? structuredClone(toRaw(qc.getQueryData<Board>(boardKey(boardId.value)))) : undefined
+    return boardId.value ? clone(toRaw(qc.getQueryData<Board>(boardKey(boardId.value)))) : undefined
   }
   function restore(snap: Board | undefined) {
     if (snap && boardId.value) qc.setQueryData(boardKey(boardId.value), snap)
@@ -58,7 +59,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
     if (!boardId.value) return
     const data = qc.getQueryData<Board>(boardKey(boardId.value))
     if (!data) return
-    const copy = structuredClone(toRaw(data))
+    const copy = clone(data)
     fn(copy)
     qc.setQueryData(boardKey(boardId.value), copy)
   }

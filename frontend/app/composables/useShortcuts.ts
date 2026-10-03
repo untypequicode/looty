@@ -9,7 +9,8 @@ import { hasModalLayer } from './useLayer'
  */
 export interface Shortcut {
   keys: string
-  handler: (e: KeyboardEvent) => void
+  /** Retourner `false` = non géré : le raccourci suivant est essayé. */
+  handler: (e: KeyboardEvent) => void | boolean
   /** Actif même dans un champ de saisie / sous une modale. */
   global?: boolean
 }
@@ -31,7 +32,7 @@ function comboOf(e: KeyboardEvent) {
   const parts: string[] = []
   if (isMac ? e.metaKey : e.ctrlKey) parts.push('mod')
   if (e.altKey) parts.push('alt')
-  if (e.shiftKey && e.key.length > 1) parts.push('shift')
+  if (e.shiftKey && (e.key.length > 1 || /^[a-z]$/i.test(e.key))) parts.push('shift')
   parts.push(e.key.toLowerCase())
   return parts.join('+')
 }
@@ -47,9 +48,8 @@ function onKeydown(e: KeyboardEvent) {
     pending = null
     if (pendingTimer) clearTimeout(pendingTimer)
     for (const s of registry) {
-      if (s.keys === seq && !typing && !modal) {
+      if (s.keys === seq && !typing && !modal && s.handler(e) !== false) {
         e.preventDefault()
-        s.handler(e)
         return
       }
     }
@@ -58,8 +58,8 @@ function onKeydown(e: KeyboardEvent) {
   for (const s of registry) {
     if (s.keys !== combo) continue
     if (!s.global && (typing || modal)) continue
+    if (s.handler(e) === false) continue
     e.preventDefault()
-    s.handler(e)
     return
   }
 

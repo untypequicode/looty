@@ -1,3 +1,4 @@
+import { clone } from '~/utils/clone'
 import { ref, watch, onBeforeUnmount, toRaw, type Ref } from 'vue'
 import { useQueryClient, type QueryClient } from '@tanstack/vue-query'
 import type { Board, Notification, Page, Presence, Task, TaskComment } from '~/types'
@@ -43,7 +44,7 @@ export function sendMention(targetUserId: string, location: string) {
 function forEachBoard(qc: QueryClient, fn: (b: Board) => Board | void) {
   for (const [key, data] of qc.getQueriesData<Board>({ queryKey: ['board'] })) {
     if (!data) continue
-    const copy: Board = structuredClone(toRaw(data))
+    const copy: Board = clone(data)
     const res = fn(copy)
     qc.setQueryData(key, res ?? copy)
   }
@@ -88,7 +89,7 @@ export function removeTaskFromBoards(qc: QueryClient, taskId: string) {
 function patchBoard(qc: QueryClient, boardId: string, fn: (b: Board) => void) {
   const data = qc.getQueryData<Board>(boardKey(boardId))
   if (!data) return
-  const copy: Board = structuredClone(toRaw(data))
+  const copy: Board = clone(data)
   fn(copy)
   qc.setQueryData(boardKey(boardId), copy)
 }

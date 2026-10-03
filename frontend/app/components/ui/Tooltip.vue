@@ -13,6 +13,7 @@ let timer: ReturnType<typeof setTimeout> | null = null
 const { floatingStyles } = useFloating(reference, floating, {
   placement: computed(() => props.placement),
   whileElementsMounted: autoUpdate,
+  transform: false,
   middleware: [offset(6), flip(), shift({ padding: 6 })],
 })
 

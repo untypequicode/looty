@@ -5,6 +5,7 @@ import { useI18n } from '~/composables/useI18n'
 /** Sélecteur de date compact avec raccourcis (aujourd'hui, demain, semaine prochaine...). */
 const model = defineModel<string | null | undefined>({ required: true })
 const open = defineModel<boolean>('open', { default: false })
+defineProps<{ virtualRect?: { x: number; y: number } | null }>()
 const { t, dateLocale } = useI18n()
 
 const view = ref(new Date())
@@ -43,7 +44,7 @@ function shift(m: number) { view.value = new Date(view.value.getFullYear(), view
 </script>
 
 <template>
-  <UiPopover v-model:open="open" :width="264">
+  <UiPopover v-model:open="open" :width="264" :virtual-rect="virtualRect">
     <template v-if="$slots.default" #trigger><slot /></template>
     <div class="dp">
       <div class="dp-quick">

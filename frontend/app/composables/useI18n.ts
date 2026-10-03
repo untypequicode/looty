@@ -1,11 +1,22 @@
 import { ref, computed } from 'vue'
-import fr from '~/i18n/fr'
-import en from '~/i18n/en'
+import frCore from '~/i18n/fr'
+import enCore from '~/i18n/en'
+import frBoard from '~/i18n/fr-board'
+import enBoard from '~/i18n/en-board'
 
 export type Locale = 'fr' | 'en'
 type Messages = Record<string, any>
 
-const dictionaries: Record<Locale, Messages> = { fr, en }
+/** Fusion profonde des dictionnaires (un fichier par domaine fonctionnel). */
+function merge(...parts: Messages[]): Messages {
+  const out: Messages = {}
+  for (const p of parts) for (const [k, v] of Object.entries(p)) {
+    out[k] = v && typeof v === 'object' && !Array.isArray(v) && out[k] && typeof out[k] === 'object' ? merge(out[k], v) : v
+  }
+  return out
+}
+
+const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard), en: merge(enCore, enBoard) }
 export const LOCALES: { code: Locale; label: string }[] = [
   { code: 'fr', label: 'Français' },
   { code: 'en', label: 'English' },

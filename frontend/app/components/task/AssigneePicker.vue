@@ -7,6 +7,7 @@ const model = defineModel<string[]>({ required: true })
 const open = defineModel<boolean>('open', { default: false })
 const { members } = useWorkspace()
 const { user } = useAuth()
+defineProps<{ virtualRect?: { x: number; y: number } | null }>()
 const { t } = useI18n()
 const items = computed(() =>
   [...(members.data.value ?? [])]
@@ -17,7 +18,7 @@ const byId = computed(() => new Map((members.data.value ?? []).map((m) => [m.use
 </script>
 
 <template>
-  <UiCombobox v-model="model" v-model:open="open" :items="items" multiple :placeholder="t('task.assignTo')" :width="260">
+  <UiCombobox :virtual-rect="virtualRect" v-model="model" v-model:open="open" :items="items" multiple :placeholder="t('task.assignTo')" :width="260">
     <template v-if="$slots.default" #default><slot /></template>
     <template #item="{ item }">
       <UiAvatar :name="byId.get(item.value as string)?.name" :src="byId.get(item.value as string)?.avatar_url" :size="18" />
