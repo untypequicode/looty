@@ -23,7 +23,7 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use url::Url;
 
@@ -40,6 +40,34 @@ pub struct Proxy {
     /// Connexion SSO en cours (jusqu'à cette échéance) : la fenêtre peut parcourir toute
     /// la chaîne de fournisseurs (ex. Zitadel → GitHub → Zitadel) sans en sortir.
     sign_in: Mutex<Option<Instant>>,
+    /// Connexion en cours dans le navigateur système (RFC 8252).
+    sso: Mutex<Option<PendingSso>>,
+    /// Le serveur sait-il connecter l'application via le navigateur ? (par serveur)
+    desktop_sso: Mutex<Option<(String, bool)>>,
+    pub hooks: OnceLock<Hooks>,
+}
+
+/// Actions confiées à l'application (navigateur système, fenêtre).
+pub struct Hooks {
+    pub open_url: Box<dyn Fn(&str) + Send + Sync>,
+    pub signed_in: Box<dyn Fn() + Send + Sync>,
+}
+
+struct PendingSso {
+    state: String,
+    verifier: String,
+    provider: String,
+    redirect: String,
+    browser_url: String,
+    done: bool,
+    error: Option<String>,
+}
+
+fn random_token() -> String {
+    use base64::Engine;
+    let mut b = [0u8; 32];
+    rand::Rng::fill(&mut rand::thread_rng(), &mut b);
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
 /// Durée maximale d'une connexion SSO.
@@ -88,6 +116,9 @@ pub async fn start(config: Config, jar: Jar) -> std::io::Result<Shared> {
         jar,
         client,
         sign_in: Mutex::new(None),
+        sso: Mutex::new(None),
+        desktop_sso: Mutex::new(None),
+        hooks: OnceLock::new(),
     });
     let app = Router::new().fallback(handle).with_state(proxy.clone());
     tokio::spawn(async move {
@@ -133,8 +164,23 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
         res.headers_mut().insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
         return res;
     }
+    // Retour du navigateur système après connexion : il n'a pas le cookie d'accès, le
+    // paramètre `state` (aléatoire, propre à cette connexion) en tient lieu.
+    if path == "/__looty/sso" {
+        let fr = req.headers().get(header::ACCEPT_LANGUAGE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.trim_start().starts_with("fr"));
+        return sso_return(&p, fr, query_param(&req, "code"), query_param(&req, "state")).await;
+    }
     if !has_access_cookie(req.headers(), &p.secret) {
         return forbidden();
+    }
+    // Bouton SSO de la page de connexion : connexion dans le navigateur système
+    // (WebKitGTK ne gère pas WebAuthn), sauf serveur trop ancien.
+    if req.method() == Method::GET && path.starts_with("/api/auth/login/") {
+        if let Some(server) = p.server() {
+            if supports_desktop_sso(&p, &server).await {
+                return start_browser_sso(&p, &server, &req);
+            }
+        }
     }
 
     // 3. Pages propres à l'application
@@ -157,6 +203,108 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
             offline_response(&path)
         }
     }
+}
+
+fn html(body: &'static str) -> Response {
+    ([(header::CONTENT_TYPE, "text/html; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response()
+}
+
+fn enc(s: &str) -> String {
+    s.bytes()
+        .map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .collect()
+}
+
+fn query_param(req: &Request, key: &str) -> Option<String> {
+    req.uri().query().and_then(|q| url::form_urlencoded::parse(q.as_bytes()).find(|(k, _)| k == key).map(|(_, v)| v.into_owned()))
+}
+
+async fn supports_desktop_sso(p: &Shared, server: &Url) -> bool {
+    let key = server.origin().ascii_serialization();
+    if let Some((k, v)) = p.desktop_sso.lock().unwrap().as_ref() {
+        if *k == key {
+            return *v;
+        }
+    }
+    let ok = async {
+        let r = p.client.get(format!("{key}/api/health")).timeout(std::time::Duration::from_secs(5)).send().await.ok()?;
+        let v: serde_json::Value = r.json().await.ok()?;
+        Some(v["desktop_sso"] == true)
+    }
+    .await;
+    // En cas d'échec réseau, on ne mémorise rien (nouvel essai au prochain clic).
+    if let Some(v) = ok {
+        *p.desktop_sso.lock().unwrap() = Some((key, v));
+    }
+    ok.unwrap_or(false)
+}
+
+/// Ouvre le navigateur système sur le fournisseur et fait patienter la fenêtre.
+fn start_browser_sso(p: &Shared, server: &Url, req: &Request) -> Response {
+    use base64::Engine;
+    use sha2::Digest;
+    let provider = req.uri().path().trim_start_matches("/api/auth/login/").to_string();
+    let redirect = query_param(req, "redirect").filter(|r| r.starts_with('/') && !r.starts_with("//")).unwrap_or_else(|| "/".into());
+    let state = random_token();
+    let verifier = random_token();
+    let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sha2::Sha256::digest(verifier.as_bytes()));
+    let browser_url = format!(
+        "{}/api/auth/desktop/start?provider={}&port={}&state={}&challenge={}",
+        server.origin().ascii_serialization(),
+        enc(&provider),
+        p.port,
+        state,
+        challenge
+    );
+    if let Some(h) = p.hooks.get() {
+        (h.open_url)(&browser_url);
+    }
+    *p.sso.lock().unwrap() = Some(PendingSso { state, verifier, provider, redirect, browser_url, done: false, error: None });
+    axum::Json(serde_json::json!({ "url": "/__looty/sso-wait" })).into_response()
+}
+
+/// Le navigateur revient avec le code : échange contre la session de l'application.
+async fn sso_return(p: &Shared, fr: bool, code: Option<String>, state: Option<String>) -> Response {
+    let page = |ok: bool| {
+        let (title, text) = match (ok, fr) {
+            (true, true) => ("Connecté à Looty", "Vous pouvez fermer cet onglet et revenir à l’application."),
+            (true, false) => ("Signed in to Looty", "You can close this tab and return to the app."),
+            (false, true) => ("Connexion impossible", "Ce lien a expiré ou a déjà servi. Relancez la connexion depuis l’application."),
+            (false, false) => ("Sign-in failed", "This link has expired or was already used. Start again from the app."),
+        };
+        let body = include_str!("sso-done.html").replace("{{title}}", title).replace("{{text}}", text).replace("{{ok}}", if ok { "ok" } else { "err" });
+        ([(header::CONTENT_TYPE, "text/html; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response()
+    };
+    let (Some(code), Some(state)) = (code, state) else { return page(false) };
+    let verifier = {
+        let g = p.sso.lock().unwrap();
+        match g.as_ref() {
+            Some(s) if !s.done && s.state == state => s.verifier.clone(),
+            _ => return page(false),
+        }
+    };
+    let Some(server) = p.server() else { return page(false) };
+    let res = p
+        .client
+        .post(format!("{}/api/auth/desktop/exchange", server.origin().ascii_serialization()))
+        .json(&serde_json::json!({ "code": code, "verifier": verifier }))
+        .send()
+        .await;
+    let ok = matches!(&res, Ok(r) if r.status().is_success());
+    config::save_jar(&p.jar);
+    if let Some(s) = p.sso.lock().unwrap().as_mut() {
+        if ok {
+            s.done = true;
+        } else {
+            s.error = Some("exchange_failed".into());
+        }
+    }
+    if ok {
+        if let Some(h) = p.hooks.get() {
+            (h.signed_in)();
+        }
+    }
+    page(ok)
 }
 
 fn setup_page() -> Response {
@@ -189,6 +337,45 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
                     axum::Json(serde_json::json!({ "server": server })).into_response()
                 }
                 Err(code) => (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({ "error": code }))).into_response(),
+            }
+        }
+        (Method::GET, "sso-wait") => html(include_str!("sso-wait.html")),
+        (Method::GET, "sso-status") => {
+            let g = p.sso.lock().unwrap();
+            match g.as_ref() {
+                Some(s) => axum::Json(serde_json::json!({ "pending": !s.done, "done": s.done, "error": s.error, "redirect": s.redirect })).into_response(),
+                None => axum::Json(serde_json::json!({ "pending": false, "done": false })).into_response(),
+            }
+        }
+        (Method::POST, "sso-reopen") => {
+            let url = p.sso.lock().unwrap().as_ref().map(|s| s.browser_url.clone());
+            if let (Some(url), Some(h)) = (url, p.hooks.get()) {
+                (h.open_url)(&url);
+            }
+            StatusCode::NO_CONTENT.into_response()
+        }
+        (Method::GET, "sso-cancel") => {
+            *p.sso.lock().unwrap() = None;
+            Redirect::to("/login").into_response()
+        }
+        // Repli : connexion dans la fenêtre (sans WebAuthn).
+        (Method::GET, "sso-inapp") => {
+            let pending = p.sso.lock().unwrap().take();
+            let (Some(server), Some(s)) = (p.server(), pending) else { return Redirect::to("/login").into_response() };
+            let url = format!("{}/api/auth/login/{}?redirect={}", server.origin().ascii_serialization(), s.provider, enc(&s.redirect));
+            let target = async {
+                let r = p.client.get(&url).send().await.ok()?;
+                let v: serde_json::Value = r.json().await.ok()?;
+                v["url"].as_str().map(str::to_string)
+            }
+            .await;
+            config::save_jar(&p.jar);
+            match target {
+                Some(t) => {
+                    p.start_sign_in();
+                    Redirect::to(&t).into_response()
+                }
+                None => Redirect::to("/login?error=provider_error").into_response(),
             }
         }
         (Method::GET, "status") => {

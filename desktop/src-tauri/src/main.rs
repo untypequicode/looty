@@ -124,9 +124,27 @@ fn main() {
             let jar = config::load_jar();
             let proxy = tauri::async_runtime::block_on(proxy::start(cfg, jar))?;
             let boot: Url = proxy.boot_url().parse()?;
+            let handle = app.handle().clone();
+            let (open_handle, done_handle) = (handle.clone(), handle.clone());
+            let _ = proxy.hooks.set(proxy::Hooks {
+                open_url: Box::new(move |url| {
+                    // Tests automatisés (débogage uniquement) : navigateur imposé.
+                    if cfg!(debug_assertions) {
+                        if let Ok(cmd) = std::env::var("LOOTY_OPEN_WITH") {
+                            let _ = std::process::Command::new(cmd).arg(url).spawn();
+                            return;
+                        }
+                    }
+                    let _ = open_handle.opener().open_url(url, None::<&str>);
+                }),
+                // Connexion terminée dans le navigateur : la fenêtre revient au premier plan.
+                signed_in: Box::new(move || {
+                    let h = done_handle.clone();
+                    let _ = done_handle.run_on_main_thread(move || show_main(&h));
+                }),
+            });
             app.manage(proxy);
 
-            let handle = app.handle().clone();
             let nav_handle = handle.clone();
             let popup_handle = handle.clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(boot))

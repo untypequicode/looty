@@ -36,8 +36,13 @@ The package targets Debian 12 (bookworm) and newer, and Ubuntu 22.04+.
 
 ## First launch
 
-Enter your server's address (e.g. `looty.example.com`) and sign in as on the web,
-SSO included. The session is kept by the app between launches. To switch servers:
+Enter your server's address (e.g. `looty.example.com`) and sign in. SSO sign-in
+happens in your default browser, where passkeys, WebAuthn and security keys work
+(the app's web engine, WebKitGTK, doesn't support them); the browser then hands the
+session back to the app (RFC 8252: one-time code + PKCE over the local address) and the
+window comes back logged in. *Sign in in this window instead* keeps the whole sign-in in
+the app, and is used automatically with servers that predate this feature.
+The session is kept by the app between launches. To switch servers:
 tray icon → *Change server…*.
 
 ## Tray icon by desktop environment

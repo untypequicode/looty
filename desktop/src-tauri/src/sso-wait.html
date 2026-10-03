@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Looty</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fbfbfc; --panel: #fff; --text: #1b1b1f; --muted: #6b6b76; --border: #e4e4e8; --accent: #5e6ad2; --red: #d64545; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e0e11; --panel: #18181c; --text: #ececf1; --muted: #8a8a96; --border: #2a2a31; --accent: #7170ff; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 14px/1.5 Inter, -apple-system, Cantarell, "Noto Sans", sans-serif; }
+  main { width: min(420px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 32px 28px; text-align: center; }
+  .spin { width: 28px; height: 28px; margin: 0 auto 16px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: s 0.9s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  h1 { font-size: 18px; margin: 0 0 6px; } p { margin: 0 0 20px; color: var(--muted); }
+  button, a.btn { display: block; width: 100%; height: 36px; line-height: 36px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; box-sizing: border-box; }
+  .primary { border: 0; background: var(--accent); color: #fff; }
+  .secondary { margin-top: 8px; line-height: 34px; border: 1px solid var(--border); background: transparent; color: var(--text); }
+  .link { margin-top: 14px; display: inline-block; color: var(--muted); font-size: 13px; }
+  .err { color: var(--red); margin: -8px 0 16px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="spin"></div>
+  <h1 id="t">Continue in your browser</h1>
+  <p id="d">Sign in in the browser window that just opened. You'll come back here automatically.</p>
+  <div class="err" id="e" hidden></div>
+  <button class="primary" id="reopen">Open the browser again</button>
+  <a class="btn secondary" id="inapp" href="/__looty/sso-inapp">Sign in in this window instead</a>
+  <a class="link" id="cancel" href="/__looty/sso-cancel">Cancel</a>
+</main>
+<script>
+  if ((navigator.language || '').toLowerCase().startsWith('fr')) {
+    t.textContent = 'Continuez dans votre navigateur'
+    d.textContent = 'Connectez-vous dans la fenêtre de navigateur qui vient de s’ouvrir. Vous reviendrez ici automatiquement.'
+    reopen.textContent = 'Rouvrir le navigateur'
+    inapp.textContent = 'Me connecter dans cette fenêtre'
+    cancel.textContent = 'Annuler'
+    inapp.title = 'Sans clé d’accès ni WebAuthn'
+  } else {
+    inapp.title = 'Without passkeys or WebAuthn'
+  }
+  reopen.onclick = () => fetch('/__looty/sso-reopen', { method: 'POST' })
+  async function poll() {
+    try {
+      const s = await (await fetch('/__looty/sso-status', { cache: 'no-store' })).json()
+      if (s.done) return void (location.href = s.redirect || '/')
+      if (s.error) { e.hidden = false; e.textContent = s.error }
+      if (!s.pending && !s.done) return void (location.href = '/login')
+    } catch {}
+    setTimeout(poll, 1000)
+  }
+  poll()
+</script>
+</body>
+</html>
