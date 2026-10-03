@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
+import { useQuery } from '@tanstack/vue-query'
+import { CalendarSync } from 'lucide-vue-next'
+import { api } from '~/composables/api'
 import type { Board, Task, Priority } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardActions, columnProgress, allTasks } from '~/composables/useBoard'
@@ -104,6 +107,14 @@ function toggleDone() {
   motion.pulse(checkEl.value)
   actions.toggleDone(task.value.id, user.value?.id)
 }
+
+// --- Calendriers CalDAV où la tâche est synchronisée (pour moi) ---
+const { data: calLinks } = useQuery({
+  queryKey: computed(() => ['task-caldav', props.taskId]),
+  queryFn: () => api<{ account_id: string; name: string; color?: string | null; last_synced_at: string; remote_deleted: boolean }[]>(`/api/boards/tasks/${props.taskId}/caldav`, { silent: true }),
+  staleTime: 15_000,
+})
+const assignedToMe = computed(() => !!user.value && !!task.value?.assignees.includes(user.value.id))
 
 // --- Navigation ---
 const idx = computed(() => props.order.indexOf(props.taskId))
@@ -240,6 +251,17 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
             </TaskDatePicker>
           </div>
 
+          <div v-if="calLinks?.length || assignedToMe" class="prop">
+            <span class="prop-label">{{ t('settings.caldav.calendar') }}</span>
+            <template v-if="calLinks?.length">
+              <div v-for="c in calLinks" :key="c.account_id" class="prop-val static" :title="c.remote_deleted ? t('settings.caldav.removedRemotely') : t('settings.caldav.lastSync', { time: relativeTime(c.last_synced_at) })">
+                <span class="dot" :style="{ background: c.color || 'var(--accent)' }" />
+                <span class="truncate" :class="{ faint: c.remote_deleted }">{{ c.name }}</span>
+              </div>
+            </template>
+            <NuxtLink v-else :to="links.settings(wsId, 'calendars')" class="prop-val"><CalendarSync :size="14" class="faint" /> <span class="faint">{{ t('settings.caldav.connectShort') }}</span></NuxtLink>
+          </div>
+
           <div class="prop-sep" />
           <label class="prop-switch">
             <span><Users :size="14" class="faint" /> {{ t('task.perPerson') }}</span>
@@ -317,7 +339,8 @@ a.crumb:hover { color: var(--text); }
 }
 .prop-val.wrap { flex-wrap: wrap; }
 .prop-val:hover:not(:disabled) { background: var(--bg-hover); }
-.prop-val:disabled { cursor: default; }
+.prop-val:disabled, .prop-val.static { cursor: default; }
+.prop-val.static:hover { background: none; }
 .prop-val.overdue { color: var(--red); }
 .avatars { display: flex; }
 .avatars > * + * { margin-left: -5px; }

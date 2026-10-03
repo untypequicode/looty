@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, UserRound, SlidersHorizontal, KeyRound, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu } from 'lucide-vue-next'
+import { ChevronLeft, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -19,6 +19,7 @@ const groups = computed(() => [
       { key: 'profile', label: t('settings.nav.profile'), icon: UserRound },
       { key: 'preferences', label: t('settings.nav.preferences'), icon: SlidersHorizontal },
       { key: 'security', label: t('settings.nav.security'), icon: KeyRound },
+      { key: 'calendars', label: t('settings.nav.calendars'), icon: CalendarSync },
     ],
   },
   {

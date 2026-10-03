@@ -9,7 +9,8 @@ export interface ApiError {
 /** Message lisible pour un code d'erreur renvoyé par le backend (`{ error: "code" }`). */
 export function errorMessage(e: unknown): string {
   const err = e as any
-  const code: string = err?.data?.error || err?.code || ''
+  // Les erreurs détaillées ont la forme « code: détail »
+  const code: string = String(err?.data?.error || err?.code || '').split(':')[0].trim()
   const key = `errors.${code}`
   const msg = translate(key)
   if (msg !== key) return msg
