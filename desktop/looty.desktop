@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Looty
+GenericName=Tasks and wiki
+GenericName[fr]=Tâches et wiki
+Comment=Boards, tasks and collaborative wiki
+Comment[fr]=Tableaux, tâches et wiki collaboratif
+Exec=looty
+Icon=looty
+Terminal=false
+Categories=Office;ProjectManagement;
+Keywords=tasks;wiki;kanban;notes;tâches;
+StartupWMClass=looty
+StartupNotify=true
