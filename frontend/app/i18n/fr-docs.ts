@@ -3,7 +3,7 @@ export default {
   docs: { notFound: 'Document introuvable', notFoundHint: 'Il a peut-être été supprimé ou vous n’y avez pas accès.' },
   editor: {
     placeholder: 'Écrivez quelque chose, ou tapez « / » pour insérer un bloc…', emptyLine: 'Tapez « / » pour les commandes',
-    headingPlaceholder: 'Titre {level}', togglePlaceholder: 'Résumé du bloc dépliable', mathPlaceholder: 'Cliquez pour saisir une formule LaTeX',
+    headingPlaceholder: 'Titre {level}', togglePlaceholder: 'Résumé du bloc dépliable', mathPlaceholder: 'Cliquez pour saisir une formule LaTeX', mathPreamble: 'Définitions LaTeX', mathDefines: 'Définit {names} pour la suite du document', mathPackageUnknown: '{name} : paquet indisponible, ses commandes risquent de ne pas s’afficher', mathScopeHint: '\\newcommand et \\usepackage s’appliquent aux formules suivantes',
     toValidate: 'pour valider', addBlock: 'Ajouter un bloc dessous', dragHint: 'Glisser pour déplacer · cliquer pour le menu',
     turnInto: 'Transformer en', copySectionLink: 'Copier le lien vers cette section', moveUp: 'Monter', moveDown: 'Descendre',
     addIcon: 'Ajouter une icône', searchEmoji: 'Rechercher un émoji…', suggested: 'Suggestions', allEmojis: 'Tous les émojis',

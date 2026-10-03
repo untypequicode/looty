@@ -3,7 +3,7 @@ export default {
   docs: { notFound: 'Document not found', notFoundHint: 'It may have been deleted, or you don’t have access.' },
   editor: {
     placeholder: 'Write something, or type “/” to insert a block…', emptyLine: 'Type “/” for commands',
-    headingPlaceholder: 'Heading {level}', togglePlaceholder: 'Toggle summary', mathPlaceholder: 'Click to enter a LaTeX formula',
+    headingPlaceholder: 'Heading {level}', togglePlaceholder: 'Toggle summary', mathPlaceholder: 'Click to enter a LaTeX formula', mathPreamble: 'LaTeX definitions', mathDefines: 'Defines {names} for the rest of the document', mathPackageUnknown: '{name}: package not available, its commands may not render', mathScopeHint: '\\newcommand and \\usepackage apply to the formulas below',
     toValidate: 'to confirm', addBlock: 'Add a block below', dragHint: 'Drag to move · click for menu',
     turnInto: 'Turn into', copySectionLink: 'Copy link to section', moveUp: 'Move up', moveDown: 'Move down',
     addIcon: 'Add icon', searchEmoji: 'Search emoji…', suggested: 'Suggested', allEmojis: 'All emojis',

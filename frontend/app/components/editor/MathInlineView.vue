@@ -2,6 +2,8 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { renderMath } from '~/editor/latex'
+import { useNodeScope } from '~/editor/mathScope'
 
 const props = defineProps(nodeViewProps)
 const editing = ref(false)
@@ -10,9 +12,14 @@ const input = ref<HTMLInputElement | null>(null)
 watch(() => props.node.attrs.latex, (v) => { if (!editing.value) draft.value = v })
 watch(() => props.selected, (s) => { if (s && props.editor.isEditable) start() })
 
-const html = computed(() => {
-  try { return katex.renderToString(draft.value || '', { displayMode: false, throwOnError: true, trust: false }) } catch { return '' }
-})
+// Macros du document (\newcommand… déclarées dans les formules précédentes).
+const scope = useNodeScope(props as any)
+const result = computed(() => renderMath(katex, draft.value ?? '', scope.value.scope, false))
+const html = computed(() => result.value.html)
+/** Formule ne contenant que des déclarations : un discret « ƒ » signale le préambule. */
+const preambleOnly = computed(() => !!draft.value?.trim() && !result.value.scope.parsed.rest && !result.value.error)
+const definesTitle = computed(() => [...result.value.scope.defines, ...result.value.scope.packages.map((p) => p.name)].join(', '))
+
 function start() {
   if (!props.editor.isEditable) return
   editing.value = true
@@ -41,8 +48,9 @@ function onKey(e: KeyboardEvent) {
     <span v-if="editing" class="mi-edit" contenteditable="false">
       <span class="mi-dollar">$</span><input ref="input" v-model="draft" spellcheck="false" :size="Math.max(4, draft.length)" @keydown.stop="onKey" @blur="commit" /><span class="mi-dollar">$</span>
     </span>
+    <span v-else-if="preambleOnly" class="mi-render mi-preamble" :title="definesTitle" @click="start">ƒ</span>
     <span v-else-if="html" class="mi-render" @click="start" v-html="html" />
-    <span v-else class="mi-render mi-error" @click="start">{{ draft || '$…$' }}</span>
+    <span v-else class="mi-render mi-error" :title="result.error" @click="start">{{ draft || '$…$' }}</span>
   </NodeViewWrapper>
 </template>
 
@@ -52,6 +60,7 @@ function onKey(e: KeyboardEvent) {
 .mi-render { cursor: pointer; }
 .mi-render:hover { background: var(--bg-hover); border-radius: 4px; }
 .mi-error { color: var(--red); font-family: var(--font-mono); font-size: 0.85em; }
+.mi-preamble { color: var(--text-3); font-style: italic; font-family: var(--font-mono); font-size: 0.85em; padding: 0 3px; background: var(--bg-code); border-radius: 4px; }
 .mi-edit { display: inline-flex; align-items: center; background: var(--bg-code); border-radius: 4px; padding: 0 4px; font-family: var(--font-mono); font-size: 0.85em; }
 .mi-edit input { border: none; outline: none; background: transparent; font: inherit; color: var(--text); }
 .mi-dollar { color: var(--text-3); }

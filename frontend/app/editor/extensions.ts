@@ -19,6 +19,7 @@ import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type { WorkspaceMember } from '~/types'
 import { CodeBlock, MathBlock, MathInline, ResizableImage, Callout, Toggle, ToggleSummary, ToggleContent } from './nodes'
 import { HeadingAnchors } from './headings'
+import { MathScope } from './mathScope'
 import { BlockKeymap } from './blocks'
 import { FindInPage } from './search'
 import { EmojiSuggestion } from './emoji'
@@ -56,6 +57,7 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
     ResizableImage,
     MathBlock,
     MathInline,
+    MathScope,
     Callout,
     Toggle,
     ToggleSummary,
