@@ -75,12 +75,13 @@ export default {
   myTasks: {
     byDue: 'By due date', byBoard: 'By board', overdue: 'Overdue', thisWeek: 'This week', later: 'Later',
     noDate: 'No due date', empty: 'No assigned tasks', emptyHint: 'Tasks assigned to you will show up here.',
+    mine: 'Mine to do', allPending: 'All pending', emptyAll: 'No pending tasks in this workspace', doneByMe: 'Done on my side',
   },
   docs: {
     new: 'New document', newChild: 'Add sub-document', untitled: 'Untitled', createFirst: 'Create a document',
     favorite: 'Add to favorites', unfavorite: 'Remove from favorites', copy: 'copy', deleted: 'Document deleted',
-    deleteTitle: 'Delete “{title}”?', deleteMessage: 'This can’t be undone.',
-    deleteWithChildren: { one: 'Its sub-document will be deleted too.', other: 'Its {count} sub-documents will be deleted too.' },
+    deleteTitle: 'Delete “{title}”?', deleteMessage: 'It will be moved to the trash.',
+    deleteWithChildren: { one: 'Its sub-document will be moved to the trash too.', other: 'Its {count} sub-documents will be moved to the trash too.' },
     empty: 'No documents', emptyHint: 'Write your first wiki page.', filter: 'Filter by title…',
     listView: 'List', gridView: 'Grid', sortUpdated: 'Updated', sortCreated: 'Created', sortPopular: 'Popular', sortTitle: 'A–Z',
     updatedOn: 'Updated {date}',

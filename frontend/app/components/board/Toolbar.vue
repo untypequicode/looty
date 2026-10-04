@@ -114,10 +114,12 @@ defineExpose({ openSearch, openFilters: () => (filterOpen.value = true) })
       <span class="spacer" />
       <span v-if="shown !== total" class="faint tb-count tabular">{{ t('filters.showing', { shown, total }) }}</span>
 
-      <UiPopover v-model:open="displayOpen" :width="260" placement="bottom-end">
+      <UiPopover v-model:open="displayOpen" :width="300" placement="bottom-end">
         <template #trigger><UiButton size="sm" variant="ghost" :icon="SlidersHorizontal">{{ t('board.display') }}</UiButton></template>
         <div class="disp">
-          <label class="disp-row"><span>{{ t('filters.showCompleted') }}</span><UiSwitch v-model="f.showDone.value" /></label>
+          <div class="disp-col"><span>{{ t('filters.completed') }}</span>
+            <UiSegmented v-model="f.doneMode.value" :options="[{ value: 'show', label: t('filters.doneShow') }, { value: 'hide', label: t('filters.doneHide') }, { value: 'mine', label: t('filters.doneMine') }]" />
+          </div>
           <label class="disp-row"><span>{{ t('filters.showSubtasks') }}</span><UiSwitch v-model="f.showSubtasks.value" /></label>
         </div>
       </UiPopover>
@@ -163,6 +165,7 @@ defineExpose({ openSearch, openFilters: () => (filterOpen.value = true) })
 .fm-empty { padding: 12px; font-size: var(--fs-sm); }
 .disp { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
 .disp-row { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 4px; cursor: pointer; }
+.disp-col { display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 8px; font-size: var(--fs-sm); color: var(--text-2); }
 @media (max-width: 639px) {
   .fm { flex-direction: column; }
   .fm-tabs { width: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }

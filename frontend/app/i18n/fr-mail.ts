@@ -21,6 +21,7 @@ export default {
     noMessages: 'Aucun message dans la boîte de réception.', syncing: 'Récupération de vos messages…', checked: 'Relevé {when}', fix: 'Corriger',
     unknownSender: 'Expéditeur inconnu', noSubject: '(sans objet)', pick: 'Sélectionnez un message pour le lire',
     to: 'À', cc: 'Cc', showImages: 'Afficher les images', attachmentsHint: 'Ouvrez le webmail pour télécharger les pièces jointes.',
-    loadFailed: 'Impossible de charger ce message.', newCount: { one: '1 nouveau message', other: '{count} nouveaux messages' },
+    loadFailed: 'Impossible de charger ce message.', all: 'Tous', unread: 'Non lus', noUnread: 'Aucun message non lu.',
+    markRead: 'Marquer comme lu', markUnread: 'Marquer comme non lu', readAll: 'Tout marquer comme lu', loadMore: 'Charger les messages plus anciens', newCount: { one: '1 nouveau message', other: '{count} nouveaux messages' },
   },
 }

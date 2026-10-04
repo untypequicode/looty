@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Home, Inbox, CircleUserRound, Search, SquarePen } from 'lucide-vue-next'
+import { Home, Inbox, CircleUserRound, Search, SquarePen, BookOpen } from 'lucide-vue-next'
+import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import gsap from 'gsap'
 import { useQuery } from '@tanstack/vue-query'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
@@ -15,7 +16,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useI18n } from '~/composables/useI18n'
 
 const route = useRoute()
-const { wsId, workspace, canWrite } = useWorkspace()
+const { wsId, workspace, canWrite, canWriteRole } = useWorkspace()
 const { user } = useAuth()
 const { sidebarOpen, sidebarCollapsed, commandOpen, shortcutsOpen, openCreateTask } = useUi()
 const { unread } = useNotifications()
@@ -48,6 +49,7 @@ useShortcuts([
   { keys: 'mod+k', global: true, handler: () => (commandOpen.value = !commandOpen.value) },
   { keys: '/', handler: () => (commandOpen.value = true) },
   { keys: '?', handler: () => (shortcutsOpen.value = true) },
+  { keys: 'mod+shift+e', global: true, handler: () => { if (!canWriteRole.value) return false; toggleReadMode() } },
   { keys: '[', handler: () => (sidebarCollapsed.value = !sidebarCollapsed.value) },
   { keys: 'c', handler: () => canWrite.value && openCreateTask() },
   { keys: 'g h', handler: () => navigateTo(links.home(wsId.value)) },
@@ -105,6 +107,11 @@ function onEdgeStart(e: TouchEvent) {
     <main class="app-main">
       <AppOfflineBanner />
       <slot />
+      <Transition name="rm">
+        <button v-if="readMode && canWriteRole" class="rm-badge" :title="t('readMode.toEdit')" @click="toggleReadMode">
+          <BookOpen :size="13" /> {{ t('readMode.badge') }} <span class="rm-edit">{{ t('readMode.edit') }}</span>
+        </button>
+      </Transition>
     </main>
 
     <!-- Barre d'onglets mobile -->
@@ -127,6 +134,16 @@ function onEdgeStart(e: TouchEvent) {
 </template>
 
 <style scoped>
+.rm-badge {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 8px 6px 12px; border-radius: var(--r-full);
+  background: var(--bg-elevated); box-shadow: var(--shadow-lg, 0 6px 24px rgba(0,0,0,.18)), 0 0 0 1px var(--border);
+  font-size: var(--fs-sm); color: var(--text-2);
+}
+.rm-edit { padding: 2px 9px; border-radius: var(--r-full); background: var(--accent); color: #fff; font-weight: 500; }
+.rm-enter-active, .rm-leave-active { transition: opacity var(--dur-fast), transform var(--dur-fast); }
+.rm-enter-from, .rm-leave-to { opacity: 0; transform: translate(-50%, 6px); }
+@media (max-width: 639px) { .rm-badge { bottom: calc(72px + env(safe-area-inset-bottom)); } }
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);

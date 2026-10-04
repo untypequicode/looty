@@ -163,6 +163,11 @@ export interface MyTask {
   board_name: string
   column_name: string
   updated_at: string
+  is_per_person: boolean
+  assigned_to_me: boolean
+  /** Tâche individuelle : ma part est faite, d'autres n'ont pas fini. */
+  done_by_me: boolean
+  assignees: string[]
 }
 
 export interface SearchResult {

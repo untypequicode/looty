@@ -1,0 +1,32 @@
+export default {
+  storage: {
+    title: 'Storage', description: 'Actual size of the upload folder and where each file is used.',
+    uploads: 'Upload folder', free: 'Free disk space', database: 'Database', orphans: 'Unused files',
+    files: { zero: 'No files', one: '1 file', other: '{count} files' },
+    diskOf: '{used} used of {total}', diskTip: 'Disk: {used} used of {total}, including {uploads} of uploads',
+    recorded: 'Task attachments account for {recorded}; the folder actually holds {real} (document images, avatars, unused files…).',
+    breakdown: 'Breakdown', byUsage: 'By usage', byType: 'By file type', filesTitle: 'Files', largest: 'Largest',
+    usage: { attachment: 'Attachment', page: 'Document', task: 'Task description', comment: 'Comment', avatar: 'Avatar', branding: 'Branding', trash: 'In the trash', orphan: 'Unused' },
+    type: { image: 'Images', pdf: 'PDF', video: 'Videos', audio: 'Audio', archive: 'Archives', document: 'Documents', other: 'Other' },
+    unused: 'Not used anywhere', none: 'No files.',
+    clean: 'Clean up', cleanTitle: { one: 'Delete 1 unused file?', other: 'Delete {count} unused files?' },
+    cleanMessage: 'Frees {size}. Files added in the last hour are kept.', cleaned: { zero: 'Nothing to delete', one: '1 file deleted ({size})', other: '{count} files deleted ({size})' },
+    deleteTitle: 'Delete “{name}”?', deleteMessage: 'The file isn’t used anywhere. This can’t be undone.',
+  },
+  trash: {
+    title: 'Trash', tasks: 'Tasks', pages: 'Documents', restore: 'Restore', restored: 'Restored', undo: 'Undo',
+    moved: 'Moved to the trash', deleteForever: 'Delete forever', empty: 'Empty trash', emptyTitle: 'Empty the trash?',
+    deleteTitle: 'Delete “{title}” forever?', deleteMessage: 'This can’t be undone.',
+    hint: 'Deleted items are kept {days} days, then removed for good.', disabled: 'The trash is turned off: deleted items are removed immediately.',
+    change: 'Change', emptyTasks: 'No deleted tasks', emptyPages: 'No deleted documents', pagesOwnOnly: 'You only see the documents you deleted.',
+    deletedBy: 'deleted by {name} {when}', someone: 'someone',
+    daysLeft: { zero: 'Removed today', one: '1 day left', other: '{count} days left' },
+    subtasks: { one: '1 sub-task', other: '{count} sub-tasks' }, subpages: { one: '1 sub-document', other: '{count} sub-documents' },
+    retention: 'Trash', retentionHint: 'How long deleted tasks and documents can be restored.',
+    off: 'Off (delete immediately)', days: { one: '1 day', other: '{count} days' },
+  },
+  readMode: {
+    on: 'Reading mode: changes are disabled', off: 'Editing mode', badge: 'Reading mode', edit: 'Edit',
+    toRead: 'Switch to reading mode', toEdit: 'Switch to editing mode',
+  },
+}

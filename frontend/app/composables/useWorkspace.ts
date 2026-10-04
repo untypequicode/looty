@@ -1,7 +1,8 @@
-import { computed, type Ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { BoardSummary, Page, Workspace, WorkspaceMember, MyTask } from '~/types'
 import { api } from './api'
+import { readMode } from './useReadMode'
 
 export const wsKeys = {
   list: ['workspaces'] as const,
@@ -58,7 +59,9 @@ export function useWorkspace() {
   })
 
   const role = computed(() => workspace.data.value?.role ?? null)
-  const canWrite = computed(() => role.value === 'owner' || role.value === 'admin' || role.value === 'member')
+  /** Droit d'écriture du rôle, indépendamment du mode lecture (réglages). */
+  const canWriteRole = computed(() => role.value === 'owner' || role.value === 'admin' || role.value === 'member')
+  const canWrite = computed(() => canWriteRole.value && !readMode.value)
   const isAdmin = computed(() => role.value === 'owner' || role.value === 'admin')
 
   const memberById = computed(() => {
@@ -76,14 +79,16 @@ export function useWorkspace() {
     return qc.invalidateQueries({ queryKey: k })
   }
 
-  return { wsId, workspace, members, boards, pages, role, canWrite, isAdmin, member, memberById, invalidate }
+  return { wsId, workspace, members, boards, pages, role, canWrite, canWriteRole, isAdmin, member, memberById, invalidate }
 }
 
-export function useMyTasks() {
+/** `mine` : ce qu'il me reste à faire ; `all` : toutes les tâches en cours de l'espace. */
+export function useMyTasks(scope: Ref<'mine' | 'all'> = ref('mine')) {
   const wsId = useWorkspaceId()
   return useQuery({
-    queryKey: computed(() => wsKeys.myTasks(wsId.value)),
-    queryFn: async () => (await api<{ tasks: MyTask[] }>(`/api/workspaces/${wsId.value}/my_tasks`)).tasks,
+    queryKey: computed(() => [...wsKeys.myTasks(wsId.value), scope.value]),
+    queryFn: async () => (await api<{ tasks: MyTask[] }>(`/api/workspaces/${wsId.value}/my_tasks?scope=${scope.value}`)).tasks,
+    placeholderData: (prev) => prev,
     enabled: computed(() => !!wsId.value),
   })
 }

@@ -13,6 +13,8 @@ mod delivery;
 mod error;
 mod mail;
 mod mailbox;
+mod trash;
+mod storage;
 mod notifications;
 mod push;
 mod page;
@@ -77,6 +79,7 @@ async fn main() {
     delivery::start_worker(state.clone());
     calendar::start_sync_loop(state.clone());
     mailbox::start_poll_loop(state.clone());
+    trash::start_purge_loop(state.clone());
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -91,6 +94,7 @@ async fn main() {
         .nest("/user/notifications", delivery::routes())
         .nest("/user/push", push::routes())
         .nest("/admin/mail", mail::admin_routes())
+        .nest("/admin/storage", storage::routes())
         .route("/boards/tasks/:task_id/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
@@ -101,6 +105,8 @@ async fn main() {
         .nest("/workspaces/:workspace_id/calendars", calendar::workspace_routes())
         .nest("/calendars", calendar::routes())
         .nest("/mail", mailbox::routes())
+        .nest("/workspaces/:workspace_id/trash", trash::workspace_routes())
+        .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
 
     let app = Router::new()

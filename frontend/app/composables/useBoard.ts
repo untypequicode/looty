@@ -7,6 +7,7 @@ import { boardKey, taskKey, upsertTaskInBoards, removeTaskFromBoards } from './u
 import { confirmDialog } from './useConfirm'
 import { translate } from './useI18n'
 import { toast } from './useToast'
+import { trashedToast } from './useTrash'
 
 export function useBoardQuery(boardId: Ref<string | null | undefined>) {
   return useQuery({
@@ -151,7 +152,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
     }
     await withRollback(() => removeTaskFromBoards(qc, task.id), () => api(`/api/boards/tasks/${task.id}`, { method: 'DELETE' }))
     qc.removeQueries({ queryKey: taskKey(task.id) })
-    toast(translate('task.deleted'))
+    trashedToast('tasks', task.id)
     return true
   }
 

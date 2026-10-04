@@ -75,12 +75,13 @@ export default {
   myTasks: {
     byDue: 'Par échéance', byBoard: 'Par tableau', overdue: 'En retard', thisWeek: 'Cette semaine', later: 'Plus tard',
     noDate: 'Sans échéance', empty: 'Aucune tâche assignée', emptyHint: 'Les tâches qui vous sont assignées apparaîtront ici.',
+    mine: 'À faire par moi', allPending: 'Tout ce qui est en cours', emptyAll: 'Aucune tâche en cours dans cet espace', doneByMe: 'Fait de mon côté',
   },
   docs: {
     new: 'Nouveau document', newChild: 'Ajouter un sous-document', untitled: 'Sans titre', createFirst: 'Créer un document',
     favorite: 'Ajouter aux favoris', unfavorite: 'Retirer des favoris', copy: 'copie', deleted: 'Document supprimé',
-    deleteTitle: 'Supprimer « {title} » ?', deleteMessage: 'Cette action est irréversible.',
-    deleteWithChildren: { one: 'Son sous-document sera aussi supprimé.', other: 'Ses {count} sous-documents seront aussi supprimés.' },
+    deleteTitle: 'Supprimer « {title} » ?', deleteMessage: 'Il sera placé dans la corbeille.',
+    deleteWithChildren: { one: 'Son sous-document ira aussi dans la corbeille.', other: 'Ses {count} sous-documents iront aussi dans la corbeille.' },
     empty: 'Aucun document', emptyHint: 'Rédigez votre première page de wiki.', filter: 'Filtrer par titre…',
     listView: 'Liste', gridView: 'Grille', sortUpdated: 'Modifiés', sortCreated: 'Créés', sortPopular: 'Populaires', sortTitle: 'A–Z',
     updatedOn: 'Mis à jour le {date}',

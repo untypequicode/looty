@@ -478,26 +478,47 @@ pub struct MyTaskResponse {
     pub board_name: String,
     pub column_name: String,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// Validation individuelle : chaque assigné valide sa part.
+    pub is_per_person: bool,
+    pub assigned_to_me: bool,
+    /// Ma part est faite (tâche individuelle que j'ai validée), d'autres n'ont pas fini.
+    pub done_by_me: bool,
+    pub assignees: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct MyTasksQuery {
+    /// `mine` (défaut) : ce qu'il me reste à faire ; `all` : tout ce qui est en cours dans l'espace.
+    scope: Option<String>,
 }
 
 async fn get_my_tasks(
     State(pool): State<PgPool>,
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
+    Query(q): Query<MyTasksQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     require_member(&pool, &user, workspace_id).await?;
+    let all = q.scope.as_deref() == Some("all");
     let tasks: Vec<MyTaskResponse> = sqlx::query_as(
-        "SELECT t.id, t.title, t.due_date, t.priority, t.is_completed, b.id AS board_id, b.name AS board_name,
-                c.name AS column_name, t.updated_at
-         FROM tasks t
-         JOIN task_assignees ta ON ta.task_id = t.id
-         JOIN board_columns c ON c.id = t.column_id
-         JOIN boards b ON b.id = c.board_id
-         WHERE ta.user_id = $1 AND b.workspace_id = $2 AND t.is_completed = false
-         ORDER BY t.due_date ASC NULLS LAST, t.priority = 0, t.priority ASC",
+        "SELECT * FROM (
+            SELECT t.id, t.title, t.due_date, t.priority, t.is_completed, b.id AS board_id, b.name AS board_name,
+                c.name AS column_name, t.updated_at, COALESCE(t.is_per_person, FALSE) AS is_per_person,
+                EXISTS(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1) AS assigned_to_me,
+                (COALESCE(t.is_per_person, FALSE) AND EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $1)) AS done_by_me,
+                ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id ORDER BY ta.user_id) AS assignees
+            FROM tasks t
+            JOIN board_columns c ON c.id = t.column_id
+            JOIN boards b ON b.id = c.board_id
+            WHERE b.workspace_id = $2 AND t.is_completed = false
+         ) x
+         WHERE $3 OR (x.assigned_to_me AND NOT x.done_by_me)
+         ORDER BY x.due_date ASC NULLS LAST, x.priority = 0, x.priority ASC
+         LIMIT 1000",
     )
     .bind(user.id.to_string())
     .bind(workspace_id)
+    .bind(all)
     .fetch_all(&pool)
     .await?;
     Ok(Json(serde_json::json!({ "tasks": tasks })))
@@ -640,11 +661,15 @@ async fn get_overview(
     let me = user.id.to_string();
     let counts: MyCounts = sqlx::query_as(
         "SELECT
-            count(*) FILTER (WHERE NOT t.is_completed) AS open,
-            count(*) FILTER (WHERE NOT t.is_completed AND t.due_date < NOW()) AS overdue,
-            count(*) FILTER (WHERE NOT t.is_completed AND t.due_date BETWEEN NOW() AND NOW() + INTERVAL '7 days') AS due_week,
+            count(*) FILTER (WHERE NOT t.done) AS open,
+            count(*) FILTER (WHERE NOT t.done AND t.due_date < NOW()) AS overdue,
+            count(*) FILTER (WHERE NOT t.done AND t.due_date BETWEEN NOW() AND NOW() + INTERVAL '7 days') AS due_week,
             count(*) FILTER (WHERE t.is_completed AND t.updated_at > NOW() - INTERVAL '7 days') AS completed_week
-         FROM tasks t
+         FROM (
+            -- « Fait » pour moi : tâche terminée, ou ma part d'une tâche individuelle validée.
+            SELECT t.*, (t.is_completed OR (t.is_per_person AND EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $2))) AS done
+            FROM tasks t
+         ) t
          JOIN task_assignees ta ON ta.task_id = t.id AND ta.user_id = $2
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          WHERE b.workspace_id = $1",

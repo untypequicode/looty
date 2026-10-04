@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu } from 'lucide-vue-next'
+import { ChevronLeft, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -39,6 +39,7 @@ const groups = computed(() => [
           { key: 'admin-workspaces', label: t('settings.nav.workspaces'), icon: Building },
           { key: 'admin-auth', label: t('settings.nav.auth'), icon: ShieldCheck },
           { key: 'admin-email', label: t('settings.nav.email'), icon: Mail },
+          { key: 'admin-storage', label: t('storage.title'), icon: HardDrive },
           { key: 'admin-instance', label: t('settings.nav.instance'), icon: Server },
         ],
       }]

@@ -10,6 +10,7 @@ import Security from '~/components/settings/Security.vue'
 import Calendars from '~/components/settings/Calendars.vue'
 import Notifications from '~/components/settings/Notifications.vue'
 import AdminEmail from '~/components/settings/AdminEmail.vue'
+import AdminStorage from '~/components/settings/AdminStorage.vue'
 import Workspace from '~/components/settings/Workspace.vue'
 import Members from '~/components/settings/Members.vue'
 import AdminOverview from '~/components/settings/AdminOverview.vue'
@@ -36,6 +37,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   'admin-workspaces': { comp: AdminWorkspaces, title: 'settings.nav.workspaces', admin: true },
   'admin-auth': { comp: AdminAuth, title: 'settings.nav.auth', admin: true },
   'admin-email': { comp: AdminEmail, title: 'settings.nav.email', admin: true },
+  'admin-storage': { comp: AdminStorage, title: 'storage.title', admin: true },
   'admin-instance': { comp: AdminInstance, title: 'settings.nav.instance', admin: true },
 }
 const key = computed(() => ((route.params.section as string) in SECTIONS ? (route.params.section as string) : 'profile'))

@@ -234,7 +234,7 @@ pub async fn load_task_enriched(pool: &PgPool, task_id: Uuid) -> ApiResult<TaskW
     Ok(TaskWithEnrichment { task, labels, assignees, validations })
 }
 
-async fn emit_task(state: &AppState, workspace_id: Uuid, kind: &str, task_id: Uuid) {
+pub(crate) async fn emit_task(state: &AppState, workspace_id: Uuid, kind: &str, task_id: Uuid) {
     if let Ok(t) = load_task_enriched(&state.pool, task_id).await {
         state.emit(workspace_id, serde_json::json!({ "type": kind, "task": t })).await;
     }
@@ -949,32 +949,13 @@ async fn delete_task(
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
     require_writer(&state.pool, &user, ctx.workspace_id).await?;
-    remove_task(&state, task_id).await?;
+    crate::trash::trash_task(&state, task_id, Some(user.id)).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Supprime une tâche (et ses fichiers) sans contrôle d'accès : l'appelant l'a fait.
+/// Supprime une tâche (corbeille de l'espace) sans contrôle d'accès : l'appelant l'a fait.
 pub async fn remove_task(state: &AppState, task_id: Uuid) -> ApiResult<()> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
-    // Les fichiers joints (et ceux des sous-tâches) sont supprimés du disque.
-    let files: Vec<String> = sqlx::query_scalar(
-        "WITH RECURSIVE sub AS (SELECT id FROM tasks WHERE id = $1 UNION ALL SELECT t.id FROM tasks t JOIN sub ON t.parent_id = sub.id)
-         SELECT file_path FROM task_attachments WHERE task_id IN (SELECT id FROM sub)",
-    )
-    .bind(task_id)
-    .fetch_all(&state.pool)
-    .await?;
-    sqlx::query("DELETE FROM tasks WHERE id = $1").bind(task_id).execute(&state.pool).await?;
-    for f in files {
-        crate::upload::remove_upload(&f).await;
-    }
-    state
-        .emit(
-            ctx.workspace_id,
-            serde_json::json!({ "type": "TASK_DELETED", "task_id": task_id, "column_id": ctx.column_id, "board_id": ctx.board_id }),
-        )
-        .await;
-    Ok(())
+    crate::trash::trash_task(state, task_id, None).await
 }
 
 #[derive(Deserialize)]

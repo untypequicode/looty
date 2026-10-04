@@ -5,7 +5,8 @@
 //! - Comptes par utilisateur, mot de passe chiffré, serveur IMAP en TLS (993) ou
 //!   STARTTLS (143), adresses privées refusées (sauf CALDAV_ALLOW_PRIVATE).
 //! - Toutes les 2 minutes : nouveaux messages de la boîte de réception (en-têtes et
-//!   aperçu mis en cache, 200 derniers), état lu / non lu, notification « mail ».
+//!   aperçu en cache), état lu / non lu, notification « mail ».
+//! - Marquer lu / non lu, tout marquer comme lu, charger les messages plus anciens.
 //! - Le contenu d'un message est lu à la demande et nettoyé (HTML sans scripts).
 
 use async_imap::Session;
@@ -140,32 +141,28 @@ async fn sync_account(state: &AppState, a: &Account) -> ApiResult<Vec<Parsed>> {
         } else {
             s.uid_fetch(format!("{}:*", a.last_uid + 1), "(UID FLAGS BODY.PEEK[]<0.32768>)").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?
         };
-        for f in fetches {
-            let Some(uid) = f.uid.map(|u| u as i64) else { continue };
-            if uid <= max_uid && !first {
+        let floor = if first { 0 } else { max_uid };
+        for (uid, p, seen) in store_fetches(pool, a.id, &fetches).await? {
+            if uid <= floor {
                 continue;
             }
-            let seen = f.flags().any(|fl| matches!(fl, async_imap::types::Flag::Seen));
-            let p = parse_summary(f.body().unwrap_or_default());
-            sqlx::query(
-                "INSERT INTO mail_messages (account_id, uid, from_name, from_addr, subject, snippet, sent_at, seen, has_attachments)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (account_id, uid) DO NOTHING",
-            )
-            .bind(a.id)
-            .bind(uid)
-            .bind(&p.from_name)
-            .bind(&p.from_addr)
-            .bind(&p.subject)
-            .bind(&p.snippet)
-            .bind(p.sent_at)
-            .bind(seen)
-            .bind(p.has_attachments)
-            .execute(pool)
-            .await?;
             max_uid = max_uid.max(uid);
             if !first && !seen {
                 new_msgs.push(p);
             }
+        }
+        // Messages non lus plus anciens que la fenêtre en cache : tous récupérés (sans
+        // notification), pour que « Non lus » soit complet.
+        let unseen = s.uid_search("UNSEEN").await.map_err(imap_err)?;
+        let cached: Vec<i64> = sqlx::query_scalar("SELECT uid FROM mail_messages WHERE account_id = $1").bind(a.id).fetch_all(pool).await?;
+        let mut missing: Vec<u32> = unseen.into_iter().filter(|u| !cached.contains(&(*u as i64))).collect();
+        missing.sort_unstable();
+        missing.reverse();
+        missing.truncate(300);
+        if !missing.is_empty() {
+            let set = missing.iter().map(|u| u.to_string()).collect::<Vec<_>>().join(",");
+            let older: Vec<_> = s.uid_fetch(set, "(UID FLAGS BODY.PEEK[]<0.32768>)").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
+            store_fetches(pool, a.id, &older).await?;
         }
     }
     // État lu / non lu et messages supprimés, sur la fenêtre en cache.
@@ -181,10 +178,37 @@ async fn sync_account(state: &AppState, a: &Account) -> ApiResult<Vec<Parsed>> {
         }
         sqlx::query("DELETE FROM mail_messages WHERE account_id = $1 AND NOT (uid = ANY($2))").bind(a.id).bind(&present).execute(pool).await?;
     }
-    sqlx::query("DELETE FROM mail_messages WHERE account_id = $1 AND uid NOT IN (SELECT uid FROM mail_messages WHERE account_id = $1 ORDER BY uid DESC LIMIT 200)").bind(a.id).execute(pool).await?;
+    sqlx::query("DELETE FROM mail_messages WHERE account_id = $1 AND uid NOT IN (SELECT uid FROM mail_messages WHERE account_id = $1 ORDER BY uid DESC LIMIT 3000)").bind(a.id).execute(pool).await?;
     sqlx::query("UPDATE mail_accounts SET uid_validity = $2, last_uid = $3, last_check_at = NOW(), last_error = NULL WHERE id = $1").bind(a.id).bind(validity).bind(max_uid).execute(pool).await?;
     let _ = s.logout().await;
     Ok(new_msgs)
+}
+
+/// Met en cache des messages récupérés (en-têtes, aperçu, état lu) ; renvoie leur résumé.
+async fn store_fetches(pool: &sqlx::PgPool, account: Uuid, fetches: &[async_imap::types::Fetch]) -> ApiResult<Vec<(i64, Parsed, bool)>> {
+    let mut out = Vec::new();
+    for f in fetches {
+        let Some(uid) = f.uid.map(|u| u as i64) else { continue };
+        let seen = f.flags().any(|fl| matches!(fl, async_imap::types::Flag::Seen));
+        let p = parse_summary(f.body().unwrap_or_default());
+        sqlx::query(
+            "INSERT INTO mail_messages (account_id, uid, from_name, from_addr, subject, snippet, sent_at, seen, has_attachments)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (account_id, uid) DO NOTHING",
+        )
+        .bind(account)
+        .bind(uid)
+        .bind(&p.from_name)
+        .bind(&p.from_addr)
+        .bind(&p.subject)
+        .bind(&p.snippet)
+        .bind(p.sent_at)
+        .bind(seen)
+        .bind(p.has_attachments)
+        .execute(pool)
+        .await?;
+        out.push((uid, p, seen));
+    }
+    Ok(out)
 }
 
 async fn sync_and_notify(state: &AppState, a: &Account) -> ApiResult<usize> {
@@ -246,6 +270,8 @@ pub fn routes() -> Router<AppState> {
         .route("/accounts/:id/refresh", post(refresh))
         .route("/accounts/:id/messages", get(list_messages))
         .route("/accounts/:id/messages/:uid", get(read_message))
+        .route("/accounts/:id/messages/:uid/seen", axum::routing::put(set_seen))
+        .route("/accounts/:id/read-all", post(read_all))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -397,6 +423,8 @@ async fn refresh(State(state): State<AppState>, user: AuthUser, Path(id): Path<U
 #[derive(Deserialize)]
 struct ListQuery {
     before: Option<i64>,
+    /// Non lus seulement (tous en cache, cf. synchronisation).
+    unread: Option<bool>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -411,18 +439,78 @@ struct MessageDto {
     has_attachments: bool,
 }
 
-async fn list_messages(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<ListQuery>) -> ApiResult<Json<Vec<MessageDto>>> {
-    own_account(&state, &user, id).await?;
-    Ok(Json(
-        sqlx::query_as(
-            "SELECT uid, from_name, from_addr, subject, snippet, sent_at, seen, has_attachments FROM mail_messages
-             WHERE account_id = $1 AND ($2::bigint IS NULL OR uid < $2) ORDER BY uid DESC LIMIT 50",
-        )
-        .bind(id)
-        .bind(q.before)
-        .fetch_all(&state.pool)
-        .await?,
-    ))
+const PAGE: usize = 50;
+
+async fn cached_page(pool: &sqlx::PgPool, id: Uuid, before: Option<i64>, unread: bool) -> ApiResult<Vec<MessageDto>> {
+    Ok(sqlx::query_as(
+        "SELECT uid, from_name, from_addr, subject, snippet, sent_at, seen, has_attachments FROM mail_messages
+         WHERE account_id = $1 AND ($2::bigint IS NULL OR uid < $2) AND NOT ($3 AND seen) ORDER BY uid DESC LIMIT 51",
+    )
+    .bind(id)
+    .bind(before)
+    .bind(unread)
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Une page de la boîte de réception. Au-delà du cache, les messages plus anciens sont
+/// récupérés sur le serveur IMAP à la demande (« Charger plus »).
+async fn list_messages(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<ListQuery>) -> ApiResult<Json<serde_json::Value>> {
+    let a = own_account(&state, &user, id).await?;
+    let unread = q.unread.unwrap_or(false);
+    let mut rows = cached_page(&state.pool, id, q.before, unread).await?;
+    let mut server_has_more = false;
+    if !unread && rows.len() <= PAGE && a.last_uid > 0 {
+        let oldest: Option<i64> = sqlx::query_scalar("SELECT MIN(uid) FROM mail_messages WHERE account_id = $1").bind(id).fetch_one(&state.pool).await?;
+        if let Some(oldest) = oldest {
+            let mut s = connect_account(&a).await?;
+            s.select("INBOX").await.map_err(imap_err)?;
+            let mut older: Vec<u32> = s.uid_search("ALL").await.map_err(imap_err)?.into_iter().filter(|u| (*u as i64) < oldest).collect();
+            older.sort_unstable();
+            let want = PAGE + 1 - rows.len();
+            server_has_more = older.len() > want;
+            let take: Vec<u32> = older.iter().rev().take(want).copied().collect();
+            if !take.is_empty() {
+                let set = take.iter().map(|u| u.to_string()).collect::<Vec<_>>().join(",");
+                let fetched: Vec<_> = s.uid_fetch(set, "(UID FLAGS BODY.PEEK[]<0.32768>)").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
+                store_fetches(&state.pool, id, &fetched).await?;
+                rows = cached_page(&state.pool, id, q.before, false).await?;
+            }
+            let _ = s.logout().await;
+        }
+    }
+    let has_more = rows.len() > PAGE || server_has_more;
+    rows.truncate(PAGE);
+    Ok(Json(serde_json::json!({ "messages": rows, "has_more": has_more })))
+}
+
+#[derive(Deserialize)]
+struct SeenReq {
+    seen: bool,
+}
+
+/// Marque un message comme lu ou non lu (sur le serveur et dans le cache).
+async fn set_seen(State(state): State<AppState>, user: AuthUser, Path((id, uid)): Path<(Uuid, i64)>, Json(p): Json<SeenReq>) -> ApiResult<StatusCode> {
+    let a = own_account(&state, &user, id).await?;
+    let mut s = connect_account(&a).await?;
+    s.select("INBOX").await.map_err(imap_err)?;
+    let op = if p.seen { "+FLAGS.SILENT (\\Seen)" } else { "-FLAGS.SILENT (\\Seen)" };
+    let _: Vec<_> = s.uid_store(uid.to_string(), op).await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
+    let _ = s.logout().await;
+    sqlx::query("UPDATE mail_messages SET seen = $3 WHERE account_id = $1 AND uid = $2").bind(id).bind(uid).bind(p.seen).execute(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn read_all(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
+    let a = own_account(&state, &user, id).await?;
+    let mut s = connect_account(&a).await?;
+    let mailbox = s.select("INBOX").await.map_err(imap_err)?;
+    if mailbox.exists > 0 {
+        let _: Vec<_> = s.uid_store("1:*", "+FLAGS.SILENT (\\Seen)").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
+    }
+    let _ = s.logout().await;
+    sqlx::query("UPDATE mail_messages SET seen = TRUE WHERE account_id = $1 AND NOT seen").bind(id).execute(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// HTML d'un message, nettoyé : ni scripts, ni formulaires, ni cadres ; liens ouverts à

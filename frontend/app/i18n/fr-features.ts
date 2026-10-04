@@ -1,0 +1,32 @@
+export default {
+  storage: {
+    title: 'Stockage', description: 'Taille réelle du dossier d’upload et utilisation de chaque fichier.',
+    uploads: 'Dossier d’upload', free: 'Espace disque libre', database: 'Base de données', orphans: 'Fichiers inutilisés',
+    files: { zero: 'Aucun fichier', one: '1 fichier', other: '{count} fichiers' },
+    diskOf: '{used} utilisés sur {total}', diskTip: 'Disque : {used} utilisés sur {total}, dont {uploads} d’uploads',
+    recorded: 'Les pièces jointes des tâches représentent {recorded} ; le dossier contient en réalité {real} (images des documents, avatars, fichiers inutilisés…).',
+    breakdown: 'Répartition', byUsage: 'Par utilisation', byType: 'Par type de fichier', filesTitle: 'Fichiers', largest: 'Les plus gros',
+    usage: { attachment: 'Pièce jointe', page: 'Document', task: 'Description de tâche', comment: 'Commentaire', avatar: 'Avatar', branding: 'Personnalisation', trash: 'Dans la corbeille', orphan: 'Inutilisé' },
+    type: { image: 'Images', pdf: 'PDF', video: 'Vidéos', audio: 'Audio', archive: 'Archives', document: 'Documents', other: 'Autres' },
+    unused: 'Utilisé nulle part', none: 'Aucun fichier.',
+    clean: 'Nettoyer', cleanTitle: { one: 'Supprimer 1 fichier inutilisé ?', other: 'Supprimer {count} fichiers inutilisés ?' },
+    cleanMessage: 'Libère {size}. Les fichiers ajoutés depuis moins d’une heure sont conservés.', cleaned: { zero: 'Rien à supprimer', one: '1 fichier supprimé ({size})', other: '{count} fichiers supprimés ({size})' },
+    deleteTitle: 'Supprimer « {name} » ?', deleteMessage: 'Le fichier n’est utilisé nulle part. Action irréversible.',
+  },
+  trash: {
+    title: 'Corbeille', tasks: 'Tâches', pages: 'Documents', restore: 'Restaurer', restored: 'Restauré', undo: 'Annuler',
+    moved: 'Déplacé dans la corbeille', deleteForever: 'Supprimer définitivement', empty: 'Vider la corbeille', emptyTitle: 'Vider la corbeille ?',
+    deleteTitle: 'Supprimer « {title} » définitivement ?', deleteMessage: 'Cette action est irréversible.',
+    hint: 'Les éléments supprimés sont conservés {days} jours, puis effacés définitivement.', disabled: 'La corbeille est désactivée : les éléments supprimés sont effacés aussitôt.',
+    change: 'Modifier', emptyTasks: 'Aucune tâche supprimée', emptyPages: 'Aucun document supprimé', pagesOwnOnly: 'Vous ne voyez que les documents que vous avez supprimés.',
+    deletedBy: 'supprimé par {name} {when}', someone: 'quelqu’un',
+    daysLeft: { zero: 'Effacé aujourd’hui', one: 'Encore 1 jour', other: 'Encore {count} jours' },
+    subtasks: { one: '1 sous-tâche', other: '{count} sous-tâches' }, subpages: { one: '1 sous-document', other: '{count} sous-documents' },
+    retention: 'Corbeille', retentionHint: 'Durée pendant laquelle les tâches et documents supprimés peuvent être restaurés.',
+    off: 'Désactivée (suppression immédiate)', days: { one: '1 jour', other: '{count} jours' },
+  },
+  readMode: {
+    on: 'Mode lecture : les modifications sont désactivées', off: 'Mode édition', badge: 'Mode lecture', edit: 'Modifier',
+    toRead: 'Passer en mode lecture', toEdit: 'Passer en mode édition',
+  },
+}

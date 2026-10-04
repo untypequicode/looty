@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { CircleUserRound, CheckCircle2, Circle } from 'lucide-vue-next'
+import { useLocalStorage } from '@vueuse/core'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MyTask } from '~/types'
 import { useMyTasks, useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
@@ -9,8 +10,9 @@ import { motion } from '~/composables/useMotion'
 
 definePageMeta({ layout: 'workspace' })
 
-const { data: tasks, isLoading } = useMyTasks()
-const { wsId } = useWorkspace()
+const scope = useLocalStorage<'mine' | 'all'>('looty.myTasks.scope', 'mine')
+const { data: tasks, isLoading } = useMyTasks(scope)
+const { wsId, member } = useWorkspace()
 const { t, formatDate } = useI18n()
 const qc = useQueryClient()
 const groupBy = ref<'due' | 'board'>('due')
@@ -42,6 +44,9 @@ const groups = computed(() => {
 })
 
 const completing = ref<Set<string>>(new Set())
+/** Tâche individuelle d'un autre : je ne peux pas valider à sa place. */
+const canCheck = (tk: MyTask) => tk.assigned_to_me || !tk.is_per_person
+const isDone = (tk: MyTask) => completing.value.has(tk.id) !== tk.done_by_me
 async function complete(tk: MyTask, e: MouseEvent) {
   completing.value = new Set([...completing.value, tk.id])
   motion.pulse(e.currentTarget as Element)
@@ -61,21 +66,27 @@ useHead({ title: () => t('nav.myTasks') })
 <template>
   <div class="page">
     <AppPageHeader :crumbs="[{ label: t('nav.myTasks'), icon: CircleUserRound }]">
+      <UiSegmented v-model="scope" :options="[{ value: 'mine', label: t('myTasks.mine') }, { value: 'all', label: t('myTasks.allPending') }]" />
       <UiSegmented v-model="groupBy" :options="[{ value: 'due', label: t('myTasks.byDue') }, { value: 'board', label: t('myTasks.byBoard') }]" />
     </AppPageHeader>
     <div ref="root" class="mt">
       <div v-if="isLoading" class="mt-inner"><div v-for="i in 6" :key="i" class="skeleton" style="height: 38px; margin: 6px 0" /></div>
-      <UiEmpty v-else-if="!tasks?.length" :icon="CheckCircle2" :title="t('myTasks.empty')" :description="t('myTasks.emptyHint')" />
+      <UiEmpty v-else-if="!tasks?.length" :icon="CheckCircle2" :title="scope === 'all' ? t('myTasks.emptyAll') : t('myTasks.empty')" :description="scope === 'all' ? '' : t('myTasks.emptyHint')" />
       <div v-else class="mt-inner">
         <section v-for="g in groups" :key="g.key" class="mt-group">
           <h2 class="mt-group-title" :class="g.tone">{{ g.label }} <span class="faint tabular">{{ g.items.length }}</span></h2>
-          <NuxtLink v-for="tk in g.items" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="mt-row" :class="{ done: completing.has(tk.id) }">
-            <button class="mt-check" :aria-label="t('task.markDone')" @click.prevent.stop="complete(tk, $event)">
-              <CheckCircle2 v-if="completing.has(tk.id)" :size="16" class="ok" />
+          <NuxtLink v-for="tk in g.items" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="mt-row" :class="{ done: isDone(tk) }">
+            <button v-if="canCheck(tk)" class="mt-check" :aria-label="tk.done_by_me ? t('task.reopen') : t('task.markDone')" @click.prevent.stop="complete(tk, $event)">
+              <CheckCircle2 v-if="isDone(tk)" :size="16" class="ok" />
               <Circle v-else :size="16" />
             </button>
+            <span v-else class="mt-check" />
             <TaskPriorityIcon :priority="tk.priority" :size="14" />
             <span class="mt-title truncate">{{ tk.title }}</span>
+            <span v-if="tk.done_by_me" class="mt-mine">{{ t('myTasks.doneByMe') }}</span>
+            <span v-if="scope === 'all'" class="mt-people">
+              <UiAvatar v-for="a in tk.assignees.slice(0, 3)" :key="a" :name="member(a)?.name || '?'" :src="member(a)?.avatar_url" :size="18" />
+            </span>
             <span class="mt-col">{{ tk.column_name }}</span>
             <span v-if="groupBy === 'due'" class="mt-board truncate">{{ tk.board_name }}</span>
             <span v-if="tk.due_date" class="mt-due tabular">{{ formatDate(tk.due_date) }}</span>
@@ -99,6 +110,9 @@ useHead({ title: () => t('nav.myTasks') })
 }
 .mt-row:hover { background: var(--bg-hover); }
 .mt-row.done { opacity: 0.45; }
+.mt-mine { font-size: var(--fs-sm); color: var(--accent-text, var(--accent)); flex: none; }
+.mt-people { display: flex; flex: none; }
+.mt-people > * + * { margin-left: -5px; }
 .mt-row.done .mt-title { text-decoration: line-through; }
 .mt-check { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-3); border-radius: 50%; flex: none; }
 .mt-check:hover { color: var(--accent); }
@@ -107,5 +121,5 @@ useHead({ title: () => t('nav.myTasks') })
 .mt-col { font-size: var(--fs-sm); color: var(--text-3); padding: 1px 7px; border-radius: var(--r-full); border: 1px solid var(--border); flex: none; }
 .mt-board { font-size: var(--fs-sm); color: var(--text-3); max-width: 160px; flex: none; }
 .mt-due { font-size: var(--fs-sm); color: var(--text-2); flex: none; width: 64px; text-align: right; }
-@media (max-width: 639px) { .mt-board, .mt-col { display: none; } .mt { padding: 4px 8px 32px; } }
+@media (max-width: 639px) { .mt-board, .mt-col, .mt-people { display: none; } .mt { padding: 4px 8px 32px; } }
 </style>

@@ -1,5 +1,6 @@
 import { computed, type Ref } from 'vue'
 import type { Board, Task } from '~/types'
+import { useAuth } from './useAuth'
 
 export type DueFilter = 'overdue' | 'today' | 'week' | 'none'
 
@@ -28,7 +29,13 @@ export function useBoardFilters(board: Ref<Board | null | undefined>) {
   const labels = list('label')
   const priorities = list('priority')
   const due = list('due') as unknown as Ref<DueFilter[]>
-  const showDone = computed<boolean>({ get: () => route.query.done !== '0', set: (v) => setQuery({ done: v ? undefined : '0' }) })
+  /** Tâches terminées : affichées, masquées, ou masquées dès que ma part est faite. */
+  const doneMode = computed<'show' | 'hide' | 'mine'>({
+    get: () => (route.query.done === '0' ? 'hide' : route.query.done === 'me' ? 'mine' : 'show'),
+    set: (v) => setQuery({ done: v === 'hide' ? '0' : v === 'mine' ? 'me' : undefined }),
+  })
+  const showDone = computed<boolean>({ get: () => doneMode.value === 'show', set: (v) => (doneMode.value = v ? 'show' : 'hide') })
+  const { user } = useAuth()
   const showSubtasks = computed<boolean>({ get: () => route.query.sub === '1', set: (v) => setQuery({ sub: v ? '1' : undefined }) })
 
   const activeCount = computed(() => assignees.value.length + labels.value.length + priorities.value.length + due.value.length + (q.value ? 1 : 0) + (showDone.value ? 0 : 1))
@@ -39,6 +46,7 @@ export function useBoardFilters(board: Ref<Board | null | undefined>) {
 
   function matches(t: Task): boolean {
     if (!showDone.value && t.is_completed) return false
+    if (doneMode.value === 'mine' && t.is_per_person && user.value && t.validations.includes(user.value.id)) return false
     if (q.value && !t.title.toLowerCase().includes(q.value.toLowerCase())) return false
     if (assignees.value.length) {
       const wantNone = assignees.value.includes('none')
@@ -78,7 +86,7 @@ export function useBoardFilters(board: Ref<Board | null | undefined>) {
     }
   })
 
-  return { q, assignees, labels, priorities, due, showDone, showSubtasks, activeCount, clear, filtered, matches }
+  return { q, assignees, labels, priorities, due, showDone, doneMode, showSubtasks, activeCount, clear, filtered, matches }
 }
 
 export type BoardFilters = ReturnType<typeof useBoardFilters>
