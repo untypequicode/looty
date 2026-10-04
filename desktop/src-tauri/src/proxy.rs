@@ -51,6 +51,8 @@ pub struct Proxy {
 pub struct Hooks {
     pub open_url: Box<dyn Fn(&str) + Send + Sync>,
     pub signed_in: Box<dyn Fn() + Send + Sync>,
+    /// Fenêtre d'ajout rapide fermée (titre de la tâche si elle a été créée).
+    pub quick_add_closed: Box<dyn Fn(Option<String>) + Send + Sync>,
 }
 
 struct PendingSso {
@@ -79,6 +81,17 @@ impl Proxy {
     }
     pub fn local_origin(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
+    }
+    /// Client HTTP partageant la session (magasin de cookies) de l'application.
+    pub fn http(&self) -> &reqwest::Client {
+        &self.client
+    }
+    /// En-tête Cookie de la session pour une URL du serveur (WebSockets).
+    pub fn cookie_header(&self, url: &Url) -> String {
+        self.jar
+            .lock()
+            .map(|s| s.get_request_values(url).map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; "))
+            .unwrap_or_default()
     }
     pub fn start_sign_in(&self) {
         *self.sign_in.lock().unwrap() = Some(Instant::now() + SIGN_IN_WINDOW);
@@ -340,6 +353,16 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
             }
         }
         (Method::GET, "sso-wait") => html(include_str!("sso-wait.html")),
+        (Method::GET, "quick-add") => html(include_str!("quick-add.html")),
+        (Method::POST, "quick-add/close") | (Method::POST, "quick-add/done") => {
+            let done = rest.ends_with("done");
+            let body = axum::body::to_bytes(req.into_body(), 16 * 1024).await.unwrap_or_default();
+            let title = serde_json::from_slice::<serde_json::Value>(&body).ok().and_then(|v| v["title"].as_str().map(str::to_string));
+            if let Some(h) = p.hooks.get() {
+                (h.quick_add_closed)(if done { Some(title.unwrap_or_default()) } else { None });
+            }
+            StatusCode::NO_CONTENT.into_response()
+        }
         (Method::GET, "sso-status") => {
             let g = p.sso.lock().unwrap();
             match g.as_ref() {
@@ -490,11 +513,7 @@ async fn proxy_ws(p: Shared, server: Url, req: Request) -> Response {
     let port = server.port().map(|p| format!(":{p}")).unwrap_or_default();
     let target = format!("{scheme}://{host}{port}{}", uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/"));
     let cookie_url = Url::parse(&format!("{}{}", server.origin().ascii_serialization(), uri.path())).unwrap_or(server.clone());
-    let cookies: String = p
-        .jar
-        .lock()
-        .map(|s| s.get_request_values(&cookie_url).map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; "))
-        .unwrap_or_default();
+    let cookies = p.cookie_header(&cookie_url);
 
     let mut request = match tokio_tungstenite::tungstenite::client::IntoClientRequest::into_client_request(target.as_str()) {
         Ok(r) => r,

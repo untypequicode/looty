@@ -1,23 +1,31 @@
-//! Looty pour le bureau (Linux) : fenêtre, barre système et proxy local.
+//! Looty pour le bureau (Linux) : fenêtre, barre système, service de fond et proxy local.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod config;
 mod proxy;
+mod service;
+mod tray;
 
+use std::sync::{Arc, Mutex};
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{TrayIcon, TrayIconBuilder},
+    webview::DownloadEvent,
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
-fn french() -> bool {
-    ["LC_ALL", "LC_MESSAGES", "LANG"].iter().find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty())).is_some_and(|v| v.starts_with("fr"))
-}
+use service::{french, Service, TrayState};
 
 fn tr(fr: &'static str, en: &'static str) -> &'static str {
     if french() { fr } else { en }
+}
+
+/// État partagé de l'interface native.
+struct Native {
+    tray: Mutex<Option<TrayIcon>>,
+    last_state: Mutex<TrayState>,
+    service: Mutex<Option<Arc<Service>>>,
 }
 
 /// Affiche et met au premier plan la fenêtre principale.
@@ -36,6 +44,12 @@ fn navigate_local(app: &AppHandle, path: &str) {
     }
 }
 
+/// Ouvre une page de Looty dans la fenêtre principale.
+pub fn open_path(app: &AppHandle, path: &str) {
+    show_main(app);
+    navigate_local(app, path);
+}
+
 /// Règles de navigation de la fenêtre :
 /// - l'application locale : autorisée ;
 /// - le serveur Looty lui-même (retour SSO, lien copié depuis le site) : ramené en local ;
@@ -45,18 +59,19 @@ fn navigate_local(app: &AppHandle, path: &str) {
 /// - tout autre site : ouvert dans le navigateur par défaut.
 fn on_navigation(app: &AppHandle, url: &Url) -> bool {
     let allowed = decide_navigation(app, url);
-    tracing::debug!("navigation {} -> {}", url, if allowed { "allow" } else { "redirect/external" });
+    // Sans la requête : elle peut contenir le secret d'amorçage ou un code de connexion.
+    tracing::debug!("navigation {}{} -> {}", url.origin().ascii_serialization(), url.path(), if allowed { "allow" } else { "redirect/external" });
     allowed
 }
 
 fn decide_navigation(app: &AppHandle, url: &Url) -> bool {
     let proxy = app.state::<proxy::Shared>();
-    if url.scheme() == "about" {
+    if matches!(url.scheme(), "about" | "blob" | "data") {
         return true;
     }
     if url.origin().ascii_serialization() == proxy.local_origin() {
         // De retour dans Looty : la connexion est terminée (ou abandonnée).
-        if !url.path().starts_with("/api/auth/") {
+        if !url.path().starts_with("/api/auth/") && !url.path().starts_with("/__looty/sso") {
             proxy.end_sign_in();
         }
         return true;
@@ -84,26 +99,145 @@ fn decide_navigation(app: &AppHandle, url: &Url) -> bool {
     false
 }
 
-fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", tr("Ouvrir Looty", "Open Looty"), true, None::<&str>)?;
-    let server = MenuItem::with_id(app, "server", tr("Changer de serveur…", "Change server…"), true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", tr("Quitter", "Quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &server, &PredefinedMenuItem::separator(app)?, &quit])?;
-    TrayIconBuilder::with_id("main")
-        .icon(app.default_window_icon().cloned().expect("icon"))
-        .tooltip("Looty")
-        .menu(&menu)
-        .on_menu_event(|app, ev| match ev.id().as_ref() {
-            "open" => show_main(app),
-            "server" => {
-                show_main(app);
-                navigate_local(app, "/__looty/setup");
+fn notifications_on(app: &AppHandle) -> bool {
+    app.state::<proxy::Shared>().config.read().map(|c| c.notifications).unwrap_or(true)
+}
+
+fn refresh_tray(app: &AppHandle) {
+    let native = app.state::<Native>();
+    let state = native.last_state.lock().unwrap().clone();
+    let tray_icon = native.tray.lock().unwrap().clone();
+    if let Some(t) = tray_icon {
+        tray::apply(app, &t, &state, tray::autostart_enabled(), notifications_on(app));
+    }
+}
+
+fn service(app: &AppHandle) -> Option<Arc<Service>> {
+    app.state::<Native>().service.lock().unwrap().clone()
+}
+
+fn on_tray_menu(app: &AppHandle, id: &str) {
+    match id {
+        "open" => show_main(app),
+        "inbox" | "my-tasks" => {
+            let suffix = if id == "inbox" { "inbox" } else { "my-tasks" };
+            let ws = app.state::<Native>().last_state.lock().unwrap().workspace.clone();
+            match ws {
+                Some(w) => open_path(app, &format!("/w/{w}/{suffix}")),
+                None => open_path(app, "/"),
             }
-            "quit" => app.exit(0),
-            _ => {}
-        })
-        .build(app)?;
-    Ok(())
+        }
+        "new-task" => open_quick_add(app),
+        "server" => open_path(app, "/__looty/setup"),
+        "notifications" => {
+            let proxy = app.state::<proxy::Shared>();
+            let on = {
+                let mut cfg = proxy.config.write().unwrap();
+                cfg.notifications = !cfg.notifications;
+                let _ = cfg.save();
+                cfg.notifications
+            };
+            if let Some(s) = service(app) {
+                *s.notifications_enabled.lock().unwrap() = on;
+            }
+            refresh_tray(app);
+        }
+        "autostart" => {
+            if let Err(e) = tray::set_autostart(!tray::autostart_enabled()) {
+                tracing::warn!("autostart: {e}");
+            }
+            refresh_tray(app);
+        }
+        "quit" => app.exit(0),
+        other => {
+            if let Some(path) = other.strip_prefix("open-task|") {
+                open_path(app, path);
+            } else if let Some(task) = other.strip_prefix("done-task|") {
+                if let Some(svc) = service(app) {
+                    let task = task.to_string();
+                    tauri::async_runtime::spawn(async move {
+                        // Même règle que l'interface (validation par personne comprise).
+                        svc.put_json(&format!("/api/boards/tasks/{task}/toggle_validation"), serde_json::json!({})).await;
+                        svc.refresh_soon();
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Petite fenêtre d'ajout rapide de tâche.
+fn open_quick_add(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("quick-add") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let proxy = app.state::<proxy::Shared>();
+    let Ok(url) = Url::parse(&format!("{}/__looty/quick-add", proxy.local_origin())) else { return };
+    let nav = app.clone();
+    let _ = WebviewWindowBuilder::new(app, "quick-add", WebviewUrl::External(url))
+        .title(tr("Nouvelle tâche — Looty", "New task — Looty"))
+        .inner_size(460.0, 210.0)
+        .resizable(false)
+        .always_on_top(true)
+        .center()
+        .on_navigation(move |u| u.origin().ascii_serialization() == nav.state::<proxy::Shared>().local_origin())
+        .build();
+}
+
+/// Téléchargements (exports, pièces jointes) : dossier Téléchargements, nom unique.
+fn on_download(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
+    match event {
+        DownloadEvent::Requested { url, destination } => {
+            let dir = dirs::download_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
+            let suggested = destination
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .filter(|n| !n.is_empty())
+                .or_else(|| url.path_segments().and_then(|mut s| s.next_back().map(str::to_string)).filter(|n| !n.is_empty()))
+                .unwrap_or_else(|| "download".into());
+            let (stem, ext) = match suggested.rsplit_once('.') {
+                Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+                _ => (suggested.clone(), String::new()),
+            };
+            let mut target = dir.join(&suggested);
+            let mut i = 1;
+            while target.exists() {
+                target = dir.join(format!("{stem} ({i}){ext}"));
+                i += 1;
+            }
+            let _ = std::fs::create_dir_all(&dir);
+            *destination = target;
+            true
+        }
+        DownloadEvent::Finished { path, success, .. } => {
+            if let Some(path) = path {
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let body = if success { format!("{} {name}", tr("Enregistré :", "Saved:")) } else { format!("{} {name}", tr("Échec du téléchargement :", "Download failed:")) };
+                let folder = path.parent().map(|p| p.to_path_buf());
+                let app = app.clone();
+                std::thread::spawn(move || {
+                    let mut n = notify_rust::Notification::new();
+                    n.appname("Looty").summary("Looty").body(&body).icon("looty");
+                    if success && folder.is_some() {
+                        n.action("default", tr("Ouvrir le dossier", "Open folder"));
+                    }
+                    if let Ok(h) = n.show() {
+                        h.wait_for_action(|a| {
+                            if a == "default" {
+                                if let Some(f) = &folder {
+                                    let _ = app.opener().open_path(f.to_string_lossy(), None::<&str>);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+            true
+        }
+        _ => true,
+    }
 }
 
 fn main() {
@@ -114,18 +248,23 @@ fn main() {
     if std::path::Path::new("/proc/driver/nvidia").exists() && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
+    // Lancement à l'ouverture de session : directement dans la barre système.
+    let start_hidden = std::env::args().any(|a| a == "--hidden");
 
     tauri::Builder::default()
         // Une seule instance : relancer l'application ramène la fenêtre existante.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| show_main(app)))
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             let cfg = config::Config::load();
+            let notifications = cfg.notifications;
             let jar = config::load_jar();
             let proxy = tauri::async_runtime::block_on(proxy::start(cfg, jar))?;
             let boot: Url = proxy.boot_url().parse()?;
             let handle = app.handle().clone();
-            let (open_handle, done_handle) = (handle.clone(), handle.clone());
+            app.manage(Native { tray: Mutex::new(None), last_state: Mutex::new(TrayState::default()), service: Mutex::new(None) });
+
+            let (open_handle, done_handle, qa_handle) = (handle.clone(), handle.clone(), handle.clone());
             let _ = proxy.hooks.set(proxy::Hooks {
                 open_url: Box::new(move |url| {
                     // Tests automatisés (débogage uniquement) : navigateur imposé.
@@ -140,17 +279,40 @@ fn main() {
                 // Connexion terminée dans le navigateur : la fenêtre revient au premier plan.
                 signed_in: Box::new(move || {
                     let h = done_handle.clone();
-                    let _ = done_handle.run_on_main_thread(move || show_main(&h));
+                    let _ = done_handle.run_on_main_thread(move || {
+                        show_main(&h);
+                        if let Some(s) = service(&h) {
+                            s.refresh_soon();
+                        }
+                    });
+                }),
+                quick_add_closed: Box::new(move |created| {
+                    let h = qa_handle.clone();
+                    let _ = qa_handle.run_on_main_thread(move || {
+                        if let Some(w) = h.get_webview_window("quick-add") {
+                            let _ = w.close();
+                        }
+                        if let Some(title) = created {
+                            if let Some(s) = service(&h) {
+                                s.refresh_soon();
+                            }
+                            let body = format!("{} {title}", tr("Tâche créée :", "Task created:"));
+                            tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into() });
+                        }
+                    });
                 }),
             });
+            let proxy_state = proxy.clone();
             app.manage(proxy);
 
             let nav_handle = handle.clone();
             let popup_handle = handle.clone();
+            let dl_handle = handle.clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(boot))
                 .title("Looty")
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(380.0, 480.0)
+                .visible(!start_hidden)
                 .on_navigation(move |url| on_navigation(&nav_handle, url))
                 // Liens « nouvel onglet » : même règles, jamais de seconde fenêtre.
                 .on_new_window(move |url, _features| {
@@ -161,15 +323,49 @@ fn main() {
                     }
                     tauri::webview::NewWindowResponse::Deny
                 })
+                .on_download(move |_webview, event| on_download(&dl_handle, event))
                 .build()?;
 
-            if let Err(e) = build_tray(&handle) {
-                tracing::warn!("tray icon unavailable: {e}");
+            // Barre système
+            let menu_handle = handle.clone();
+            match TrayIconBuilder::with_id("main")
+                .icon(app.default_window_icon().cloned().expect("icon"))
+                .tooltip("Looty")
+                .menu(&tray::build_menu(&handle, &TrayState::default(), tray::autostart_enabled(), notifications)?)
+                .on_menu_event(move |_app, ev| on_tray_menu(&menu_handle, ev.id().as_ref()))
+                .build(app)
+            {
+                Ok(t) => *app.state::<Native>().tray.lock().unwrap() = Some(t),
+                Err(e) => tracing::warn!("tray icon unavailable: {e}"),
             }
+
+            // Service de fond (temps réel, notifications, état de la barre système)
+            let (tray_handle, notif_handle, focus_handle) = (handle.clone(), handle.clone(), handle.clone());
+            let svc = Service::start(
+                proxy_state,
+                service::Ui {
+                    tray: Box::new(move |state| {
+                        let h = tray_handle.clone();
+                        let _ = tray_handle.run_on_main_thread(move || {
+                            *h.state::<Native>().last_state.lock().unwrap() = state;
+                            refresh_tray(&h);
+                        });
+                    }),
+                    notify: Box::new(move |n| tray::notify(&notif_handle, n)),
+                    window_focused: Box::new(move || {
+                        focus_handle.get_webview_window("main").is_some_and(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false))
+                    }),
+                },
+                notifications,
+            );
+            *app.state::<Native>().service.lock().unwrap() = Some(svc);
             Ok(())
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" {
+                    return;
+                }
                 let close_to_tray = window.state::<proxy::Shared>().config.read().map(|c| c.close_to_tray).unwrap_or(true);
                 if close_to_tray {
                     api.prevent_close();

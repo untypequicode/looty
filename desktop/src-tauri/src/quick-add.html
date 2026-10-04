@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Looty</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fbfbfc; --text: #1b1b1f; --muted: #6b6b76; --border: #e4e4e8; --input: #fff; --accent: #5e6ad2; --red: #d64545; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #18181c; --text: #ececf1; --muted: #8a8a96; --border: #2f2f37; --input: #111114; --accent: #7170ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 Inter, -apple-system, Cantarell, "Noto Sans", sans-serif; }
+  form { padding: 16px; display: flex; flex-direction: column; gap: 10px; height: 100vh; }
+  input, select { height: 34px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--input); color: var(--text); font: inherit; outline: none; min-width: 0; }
+  input:focus, select:focus { border-color: var(--accent); }
+  #title { height: 40px; font-size: 16px; font-weight: 500; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  label.check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; }
+  .err { color: var(--red); flex: 1; font-size: 13px; }
+  .hint { color: var(--muted); font-size: 12px; flex: 1; }
+  button { height: 32px; padding: 0 14px; border-radius: 7px; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
+  .primary { background: var(--accent); color: #fff; }
+  .ghost { background: transparent; color: var(--muted); }
+  button:disabled { opacity: .6; }
+</style>
+</head>
+<body>
+<form id="f">
+  <input id="title" placeholder="Task title" autofocus required maxlength="255" autocomplete="off">
+  <div class="row">
+    <select id="board" required></select>
+    <input id="due" type="date">
+  </div>
+  <label class="check"><input id="mine" type="checkbox" checked> <span id="mineLabel">Assign to me</span></label>
+  <div class="foot">
+    <span class="err" id="err"></span><span class="hint" id="hint">Enter ↵ · Esc</span>
+    <button type="button" class="ghost" id="cancel">Cancel</button>
+    <button type="submit" class="primary" id="go">Create</button>
+  </div>
+</form>
+<script>
+  const fr = (navigator.language || '').toLowerCase().startsWith('fr')
+  if (fr) {
+    document.documentElement.lang = 'fr'
+    title.placeholder = 'Titre de la tâche'; mineLabel.textContent = 'M’assigner la tâche'; cancel.textContent = 'Annuler'; go.textContent = 'Créer'
+  }
+  const close = () => fetch('/__looty/quick-add/close', { method: 'POST' })
+  cancel.onclick = close
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close() })
+  const LAST = 'looty.quickAdd.board'
+  let me = null
+  ;(async () => {
+    try {
+      me = (await (await fetch('/api/auth/me')).json()).user
+      const { workspaces } = await (await fetch('/api/workspaces')).json()
+      for (const w of workspaces) {
+        const boards = await (await fetch(`/api/workspaces/${w.id}/boards`)).json()
+        if (!boards.length) continue
+        const group = document.createElement('optgroup'); group.label = w.name
+        for (const b of boards) { const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; group.appendChild(o) }
+        board.appendChild(group)
+      }
+      if (localStorage.getItem(LAST) && [...board.options].some((o) => o.value === localStorage.getItem(LAST))) board.value = localStorage.getItem(LAST)
+      if (!board.options.length) { err.textContent = fr ? 'Aucun tableau disponible.' : 'No board available.'; go.disabled = true }
+    } catch { err.textContent = fr ? 'Connexion au serveur impossible.' : 'Cannot reach the server.' }
+  })()
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    go.disabled = true; err.textContent = ''
+    try {
+      const full = await (await fetch(`/api/boards/${board.value}`)).json()
+      const cols = (full.columns || []).slice().sort((a, b) => a.position - b.position)
+      if (!cols.length) throw new Error(fr ? 'Ce tableau n’a pas de colonne.' : 'This board has no column.')
+      const body = { title: title.value.trim(), assignees: mine.checked && me ? [me.id] : [] }
+      if (due.value) body.due_date = new Date(due.value + 'T12:00:00Z').toISOString()
+      const r = await fetch(`/api/boards/columns/${cols[0].id}/tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      if (!r.ok) throw new Error(fr ? 'Création impossible.' : 'Could not create the task.')
+      localStorage.setItem(LAST, board.value)
+      const task = await r.json()
+      await fetch('/__looty/quick-add/done', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: task.title }) })
+    } catch (x) { err.textContent = x.message; go.disabled = false }
+  })
+</script>
+</body>
+</html>
