@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  Home, Inbox, CircleUserRound, FileText, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
+  Home, Inbox, CircleUserRound, FileText, CalendarDays, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -96,6 +96,7 @@ async function onRootDrop(e: DragEvent) {
         <AppSidebarItem :to="links.home(wsId)" :icon="Home" :label="t('nav.home')" exact />
         <AppSidebarItem :to="links.inbox(wsId)" :icon="Inbox" :label="t('nav.inbox')" :badge="unread || undefined" />
         <AppSidebarItem :to="links.myTasks(wsId)" :icon="CircleUserRound" :label="t('nav.myTasks')" />
+        <AppSidebarItem :to="links.calendar(wsId)" :icon="CalendarDays" :label="t('calendar.title')" />
         <AppSidebarItem :to="links.docs(wsId)" :icon="FileText" :label="t('nav.allDocs')" exact />
       </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity } from 'lucide-vue-next'
+import { useCalendars, useCalendarEvents, useCalendarPrefs, startOfDay, addDays, sameDay } from '~/composables/useCalendar'
+import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin } from 'lucide-vue-next'
 import { useQuery } from '@tanstack/vue-query'
 import { useWorkspace, useMyTasks, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
@@ -87,6 +88,21 @@ watch([overview, root], async () => {
 }, { immediate: true })
 
 useHead({ title: () => t('nav.home') })
+
+// Agenda des deux prochains jours (si l'utilisateur a des calendriers)
+const calFrom = ref(startOfDay(new Date()))
+const calTo = computed(() => addDays(calFrom.value, 2))
+const { data: calendarsList } = useCalendars(wsId)
+const { data: upcomingCal } = useCalendarEvents(wsId, calFrom, calTo)
+const { hiddenIds: hiddenCals } = useCalendarPrefs(wsId)
+const calColor = (id: string) => calendarsList.value?.find((c) => c.id === id)?.color ?? 'var(--accent)'
+const nextEvents = computed(() => (upcomingCal.value?.events ?? []).filter((e) => !hiddenCals.value.has(e.calendar_id) && (e.all_day || +new Date(e.ends_at) > Date.now())).slice(0, 6))
+const evTime = (e: { all_day: boolean; starts_at: string }) => {
+  if (e.all_day) return t('calendar.allDay')
+  const d = new Date(e.starts_at)
+  const day = sameDay(d, new Date()) ? '' : `${new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(d)} `
+  return day + new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(d)
+}
 </script>
 
 <template>
@@ -110,6 +126,23 @@ useHead({ title: () => t('nav.home') })
       </section>
   
       <div class="grid">
+        <!-- Agenda -->
+        <section v-if="calendarsList?.length" class="panel" data-reveal>
+          <header class="panel-head">
+            <h2><CalendarDays :size="15" /> {{ t('home.upcoming') }}</h2>
+            <NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+          </header>
+          <div v-if="!nextEvents.length" class="panel-empty"><CalendarDays :size="20" /><span>{{ t('home.noEvents') }}</span></div>
+          <div v-else class="panel-body">
+            <NuxtLink v-for="e in nextEvents" :key="e.id" :to="links.calendar(wsId)" class="task-row">
+              <span class="ev-bar" :style="{ background: calColor(e.calendar_id) }" />
+              <span class="task-title truncate">{{ e.summary }}</span>
+              <span v-if="e.location" class="task-board truncate"><MapPin :size="11" /> {{ e.location }}</span>
+              <span class="task-due">{{ evTime(e) }}</span>
+            </NuxtLink>
+          </div>
+        </section>
+
         <!-- Mes tâches -->
         <section class="panel" data-reveal>
           <header class="panel-head">
@@ -206,6 +239,7 @@ useHead({ title: () => t('nav.home') })
 </template>
 
 <style scoped>
+.ev-bar { width: 3px; height: 16px; border-radius: 2px; flex-shrink: 0; }
 .home { flex: 1; overflow-y: auto; padding: 32px 40px 64px; }
 .home > * { max-width: 1120px; margin-left: auto; margin-right: auto; }
 .hero .date { margin: 0; color: var(--text-3); font-size: var(--fs-sm); text-transform: capitalize; }
