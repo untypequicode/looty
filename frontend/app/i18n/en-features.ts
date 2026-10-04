@@ -17,7 +17,7 @@ export default {
   },
   tabs: {
     title: 'Tabs', new: 'New tab', close: 'Close tab', closeOthers: 'Close other tabs', closeRight: 'Close tabs to the right',
-    duplicate: 'Duplicate tab', openInNew: 'Open in new tab', opened: 'Opened in a new tab',
+    duplicate: 'Duplicate tab', reopen: 'Reopen closed tab', next: 'Next tab', openInNew: 'Open in new tab', opened: 'Opened in a new tab',
     show: 'Tabs', showHint: 'Open several documents and boards side by side: Ctrl+click or middle-click a link to open it in a new tab.',
     shortcuts: 'Tabs: new / close / next', switchTo: 'Go to tab 1–9',
   },

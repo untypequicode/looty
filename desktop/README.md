@@ -60,6 +60,14 @@ The app keeps working in the background when the window is closed:
 - **Downloads** (exports, attachments) go to your Downloads folder, with a
   notification to open the folder.
 
+## Tabs
+
+In the app, tabs use the same shortcuts as a browser: **Ctrl+T** new tab, **Ctrl+W** close,
+**Ctrl+Shift+T** reopen the last closed tab, **Ctrl+Tab** / **Ctrl+Shift+Tab** next and
+previous, **Ctrl+1…9** go to a tab, **Ctrl+PageUp/PageDown**. Ctrl+click or middle-click a
+link to open it in a new tab. (On the website these are Alt+T, Alt+W… because the browser
+keeps Ctrl+T and Ctrl+W for itself.)
+
 ## Quick add shortcut
 
 Wayland doesn't let applications grab global keys themselves, so bind a key in your
