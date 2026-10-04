@@ -63,6 +63,8 @@ where
 
 #[derive(Deserialize)]
 pub struct CreatePage {
+    /// Identifiant choisi par le client (application hors ligne) : création idempotente.
+    pub id: Option<Uuid>,
     pub title: Option<String>,
     pub icon: Option<String>,
     pub parent_id: Option<Uuid>,
@@ -191,6 +193,13 @@ async fn create_page(
             return Err(ApiError::NotFound);
         }
     }
+    // Rejeu d'une création faite hors ligne : la page existe déjà ?
+    if let Some(id) = payload.id {
+        let existing: Option<Page> = sqlx::query_as("SELECT * FROM pages WHERE id = $1").bind(id).fetch_optional(pool).await?;
+        if let Some(p) = existing {
+            return if p.workspace_id == workspace_id { Ok((StatusCode::OK, Json(p))) } else { Err(ApiError::Conflict("id_taken".into())) };
+        }
+    }
     let title = check_title(payload.title.as_deref().unwrap_or(""))?;
     if let Some(i) = &payload.icon {
         check_icon(i)?;
@@ -204,8 +213,8 @@ async fn create_page(
     .await?;
 
     let page: Page = sqlx::query_as(
-        "INSERT INTO pages (workspace_id, parent_id, icon, title, content, created_by, updated_by, position)
-         VALUES ($1, $2, $3, $4, $5, $6, $6, $7) RETURNING *",
+        "INSERT INTO pages (id, workspace_id, parent_id, icon, title, content, created_by, updated_by, position)
+         VALUES (COALESCE($8, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $6, $7) RETURNING *",
     )
     .bind(workspace_id)
     .bind(payload.parent_id)
@@ -214,6 +223,7 @@ async fn create_page(
     .bind(payload.content)
     .bind(user.id)
     .bind(position)
+    .bind(payload.id)
     .fetch_one(pool)
     .await?;
 

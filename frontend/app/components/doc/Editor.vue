@@ -3,6 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import type { Editor as TEditor } from '@tiptap/core'
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
+import { IndexeddbPersistence } from 'y-indexeddb'
+import { isDesktop } from '~/composables/useDesktop'
 import { useDebounceFn } from '@vueuse/core'
 import { docExtensions } from '~/editor/extensions'
 import { headingsKey, type HeadingInfo } from '~/editor/headings'
@@ -40,7 +42,12 @@ const router = useRouter()
 const ydoc = new Y.Doc()
 const collabUrl = (config.public.collabUrl as string) || `${socketBase()}/collab`
 const provider = new HocuspocusProvider({ url: collabUrl, name: props.pageId, document: ydoc })
+// Application de bureau : copie locale du document (édition hors ligne, fusion au retour).
+const local = isDesktop ? new IndexeddbPersistence(`looty-page:${props.pageId}`, ydoc) : null
 const synced = ref(false)
+const serverSynced = ref(false)
+/** Hors ligne, page jamais ouverte sur cet appareil : lecture seule du HTML enregistré. */
+const offlineReadonly = ref(false)
 const denied = ref(false)
 const wrapper = ref<HTMLElement | null>(null)
 
@@ -111,11 +118,19 @@ const editor = useEditor({
       return true
     },
   },
-  onUpdate: ({ editor: e }) => {
+  onUpdate: ({ editor: e, transaction }) => {
     emitHeadings(e)
-    if (synced.value && props.canEdit) pushHtml()
+    // Copie HTML : seulement pour les modifications faites ici (pas celles reçues d'un
+    // collaborateur ni le chargement de la copie locale), sinon chacun la réenregistre.
+    if (synced.value && props.canEdit && !fromYjs(transaction)) pushHtml()
   },
 })
+
+/** Transaction appliquée par la synchronisation Yjs (clé « y-sync… », quelle que soit
+ * la copie de y-prosemirror qui l'a produite). */
+function fromYjs(tr: { meta?: Record<string, any> }): boolean {
+  return Object.entries((tr as any).meta ?? {}).some(([k, v]) => k.startsWith('y-sync') && (v as any)?.isChangeOrigin)
+}
 
 function openHref(href: string) {
   if (href.startsWith('#')) return scrollToAnchor(href.slice(1))
@@ -137,8 +152,15 @@ async function insertImage(file: File, pos?: number) {
 function emitHeadings(e: TEditor) {
   emit('headings', headingsKey.getState(e.state)?.headings ?? [])
 }
+// Dernière copie HTML connue du serveur : inutile de renvoyer un contenu identique
+// (ajustements automatiques au chargement, page rouverte hors ligne…).
+let lastHtml = props.initialHtml ?? ''
 const pushHtml = useDebounceFn(() => {
-  if (editor.value) emit('html', editor.value.getHTML())
+  if (!editor.value) return
+  const html = editor.value.getHTML()
+  if (html === lastHtml) return
+  lastHtml = html
+  emit('html', html)
 }, 1500)
 
 function scrollToAnchor(id: string) {
@@ -158,8 +180,36 @@ function insertDocLink(id: string | null) {
   ]).run()
 }
 
-provider.on('synced', () => {
+function ready(e: TEditor) {
   synced.value = true
+  e.setEditable(props.canEdit && !denied.value)
+  emitHeadings(e)
+  emit('ready', e)
+  if (location.hash) nextTick(() => setTimeout(() => scrollToAnchor(location.hash.slice(1)), 120))
+}
+
+// Copie locale chargée : si elle a du contenu, on peut éditer sans attendre le serveur.
+local?.on('synced', () => {
+  const e = editor.value
+  if (!e || synced.value) return
+  if (ydoc.getXmlFragment('default').length > 0) {
+    ready(e)
+    if (!serverSynced.value) emit('status', 'offline')
+    return
+  }
+  // Rien en local : on attend le serveur ; s'il ne répond pas, page neuve (éditable)
+  // ou page jamais ouverte ici (lecture seule, pour ne pas dupliquer son contenu).
+  setTimeout(() => {
+    if (serverSynced.value || synced.value || !editor.value) return
+    emit('status', 'offline')
+    if (props.initialHtml && props.initialHtml !== '<p></p>') offlineReadonly.value = true
+    else ready(editor.value)
+  }, 3500)
+})
+
+provider.on('synced', () => {
+  serverSynced.value = true
+  offlineReadonly.value = false
   emit('status', 'synced')
   const e = editor.value
   if (!e) return
@@ -167,10 +217,10 @@ provider.on('synced', () => {
   if (e.isEmpty && props.initialHtml && props.initialHtml !== '<p></p>' && props.canEdit) {
     e.commands.setContent(props.initialHtml)
   }
-  e.setEditable(props.canEdit && !denied.value)
-  emitHeadings(e)
-  emit('ready', e)
-  if (location.hash) nextTick(() => setTimeout(() => scrollToAnchor(location.hash.slice(1)), 120))
+  if (synced.value) {
+    e.setEditable(props.canEdit && !denied.value)
+    emitHeadings(e)
+  } else ready(e)
 })
 provider.on('authenticationFailed', () => {
   denied.value = true
@@ -183,7 +233,7 @@ provider.on('authenticationFailed', () => {
 })
 provider.on('status', ({ status }: { status: string }) => {
   if (status === 'disconnected' && synced.value) emit('status', 'offline')
-  else if (status === 'connected' && synced.value) emit('status', 'synced')
+  else if (status === 'connected' && serverSynced.value) emit('status', 'synced')
 })
 provider.on('awarenessUpdate', ({ states }: { states: { user?: { name: string; color: string } }[] }) => {
   const seen = new Set<string>()
@@ -193,6 +243,7 @@ provider.on('awarenessUpdate', ({ states }: { states: { user?: { name: string; c
 watch(() => props.canEdit, (v) => editor.value?.setEditable(v && synced.value && !denied.value))
 onMounted(() => emit('status', 'connecting'))
 onBeforeUnmount(() => {
+  local?.destroy()
   provider.destroy()
   editor.value?.destroy()
   ydoc.destroy()
@@ -203,12 +254,16 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
 
 <template>
   <div ref="wrapper" class="doc-editor" :class="{ loading: !synced }">
-    <div v-if="!synced" class="doc-loading">
+    <div v-if="offlineReadonly" class="doc-offline">
+      <p class="doc-offline-note">{{ $t('offline.readonly') }}</p>
+      <DocViewer :html="initialHtml || ''" />
+    </div>
+    <div v-else-if="!synced" class="doc-loading">
       <div class="skeleton" style="height: 18px; width: 70%" />
       <div class="skeleton" style="height: 18px; width: 92%" />
       <div class="skeleton" style="height: 18px; width: 54%" />
     </div>
-    <EditorContent v-show="synced" :editor="editor" />
+    <EditorContent v-show="synced && !offlineReadonly" :editor="editor" />
     <template v-if="editor && synced">
       <DocBlockHandle :editor="editor" :container="wrapper" />
       <DocBubble :editor="editor" />
@@ -225,6 +280,7 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
 </template>
 
 <style scoped>
+.doc-offline-note { margin: 0 0 16px; padding: 8px 12px; border-radius: var(--r-md); background: var(--bg-code); color: var(--text-2); font-size: var(--fs-sm); }
 .doc-editor { position: relative; }
 .embed-ask { display: flex; gap: 6px; padding: 8px; }
 .embed-ask input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-input); outline: none; }

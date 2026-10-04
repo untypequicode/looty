@@ -60,6 +60,27 @@ The app keeps working in the background when the window is closed:
 - **Downloads** (exports, attachments) go to your Downloads folder, with a
   notification to open the folder.
 
+## Offline mode
+
+When the server can't be reached, Looty keeps working with a banner at the top
+(*Offline — showing saved data*):
+
+- **Reading**: everything you have opened (boards, tasks, wiki pages, inbox, images)
+  is kept in a private local copy (`~/.cache/looty/`, readable by you only) and shown
+  from there, even after restarting the app offline.
+- **Tasks**: create (also from the tray's quick add), edit, move, check off, delete,
+  labels, assignees and comments work offline. Changes are queued, applied to the
+  local copy, and replayed in order as soon as the server is back (*Syncing…*, then
+  a notification). A change the server refuses (e.g. on a task deleted meanwhile) is
+  reported by name.
+- **Wiki**: pages you have opened on this device are stored locally with their full
+  collaborative history: edit them offline and they merge automatically with other
+  people's changes when you reconnect. A page never opened on this device is shown
+  read-only until you are back online.
+- Not available offline: uploads, settings, and creating boards or columns.
+
+Signing out clears the local copy.
+
 ## Tray icon by desktop environment
 
 | Desktop  | Tray icon |
@@ -114,8 +135,8 @@ With the proprietary NVIDIA driver, WebKitGTK may show a blank window; the app s
 
 1. **Shell**: window, server setup, login (SSO), basic tray, single
    instance, Nix flake, `.deb`.
-2. **System integration** (this version): native notifications, tray with my tasks and
+2. **System integration**: native notifications, tray with my tasks and
    check-off, quick task add, unread badge, launch at login, downloads.
-3. **Offline**: cached interface and data, offline editing (wiki merge, queued task
-   changes), sync status.
+3. **Offline** (this version): cached interface and data, offline editing (wiki merge,
+   queued task changes), sync status.
 4. **Polish**: `looty://` links, global shortcut, keyring, automated packaging.

@@ -21,6 +21,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     Router,
 };
+use axum::body::Bytes;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
@@ -45,6 +46,7 @@ pub struct Proxy {
     /// Le serveur sait-il connecter l'application via le navigateur ? (par serveur)
     desktop_sso: Mutex<Option<(String, bool)>>,
     pub hooks: OnceLock<Hooks>,
+    pub offline: crate::offline::Offline,
 }
 
 /// Actions confiées à l'application (navigateur système, fenêtre).
@@ -53,6 +55,8 @@ pub struct Hooks {
     pub signed_in: Box<dyn Fn() + Send + Sync>,
     /// Fenêtre d'ajout rapide fermée (titre de la tâche si elle a été créée).
     pub quick_add_closed: Box<dyn Fn(Option<String>) + Send + Sync>,
+    /// Fin de synchronisation des modifications hors ligne (envoyées, refusées).
+    pub synced: Box<dyn Fn(usize, usize) + Send + Sync>,
 }
 
 struct PendingSso {
@@ -110,16 +114,28 @@ impl Proxy {
 
 pub type Shared = Arc<Proxy>;
 
-pub async fn start(config: Config, jar: Jar) -> std::io::Result<Shared> {
-    let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?;
+pub async fn start(mut config: Config, jar: Jar) -> std::io::Result<Shared> {
+    // Port stable : la vue web range ses données (préférences, documents hors ligne)
+    // par origine ; un port aléatoire à chaque lancement les perdrait.
+    let listener = match config.port {
+        Some(port) => match tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await {
+            Ok(l) => l,
+            Err(_) => tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?,
+        },
+        None => tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?,
+    };
     let port = listener.local_addr()?.port();
+    if config.port != Some(port) {
+        config.port = Some(port);
+        let _ = config.save();
+    }
     let mut secret = [0u8; 32];
     rand::Rng::fill(&mut rand::thread_rng(), &mut secret);
     let client = reqwest::Client::builder()
         .cookie_provider(jar.clone())
         .redirect(reqwest::redirect::Policy::none())
         .user_agent(concat!("Looty-Desktop/", env!("CARGO_PKG_VERSION")))
-        .connect_timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(5))
         .build()
         .expect("http client");
     let proxy = Arc::new(Proxy {
@@ -132,6 +148,31 @@ pub async fn start(config: Config, jar: Jar) -> std::io::Result<Shared> {
         sso: Mutex::new(None),
         desktop_sso: Mutex::new(None),
         hooks: OnceLock::new(),
+        offline: crate::offline::Offline::new(),
+    });
+    proxy.offline.use_server(proxy.server().as_ref());
+    // Retour du serveur : vérification toutes les 5 s hors ligne, puis synchronisation.
+    let watcher = proxy.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let Some(server) = watcher.server() else { continue };
+            if !watcher.offline.is_online() {
+                let up = watcher.client.get(format!("{}/api/health", server.origin().ascii_serialization())).timeout(std::time::Duration::from_secs(4)).send().await.is_ok_and(|r| r.status().is_success());
+                if up {
+                    watcher.offline.set_online(true);
+                }
+            }
+            if watcher.offline.is_online() && watcher.offline.pending() > 0 {
+                let before = watcher.offline.pending();
+                let res = watcher.offline.replay(&watcher.client, &server).await;
+                config::save_jar(&watcher.jar);
+                let sent = before - watcher.offline.pending();
+                if let (Ok(refused), Some(h)) = (res, watcher.hooks.get()) {
+                    (h.synced)(sent - refused, refused);
+                }
+            }
+        }
     });
     let app = Router::new().fallback(handle).with_state(proxy.clone());
     tokio::spawn(async move {
@@ -209,12 +250,122 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
     if is_ws {
         return proxy_ws(p, server, req).await;
     }
-    match proxy_http(&p, &server, req).await {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!("{path}: {e}");
-            offline_response(&path)
+    let method = req.method().clone();
+    let mutation = !matches!(method, Method::GET | Method::HEAD | Method::OPTIONS);
+    if mutation && path.starts_with("/api/") && !path.starts_with("/api/auth/") && path != "/api/upload" {
+        return handle_mutation(&p, &server, req).await;
+    }
+    let path_q = req.uri().path_and_query().map(|pq| pq.as_str().to_string()).unwrap_or_else(|| path.clone());
+    let wants_html = req.headers().get(header::ACCEPT).and_then(|v| v.to_str().ok()).is_some_and(|v| v.contains("text/html"));
+    let cacheable = method == Method::GET && crate::offline::cacheable(&path);
+    if p.offline.is_online() || !cacheable {
+        match proxy_http(&p, &server, req).await {
+            // Serveur derrière un relais (Traefik…) mais injoignable : 502/503/504.
+            Ok(r) if cacheable && is_gateway_error(r.status()) => p.offline.set_online(false),
+            Ok(r) => {
+                if path.starts_with("/api/auth/logout") {
+                    p.offline.clear();
+                }
+                return r;
+            }
+            Err(e) if e.is_connect() || e.is_timeout() => {
+                p.offline.set_online(false);
+                if !cacheable {
+                    return offline_response(&path);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("{path}: {e}");
+                return offline_response(&path);
+            }
         }
+    }
+    serve_cached(&p, &path_q, wants_html)
+}
+
+fn is_gateway_error(s: StatusCode) -> bool {
+    matches!(s.as_u16(), 502 | 503 | 504)
+}
+
+/// Marque les pages servies par l'application de bureau (l'interface active alors le
+/// stockage local des documents et l'indicateur hors ligne).
+fn mark_desktop(html: &[u8]) -> Vec<u8> {
+    let s = String::from_utf8_lossy(html);
+    match s.find("<head>") {
+        Some(i) => format!("{}<meta name=\"looty-desktop\" content=\"1\">{}", &s[..i + 6], &s[i + 6..]).into_bytes(),
+        None => html.to_vec(),
+    }
+}
+
+/// Lecture hors ligne depuis la copie locale.
+fn serve_cached(p: &Shared, path_q: &str, wants_html: bool) -> Response {
+    let hit = p.offline.load(path_q).or_else(|| if wants_html { p.offline.load("__shell__") } else { None });
+    match hit {
+        Some((ct, body)) => {
+            let body = if ct.starts_with("text/html") { mark_desktop(&body) } else { body };
+            Response::builder()
+                .status(200)
+                .header(header::CONTENT_TYPE, ct)
+                .header("x-looty-offline", "1")
+                .header(header::CACHE_CONTROL, "no-store")
+                .body(Body::from(body))
+                .unwrap()
+        }
+        None if wants_html => offline_response("/"),
+        None => (StatusCode::SERVICE_UNAVAILABLE, [("x-looty-offline", "1")], axum::Json(serde_json::json!({ "error": "offline_unavailable" }))).into_response(),
+    }
+}
+
+/// Modification (POST/PUT/DELETE de l'API) : envoyée au serveur, ou mise en file
+/// d'attente hors ligne (et tant que la file n'est pas vide, pour garder l'ordre).
+async fn handle_mutation(p: &Shared, server: &Url, req: Request) -> Response {
+    let (parts, body) = req.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, 20 * 1024 * 1024).await else {
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    };
+    let path_q = parts.uri.path_and_query().map(|pq| pq.as_str().to_string()).unwrap_or_default();
+    let method = parts.method.as_str().to_string();
+    let is_json = parts.headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.contains("json"));
+    let mut json: Option<serde_json::Value> = if is_json && !bytes.is_empty() { serde_json::from_slice(&bytes).ok() } else { None };
+    // Créations : identifiant choisi ici, pour un rejeu sans doublon.
+    if crate::offline::takes_client_id(&method, parts.uri.path()) {
+        if let Some(serde_json::Value::Object(m)) = json.as_mut() {
+            m.entry("id").or_insert_with(|| serde_json::Value::String(uuid::Uuid::new_v4().to_string()));
+        }
+    }
+    let body_bytes: Bytes = match &json {
+        Some(v) => Bytes::from(serde_json::to_vec(v).unwrap_or_default()),
+        None => bytes.clone(),
+    };
+    if p.offline.is_online() && p.offline.pending() == 0 {
+        let mut b = Request::builder().method(parts.method.clone()).uri(parts.uri.clone());
+        for (k, v) in parts.headers.iter() {
+            b = b.header(k, v);
+        }
+        let req2 = b.body(Body::from(body_bytes.clone())).unwrap();
+        match proxy_http(p, server, req2).await {
+            Ok(r) if is_gateway_error(r.status()) => p.offline.set_online(false),
+            Ok(r) => return r,
+            Err(e) if e.is_connect() || e.is_timeout() => p.offline.set_online(false),
+            Err(e) => {
+                tracing::warn!("{path_q}: {e}");
+                return StatusCode::BAD_GATEWAY.into_response();
+            }
+        }
+    }
+    match p.offline.queue(&method, &path_q, json) {
+        Some(s) => {
+            let mut r = Response::builder().status(s.status).header("x-looty-queued", "1");
+            let body = match s.body {
+                Some(v) => {
+                    r = r.header(header::CONTENT_TYPE, "application/json");
+                    Body::from(v.to_string())
+                }
+                None => Body::empty(),
+            };
+            r.body(body).unwrap()
+        }
+        None => (StatusCode::SERVICE_UNAVAILABLE, [("x-looty-offline", "1")], axum::Json(serde_json::json!({ "error": "offline_unavailable" }))).into_response(),
     }
 }
 
@@ -344,9 +495,12 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
             match check_server(&p.client, &url).await {
                 Ok(server) => {
                     config::clear_jar(&p.jar);
-                    let mut cfg = p.config.write().unwrap();
-                    cfg.server = Some(server.clone());
-                    let _ = cfg.save();
+                    {
+                        let mut cfg = p.config.write().unwrap();
+                        cfg.server = Some(server.clone());
+                        let _ = cfg.save();
+                    }
+                    p.offline.use_server(Url::parse(&server).ok().as_ref());
                     axum::Json(serde_json::json!({ "server": server })).into_response()
                 }
                 Err(code) => (StatusCode::BAD_REQUEST, axum::Json(serde_json::json!({ "error": code }))).into_response(),
@@ -354,6 +508,11 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
         }
         (Method::GET, "sso-wait") => html(include_str!("sso-wait.html")),
         (Method::GET, "quick-add") => html(include_str!("quick-add.html")),
+        (Method::GET, "net") => axum::Json(p.offline.status()).into_response(),
+        (Method::POST, "net/dismiss") => {
+            p.offline.dismiss_failed();
+            StatusCode::NO_CONTENT.into_response()
+        }
         (Method::POST, "quick-add/close") | (Method::POST, "quick-add/done") => {
             let done = rest.ends_with("done");
             let body = axum::body::to_bytes(req.into_body(), 16 * 1024).await.unwrap_or_default();
@@ -495,6 +654,21 @@ async fn proxy_http(p: &Shared, server: &Url, req: Request) -> Result<Response, 
             p.start_sign_in();
         }
         return Ok(builder.body(Body::from(bytes)).unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response()));
+    }
+    // Copie locale pour la lecture hors ligne (réponses GET réussies, 30 Mo max).
+    let ct = res.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
+    let small = res.content_length().is_none_or(|l| l <= 30 * 1024 * 1024);
+    if parts.method == Method::GET && status == reqwest::StatusCode::OK && small && crate::offline::cacheable(parts.uri.path()) {
+        let bytes = res.bytes().await?;
+        let key = parts.uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
+        p.offline.store(key, &ct, &bytes);
+        let body = if ct.starts_with("text/html") {
+            p.offline.store("__shell__", &ct, &bytes);
+            mark_desktop(&bytes)
+        } else {
+            bytes.to_vec()
+        };
+        return Ok(builder.header(header::CONTENT_LENGTH, body.len()).body(Body::from(body)).unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response()));
     }
     let stream = res.bytes_stream();
     Ok(builder.body(Body::from_stream(stream)).unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response()))

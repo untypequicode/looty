@@ -103,6 +103,7 @@ function onEdgeStart(e: TouchEvent) {
     </aside>
 
     <main class="app-main">
+      <AppOfflineBanner />
       <slot />
     </main>
 

@@ -20,6 +20,9 @@ pub struct Config {
     /// Notifications système.
     #[serde(default = "yes")]
     pub notifications: bool,
+    /// Port local (stable : l'origine de la vue web, donc ses données, en dépend).
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 fn yes() -> bool {
@@ -28,7 +31,7 @@ fn yes() -> bool {
 
 impl Default for Config {
     fn default() -> Self {
-        Config { server: None, close_to_tray: true, notifications: true }
+        Config { server: None, close_to_tray: true, notifications: true, port: None }
     }
 }
 
