@@ -181,6 +181,10 @@ export interface SearchResult {
 
 export interface Presence {
   user_id: string
+  /** `page:<id>`, `board:<id>`, `task:<id>`, un écran (`home`, `calendar`…) ou `hidden`. */
   location: string
   updated_at: number
+  status?: 'active' | 'idle'
+  /** Depuis quand (ms) la personne est à cet endroit. */
+  since?: number
 }

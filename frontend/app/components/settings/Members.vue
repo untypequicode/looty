@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UserPlus, Copy, Trash2, Search, Link2, UserMinus } from 'lucide-vue-next'
+import { UserPlus, Copy, Trash2, Search, Link2, UserMinus, Activity } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Role, WorkspaceMember } from '~/types'
 import { useWorkspace, wsKeys } from '~/composables/useWorkspace'
@@ -87,6 +87,7 @@ const expiryItems = computed(() => [
         <div class="m-mail truncate">{{ m.email }}</div>
       </div>
       <span class="m-joined">{{ m.joined_at ? t('settings.members.joined', { time: relativeTime(m.joined_at) }) : '' }}</span>
+      <UiTooltip :text="t('presence.activity')"><UiButton size="sm" variant="ghost" :icon="Activity" :to="`/w/${wsId}/activity?user=${m.user_id}`" :aria-label="t('presence.activity')" /></UiTooltip>
       <UiCombobox v-if="canManage(m)" v-model:open="roleOpen[m.user_id]" :model-value="m.role" :items="roleItems" :width="280" placement="bottom-end" @update:model-value="(r) => setRole(m, r as Role)">
         <button class="role-btn">{{ t(`roles.${m.role}`) }}</button>
       </UiCombobox>

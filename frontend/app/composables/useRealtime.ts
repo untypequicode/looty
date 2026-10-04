@@ -1,3 +1,4 @@
+import { useLocalStorage } from '@vueuse/core'
 import { clone } from '~/utils/clone'
 import { ref, watch, onBeforeUnmount, toRaw, type Ref } from 'vue'
 import { useQueryClient, type QueryClient } from '@tanstack/vue-query'
@@ -24,12 +25,27 @@ export const realtimeStatus = ref<'connecting' | 'open' | 'closed'>('closed')
 let socket: WebSocket | null = null
 let currentWs = ''
 let lastLocation = 'home'
+let lastStatus: 'active' | 'idle' = 'active'
+/** Montrer aux autres membres sur quelle page je suis (réglage de l'appareil). */
+export const shareLocation = useLocalStorage('looty.shareLocation', true)
+
+function pushPresence() {
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'USER_LOCATION', location: shareLocation.value ? lastLocation : 'hidden', status: lastStatus }))
+  }
+}
+watch(shareLocation, pushPresence)
 
 export function sendLocation(location: string) {
   lastLocation = location
-  if (socket?.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: 'USER_LOCATION', location }))
-  }
+  pushPresence()
+}
+
+/** Actif / inactif (onglet en arrière-plan, aucune interaction depuis un moment). */
+export function setPresenceStatus(status: 'active' | 'idle') {
+  if (status === lastStatus) return
+  lastStatus = status
+  pushPresence()
 }
 
 export function sendMention(targetUserId: string, location: string) {
@@ -277,7 +293,7 @@ export function useRealtime(wsId: Ref<string>, selfId: Ref<string | undefined>) 
       const wasReconnect = retry > 0
       retry = 0
       realtimeStatus.value = 'open'
-      s.send(JSON.stringify({ type: 'USER_LOCATION', location: lastLocation }))
+      pushPresence()
       // Événements potentiellement manqués pendant la coupure : on resynchronise.
       if (wasReconnect) {
         qc.invalidateQueries({ queryKey: ['ws', currentWs] })
