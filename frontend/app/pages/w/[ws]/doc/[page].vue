@@ -219,6 +219,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
                 <button v-if="canEdit" class="child new" @click="newChild"><Plus :size="16" /> {{ t('docs.newChild') }}</button>
               </div>
             </section>
+            <GraphRelatedPanel kind="page" :id="pageId" class="doc-related" />
           </template>
         </article>
         <aside class="toc-col"><DocToc :headings="headings" :scroller="scroller" /></aside>
@@ -232,6 +233,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 </template>
 
 <style scoped>
+.doc-related { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
 .status { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-sm); color: var(--text-3); margin-right: 6px; white-space: nowrap; }
 .spin { animation: spin 1s linear infinite; }
 .collabs { display: flex; margin-right: 4px; }

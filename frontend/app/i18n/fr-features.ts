@@ -1,4 +1,14 @@
 export default {
+  graph: {
+    title: 'Graphe', search: 'Trouver un élément…', filters: 'Filtres', fit: 'Tout afficher', graphView: 'Graphe', listView: 'Liste',
+    opt: { tasks: 'Tâches', done: 'Tâches terminées', boards: 'Tableaux', hierarchy: 'Hiérarchie (sous-pages, tableaux)', orphans: 'Éléments sans lien', local: 'Seulement autour de la sélection' },
+    kinds: { page: 'Document', task: 'Tâche', board: 'Tableau' }, done: 'Terminée', relation: 'Relation',
+    hint: 'Double-clic pour ouvrir · Maj+glisser d’un élément à un autre pour les relier', hintRead: 'Double-clic pour ouvrir',
+    count: '{nodes} éléments, {edges} liens', aria: 'Graphe de l’espace : {nodes} éléments et {edges} liens (la vue liste montre les mêmes données)',
+    col: { name: 'Nom', type: 'Type', links: 'Liens' }, open: 'Ouvrir', related: 'Liés', noRelated: 'Aucun lien pour l’instant.',
+    linkedFrom: 'pointe ici', linksTo: 'cité', linkTo: 'Relier à…', unlink: 'Retirer la relation', linked: '« {a} » et « {b} » sont maintenant reliés',
+    showInGraph: 'Voir dans le graphe',
+  },
   tabs: {
     title: 'Onglets', new: 'Nouvel onglet', close: 'Fermer l’onglet', closeOthers: 'Fermer les autres onglets', closeRight: 'Fermer les onglets à droite',
     duplicate: 'Dupliquer l’onglet', openInNew: 'Ouvrir dans un nouvel onglet', opened: 'Ouvert dans un nouvel onglet',
@@ -10,7 +20,7 @@ export default {
     currently: 'Actuellement sur', join: 'Rejoindre', follow: 'Suivre', stopFollowing: 'Arrêter de suivre', activity: 'Activité',
     recent: 'Activité récente', noActivity: 'Aucune activité récente.', hidden: 'Position masquée', privateDoc: 'Un document privé',
     followingName: 'Vous suivez {name}', followEnded: '{name} s’est déconnecté : suivi arrêté',
-    screens: { home: 'Accueil', calendar: 'Calendrier', mail: 'Mail', inbox: 'Boîte de réception', 'my-tasks': 'Mes tâches', docs: 'Tous les documents', trash: 'Corbeille', settings: 'Paramètres', activity: 'Activité' },
+    screens: { graph: 'Graphe', home: 'Accueil', calendar: 'Calendrier', mail: 'Mail', inbox: 'Boîte de réception', 'my-tasks': 'Mes tâches', docs: 'Tous les documents', trash: 'Corbeille', settings: 'Paramètres', activity: 'Activité' },
     share: 'Montrer où je suis', shareHint: 'Les autres membres voient le document, le tableau ou la tâche que vous avez ouvert.',
   },
   feed: {
