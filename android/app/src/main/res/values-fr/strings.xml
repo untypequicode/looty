@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="change_server">Changer de serveur</string>
+    <string name="setup_title">Se connecter à Looty</string>
+    <string name="setup_hint">Saisissez l’adresse de votre serveur Looty.</string>
+    <string name="setup_url">Adresse du serveur</string>
+    <string name="setup_connect">Continuer</string>
+    <string name="setup_checking">Vérification…</string>
+    <string name="setup_unreachable">Serveur injoignable. Vérifiez l’adresse et votre connexion.</string>
+    <string name="setup_not_looty">Cette adresse ne semble pas être un serveur Looty.</string>
+    <string name="setup_https">Utilisez une adresse https:// (http uniquement sur un réseau local).</string>
+    <string name="download_started">Téléchargement de %1$s…</string>
+    <string name="download_saved">%1$s enregistré dans Téléchargements</string>
+    <string name="download_failed">Échec du téléchargement</string>
+    <string name="no_browser">Aucun navigateur pour ouvrir ce lien</string>
+</resources>
