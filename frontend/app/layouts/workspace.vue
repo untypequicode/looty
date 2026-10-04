@@ -10,7 +10,7 @@ import { useRealtime, sendLocation, setPresenceStatus, presence } from '~/compos
 import { following, locationPath, locationOfRoute } from '~/composables/usePresenceInfo'
 import { useIdle, useDocumentVisibility } from '@vueuse/core'
 import { toast } from '~/composables/useToast'
-import { useTabs, tabsEnabled, isWorkspaceLink } from '~/composables/useTabs'
+import { useTabs, tabsEnabled, isWorkspaceLink, tabMod } from '~/composables/useTabs'
 import { saveScroll, restoreScroll } from '~/composables/useScrollMemory'
 import { useAuth } from '~/composables/useAuth'
 import { useUi } from '~/composables/useUi'
@@ -91,6 +91,25 @@ watch(wsId, () => (following.value = null))
 // Onglets : la navigation met à jour l'onglet actif ; Ctrl/⌘+clic ou clic du milieu sur
 // un lien de l'espace l'ouvre dans un nouvel onglet (Maj+Ctrl+clic : onglet du navigateur).
 const tabs = useTabs(wsId)
+/**
+ * Raccourcis d'onglets : Alt+… partout ; dans l'application de bureau, aussi ceux d'un
+ * navigateur (Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Maj+T, Ctrl+1…9).
+ */
+function tabShortcuts() {
+  const when = (fn: () => unknown) => () => { if (!showTabs.value) return false; fn() }
+  const list = (m: string) => [
+    { keys: `${m}+t`, global: true, handler: when(() => tabs.open(links.home(wsId.value), { duplicate: true })) },
+    { keys: `${m}+w`, global: true, handler: when(() => tabs.activeId.value && tabs.close(tabs.activeId.value, links.home(wsId.value))) },
+    { keys: `${m}+shift+t`, global: true, handler: when(() => tabs.reopen()) },
+    { keys: `${m}+pagedown`, global: true, handler: when(() => tabs.cycle(1)) },
+    { keys: `${m}+pageup`, global: true, handler: when(() => tabs.cycle(-1)) },
+    ...Array.from({ length: 9 }, (_, i) => ({ keys: `${m}+${i + 1}`, global: true, handler: when(() => tabs.nth(i + 1)) })),
+  ]
+  return [
+    ...list('alt'),
+    ...(tabMod === 'mod' ? [...list('mod'), { keys: 'mod+tab', global: true, handler: when(() => tabs.cycle(1)) }, { keys: 'mod+shift+tab', global: true, handler: when(() => tabs.cycle(-1)) }] : []),
+  ]
+}
 const showTabs = computed(() => tabsEnabled.value && !isTablet.value)
 watch(() => route.fullPath, (p) => { if (route.path.startsWith(`/w/${wsId.value}`)) tabs.onNavigate(p) }, { immediate: true })
 router.beforeEach((_to, from) => { saveScroll(from.path) })
@@ -137,11 +156,7 @@ useShortcuts([
   { keys: 'mod+k', global: true, handler: () => (commandOpen.value = !commandOpen.value) },
   { keys: '/', handler: () => (commandOpen.value = true) },
   { keys: '?', handler: () => (shortcutsOpen.value = true) },
-  { keys: 'alt+t', global: true, handler: () => { if (!showTabs.value) return false; tabs.open(links.home(wsId.value), { duplicate: true }) } },
-  { keys: 'alt+w', global: true, handler: () => { if (!showTabs.value || !tabs.activeId.value) return false; tabs.close(tabs.activeId.value, links.home(wsId.value)) } },
-  { keys: 'alt+pagedown', global: true, handler: () => { if (!showTabs.value) return false; tabs.cycle(1) } },
-  { keys: 'alt+pageup', global: true, handler: () => { if (!showTabs.value) return false; tabs.cycle(-1) } },
-  ...Array.from({ length: 9 }, (_, i) => ({ keys: `alt+${i + 1}`, global: true, handler: () => { if (!showTabs.value) return false; tabs.nth(i + 1) } })),
+  ...tabShortcuts(),
   { keys: 'mod+shift+e', global: true, handler: () => { if (!canWriteRole.value) return false; toggleReadMode() } },
   { keys: '[', handler: () => (sidebarCollapsed.value = !sidebarCollapsed.value) },
   { keys: 'c', handler: () => canWrite.value && openCreateTask() },

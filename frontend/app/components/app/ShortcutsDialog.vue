@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { tabKeyLabel, tabMod } from '~/composables/useTabs'
 import { useUi } from '~/composables/useUi'
 import { useI18n } from '~/composables/useI18n'
 
@@ -13,9 +14,11 @@ const sections = computed(() => [
       { keys: ['C'], label: t('task.new') },
       { keys: ['['], label: t('nav.collapseSidebar') },
       { keys: ['?'], label: t('nav.shortcuts') },
-      { keys: ['alt', 'T'], label: t('tabs.new') },
-      { keys: ['alt', 'W'], label: t('tabs.close') },
-      { keys: ['alt', '1–9'], label: t('tabs.switchTo') },
+      { keys: tabKeyLabel('T'), label: t('tabs.new') },
+      { keys: tabKeyLabel('W'), label: t('tabs.close') },
+      { keys: [...tabKeyLabel('shift'), 'T'], label: t('tabs.reopen') },
+      { keys: tabKeyLabel(tabMod === 'mod' ? 'Tab' : 'PgDn'), label: t('tabs.next') },
+      { keys: tabKeyLabel('1–9'), label: t('tabs.switchTo') },
       { keys: ['mod', 'shift', 'E'], label: t('readMode.toRead') + ' / ' + t('readMode.edit').toLowerCase() },
     ],
   },

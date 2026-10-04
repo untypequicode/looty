@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Plus, X, Copy, ArrowRightToLine } from 'lucide-vue-next'
+import { Plus, X, Copy, ArrowRightToLine, RotateCcw } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
-import { useTabs } from '~/composables/useTabs'
+import { useTabs, tabKeyLabel } from '~/composables/useTabs'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 
@@ -26,9 +26,11 @@ const menuItems = computed<MenuItem[]>(() => {
   return [
     { label: t('tabs.duplicate'), icon: Copy, onSelect: () => tab && dup(tab.path) },
     { divider: true },
-    { label: t('tabs.close'), icon: X, shortcut: ['alt', 'W'], onSelect: () => tabsApi.close(id, links.home(wsId.value)) },
+    { label: t('tabs.close'), icon: X, shortcut: tabKeyLabel('W'), onSelect: () => tabsApi.close(id, links.home(wsId.value)) },
     { label: t('tabs.closeOthers'), disabled: tabs.value.length < 2, onSelect: () => tabsApi.closeOthers(id) },
     { label: t('tabs.closeRight'), icon: ArrowRightToLine, disabled: tabs.value.at(-1)?.id === id, onSelect: () => tabsApi.closeRight(id) },
+    { divider: true },
+    { label: t('tabs.reopen'), icon: RotateCcw, shortcut: [...tabKeyLabel('shift'), 'T'], disabled: !tabsApi.canReopen(), onSelect: () => tabsApi.reopen() },
   ]
 })
 function dup(path: string) {
@@ -59,7 +61,7 @@ function onDragOver(index: number, e: DragEvent) {
         @activate="tabsApi.activate(tab.id)" @close="tabsApi.close(tab.id, links.home(wsId))" @menu="openMenu(tab.id, $event)"
       />
     </div>
-    <UiTooltip :text="t('tabs.new')" :shortcut="['alt', 'T']">
+    <UiTooltip :text="t('tabs.new')" :shortcut="tabKeyLabel('T')">
       <UiButton size="xs" variant="ghost" :icon="Plus" :aria-label="t('tabs.new')" @click="tabsApi.open(links.home(wsId), { duplicate: true })" />
     </UiTooltip>
     <UiMenu v-model:open="menuOpen" :items="menuItems" :virtual-rect="menuAt" placement="bottom-start" />

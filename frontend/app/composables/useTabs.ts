@@ -1,5 +1,6 @@
 import { computed, type Ref } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
+import { isDesktop } from './useDesktop'
 
 export interface Tab {
   id: string
@@ -14,12 +15,26 @@ interface TabState {
 const MAX_TABS = 20
 const newId = () => Math.random().toString(36).slice(2, 10)
 
+/**
+ * Touche des raccourcis d'onglets : Ctrl dans l'application de bureau (aucun navigateur
+ * ne se les réserve), Alt sur le site (Ctrl+T / Ctrl+W appartiennent au navigateur).
+ */
+export const tabMod: 'mod' | 'alt' = isDesktop ? 'mod' : 'alt'
+export const tabKeyLabel = (key: string) => [tabMod, key]
+
 /** Afficher la barre d'onglets (réglage de l'appareil). */
 export const tabsEnabled = useLocalStorage('looty.tabs.enabled', true)
 
 const states = new Map<string, Ref<TabState>>()
 /** Navigation lancée par un onglet (pas une navigation « dans » l'onglet actif). */
 let pending: string | null = null
+/** Onglets fermés récemment, par espace (pour les rouvrir : Ctrl+Maj+T). */
+const closedStacks = new Map<string, string[]>()
+function remember(ws: string, paths: string[]) {
+  const stack = closedStacks.get(ws) ?? []
+  stack.push(...paths)
+  closedStacks.set(ws, stack.slice(-20))
+}
 
 /**
  * Onglets de l'espace : chaque onglet garde sa propre page ; naviguer dans l'onglet
@@ -99,6 +114,7 @@ export function useTabs(ws: Ref<string>) {
     const s = state.value
     const i = s.tabs.findIndex((t) => t.id === id)
     if (i < 0) return
+    remember(ws.value, [s.tabs[i]!.path])
     s.tabs.splice(i, 1)
     if (!s.tabs.length) {
       const t = { id: newId(), path: fallback }
@@ -116,6 +132,7 @@ export function useTabs(ws: Ref<string>) {
 
   function closeOthers(id: string) {
     const s = state.value
+    remember(ws.value, s.tabs.filter((t) => t.id !== id).map((t) => t.path))
     s.tabs = s.tabs.filter((t) => t.id === id)
     activate(id)
   }
@@ -125,10 +142,19 @@ export function useTabs(ws: Ref<string>) {
     const i = s.tabs.findIndex((t) => t.id === id)
     if (i < 0) return
     const keep = s.tabs.slice(0, i + 1)
+    remember(ws.value, s.tabs.slice(i + 1).map((t) => t.path))
     const activeKept = keep.some((t) => t.id === s.active)
     s.tabs = keep
     if (!activeKept) activate(id)
   }
+
+  /** Rouvre le dernier onglet fermé. */
+  function reopen() {
+    const path = closedStacks.get(ws.value)?.pop()
+    if (path) open(path, { duplicate: true })
+    return !!path
+  }
+  const canReopen = () => !!closedStacks.get(ws.value)?.length
 
   function move(id: string, to: number) {
     const s = state.value
@@ -151,7 +177,7 @@ export function useTabs(ws: Ref<string>) {
     if (t) activate(t.id)
   }
 
-  return { tabs, activeId, active, onNavigate, activate, open, close, closeOthers, closeRight, move, cycle, nth }
+  return { tabs, activeId, active, onNavigate, activate, open, close, closeOthers, closeRight, reopen, canReopen, move, cycle, nth }
 }
 
 /** Lien interne de l'espace (pour l'ouverture en onglet). */
