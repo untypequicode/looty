@@ -12,6 +12,7 @@ mod db;
 mod delivery;
 mod error;
 mod mail;
+mod mailbox;
 mod notifications;
 mod push;
 mod page;
@@ -75,6 +76,7 @@ async fn main() {
     caldav::start_sync_loop(state.clone(), state.caldav_notify.clone());
     delivery::start_worker(state.clone());
     calendar::start_sync_loop(state.clone());
+    mailbox::start_poll_loop(state.clone());
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -98,6 +100,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/pages", page::routes())
         .nest("/workspaces/:workspace_id/calendars", calendar::workspace_routes())
         .nest("/calendars", calendar::routes())
+        .nest("/mail", mailbox::routes())
         .nest("/boards", board::routes());
 
     let app = Router::new()

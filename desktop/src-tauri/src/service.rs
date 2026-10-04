@@ -299,7 +299,13 @@ impl Service {
         }
         let actor = n["actor_name"].as_str().unwrap_or("");
         let title = n["data"]["title"].as_str().unwrap_or("");
-        (self.ui.notify)(OsNotification { title: "Looty".into(), body: describe(kind, target, actor, title), path: target_path(workspace_id, target, &n["data"]) });
+        // E-mail : l'expéditeur en titre, l'objet en texte (comme un client de messagerie).
+        let (head, body) = match (kind, n["data"]["from"].as_str(), n["data"]["count"].as_u64()) {
+            ("mail", _, Some(count)) => ("Looty".to_string(), if french() { format!("{count} nouveaux messages") } else { format!("{count} new emails") }),
+            ("mail", Some(from), _) => (from.to_string(), title.to_string()),
+            _ => ("Looty".to_string(), describe(kind, target, actor, title)),
+        };
+        (self.ui.notify)(OsNotification { title: head, body, path: target_path(workspace_id, target, &n["data"]) });
     }
 }
 
@@ -312,6 +318,7 @@ fn event_of(kind: &str, target: &str) -> &'static str {
         "mention" => "doc_mention",
         "due_soon" => "task_due",
         "completed" => "task_completed",
+        "mail" => "mail_received",
         _ => "other",
     }
 }
@@ -325,6 +332,7 @@ fn target_path(ws: &str, target: &str, data: &serde_json::Value) -> String {
         },
         "page" => format!("/w/{ws}/doc/{id}"),
         "board" => format!("/w/{ws}/board/{id}"),
+        "mail" => format!("/w/{ws}/mail?account={id}"),
         _ => format!("/w/{ws}/inbox"),
     }
 }
@@ -348,6 +356,8 @@ fn describe(kind: &str, target: &str, actor: &str, title: &str) -> String {
         ("task_due", true) => format!("Échéance proche :{}", q(title)),
         ("task_completed", false) => format!("{actor} completed{}", q(title)),
         ("task_completed", true) => format!("{actor} a terminé{}", q(title)),
+        ("mail_received", false) => if title.is_empty() { "New email".into() } else { title.to_string() },
+        ("mail_received", true) => if title.is_empty() { "Nouveau message".into() } else { title.to_string() },
         (_, false) => format!("New activity from {actor}"),
         (_, true) => format!("Nouvelle activité de {actor}"),
     }

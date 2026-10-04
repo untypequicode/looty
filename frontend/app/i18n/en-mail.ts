@@ -1,0 +1,26 @@
+export default {
+  errors: {
+    mail_unreachable: 'Can’t reach the mail server', mail_private_address: 'This server address isn’t allowed',
+    mail_tls_failed: 'Secure connection (TLS) failed: check the port and security', mail_starttls_failed: 'The server doesn’t support STARTTLS',
+    mail_auth_failed: 'The mail server refused the username or password', mail_timeout: 'The mail server took too long to answer',
+    mail_imap_error: 'The mail server returned an error', mail_secret_unreadable: 'Stored password unreadable: enter it again',
+    mail_invalid_host: 'Invalid server name', mail_invalid_webmail: 'Invalid webmail address', mail_too_many: 'Too many mail accounts (5 max)',
+    mail_unreadable: 'This message can’t be read',
+  },
+  nav: { mail: 'Mail' },
+  inbox: { kinds: { mail: 'New email' } },
+  settings: { notify: { ev: { mail_received: 'New emails' }, evHint: { mail_received: 'A message arrives in a connected mailbox (Mail page).' } } },
+  mail: {
+    title: 'Mail', account: 'Account', refresh: 'Check now', openWebmail: 'Webmail', addAccount: 'Add a mailbox',
+    editAccount: 'Edit mailbox', removeAccount: 'Remove mailbox', removeTitle: 'Remove “{name}”?', removeHint: 'Looty forgets this mailbox. Your emails stay on the server.',
+    emptyTitle: 'Read your email in Looty', emptyHint: 'Connect a mailbox (university, work…) to see your inbox and get notified of new messages. To reply, Looty opens your webmail.',
+    addTitle: 'Connect a mailbox', addHint: 'Read-only access over IMAP. Your password is stored encrypted.', editTitle: 'Mailbox settings',
+    address: 'Email address', server: 'IMAP server', username: 'Username', password: 'Password', newPassword: 'New password', keepPassword: 'Leave empty to keep it',
+    label: 'Name', labelPlaceholder: 'University', webmail: 'Webmail address', webmailHint: 'Opened to reply, write or download attachments.',
+    notify: 'Notify me of new emails', connect: 'Connect', added: 'Mailbox connected',
+    noMessages: 'No messages in the inbox.', syncing: 'Fetching your messages…', checked: 'Checked {when}', fix: 'Fix',
+    unknownSender: 'Unknown sender', noSubject: '(no subject)', pick: 'Select a message to read it',
+    to: 'To', cc: 'Cc', showImages: 'Show images', attachmentsHint: 'Open the webmail to download attachments.',
+    loadFailed: 'Couldn’t load this message.', newCount: { one: '1 new message', other: '{count} new messages' },
+  },
+}

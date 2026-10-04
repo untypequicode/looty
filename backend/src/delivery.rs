@@ -28,6 +28,7 @@ pub const EVENTS: &[(&str, bool, bool)] = &[
     ("task_comment", false, true),
     ("task_due", true, true),
     ("task_completed", false, false),
+    ("mail_received", false, true),
 ];
 
 pub fn event_of(kind: &str, target: &str) -> &'static str {
@@ -38,6 +39,7 @@ pub fn event_of(kind: &str, target: &str) -> &'static str {
         "mention" => "doc_mention",
         "due_soon" => "task_due",
         "completed" => "task_completed",
+        "mail" => "mail_received",
         _ => "other",
     }
 }
@@ -317,6 +319,7 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
             format!("/w/{}/doc/{}", p.workspace_id, id)
         }
         "board" => format!("/w/{}/board/{}", p.workspace_id, id),
+        "mail" => format!("/w/{}/mail?account={}", p.workspace_id, id),
         _ => format!("/w/{}/inbox", p.workspace_id),
     };
     if title.trim().is_empty() {
@@ -334,6 +337,16 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
             let due = p.data["due_date"].as_str().and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|d| fmt_due(&d.with_timezone(&Utc), fr)).unwrap_or_default();
             if fr { format!("{} arrive à échéance le {due}", q(&title)) } else { format!("{} is due {due}", q(&title)) }
         }
+        ("mail_received", false) => match (p.data["from"].as_str(), p.data["count"].as_u64()) {
+            (_, Some(n)) => format!("{n} new emails"),
+            (Some(from), _) => format!("New email from {from}: {title}"),
+            _ => "New email".into(),
+        },
+        ("mail_received", true) => match (p.data["from"].as_str(), p.data["count"].as_u64()) {
+            (_, Some(n)) => format!("{n} nouveaux messages"),
+            (Some(from), _) => format!("Nouveau message de {from} : {title}"),
+            _ => "Nouveau message".into(),
+        },
         ("task_completed", false) => format!("{actor} completed {}", q(&title)),
         ("task_completed", true) => format!("{actor} a terminé {}", q(&title)),
         (_, false) => format!("New activity from {actor}"),

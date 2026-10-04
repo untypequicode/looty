@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  Home, Inbox, CircleUserRound, FileText, CalendarDays, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
+  Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -8,6 +8,7 @@ import { useWorkspace, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
 import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
+import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useUi } from '~/composables/useUi'
 import { presence } from '~/composables/useRealtime'
 import { useAuth } from '~/composables/useAuth'
@@ -18,6 +19,7 @@ const { wsId, boards, pages, members, canWrite } = useWorkspace()
 const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
+const { data: mailAccounts } = useMailAccounts()
 const { commandOpen, createBoardOpen, sectionsCollapsed, sidebarCollapsed, sidebarOpen, shortcutsOpen, openCreateTask } = useUi()
 const { user } = useAuth()
 
@@ -97,6 +99,7 @@ async function onRootDrop(e: DragEvent) {
         <AppSidebarItem :to="links.inbox(wsId)" :icon="Inbox" :label="t('nav.inbox')" :badge="unread || undefined" />
         <AppSidebarItem :to="links.myTasks(wsId)" :icon="CircleUserRound" :label="t('nav.myTasks')" />
         <AppSidebarItem :to="links.calendar(wsId)" :icon="CalendarDays" :label="t('calendar.title')" />
+        <AppSidebarItem :to="links.mail(wsId)" :icon="Mail" :label="t('nav.mail')" :badge="mailUnread(mailAccounts) || undefined" />
         <AppSidebarItem :to="links.docs(wsId)" :icon="FileText" :label="t('nav.allDocs')" exact />
       </div>
 

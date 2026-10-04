@@ -1,0 +1,26 @@
+export default {
+  errors: {
+    mail_unreachable: 'Impossible de joindre le serveur de messagerie', mail_private_address: 'Cette adresse de serveur n’est pas autorisée',
+    mail_tls_failed: 'Échec de la connexion sécurisée (TLS) : vérifiez le port et la sécurité', mail_starttls_failed: 'Le serveur ne prend pas en charge STARTTLS',
+    mail_auth_failed: 'Le serveur a refusé l’identifiant ou le mot de passe', mail_timeout: 'Le serveur de messagerie a mis trop de temps à répondre',
+    mail_imap_error: 'Le serveur de messagerie a renvoyé une erreur', mail_secret_unreadable: 'Mot de passe enregistré illisible : saisissez-le à nouveau',
+    mail_invalid_host: 'Nom de serveur invalide', mail_invalid_webmail: 'Adresse du webmail invalide', mail_too_many: 'Trop de boîtes mail (5 max)',
+    mail_unreadable: 'Ce message ne peut pas être lu',
+  },
+  nav: { mail: 'Mail' },
+  inbox: { kinds: { mail: 'Nouveau message' } },
+  settings: { notify: { ev: { mail_received: 'Nouveaux e-mails' }, evHint: { mail_received: 'Un message arrive dans une boîte connectée (page Mail).' } } },
+  mail: {
+    title: 'Mail', account: 'Compte', refresh: 'Relever maintenant', openWebmail: 'Webmail', addAccount: 'Ajouter une boîte mail',
+    editAccount: 'Modifier la boîte', removeAccount: 'Retirer la boîte', removeTitle: 'Retirer « {name} » ?', removeHint: 'Looty oublie cette boîte. Vos messages restent sur le serveur.',
+    emptyTitle: 'Lisez vos e-mails dans Looty', emptyHint: 'Connectez une boîte (université, travail…) pour voir vos messages et être notifié des nouveaux. Pour répondre, Looty ouvre votre webmail.',
+    addTitle: 'Connecter une boîte mail', addHint: 'Accès en lecture seule par IMAP. Le mot de passe est stocké chiffré.', editTitle: 'Réglages de la boîte',
+    address: 'Adresse e-mail', server: 'Serveur IMAP', username: 'Identifiant', password: 'Mot de passe', newPassword: 'Nouveau mot de passe', keepPassword: 'Laisser vide pour le conserver',
+    label: 'Nom', labelPlaceholder: 'Université', webmail: 'Adresse du webmail', webmailHint: 'Ouvert pour répondre, écrire ou télécharger les pièces jointes.',
+    notify: 'Me notifier des nouveaux messages', connect: 'Connecter', added: 'Boîte mail connectée',
+    noMessages: 'Aucun message dans la boîte de réception.', syncing: 'Récupération de vos messages…', checked: 'Relevé {when}', fix: 'Corriger',
+    unknownSender: 'Expéditeur inconnu', noSubject: '(sans objet)', pick: 'Sélectionnez un message pour le lire',
+    to: 'À', cc: 'Cc', showImages: 'Afficher les images', attachmentsHint: 'Ouvrez le webmail pour télécharger les pièces jointes.',
+    loadFailed: 'Impossible de charger ce message.', newCount: { one: '1 nouveau message', other: '{count} nouveaux messages' },
+  },
+}
