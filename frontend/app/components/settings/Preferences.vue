@@ -5,6 +5,7 @@ import { useI18n, LOCALES, type Locale } from '~/composables/useI18n'
 import { useUi } from '~/composables/useUi'
 import { api } from '~/composables/api'
 import { toast } from '~/composables/useToast'
+import { shareLocation } from '~/composables/useRealtime'
 
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
@@ -38,6 +39,9 @@ const themes = computed(() => [
     </SettingsRow>
     <SettingsRow :label="t('settings.prefs.compactSidebar')" :hint="t('settings.prefs.compactSidebarHint')">
       <UiSwitch v-model="sidebarCollapsed" />
+    </SettingsRow>
+    <SettingsRow :label="t('presence.share')" :hint="t('presence.shareHint')">
+      <UiSwitch v-model="shareLocation" />
     </SettingsRow>
   </SettingsSection>
 </template>

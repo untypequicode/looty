@@ -83,6 +83,9 @@ async fn purge_tasks(state: &AppState, ids: &[Uuid]) -> ApiResult<()> {
 
 /// Met une page (et ses sous-pages) à la corbeille. Sans contrôle d'accès.
 pub async fn trash_page(state: &AppState, workspace_id: Uuid, page_id: Uuid, by: Option<Uuid>) -> ApiResult<()> {
+    if let Some(u) = by {
+        crate::activity::log_page(&state.pool, page_id, workspace_id, u, "delete").await;
+    }
     let ids: Vec<Uuid> = sqlx::query_scalar(
         "WITH RECURSIVE sub AS (SELECT id FROM pages WHERE id = $1 UNION ALL SELECT p.id FROM pages p JOIN sub ON p.parent_id = sub.id)
          SELECT id FROM sub",
@@ -345,6 +348,7 @@ async fn restore_page(State(state): State<AppState>, user: AuthUser, Path(id): P
             sqlx::query("UPDATE pages_all SET parent_id = NULL WHERE id = $1").bind(id).execute(&state.pool).await?;
         }
     }
+    crate::activity::log_page(&state.pool, id, e.workspace_id, user.id, "restore").await;
     let pages: Vec<crate::page::Page> = sqlx::query_as("SELECT * FROM pages WHERE id = ANY($1)").bind(&ids).fetch_all(&state.pool).await?;
     for mut p in pages {
         p.content = None;

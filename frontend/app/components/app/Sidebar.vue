@@ -12,6 +12,7 @@ import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useUi } from '~/composables/useUi'
 import { presence } from '~/composables/useRealtime'
+import { following } from '~/composables/usePresenceInfo'
 import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
@@ -21,6 +22,8 @@ const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
 const { data: mailAccounts } = useMailAccounts()
+const cardFor = ref<string | null>(null)
+const moreOpen = ref(false)
 const { commandOpen, createBoardOpen, sectionsCollapsed, sidebarCollapsed, sidebarOpen, shortcutsOpen, openCreateTask } = useUi()
 const { user } = useAuth()
 
@@ -178,10 +181,20 @@ async function onRootDrop(e: DragEvent) {
 
     <div class="sb-bottom">
       <div v-if="online.length" class="sb-presence">
-        <UiTooltip v-for="m in online.slice(0, 6)" :key="m.user_id" :text="m.name" placement="top">
-          <UiAvatar :name="m.name" :src="m.avatar_url" :size="22" online ring />
-        </UiTooltip>
-        <span v-if="online.length > 6" class="faint sb-more">+{{ online.length - 6 }}</span>
+        <UiPopover v-for="m in online.slice(0, 6)" :key="m.user_id" :open="cardFor === m.user_id" :width="300" placement="top-start" @update:open="(o: boolean) => (cardFor = o ? m.user_id : null)">
+          <template #trigger>
+            <button class="sb-avatar" :class="{ idle: presence[m.user_id]?.status === 'idle', followed: following === m.user_id }" :aria-label="m.name" :title="m.name">
+              <UiAvatar :name="m.name" :src="m.avatar_url" :size="22" online ring />
+            </button>
+          </template>
+          <AppMemberCard :member="m" :presence="presence[m.user_id]" @close="cardFor = null" />
+        </UiPopover>
+        <UiPopover v-if="online.length > 6" v-model:open="moreOpen" :width="260" placement="top-start">
+          <template #trigger><button class="faint sb-more">+{{ online.length - 6 }}</button></template>
+          <div class="sb-online">
+            <AppPresenceRow v-for="m in online" :key="m.user_id" :member="m" :presence="presence[m.user_id]!" @select="moreOpen = false; navigateTo(`/w/${wsId}/activity?user=${m.user_id}`)" />
+          </div>
+        </UiPopover>
       </div>
       <div class="spacer" />
       <UiTooltip v-if="canWriteRole" :text="readMode ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
@@ -283,6 +296,11 @@ async function onRootDrop(e: DragEvent) {
   border-top: 1px solid var(--border);
 }
 .sb-presence { display: flex; align-items: center; }
+.sb-avatar { display: block; border-radius: 50%; transition: transform var(--dur-fast); }
+.sb-avatar:hover { transform: translateY(-2px); position: relative; z-index: 1; }
+.sb-avatar.idle { opacity: .55; }
+.sb-avatar.followed { box-shadow: 0 0 0 2px var(--accent); }
+.sb-online { padding: 6px; max-height: 360px; overflow-y: auto; }
 .sb-presence > * + * { margin-left: -4px; }
 .sb-more { font-size: var(--fs-sm); margin-left: 6px; }
 @media (pointer: coarse) {

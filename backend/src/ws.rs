@@ -23,8 +23,18 @@ pub struct WsQuery {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct UserPresence {
     pub user_id: String,
-    pub location: String, // "page:<uuid>", "board:<uuid>", "home"...
+    pub location: String, // "page:<uuid>", "board:<uuid>", "task:<uuid>", "home", "calendar", "hidden"...
     pub updated_at: i64,
+    /// « active » ou « idle » (onglet en arrière-plan / inactif).
+    #[serde(default = "active")]
+    pub status: String,
+    /// Depuis quand la personne est à cet endroit (ms).
+    #[serde(default)]
+    pub since: i64,
+}
+
+fn active() -> String {
+    "active".into()
 }
 
 /// Message diffusé dans une room. `to` restreint la livraison à un seul utilisateur.
@@ -95,10 +105,9 @@ impl Hub {
             p.entry(workspace_id)
                 .or_default()
                 .entry(user_id)
-                .or_insert_with(|| UserPresence {
-                    user_id: user_id.to_string(),
-                    location: "home".into(),
-                    updated_at: chrono::Utc::now().timestamp_millis(),
+                .or_insert_with(|| {
+                    let now = chrono::Utc::now().timestamp_millis();
+                    UserPresence { user_id: user_id.to_string(), location: "home".into(), updated_at: now, status: active(), since: now }
                 })
                 .clone()
         };
@@ -130,18 +139,17 @@ impl Hub {
         }
     }
 
-    async fn set_location(&self, workspace_id: Uuid, user_id: Uuid, location: String) {
-        let presence = UserPresence {
-            user_id: user_id.to_string(),
-            location,
-            updated_at: chrono::Utc::now().timestamp_millis(),
+    async fn set_location(&self, workspace_id: Uuid, user_id: Uuid, location: String, status: String) {
+        let now = chrono::Utc::now().timestamp_millis();
+        let presence = {
+            let mut all = self.presence.write().await;
+            let room = all.entry(workspace_id).or_default();
+            // « Depuis » ne change que si l'endroit change (pas pour actif / inactif).
+            let since = room.get(&user_id).filter(|p| p.location == location).map(|p| p.since).unwrap_or(now);
+            let p = UserPresence { user_id: user_id.to_string(), location, updated_at: now, status, since };
+            room.insert(user_id, p.clone());
+            p
         };
-        self.presence
-            .write()
-            .await
-            .entry(workspace_id)
-            .or_default()
-            .insert(user_id, presence.clone());
         self.broadcast(workspace_id, serde_json::json!({ "type": "USER_PRESENCE_UPDATE", "presence": presence }))
             .await;
     }
@@ -159,8 +167,9 @@ pub async fn ws_handler(
 }
 
 fn sanitize_location(raw: &str) -> String {
-    // Format attendu : "home" | "<kind>:<uuid>"
-    let valid = raw == "home"
+    // Format attendu : un écran ("home", "calendar"…), "hidden", ou "<kind>:<uuid>"
+    const SCREENS: &[&str] = &["home", "hidden", "calendar", "mail", "inbox", "my-tasks", "docs", "trash", "settings", "activity"];
+    let valid = SCREENS.contains(&raw)
         || raw
             .split_once(':')
             .map(|(kind, id)| {
@@ -212,7 +221,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
             match json["type"].as_str() {
                 Some("USER_LOCATION") => {
                     let loc = sanitize_location(json["location"].as_str().unwrap_or("home"));
-                    hub_rx.set_location(workspace_id, user_id, loc).await;
+                    let status = if json["status"].as_str() == Some("idle") { "idle" } else { "active" };
+                    hub_rx.set_location(workspace_id, user_id, loc, status.into()).await;
                 }
                 Some("USER_MENTIONED") => {
                     // L'auteur est imposé par le serveur ; la cible doit être membre.

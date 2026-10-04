@@ -16,6 +16,7 @@ mod mailbox;
 mod trash;
 mod storage;
 mod events;
+mod activity;
 mod notifications;
 mod push;
 mod page;
@@ -108,6 +109,7 @@ async fn main() {
         .nest("/mail", mailbox::routes())
         .nest("/workspaces/:workspace_id/trash", trash::workspace_routes())
         .nest("/workspaces/:workspace_id/events", events::workspace_routes())
+        .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
 

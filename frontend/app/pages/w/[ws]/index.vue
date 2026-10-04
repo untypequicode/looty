@@ -219,7 +219,10 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
   
         <!-- Activité -->
         <section class="panel wide" data-reveal>
-          <header class="panel-head"><h2><Activity :size="15" /> {{ t('home.activity') }}</h2></header>
+          <header class="panel-head">
+            <h2><Activity :size="15" /> {{ t('home.activity') }}</h2>
+            <NuxtLink :to="`/w/${wsId}/activity`" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+          </header>
           <div v-if="!overview?.activity.length" class="panel-empty"><Activity :size="20" /><span>{{ t('home.noActivity') }}</span></div>
           <ol v-else class="feed">
             <li v-for="a in overview.activity" :key="a.id" class="feed-item">

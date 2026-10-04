@@ -1,4 +1,18 @@
 export default {
+  presence: {
+    status: { active: 'Actif', idle: 'Absent', offline: 'Hors ligne' },
+    currently: 'Actuellement sur', join: 'Rejoindre', follow: 'Suivre', stopFollowing: 'Arrêter de suivre', activity: 'Activité',
+    recent: 'Activité récente', noActivity: 'Aucune activité récente.', hidden: 'Position masquée', privateDoc: 'Un document privé',
+    followingName: 'Vous suivez {name}', followEnded: '{name} s’est déconnecté : suivi arrêté',
+    screens: { home: 'Accueil', calendar: 'Calendrier', mail: 'Mail', inbox: 'Boîte de réception', 'my-tasks': 'Mes tâches', docs: 'Tous les documents', trash: 'Corbeille', settings: 'Paramètres', activity: 'Activité' },
+    share: 'Montrer où je suis', shareHint: 'Les autres membres voient le document, le tableau ou la tâche que vous avez ouvert.',
+  },
+  feed: {
+    title: 'Activité', everyone: 'Tout le monde', empty: 'Pas encore d’activité', more: 'Charger plus', commented: 'a commenté',
+    task: { created: 'a créé', moved: 'a déplacé', completed: 'a terminé', reopened: 'a rouvert', assigned: 'a assigné quelqu’un à', unassigned: 'a retiré quelqu’un de',
+      labeled: 'a changé les étiquettes de', attached: 'a joint un fichier à', renamed: 'a renommé', described: 'a modifié la description de', prioritized: 'a changé la priorité de', scheduled: 'a changé l’échéance de', updated: 'a modifié' },
+    page: { create: 'a créé', edit: 'a modifié', rename: 'a renommé', move: 'a déplacé', delete: 'a supprimé', restore: 'a restauré' },
+  },
   storage: {
     title: 'Stockage', description: 'Taille réelle du dossier d’upload et utilisation de chaque fichier.',
     uploads: 'Dossier d’upload', free: 'Espace disque libre', database: 'Base de données', orphans: 'Fichiers inutilisés',

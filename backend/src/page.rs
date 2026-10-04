@@ -227,6 +227,7 @@ async fn create_page(
     .fetch_one(pool)
     .await?;
 
+    crate::activity::log_page(pool, page.id, workspace_id, user.id, "create").await;
     let mut lite = page.clone();
     lite.content = None;
     state.emit(workspace_id, serde_json::json!({ "type": "PAGE_CREATED", "page": lite })).await;
@@ -273,6 +274,7 @@ async fn update_page(
         }
     }
 
+    let before: Option<(String, Option<Uuid>, Option<String>)> = sqlx::query_as("SELECT title, parent_id, content FROM pages WHERE id = $1").bind(page_id).fetch_optional(pool).await?;
     let page: Page = sqlx::query_as(
         "UPDATE pages SET
             title = COALESCE($1, title),
@@ -284,17 +286,29 @@ async fn update_page(
             updated_at = CURRENT_TIMESTAMP
          WHERE id = $9 RETURNING *",
     )
-    .bind(title)
+    .bind(&title)
     .bind(payload.icon.is_some())
     .bind(payload.icon.clone().flatten())
     .bind(payload.parent_id.is_some())
     .bind(payload.parent_id.flatten())
-    .bind(payload.content)
+    .bind(&payload.content)
     .bind(payload.position)
     .bind(user.id)
     .bind(page_id)
     .fetch_one(pool)
     .await?;
+    if let Some((old_title, old_parent, old_content)) = before {
+        if old_title != page.title {
+            crate::activity::log_page(pool, page_id, workspace_id, user.id, "rename").await;
+        }
+        if old_parent != page.parent_id {
+            crate::activity::log_page(pool, page_id, workspace_id, user.id, "move").await;
+        }
+        // L'éditeur réenregistre parfois un HTML identique à l'ouverture : pas une modification.
+        if payload.content.is_some() && payload.content != old_content {
+            crate::activity::log_page(pool, page_id, workspace_id, user.id, "edit").await;
+        }
+    }
 
     let mut lite = page.clone();
     lite.content = None;

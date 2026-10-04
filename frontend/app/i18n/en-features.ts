@@ -1,4 +1,18 @@
 export default {
+  presence: {
+    status: { active: 'Active', idle: 'Away', offline: 'Offline' },
+    currently: 'Currently on', join: 'Join', follow: 'Follow', stopFollowing: 'Stop following', activity: 'Activity',
+    recent: 'Recent activity', noActivity: 'No recent activity.', hidden: 'Location hidden', privateDoc: 'A private document',
+    followingName: 'Following {name}', followEnded: '{name} went offline: follow mode stopped',
+    screens: { home: 'Home', calendar: 'Calendar', mail: 'Mail', inbox: 'Inbox', 'my-tasks': 'My tasks', docs: 'All documents', trash: 'Trash', settings: 'Settings', activity: 'Activity' },
+    share: 'Show where I am', shareHint: 'Other members see which document, board or task you have open.',
+  },
+  feed: {
+    title: 'Activity', everyone: 'Everyone', empty: 'No activity yet', more: 'Load more', commented: 'commented on',
+    task: { created: 'created', moved: 'moved', completed: 'completed', reopened: 'reopened', assigned: 'assigned someone to', unassigned: 'unassigned someone from',
+      labeled: 'changed the labels of', attached: 'attached a file to', renamed: 'renamed', described: 'edited the description of', prioritized: 'changed the priority of', scheduled: 'changed the due date of', updated: 'updated' },
+    page: { create: 'created', edit: 'edited', rename: 'renamed', move: 'moved', delete: 'deleted', restore: 'restored' },
+  },
   storage: {
     title: 'Storage', description: 'Actual size of the upload folder and where each file is used.',
     uploads: 'Upload folder', free: 'Free disk space', database: 'Database', orphans: 'Unused files',

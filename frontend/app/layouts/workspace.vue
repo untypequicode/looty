@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { Home, Inbox, CircleUserRound, Search, SquarePen, BookOpen } from 'lucide-vue-next'
+import { Home, Inbox, CircleUserRound, Search, SquarePen, BookOpen, Eye, X } from 'lucide-vue-next'
 import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import gsap from 'gsap'
 import { useQuery } from '@tanstack/vue-query'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { api } from '~/composables/api'
 import { workspacePreamble } from '~/editor/mathScope'
-import { useRealtime, sendLocation } from '~/composables/useRealtime'
+import { useRealtime, sendLocation, setPresenceStatus, presence } from '~/composables/useRealtime'
+import { following, locationPath, locationOfRoute } from '~/composables/usePresenceInfo'
+import { useIdle, useDocumentVisibility } from '@vueuse/core'
+import { toast } from '~/composables/useToast'
 import { useAuth } from '~/composables/useAuth'
 import { useUi } from '~/composables/useUi'
 import { useShortcuts } from '~/composables/useShortcuts'
@@ -16,7 +19,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useI18n } from '~/composables/useI18n'
 
 const route = useRoute()
-const { wsId, workspace, canWrite, canWriteRole } = useWorkspace()
+const { wsId, workspace, canWrite, canWriteRole, member } = useWorkspace()
 const { user } = useAuth()
 const { sidebarOpen, sidebarCollapsed, commandOpen, shortcutsOpen, openCreateTask } = useUi()
 const { unread } = useNotifications()
@@ -39,11 +42,49 @@ watch(() => workspace.error.value, (e: any) => {
 // Mémorise le dernier workspace visité
 watch(wsId, (id) => { if (id) localStorage.setItem('looty.lastWorkspace', id) }, { immediate: true })
 
-// Position de l'utilisateur pour la présence
-watch(() => route.path, () => {
-  const p = route.params
-  sendLocation(p.page ? `page:${p.page}` : p.board ? `board:${p.board}` : 'home')
+// Position de l'utilisateur pour la présence : page, tableau, tâche ouverte, ou écran.
+watch(() => [route.path, route.query.task], () => sendLocation(locationOfRoute(route)), { immediate: true })
+
+// Inactif : onglet en arrière-plan depuis une minute, ou aucune interaction depuis 5 minutes.
+const { idle } = useIdle(5 * 60_000)
+const visibility = useDocumentVisibility()
+let hiddenTimer: ReturnType<typeof setTimeout> | null = null
+watch([idle, visibility], ([i, v]) => {
+  if (hiddenTimer) clearTimeout(hiddenTimer)
+  if (v === 'hidden') hiddenTimer = setTimeout(() => setPresenceStatus('idle'), 60_000)
+  else setPresenceStatus(i ? 'idle' : 'active')
+})
+
+// Suivi d'un membre : mon écran suit le sien ; je reprends la main en naviguant moi-même.
+const router = useRouter()
+const followed = computed(() => (following.value ? member(following.value) : null))
+// Déconnexion brève (rechargement de page) : 10 s de grâce avant d'arrêter le suivi.
+let offlineTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => following.value && presence.value[following.value]?.location, (loc) => {
+  if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null }
+  if (!following.value) return
+  if (!presence.value[following.value]) {
+    const who = following.value
+    offlineTimer = setTimeout(() => {
+      if (following.value === who && !presence.value[who]) {
+        toast(t('presence.followEnded', { name: followed.value?.name ?? '' }))
+        following.value = null
+      }
+    }, 10_000)
+    return
+  }
+  const path = locationPath(wsId.value, loc || undefined)
+  if (!path || locationOfRoute(route) === loc) return
+  navigateTo(path)
 }, { immediate: true })
+// Je navigue ailleurs que là où est la personne suivie : le suivi s'arrête (les
+// redirections, ex. /task/x → tableau, gardent le même emplacement).
+router.afterEach((to) => {
+  if (!following.value) return
+  const theirs = presence.value[following.value]?.location
+  if (theirs && locationOfRoute(to) !== theirs) following.value = null
+})
+watch(wsId, () => (following.value = null))
 
 useShortcuts([
   { keys: 'mod+k', global: true, handler: () => (commandOpen.value = !commandOpen.value) },
@@ -104,9 +145,16 @@ function onEdgeStart(e: TouchEvent) {
       <AppSidebar />
     </aside>
 
-    <main class="app-main">
+    <main class="app-main" :class="{ following: !!followed }">
       <AppOfflineBanner />
       <slot />
+      <Transition name="rm">
+        <div v-if="followed" class="follow-badge">
+          <UiAvatar :name="followed.name" :src="followed.avatar_url" :size="18" />
+          <Eye :size="13" /> {{ t('presence.followingName', { name: followed.name }) }}
+          <button class="follow-stop" :aria-label="t('presence.stopFollowing')" @click="following = null"><X :size="13" /></button>
+        </div>
+      </Transition>
       <Transition name="rm">
         <button v-if="readMode && canWriteRole" class="rm-badge" :title="t('readMode.toEdit')" @click="toggleReadMode">
           <BookOpen :size="13" /> {{ t('readMode.badge') }} <span class="rm-edit">{{ t('readMode.edit') }}</span>
@@ -140,6 +188,14 @@ function onEdgeStart(e: TouchEvent) {
   background: var(--bg-elevated); box-shadow: var(--shadow-lg, 0 6px 24px rgba(0,0,0,.18)), 0 0 0 1px var(--border);
   font-size: var(--fs-sm); color: var(--text-2);
 }
+.app-main.following { box-shadow: inset 0 0 0 2px var(--accent); }
+.follow-badge {
+  position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 61;
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px 4px 6px; border-radius: var(--r-full);
+  background: var(--accent); color: #fff; font-size: var(--fs-sm); font-weight: 500; box-shadow: var(--shadow-lg, 0 6px 24px rgba(0,0,0,.18));
+}
+.follow-stop { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #fff; }
+.follow-stop:hover { background: rgba(255,255,255,.2); }
 .rm-edit { padding: 2px 9px; border-radius: var(--r-full); background: var(--accent); color: #fff; font-weight: 500; }
 .rm-enter-active, .rm-leave-active { transition: opacity var(--dur-fast), transform var(--dur-fast); }
 .rm-enter-from, .rm-leave-to { opacity: 0; transform: translate(-50%, 6px); }
