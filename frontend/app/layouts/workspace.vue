@@ -10,6 +10,8 @@ import { useRealtime, sendLocation, setPresenceStatus, presence } from '~/compos
 import { following, locationPath, locationOfRoute } from '~/composables/usePresenceInfo'
 import { useIdle, useDocumentVisibility } from '@vueuse/core'
 import { toast } from '~/composables/useToast'
+import { useTabs, tabsEnabled, isWorkspaceLink } from '~/composables/useTabs'
+import { saveScroll, restoreScroll } from '~/composables/useScrollMemory'
 import { useAuth } from '~/composables/useAuth'
 import { useUi } from '~/composables/useUi'
 import { useShortcuts } from '~/composables/useShortcuts'
@@ -86,10 +88,60 @@ router.afterEach((to) => {
 })
 watch(wsId, () => (following.value = null))
 
+// Onglets : la navigation met à jour l'onglet actif ; Ctrl/⌘+clic ou clic du milieu sur
+// un lien de l'espace l'ouvre dans un nouvel onglet (Maj+Ctrl+clic : onglet du navigateur).
+const tabs = useTabs(wsId)
+const showTabs = computed(() => tabsEnabled.value && !isTablet.value)
+watch(() => route.fullPath, (p) => { if (route.path.startsWith(`/w/${wsId.value}`)) tabs.onNavigate(p) }, { immediate: true })
+router.beforeEach((_to, from) => { saveScroll(from.path) })
+router.afterEach((to, from) => { if (to.path !== from.path) setTimeout(() => restoreScroll(to.path), 0) })
+function linkFrom(e: MouseEvent): string | null {
+  const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+  if (!a || a.target === '_blank') return null
+  const href = a.getAttribute('href')
+  return isWorkspaceLink(href, wsId.value) ? href : null
+}
+function onLinkClick(e: MouseEvent) {
+  if (!showTabs.value || e.shiftKey || !(e.ctrlKey || e.metaKey) || e.button !== 0) return
+  const href = linkFrom(e)
+  if (!href) return
+  e.preventDefault()
+  e.stopPropagation()
+  tabs.open(href, { background: true })
+  toast(t('tabs.opened'), { duration: 2000 })
+}
+function onAuxClick(e: MouseEvent) {
+  if (!showTabs.value || e.button !== 1) return
+  const href = linkFrom(e)
+  if (!href) return
+  e.preventDefault()
+  e.stopPropagation()
+  tabs.open(href, { background: true })
+}
+function onMiddleDown(e: MouseEvent) {
+  // Pas de défilement automatique sur un lien ouvert en onglet.
+  if (showTabs.value && e.button === 1 && linkFrom(e)) e.preventDefault()
+}
+onMounted(() => {
+  document.addEventListener('click', onLinkClick, true)
+  document.addEventListener('auxclick', onAuxClick, true)
+  document.addEventListener('mousedown', onMiddleDown, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onLinkClick, true)
+  document.removeEventListener('auxclick', onAuxClick, true)
+  document.removeEventListener('mousedown', onMiddleDown, true)
+})
+
 useShortcuts([
   { keys: 'mod+k', global: true, handler: () => (commandOpen.value = !commandOpen.value) },
   { keys: '/', handler: () => (commandOpen.value = true) },
   { keys: '?', handler: () => (shortcutsOpen.value = true) },
+  { keys: 'alt+t', global: true, handler: () => { if (!showTabs.value) return false; tabs.open(links.home(wsId.value), { duplicate: true }) } },
+  { keys: 'alt+w', global: true, handler: () => { if (!showTabs.value || !tabs.activeId.value) return false; tabs.close(tabs.activeId.value, links.home(wsId.value)) } },
+  { keys: 'alt+pagedown', global: true, handler: () => { if (!showTabs.value) return false; tabs.cycle(1) } },
+  { keys: 'alt+pageup', global: true, handler: () => { if (!showTabs.value) return false; tabs.cycle(-1) } },
+  ...Array.from({ length: 9 }, (_, i) => ({ keys: `alt+${i + 1}`, global: true, handler: () => { if (!showTabs.value) return false; tabs.nth(i + 1) } })),
   { keys: 'mod+shift+e', global: true, handler: () => { if (!canWriteRole.value) return false; toggleReadMode() } },
   { keys: '[', handler: () => (sidebarCollapsed.value = !sidebarCollapsed.value) },
   { keys: 'c', handler: () => canWrite.value && openCreateTask() },
@@ -146,6 +198,7 @@ function onEdgeStart(e: TouchEvent) {
     </aside>
 
     <main class="app-main" :class="{ following: !!followed }">
+      <AppTabBar v-if="showTabs" />
       <AppOfflineBanner />
       <slot />
       <Transition name="rm">

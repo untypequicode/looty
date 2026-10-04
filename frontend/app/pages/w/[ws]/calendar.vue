@@ -358,7 +358,7 @@ useHead({ title: () => t('calendar.title') })
 .grow { flex: 1; }
 .spin { animation: cs-spin 1s linear infinite; }
 @keyframes cs-spin { to { transform: rotate(360deg); } }
-.cal { display: grid; grid-template-columns: minmax(0, 1fr); height: calc(100dvh - 48px); min-height: 0; }
+.cal { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; }
 .cal.side { grid-template-columns: 220px minmax(0, 1fr); }
 .cal-side { border-right: 1px solid var(--border); padding: 12px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .cs-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; margin: 12px 6px 4px; }
