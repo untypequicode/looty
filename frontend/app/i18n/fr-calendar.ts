@@ -1,0 +1,26 @@
+export default {
+  home: { upcoming: 'À venir', noEvents: 'Rien de prévu aujourd’hui ni demain' },
+  errors: {
+    calendar_too_many: 'Trop de calendriers (30 max.)', calendar_auth_failed: 'Le serveur de calendrier a refusé les identifiants',
+    calendar_not_ics: 'Ce lien ne mène pas à un calendrier ICS', calendar_http_error: 'Le serveur de calendrier a renvoyé une erreur',
+    calendar_secret_unreadable: 'Adresse enregistrée illisible : ajoutez de nouveau le calendrier', invalid_range: 'Période invalide',
+  },
+  calendar: {
+    title: 'Calendrier', calendars: 'Calendriers', today: 'Aujourd’hui', previous: 'Précédent', next: 'Suivant',
+    week: 'Semaine', month: 'Mois', agenda: 'Agenda', addShort: 'Calendrier', allDay: 'Journée', due: 'Échéance',
+    group: { shared: 'Espace de travail', personal: 'Personnels' },
+    empty: { shared: 'Aucun calendrier partagé.', personal: 'Aucun calendrier personnel.' },
+    other: 'Autres', myTasks: 'Mes tâches (échéances)', untitled: '(Sans titre)', openLink: 'Ouvrir le lien',
+    nothing: 'Rien de prévu', nothingHint: 'Ajoutez un calendrier : l’emploi du temps de l’université (lien ICS), un compte CalDAV…',
+    refresh: 'Actualiser maintenant', synced: '{n} événement(s) synchronisé(s)', syncFailed: 'n’a pas pu être synchronisé (vérifiez l’adresse)',
+    deleteTitle: 'Retirer « {name} » ?', deleteShared: 'Il sera retiré pour tous les membres de cet espace.',
+    addTitle: 'Ajouter un calendrier', addHint: 'Les événements sont affichés en lecture seule et actualisés toutes les 15 minutes.',
+    visibility: 'Visible par', personal: 'Moi seulement', shared: 'Tout l’espace de travail',
+    personalHint: 'Votre calendrier, visible par vous seul (dans tous vos espaces).',
+    sharedHint: 'Affiché à tous les membres de cet espace, par ex. l’emploi du temps de l’université.',
+    type: 'Type', ics: 'Lien ICS', icsHint: 'Adresse d’abonnement (.ics ou webcal://)', caldavHint: 'Compte Nextcloud, iCloud, Fastmail…',
+    icsUrl: 'Adresse du calendrier', server: 'Serveur CalDAV', username: 'Nom d’utilisateur', password: 'Mot de passe ou mot de passe d’application',
+    find: 'Trouver mes calendriers', noneFound: 'Aucun calendrier trouvé sur ce compte.',
+    name: 'Nom et couleur', namePlaceholder: 'ex. Emploi du temps', add: 'Ajouter', added: 'Calendrier ajouté ({n} événements)',
+  },
+}

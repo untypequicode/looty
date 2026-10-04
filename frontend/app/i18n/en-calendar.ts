@@ -1,0 +1,26 @@
+export default {
+  home: { upcoming: 'Upcoming', noEvents: 'Nothing planned today or tomorrow' },
+  errors: {
+    calendar_too_many: 'Too many calendars (30 max)', calendar_auth_failed: 'The calendar server refused the credentials',
+    calendar_not_ics: 'This link doesn’t point to an ICS calendar', calendar_http_error: 'The calendar server returned an error',
+    calendar_secret_unreadable: 'Stored address unreadable: add the calendar again', invalid_range: 'Invalid date range',
+  },
+  calendar: {
+    title: 'Calendar', calendars: 'Calendars', today: 'Today', previous: 'Previous', next: 'Next',
+    week: 'Week', month: 'Month', agenda: 'Agenda', addShort: 'Calendar', allDay: 'All day', due: 'Due',
+    group: { shared: 'Workspace', personal: 'Personal' },
+    empty: { shared: 'No shared calendar.', personal: 'No personal calendar.' },
+    other: 'Other', myTasks: 'My tasks (due dates)', untitled: '(No title)', openLink: 'Open link',
+    nothing: 'Nothing planned', nothingHint: 'Add a calendar: your university timetable (ICS link), a CalDAV account…',
+    refresh: 'Refresh now', synced: '{n} event(s) synced', syncFailed: 'could not be synced (check the address)',
+    deleteTitle: 'Remove “{name}”?', deleteShared: 'It will be removed for all members of this workspace.',
+    addTitle: 'Add a calendar', addHint: 'Events are shown read-only and refreshed every 15 minutes.',
+    visibility: 'Visible to', personal: 'Only me', shared: 'Everyone in this workspace',
+    personalHint: 'Your own calendar, visible only to you (in all your workspaces).',
+    sharedHint: 'Shown to every member of this workspace, e.g. the university timetable.',
+    type: 'Type', ics: 'ICS link', icsHint: 'Subscription URL (.ics or webcal://)', caldavHint: 'Nextcloud, iCloud, Fastmail… account',
+    icsUrl: 'Calendar address', server: 'CalDAV server', username: 'Username', password: 'Password or app password',
+    find: 'Find my calendars', noneFound: 'No calendar found on this account.',
+    name: 'Name and color', namePlaceholder: 'e.g. University timetable', add: 'Add', added: 'Calendar added ({n} events)',
+  },
+}

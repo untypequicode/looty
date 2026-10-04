@@ -50,7 +50,7 @@ pub(crate) fn is_private(ip: IpAddr) -> bool {
 
 /// Vérifie qu'une URL peut être contactée par le serveur : https (ou http si réseau privé
 /// autorisé) et adresse publique, sauf si `CALDAV_ALLOW_PRIVATE=true`.
-async fn check_url(raw: &str) -> ApiResult<Url> {
+pub(crate) async fn check_url(raw: &str) -> ApiResult<Url> {
     let url = Url::parse(raw.trim()).map_err(|_| ApiError::bad_request("caldav_invalid_url"))?;
     let private_ok = allow_private();
     match url.scheme() {
@@ -92,21 +92,21 @@ fn http() -> &'static reqwest::Client {
 // ---------------------------------------------------------------------------
 
 #[derive(Clone)]
-struct Dav {
-    user: String,
-    pass: String,
+pub(crate) struct Dav {
+    pub(crate) user: String,
+    pub(crate) pass: String,
 }
 
-struct DavResponse {
-    status: StatusCode,
-    etag: Option<String>,
-    body: String,
-    url: Url,
+pub(crate) struct DavResponse {
+    pub(crate) status: StatusCode,
+    pub(crate) etag: Option<String>,
+    pub(crate) body: String,
+    pub(crate) url: Url,
 }
 
 impl Dav {
     /// Requête avec suivi manuel des redirections (chaque cible est revérifiée).
-    async fn send(&self, method: &str, url: &Url, depth: Option<&str>, body: Option<String>, extra: &[(header::HeaderName, String)]) -> ApiResult<DavResponse> {
+    pub(crate) async fn send(&self, method: &str, url: &Url, depth: Option<&str>, body: Option<String>, extra: &[(header::HeaderName, String)]) -> ApiResult<DavResponse> {
         let mut target = url.clone();
         for _ in 0..4 {
             let m = Method::from_bytes(method.as_bytes()).unwrap();
@@ -162,10 +162,10 @@ impl Dav {
 
 /// Une entrée `<d:response>` d'une réponse multistatus.
 #[derive(Debug, Default)]
-struct MsResponse {
-    href: String,
+pub(crate) struct MsResponse {
+    pub(crate) href: String,
     /// propriété (nom local) -> texte
-    props: HashMap<String, String>,
+    pub(crate) props: HashMap<String, String>,
     /// propriété -> hrefs imbriqués (current-user-principal, calendar-home-set)
     hrefs: HashMap<String, Vec<String>>,
     /// nom local des éléments de resourcetype
@@ -174,7 +174,7 @@ struct MsResponse {
     comps: Vec<String>,
 }
 
-fn parse_multistatus(xml: &str) -> ApiResult<Vec<MsResponse>> {
+pub(crate) fn parse_multistatus(xml: &str) -> ApiResult<Vec<MsResponse>> {
     let doc = roxmltree::Document::parse(xml).map_err(|_| ApiError::bad_request("caldav_bad_xml"))?;
     let mut out = Vec::new();
     for resp in doc.descendants().filter(|n| n.is_element() && n.tag_name().name() == "response") {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isDesktop, openInDesktop } from '~/composables/useDesktop'
 import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow } from 'lucide-vue-next'
-import { useDebounceFn } from '@vueuse/core'
+import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
 import { CalendarSync } from 'lucide-vue-next'
 import { api } from '~/composables/api'
@@ -19,6 +19,13 @@ import { toast } from '~/composables/useToast'
 
 const props = defineProps<{ board: Board; taskId: string; order: string[]; canWrite: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'navigate', id: string): void }>()
+
+// Clic à côté du panneau : il se ferme. Sauf sur une autre tâche (le panneau passe à
+// celle-ci) et dans les menus, sélecteurs et fenêtres ouverts depuis le panneau.
+const panelEl = ref<HTMLElement | null>(null)
+onClickOutside(panelEl, () => emit('close'), {
+  ignore: ['[data-task-id]', '.tl-name', '.tl-bar', '.popover', '.menu', '.combo', '[role="dialog"]', '.dialog-overlay', '.toast', '.toaster'],
+})
 
 const { wsId, member } = useWorkspace()
 const { user } = useAuth()
@@ -150,7 +157,7 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
 </script>
 
 <template>
-  <aside class="panel" :class="{ mobile: isMobile }" role="dialog" :aria-label="task?.title">
+  <aside ref="panelEl" class="panel" :class="{ mobile: isMobile }" role="dialog" :aria-label="task?.title">
     <header class="panel-head">
       <nav class="panel-crumbs">
         <NuxtLink :to="links.board(wsId, board.id)" class="crumb"><Kanban :size="13" /> {{ board.name }}</NuxtLink>
