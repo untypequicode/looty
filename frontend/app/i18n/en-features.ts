@@ -1,4 +1,14 @@
 export default {
+  graph: {
+    title: 'Graph', search: 'Find an item…', filters: 'Filters', fit: 'Fit to screen', graphView: 'Graph', listView: 'List',
+    opt: { tasks: 'Tasks', done: 'Completed tasks', boards: 'Boards', hierarchy: 'Hierarchy (sub-pages, boards)', orphans: 'Unlinked items', local: 'Only around the selection' },
+    kinds: { page: 'Document', task: 'Task', board: 'Board' }, done: 'Completed', relation: 'Relation',
+    hint: 'Double-click to open · Shift+drag from one item to another to link them', hintRead: 'Double-click to open',
+    count: '{nodes} items, {edges} links', aria: 'Graph of the workspace: {nodes} items and {edges} links (the list view shows the same data)',
+    col: { name: 'Name', type: 'Type', links: 'Links' }, open: 'Open', related: 'Related', noRelated: 'No links yet.',
+    linkedFrom: 'links here', linksTo: 'linked', linkTo: 'Link to…', unlink: 'Remove the relation', linked: '“{a}” and “{b}” are now linked',
+    showInGraph: 'Show in graph',
+  },
   tabs: {
     title: 'Tabs', new: 'New tab', close: 'Close tab', closeOthers: 'Close other tabs', closeRight: 'Close tabs to the right',
     duplicate: 'Duplicate tab', openInNew: 'Open in new tab', opened: 'Opened in a new tab',
@@ -10,7 +20,7 @@ export default {
     currently: 'Currently on', join: 'Join', follow: 'Follow', stopFollowing: 'Stop following', activity: 'Activity',
     recent: 'Recent activity', noActivity: 'No recent activity.', hidden: 'Location hidden', privateDoc: 'A private document',
     followingName: 'Following {name}', followEnded: '{name} went offline: follow mode stopped',
-    screens: { home: 'Home', calendar: 'Calendar', mail: 'Mail', inbox: 'Inbox', 'my-tasks': 'My tasks', docs: 'All documents', trash: 'Trash', settings: 'Settings', activity: 'Activity' },
+    screens: { graph: 'Graph', home: 'Home', calendar: 'Calendar', mail: 'Mail', inbox: 'Inbox', 'my-tasks': 'My tasks', docs: 'All documents', trash: 'Trash', settings: 'Settings', activity: 'Activity' },
     share: 'Show where I am', shareHint: 'Other members see which document, board or task you have open.',
   },
   feed: {

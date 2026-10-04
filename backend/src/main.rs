@@ -17,6 +17,7 @@ mod trash;
 mod storage;
 mod events;
 mod activity;
+mod graph;
 mod notifications;
 mod push;
 mod page;
@@ -110,6 +111,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/trash", trash::workspace_routes())
         .nest("/workspaces/:workspace_id/events", events::workspace_routes())
         .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
+        .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
 

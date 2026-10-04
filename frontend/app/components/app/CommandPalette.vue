@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import {
   Search, Home, Inbox, CircleUserRound, FileText, Kanban, SquarePen, FilePlus2, Plus, Settings,
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
-  BookOpen, PencilLine, Activity,
+  BookOpen, PencilLine, Activity, Waypoints,
 } from 'lucide-vue-next'
 import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { refDebounced } from '@vueuse/core'
@@ -66,6 +66,7 @@ const staticCommands = computed<Cmd[]>(() => {
     { id: 'home', group: nav, label: t('nav.home'), icon: Home, shortcut: ['G', 'H'], run: () => go(links.home(wsId.value)) },
     { id: 'inbox', group: nav, label: t('nav.inbox'), icon: Inbox, shortcut: ['G', 'I'], run: () => go(links.inbox(wsId.value)) },
     { id: 'my', group: nav, label: t('nav.myTasks'), icon: CircleUserRound, shortcut: ['G', 'M'], run: () => go(links.myTasks(wsId.value)) },
+    { id: 'graph', group: nav, label: t('graph.title'), icon: Waypoints, keywords: 'graphe links liens obsidian', run: () => go(`/w/${wsId.value}/graph`) },
     { id: 'activity', group: nav, label: t('feed.title'), icon: Activity, keywords: 'activité history historique', run: () => go(`/w/${wsId.value}/activity`) },
     { id: 'docs', group: nav, label: t('nav.allDocs'), icon: FileText, shortcut: ['G', 'D'], run: () => go(links.docs(wsId.value)) },
     { id: 'settings', group: nav, label: t('nav.settings'), icon: Settings, shortcut: ['G', 'S'], run: () => go(links.settings(wsId.value)) },

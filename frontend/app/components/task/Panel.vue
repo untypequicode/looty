@@ -206,6 +206,7 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
             @open="(s) => emit('navigate', s.id)"
           />
           <TaskAttachments :task-id="task.id" :can-write="canWrite" />
+          <GraphRelatedPanel kind="task" :id="task.id" compact />
           <TaskActivity :task-id="task.id" :board="board" :can-write="canWrite" />
         </div>
 
