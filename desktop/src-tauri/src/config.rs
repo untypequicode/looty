@@ -23,6 +23,9 @@ pub struct Config {
     /// Port local (stable : l'origine de la vue web, donc ses données, en dépend).
     #[serde(default)]
     pub port: Option<u16>,
+    /// Dernière version de l'application déjà annoncée (une seule notification par version).
+    #[serde(default)]
+    pub notified_update: Option<String>,
 }
 
 fn yes() -> bool {
@@ -31,7 +34,7 @@ fn yes() -> bool {
 
 impl Default for Config {
     fn default() -> Self {
-        Config { server: None, close_to_tray: true, notifications: true, port: None }
+        Config { server: None, close_to_tray: true, notifications: true, port: None, notified_update: None }
     }
 }
 

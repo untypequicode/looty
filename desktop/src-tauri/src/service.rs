@@ -65,6 +65,8 @@ pub struct Service {
     /// Préférences push par type d'événement (rechargées périodiquement).
     push_prefs: Mutex<HashMap<String, bool>>,
     pub notifications_enabled: Mutex<bool>,
+    /// Dernière vérification d'une nouvelle version de l'application.
+    update_checked: Mutex<Option<std::time::Instant>>,
 }
 
 #[derive(Deserialize)]
@@ -90,6 +92,7 @@ impl Service {
             refresh: Notify::new(),
             push_prefs: Mutex::new(HashMap::new()),
             notifications_enabled: Mutex::new(notifications_enabled),
+            update_checked: Mutex::new(None),
         });
         let s = svc.clone();
         tauri::async_runtime::spawn(async move { s.run().await });
@@ -139,6 +142,31 @@ impl Service {
         offline.queue("PUT", path, body).is_some()
     }
 
+    /// Nouvelle version de l'application publiée (selon le serveur) : une notification
+    /// système par version, au plus une vérification toutes les 6 heures.
+    async fn check_update(&self, workspace_id: &str) {
+        {
+            let mut last = self.update_checked.lock().unwrap();
+            if last.is_some_and(|t| t.elapsed() < Duration::from_secs(6 * 3600)) {
+                return;
+            }
+            *last = Some(std::time::Instant::now());
+        }
+        let Some(v) = self.get_json("/api/releases").await else { return };
+        let Some(latest) = v["latest"]["desktop"]["version"].as_str().map(str::to_string) else { return };
+        if !newer(&latest, env!("CARGO_PKG_VERSION")) {
+            return;
+        }
+        let mut cfg = crate::config::Config::load();
+        if cfg.notified_update.as_deref() == Some(latest.as_str()) {
+            return;
+        }
+        cfg.notified_update = Some(latest.clone());
+        let _ = cfg.save();
+        let body = if french() { format!("Looty {latest} est disponible : voyez les nouveautés et comment mettre à jour.") } else { format!("Looty {latest} is available: see what's new and how to update.") };
+        (self.ui.notify)(OsNotification { title: "Looty".into(), body, path: format!("/w/{workspace_id}/whats-new") });
+    }
+
     async fn workspaces(&self) -> Option<Vec<Workspace>> {
         let v = self.get_json("/api/workspaces").await?;
         serde_json::from_value(v["workspaces"].clone()).ok()
@@ -186,6 +214,9 @@ impl Service {
                     }
                     let state = self.tray_state(&ws).await;
                     (self.ui.tray)(state);
+                    if let Some(first) = ws.first() {
+                        self.check_update(&first.id).await;
+                    }
                 }
             } else {
                 (self.ui.tray)(TrayState::default());
@@ -335,6 +366,15 @@ fn target_path(ws: &str, target: &str, data: &serde_json::Value) -> String {
         "mail" => format!("/w/{ws}/mail?account={id}"),
         _ => format!("/w/{ws}/inbox"),
     }
+}
+
+/// `a` est-elle une version plus récente que `b` (x.y.z) ?
+fn newer(a: &str, b: &str) -> bool {
+    let p = |v: &str| -> (u32, u32, u32) {
+        let mut it = v.trim_start_matches('v').split(['.', '-']).map(|x| x.parse().unwrap_or(0));
+        (it.next().unwrap_or(0), it.next().unwrap_or(0), it.next().unwrap_or(0))
+    };
+    p(a) > p(b)
 }
 
 pub fn french() -> bool {

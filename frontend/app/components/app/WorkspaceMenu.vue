@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ChevronDown, Check, Plus, Settings, UserPlus, LogOut, Sun, Moon, Monitor, Languages, Shield } from 'lucide-vue-next'
+import { ChevronDown, Check, Plus, Settings, UserPlus, LogOut, Sun, Moon, Monitor, Languages, Shield, Sparkles } from 'lucide-vue-next'
+import { useReleases } from '~/composables/useReleases'
 import { useWorkspaces, useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useTheme } from '~/composables/useTheme'
@@ -13,6 +14,7 @@ const { wsId, workspace, isAdmin } = useWorkspace()
 const { user, logout } = useAuth()
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
+const { appUpdate } = useReleases()
 const open = ref(false)
 const createOpen = ref(false)
 const newName = ref('')
@@ -77,6 +79,7 @@ async function createWorkspace() {
       <button class="ws-row" @click="open = false; createOpen = true"><Plus :size="15" class="faint" />{{ t('workspace.create') }}</button>
       <div class="ws-sep" />
       <button class="ws-row" @click="go(links.settings(wsId, 'profile'))"><Settings :size="15" class="faint" />{{ t('nav.settings') }}</button>
+      <button class="ws-row" @click="go(`/w/${wsId}/whats-new`)"><Sparkles :size="15" class="faint" />{{ t('releases.whatsNew') }}<span v-if="appUpdate" class="ws-badge">{{ t('releases.updateShort') }}</span></button>
       <button v-if="isAdmin" class="ws-row" @click="go(links.settings(wsId, 'members'))"><UserPlus :size="15" class="faint" />{{ t('workspace.inviteMembers') }}</button>
       <button v-if="user?.is_super_admin" class="ws-row" @click="go(links.settings(wsId, 'admin'))"><Shield :size="15" class="faint" />{{ t('nav.admin') }}</button>
       <div class="ws-sep" />
@@ -138,6 +141,7 @@ async function createWorkspace() {
 .ws-logo.sm { width: 18px; height: 18px; font-size: 10px; }
 .ws-name { font-size: var(--fs-md); }
 .ws-menu { padding: 4px; }
+.ws-badge { margin-left: auto; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: var(--r-full); background: var(--accent); color: #fff; }
 .ws-user { display: flex; align-items: center; gap: 10px; padding: 8px; }
 .ws-user-name { font-weight: 500; }
 .ws-user-mail { font-size: var(--fs-sm); color: var(--text-3); }

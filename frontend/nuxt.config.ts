@@ -13,6 +13,9 @@ export default defineNuxtConfig({
   // Application entièrement authentifiée, temps réel et riche en éditeurs : rendu client.
   ssr: false,
 
+  // Nouvelle version déployée : détectée toutes les 10 minutes (bandeau « Recharger »).
+  experimental: { checkOutdatedBuildInterval: 10 * 60 * 1000 },
+
   css: ['~/assets/css/tokens.css', '~/assets/css/base.css', '~/assets/css/prose.css'],
 
   app: {
