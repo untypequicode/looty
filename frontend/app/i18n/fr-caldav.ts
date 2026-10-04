@@ -20,7 +20,7 @@ export default {
       revokeTitle: 'Révoquer « {name} » ?', revokeMessage: 'L’appareil qui utilise ce mot de passe ne pourra plus se synchroniser.',
       howTitle: 'Ce que vous obtenez',
       how1: '« Looty · Mes tâches » contient toutes les tâches qui vous sont assignées, dans tous les espaces.',
-      how2: 'Chaque tableau accessible est aussi une liste de tâches : les tâches qui y sont créées arrivent dans sa première colonne.',
+      how2: 'Chaque tableau accessible est aussi une liste de tâches : les tâches qui y sont créées arrivent dans sa première colonne. Chaque espace a aussi un calendrier d’événements partagé (« Espace · Calendrier »), consultable et modifiable par ses membres.',
       how3: 'Titre, description, dates, priorité et achèvement modifiés dans l’application sont appliqués dans Looty, avec l’historique.',
       how4: 'Supprimer une tâche dans la liste d’un tableau la supprime ; dans « Mes tâches », cela vous désassigne seulement.',
     },

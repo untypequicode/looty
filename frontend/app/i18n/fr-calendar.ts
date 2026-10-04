@@ -1,11 +1,24 @@
 export default {
+  event: {
+    new: 'Événement', newTitle: 'Nouvel événement', editTitle: 'Modifier l’événement', titlePlaceholder: 'Titre de l’événement',
+    sharedHint: 'Visible par tous les membres de l’espace, et dans leurs applications de calendrier (CalDAV).', seriesHint: 'Les modifications s’appliquent à toutes les occurrences.',
+    starts: 'Début', ends: 'Fin', noRepeat: 'Ne se répète pas', daily: 'Tous les jours', weekly: 'Toutes les semaines', monthly: 'Tous les mois', yearly: 'Tous les ans',
+    custom: 'Répétition personnalisée (conservée)', customHint: 'Cette répétition a été définie dans une application de calendrier (exceptions, jours précis…). Elle est conservée telle quelle.',
+    every: 'tous les', until: 'jusqu’au', location: 'Lieu', description: 'Description',
+    created: 'Événement créé', saved: 'Événement enregistré', recurring: 'Événement récurrent',
+    editSeries: 'Modifier la série', deleteOne: 'Cette occurrence', deleteAll: 'Toutes les occurrences',
+    deleteTitle: 'Supprimer « {title} » ?', deleteOneTitle: 'Supprimer cette occurrence ?', deleteSeries: 'Toutes les occurrences de la série seront supprimées.',
+    shareHint: 'L’utiliser dans votre application de calendrier (CalDAV)',
+  },
   home: { upcoming: 'À venir', noEvents: 'Rien de prévu aujourd’hui ni demain' },
   errors: {
+    event_invalid: 'Vérifiez le titre et les dates de l’événement', event_too_many: 'Trop d’événements dans cet espace',
     calendar_too_many: 'Trop de calendriers (30 max.)', calendar_auth_failed: 'Le serveur de calendrier a refusé les identifiants',
     calendar_not_ics: 'Ce lien ne mène pas à un calendrier ICS', calendar_http_error: 'Le serveur de calendrier a renvoyé une erreur',
     calendar_secret_unreadable: 'Adresse enregistrée illisible : ajoutez de nouveau le calendrier', invalid_range: 'Période invalide',
   },
   calendar: {
+    workspaceCal: 'Calendrier de l’espace',
     title: 'Calendrier', calendars: 'Calendriers', today: 'Aujourd’hui', previous: 'Précédent', next: 'Suivant',
     week: 'Semaine', month: 'Mois', agenda: 'Agenda', addShort: 'Calendrier', allDay: 'Journée', due: 'Échéance',
     group: { shared: 'Espace de travail', personal: 'Personnels' },

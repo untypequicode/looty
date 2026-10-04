@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock } from 'lucide-vue-next'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2 } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api } from '~/composables/api'
@@ -10,12 +10,12 @@ import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import {
   useCalendars, useCalendarEvents, useCalendarPrefs, useCalendarInvalidate,
-  startOfDay, startOfWeek, addDays, sameDay, onDay, eventDays, type CalEvent, type CalTask, type CalendarSource,
+  startOfDay, startOfWeek, addDays, sameDay, onDay, eventDays, WORKSPACE_CAL, type CalEvent, type CalTask, type CalendarSource, type EventDetail,
 } from '~/composables/useCalendar'
 
 definePageMeta({ layout: 'workspace' })
 
-const { wsId } = useWorkspace()
+const { wsId, workspace, canWrite } = useWorkspace()
 const { t, locale } = useI18n()
 const { isMobile } = useBreakpoint()
 const view = useLocalStorage<'month' | 'week' | 'agenda'>('looty.calendar.view', 'week')
@@ -49,7 +49,49 @@ const { data, isFetching } = useCalendarEvents(wsId, from, to)
 const calById = computed(() => new Map((calendars.value ?? []).map((c) => [c.id, c])))
 const events = computed(() => (data.value?.events ?? []).filter((e) => !hiddenIds.value.has(e.calendar_id)))
 const tasks = computed(() => (showTasks.value ? data.value?.tasks ?? [] : []))
-const color = (e: CalEvent) => calById.value.get(e.calendar_id)?.color ?? 'var(--accent)'
+const color = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? 'var(--accent)' : calById.value.get(e.calendar_id)?.color ?? 'var(--accent)')
+const calName = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? `${workspace.data.value?.name ?? ''} · ${t('calendar.workspaceCal')}` : calById.value.get(e.calendar_id)?.name)
+
+// --- Calendrier de l'espace : création, modification, suppression ---
+const evOpen = ref(false)
+const evEdit = ref<EventDetail | null>(null)
+const evDefaults = ref<{ start: Date; allDay?: boolean } | null>(null)
+function newEvent(start?: Date, allDay = false) {
+  if (!canWrite.value) return
+  const d = start ?? (() => { const n = new Date(); n.setMinutes(n.getMinutes() < 30 ? 30 : 60, 0, 0); return n })()
+  evEdit.value = null
+  evDefaults.value = { start: d, allDay }
+  evOpen.value = true
+}
+async function editEvent(e: CalEvent) {
+  if (!e.event_id) return
+  detailOpen.value = false
+  evEdit.value = await api<EventDetail>(`/api/workspaces/${wsId.value}/events/${e.event_id}`)
+  evOpen.value = true
+}
+async function deleteEvent(e: CalEvent, scope: 'one' | 'all') {
+  if (!e.event_id) return
+  const one = scope === 'one' && e.recurring
+  if (!(await confirmDialog({ title: one ? t('event.deleteOneTitle') : t('event.deleteTitle', { title: e.summary || t('calendar.untitled') }), message: one ? eventWhen(e) : e.recurring ? t('event.deleteSeries') : '', danger: true, confirmLabel: t('common.delete') }))) return
+  detailOpen.value = false
+  await api(`/api/workspaces/${wsId.value}/events/${e.event_id}${one ? `?occurrence=${encodeURIComponent(e.starts_at)}` : ''}`, { method: 'DELETE' })
+  invalidate(wsId.value)
+}
+/** Clic dans une colonne de la semaine : nouvel événement à l'heure visée (par demi-heure). */
+function clickSlot(day: Date, ev: MouseEvent) {
+  if ((ev.target as HTMLElement).closest('.wk-ev')) return
+  const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  const minutes = Math.max(0, Math.min(23.5 * 60, Math.floor(((ev.clientY - rect.top) / HOUR) * 2) * 30))
+  const d = new Date(day)
+  d.setHours(0, minutes, 0, 0)
+  newEvent(d)
+}
+function clickDay(day: Date, ev: MouseEvent, allDay: boolean) {
+  if (ev.target !== ev.currentTarget) return
+  const d = new Date(day)
+  d.setHours(9, 0, 0, 0)
+  newEvent(d, allDay)
+}
 
 function move(dir: number) {
   const c = cursor.value
@@ -171,13 +213,21 @@ useHead({ title: () => t('calendar.title') })
       <RefreshCw v-if="isFetching" :size="13" class="spin faint" />
       <span class="grow" />
       <UiSegmented v-model="view" :options="[...(isMobile ? [] : [{ value: 'week' as const, label: t('calendar.week') }]), { value: 'month' as const, label: t('calendar.month') }, { value: 'agenda' as const, label: t('calendar.agenda') }]" />
-      <UiButton size="sm" variant="primary" :icon="Plus" @click="addOpen = true">{{ isMobile ? '' : t('calendar.addShort') }}</UiButton>
+      <UiTooltip :text="t('calendar.addTitle')"><UiButton size="sm" variant="ghost" :icon="CalendarPlus" :aria-label="t('calendar.addTitle')" @click="addOpen = true" /></UiTooltip>
+      <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" @click="newEvent()">{{ isMobile ? '' : t('event.new') }}</UiButton>
     </AppPageHeader>
 
     <div class="cal" :class="{ side: sideOpen }">
       <aside v-if="sideOpen" class="cal-side">
         <template v-for="grp in [{ key: 'shared', icon: Users, list: shared }, { key: 'personal', icon: Lock, list: personal }]" :key="grp.key">
           <div class="cs-head"><component :is="grp.icon" :size="12" /> {{ t(`calendar.group.${grp.key}`) }}</div>
+          <div v-if="grp.key === 'shared'" class="cs-item">
+            <button class="cs-toggle" @click="toggle(WORKSPACE_CAL)">
+              <span class="cs-box" :style="{ background: hiddenIds.has(WORKSPACE_CAL) ? 'transparent' : 'var(--accent)', borderColor: 'var(--accent)' }" />
+              <span class="truncate">{{ t('calendar.workspaceCal') }}</span>
+            </button>
+            <UiTooltip :text="t('event.shareHint')"><UiButton size="xs" variant="ghost" :icon="Share2" class="cs-more" :to="`/w/${wsId}/settings/calendars`" :aria-label="t('event.shareHint')" /></UiTooltip>
+          </div>
           <div v-for="c in grp.list" :key="c.id" class="cs-item">
             <button class="cs-toggle" :title="c.url_host" @click="toggle(c.id)">
               <span class="cs-box" :style="{ background: hiddenIds.has(c.id) ? 'transparent' : c.color, borderColor: c.color }" />
@@ -188,7 +238,7 @@ useHead({ title: () => t('calendar.title') })
               <UiButton size="xs" variant="ghost" :icon="MoreHorizontal" class="cs-more" />
             </UiMenu>
           </div>
-          <p v-if="!grp.list.length" class="cs-empty">{{ t(`calendar.empty.${grp.key}`) }}</p>
+          <p v-if="!grp.list.length && grp.key !== 'shared'" class="cs-empty">{{ t(`calendar.empty.${grp.key}`) }}</p>
         </template>
         <div class="cs-head">{{ t('calendar.other') }}</div>
         <button class="cs-toggle" @click="showTasks = !showTasks">
@@ -207,7 +257,7 @@ useHead({ title: () => t('calendar.title') })
         </div>
         <div class="wk-allday">
           <div class="wk-gutter faint">{{ t('calendar.allDay') }}</div>
-          <div v-for="d in weekDays" :key="+d" class="wk-cell">
+          <div v-for="d in weekDays" :key="+d" class="wk-cell" :class="{ add: canWrite }" @click="clickDay(d, $event, true)">
             <button v-for="e in events.filter((e) => e.all_day && onDay(e, d))" :key="e.id" class="chip filled" :style="{ background: color(e) }" @click="openEvent(e, $event)">{{ e.summary }}</button>
             <NuxtLink v-for="tk in tasks.filter((tk) => sameDay(new Date(tk.due_date), d))" :key="tk.id" :to="taskLink(tk)" class="chip task" :class="{ done: tk.is_completed }">
               <CheckCircle2 v-if="tk.is_completed" :size="12" /><Circle v-else :size="12" />{{ tk.title }}
@@ -218,7 +268,7 @@ useHead({ title: () => t('calendar.title') })
           <div class="wk-hours">
             <div v-for="h in 24" :key="h" class="wk-hour" :style="{ height: `${HOUR}px` }"><span v-if="h > 1">{{ String(h - 1).padStart(2, '0') }}:00</span></div>
           </div>
-          <div v-for="d in weekDays" :key="+d" class="wk-col" :style="{ height: `${HOUR * 24}px` }">
+          <div v-for="d in weekDays" :key="+d" class="wk-col" :class="{ add: canWrite }" :style="{ height: `${HOUR * 24}px` }" @click="clickSlot(d, $event)">
             <div v-for="h in 24" :key="h" class="wk-line" :style="{ top: `${(h - 1) * HOUR}px` }" />
             <div v-if="sameDay(d, today)" class="wk-now" :style="{ top: `${nowTop}px` }" />
             <button
@@ -239,7 +289,7 @@ useHead({ title: () => t('calendar.title') })
       <div v-else-if="view === 'month'" class="mo">
         <div class="mo-head"><span v-for="w in weekdays" :key="w">{{ w }}</span></div>
         <div class="mo-grid">
-          <div v-for="d in monthDays" :key="+d" class="mo-cell" :class="{ out: d.getMonth() !== cursor.getMonth(), today: sameDay(d, today) }">
+          <div v-for="d in monthDays" :key="+d" class="mo-cell" :class="{ out: d.getMonth() !== cursor.getMonth(), today: sameDay(d, today), add: canWrite }" @click="clickDay(d, $event, false)">
             <button class="mo-num" @click="cursor = d; view = isMobile ? 'agenda' : 'week'">{{ d.getDate() }}</button>
             <template v-for="(it, i) in [...dayItems(d).ev.map((e) => ({ e })), ...dayItems(d).tk.map((tk) => ({ tk }))]" :key="i">
               <template v-if="i < 3">
@@ -259,7 +309,7 @@ useHead({ title: () => t('calendar.title') })
       <!-- Agenda -->
       <div v-else class="ag">
         <UiEmpty v-if="!agenda.length" :icon="CalendarDays" :title="t('calendar.nothing')" :description="(calendars?.length ?? 0) ? '' : t('calendar.nothingHint')">
-          <UiButton v-if="!(calendars?.length)" variant="primary" :icon="Plus" @click="addOpen = true">{{ t('calendar.addShort') }}</UiButton>
+          <UiButton v-if="canWrite" variant="primary" :icon="Plus" @click="newEvent()">{{ t('event.new') }}</UiButton>
         </UiEmpty>
         <section v-for="g in agenda" :key="+g.day" class="ag-day">
           <h3 :class="{ today: sameDay(g.day, today) }">{{ fmt({ weekday: 'long', day: 'numeric', month: 'long' }, g.day) }}</h3>
@@ -284,12 +334,22 @@ useHead({ title: () => t('calendar.title') })
         <div class="ev-head"><span class="ev-dot" :style="{ background: color(detail) }" /><h4>{{ detail.summary || t('calendar.untitled') }}</h4></div>
         <p class="ev-when">{{ eventWhen(detail) }}</p>
         <p v-if="detail.location" class="ev-line"><MapPin :size="13" /> {{ detail.location }}</p>
-        <p class="ev-line faint"><CalendarDays :size="13" /> {{ calById.get(detail.calendar_id)?.name }}</p>
+        <p class="ev-line faint"><CalendarDays :size="13" /> {{ calName(detail) }}</p>
+        <p v-if="detail.recurring" class="ev-line faint"><Repeat :size="13" /> {{ t('event.recurring') }}</p>
         <p v-if="detail.description" class="ev-desc">{{ detail.description }}</p>
         <a v-if="detail.url" :href="detail.url" target="_blank" rel="noopener noreferrer" class="ev-link"><ExternalLink :size="13" /> {{ t('calendar.openLink') }}</a>
+        <div v-if="detail.calendar_id === WORKSPACE_CAL && detail.can_edit" class="ev-actions">
+          <UiButton size="sm" :icon="Pencil" @click="editEvent(detail)">{{ detail.recurring ? t('event.editSeries') : t('common.edit') }}</UiButton>
+          <template v-if="detail.recurring">
+            <UiButton size="sm" variant="ghost" :icon="Trash2" @click="deleteEvent(detail, 'one')">{{ t('event.deleteOne') }}</UiButton>
+            <UiButton size="sm" variant="ghost" @click="deleteEvent(detail, 'all')">{{ t('event.deleteAll') }}</UiButton>
+          </template>
+          <UiButton v-else size="sm" variant="ghost" :icon="Trash2" @click="deleteEvent(detail, 'all')">{{ t('common.delete') }}</UiButton>
+        </div>
       </div>
     </UiPopover>
     <CalendarAddDialog v-model:open="addOpen" />
+    <CalendarEventDialog v-model:open="evOpen" :event="evEdit" :defaults="evDefaults" />
   </div>
 </template>
 
@@ -312,6 +372,8 @@ useHead({ title: () => t('calendar.title') })
 .cs-err { color: var(--orange, #e2a03f); flex-shrink: 0; }
 .cs-empty { margin: 0 6px; font-size: var(--fs-sm); color: var(--text-3); }
 .cal-side > .cs-toggle { flex: none; }
+.wk-col.add, .wk-cell.add, .mo-cell.add { cursor: cell; }
+.ev-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 
 .chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 1px 6px; border-radius: 4px; font-size: 12px; line-height: 18px; text-align: left; color: var(--text); }
 .chip:hover { background: var(--bg-hover); }
