@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod config;
+mod offline;
 mod proxy;
 mod service;
 mod tray;
@@ -285,6 +286,24 @@ fn main() {
                             s.refresh_soon();
                         }
                     });
+                }),
+                // Modifications hors ligne synchronisées : notification (refus compris).
+                synced: Box::new({
+                    let h = handle.clone();
+                    move |sent, refused| {
+                        if sent == 0 && refused == 0 {
+                            return;
+                        }
+                        let body = match (sent, refused, french()) {
+                            (s, 0, true) => format!("{s} modification(s) faite(s) hors ligne synchronisée(s)."),
+                            (s, 0, false) => format!("{s} offline change(s) synced."),
+                            (0, r, true) => format!("{r} modification(s) hors ligne refusée(s) par le serveur."),
+                            (0, r, false) => format!("{r} offline change(s) refused by the server."),
+                            (s, r, true) => format!("{s} modification(s) synchronisée(s), {r} refusée(s) par le serveur."),
+                            (s, r, false) => format!("{s} change(s) synced, {r} refused by the server."),
+                        };
+                        tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into() });
+                    }
                 }),
                 quick_add_closed: Box::new(move |created| {
                     let h = qa_handle.clone();

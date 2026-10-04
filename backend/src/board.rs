@@ -725,6 +725,8 @@ async fn delete_label(
 
 #[derive(Deserialize)]
 pub struct CreateTaskReq {
+    /// Identifiant choisi par le client (application hors ligne) : création idempotente.
+    pub id: Option<Uuid>,
     pub title: String,
     pub description: Option<String>,
     pub start_date: Option<DateTime<Utc>>,
@@ -758,6 +760,12 @@ async fn create_task(
     let pool = &state.pool;
     let ctx = column_ctx(pool, column_id).await?;
     require_writer(pool, &user, ctx.workspace_id).await?;
+    // Rejeu d'une création faite hors ligne : la tâche existe déjà ?
+    if let Some(id) = req.id {
+        if let Ok(existing) = task_ctx(pool, id).await {
+            return if existing.workspace_id == ctx.workspace_id { Ok(Json(load_task_enriched(pool, id).await?)) } else { Err(ApiError::Conflict("id_taken".into())) };
+        }
+    }
     let title = check_name(&req.title, 255)?;
     let priority = check_priority(req.priority.unwrap_or(0))?;
 
@@ -772,8 +780,8 @@ async fn create_task(
 
     let mut tx = pool.begin().await?;
     let task_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO tasks (column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true)) RETURNING id",
+        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations)
+         VALUES (COALESCE($10, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true)) RETURNING id",
     )
     .bind(column_id)
     .bind(&title)
@@ -784,6 +792,7 @@ async fn create_task(
     .bind(priority)
     .bind(req.is_per_person)
     .bind(req.require_all_validations)
+    .bind(req.id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1397,6 +1406,8 @@ pub struct TaskComment {
 
 #[derive(Deserialize)]
 pub struct CommentBody {
+    /// Identifiant choisi par le client (application hors ligne) : création idempotente.
+    pub id: Option<Uuid>,
     pub content: String,
 }
 
@@ -1469,13 +1480,24 @@ async fn add_task_comment(
     // Les lecteurs peuvent commenter (comme dans Linear), mais doivent être membres.
     require_member(pool, &user, ctx.workspace_id).await?;
     let content = comment_content(&payload.content)?;
+    // Rejeu d'un commentaire écrit hors ligne : déjà enregistré ?
+    if let Some(id) = payload.id {
+        let existing: Option<TaskComment> = sqlx::query_as("SELECT id, task_id, user_id, content, created_at, updated_at FROM task_comments WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+        if let Some(c) = existing {
+            return if c.task_id == task_id && c.user_id == user.id.to_string() { Ok(Json(c)) } else { Err(ApiError::Conflict("id_taken".into())) };
+        }
+    }
     let comment: TaskComment = sqlx::query_as(
-        "INSERT INTO task_comments (task_id, user_id, content) VALUES ($1, $2, $3)
+        "INSERT INTO task_comments (id, task_id, user_id, content) VALUES (COALESCE($4, gen_random_uuid()), $1, $2, $3)
          RETURNING id, task_id, user_id, content, created_at, updated_at",
     )
     .bind(task_id)
     .bind(user.id.to_string())
     .bind(&content)
+    .bind(payload.id)
     .fetch_one(pool)
     .await?;
 

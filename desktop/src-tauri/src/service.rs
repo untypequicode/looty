@@ -101,24 +101,42 @@ impl Service {
         self.refresh.notify_one();
     }
 
+    /// Requête GET partageant la copie locale de la fenêtre : enregistrée en ligne,
+    /// relue hors ligne (barre système et quick-add utilisables sans réseau).
     async fn get_json(&self, path: &str) -> Option<serde_json::Value> {
         let server = self.proxy.server()?;
-        let res = self.proxy.http().get(format!("{}{}", server.origin().ascii_serialization(), path)).timeout(Duration::from_secs(15)).send().await.ok()?;
-        if !res.status().is_success() {
-            return None;
+        let offline = &self.proxy.offline;
+        if offline.is_online() {
+            match self.proxy.http().get(format!("{}{}", server.origin().ascii_serialization(), path)).timeout(Duration::from_secs(15)).send().await {
+                Ok(res) if res.status().is_success() => {
+                    let bytes = res.bytes().await.ok()?;
+                    offline.store(path, "application/json", &bytes);
+                    return serde_json::from_slice(&bytes).ok();
+                }
+                Ok(res) if !matches!(res.status().as_u16(), 502..=504) => return None,
+                Ok(_) => offline.set_online(false),
+                Err(e) if e.is_connect() || e.is_timeout() => offline.set_online(false),
+                Err(_) => return None,
+            }
         }
-        res.json().await.ok()
+        offline.load(path).and_then(|(_, b)| serde_json::from_slice(&b).ok())
     }
 
+    /// Modification depuis la barre système : même chemin hors ligne que la fenêtre
+    /// (file d'attente si le serveur est injoignable ou si d'autres modifications attendent).
     pub async fn put_json(&self, path: &str, body: serde_json::Value) -> bool {
         let Some(server) = self.proxy.server() else { return false };
-        self.proxy
-            .http()
-            .put(format!("{}{}", server.origin().ascii_serialization(), path))
-            .json(&body)
-            .send()
-            .await
-            .is_ok_and(|r| r.status().is_success())
+        let offline = &self.proxy.offline;
+        if offline.is_online() && offline.pending() == 0 {
+            match self.proxy.http().put(format!("{}{}", server.origin().ascii_serialization(), path)).json(&body).send().await {
+                Ok(r) if !matches!(r.status().as_u16(), 502..=504) => return r.status().is_success(),
+                Ok(_) => offline.set_online(false),
+                Err(e) if e.is_connect() || e.is_timeout() => offline.set_online(false),
+                Err(_) => return false,
+            }
+        }
+        let body = if body.as_object().is_some_and(|m| m.is_empty()) { None } else { Some(body) };
+        offline.queue("PUT", path, body).is_some()
     }
 
     async fn workspaces(&self) -> Option<Vec<Workspace>> {
@@ -131,6 +149,14 @@ impl Service {
         let mut server_key = String::new();
         loop {
             let me = self.get_json("/api/auth/me").await;
+            // Serveur injoignable : on garde le dernier état (barre système hors ligne).
+            if me.is_none() {
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(30)) => {}
+                    _ = self.refresh.notified() => {}
+                }
+                continue;
+            }
             let logged_in = me.as_ref().is_some_and(|m| m["authenticated"] == true);
             let key = self.proxy.server().map(|s| s.to_string()).unwrap_or_default();
             // Serveur changé ou déconnexion : on ferme les connexions temps réel.

@@ -49,10 +49,15 @@ const title = ref('')
 const titleEl = ref<HTMLTextAreaElement | null>(null)
 watch(() => live.value?.title, (v) => { if (v !== undefined && document.activeElement !== titleEl.value) title.value = v; nextTick(autosize) }, { immediate: true })
 function autosize() {
-  if (!titleEl.value) return
-  titleEl.value.style.height = 'auto'
-  titleEl.value.style.height = `${titleEl.value.scrollHeight}px`
+  const el = titleEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  // Mesure faite avant la mise en page (données déjà en cache) : on réessaie plus tard
+  // plutôt que de figer une hauteur nulle.
+  if (!el.scrollHeight) return void requestAnimationFrame(() => el.isConnected && el.scrollHeight && autosize())
+  el.style.height = `${el.scrollHeight}px`
 }
+watch(titleEl, (el) => { if (el) nextTick(autosize) })
 const saveTitle = useDebounceFn(() => {
   if (live.value && title.value !== live.value.title) updatePage(pageId.value, { title: title.value })
 }, 500)

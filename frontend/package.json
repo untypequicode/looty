@@ -62,6 +62,7 @@
     "vue-draggable-next": "^2.3.0",
     "vue-draggable-plus": "^0.6.1",
     "vue-router": "latest",
+    "y-indexeddb": "^9.0.12",
     "y-prosemirror": "^1.2.2",
     "y-websocket": "^3.1.0",
     "yjs": "^13.6.32"
