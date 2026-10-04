@@ -47,6 +47,8 @@ pub struct Proxy {
     desktop_sso: Mutex<Option<(String, bool)>>,
     pub hooks: OnceLock<Hooks>,
     pub offline: crate::offline::Offline,
+    /// Page à ouvrir au démarrage (lien looty:// ou --open).
+    pub initial_path: Mutex<Option<String>>,
 }
 
 /// Actions confiées à l'application (navigateur système, fenêtre).
@@ -149,6 +151,7 @@ pub async fn start(mut config: Config, jar: Jar) -> std::io::Result<Shared> {
         desktop_sso: Mutex::new(None),
         hooks: OnceLock::new(),
         offline: crate::offline::Offline::new(),
+        initial_path: Mutex::new(None),
     });
     proxy.offline.use_server(proxy.server().as_ref());
     // Retour du serveur : vérification toutes les 5 s hors ligne, puis synchronisation.
@@ -213,7 +216,8 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
         }
         // Tests automatisés (versions de débogage uniquement) : page de départ imposée.
         let start = if cfg!(debug_assertions) { std::env::var("LOOTY_START_PATH").ok().filter(|v| v.starts_with('/')) } else { None };
-        let mut res = Redirect::to(start.as_deref().unwrap_or("/")).into_response();
+        let initial = p.initial_path.lock().unwrap().take();
+        let mut res = Redirect::to(start.or(initial).as_deref().unwrap_or("/")).into_response();
         let cookie = format!("{COOKIE}={}; Path=/; HttpOnly; SameSite=Lax", p.secret);
         res.headers_mut().insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
         return res;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
 import type { Page } from '~/types'
@@ -15,6 +15,7 @@ import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { motion } from '~/composables/useMotion'
 import { exportMarkdown } from '~/editor/export'
+import { isDesktop, openInDesktop } from '~/composables/useDesktop'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -107,6 +108,7 @@ const menu = computed<MenuItem[]>(() => {
   if (!p) return []
   return [
     { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + links.doc(wsId.value, p.id)); toast.success(t('common.linkCopied')) } },
+    ...(isDesktop ? [] : [{ label: t('desktop.openInApp'), icon: AppWindow, onSelect: () => openInDesktop(links.doc(wsId.value, p.id)) }]),
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },
     { label: fullWidth.value ? t('editor.normalWidth') : t('editor.fullWidthPage'), icon: fullWidth.value ? Minimize2 : Maximize2, onSelect: () => (fullWidth.value = !fullWidth.value) },
     { divider: true },

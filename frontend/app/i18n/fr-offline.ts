@@ -1,4 +1,5 @@
 export default {
+  desktop: { openInApp: 'Ouvrir dans l’application de bureau' },
   errors: { offline_unavailable: 'Indisponible hors ligne' },
   offline: {
     banner: 'Hors ligne — données enregistrées',

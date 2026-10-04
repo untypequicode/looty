@@ -258,7 +258,15 @@ impl Offline {
                 (Synth { status: 204, body: None }, format!("− {label}"))
             }
             ("PUT", ["api", "boards", "tasks", id, "move"]) => (self.move_task(id, &b)?, self.task_label(id)),
-            ("PUT", ["api", "boards", "tasks", id, "toggle_validation"]) => (self.toggle_task(id)?, self.task_label(id)),
+            ("PUT", ["api", "boards", "tasks", id, "toggle_validation"]) => {
+                let synth = self.toggle_task(id)?;
+                // Bascule rejouée telle quelle, elle pourrait annuler un changement déjà
+                // arrivé : on retient l'état voulu, comparé à celui du serveur au rejeu.
+                let desired = synth.body.as_ref().map(|t| self.done_for_me(t)).unwrap_or(true);
+                let label = self.task_label(id);
+                self.enqueue(Queued { method: method.to_string(), path: path.to_string(), body: Some(json!({ "_desired": desired })), label });
+                return Some(synth);
+            }
             (m @ ("POST" | "DELETE"), ["api", "boards", "tasks", id, kind @ ("labels" | "assignees"), other]) => {
                 self.set_task_relation(id, kind, other, m == "POST");
                 (Synth { status: 204, body: None }, self.task_label(id))
@@ -312,6 +320,16 @@ impl Offline {
             }
         }
         result
+    }
+
+    /// Tâche terminée pour moi (validation personnelle pour les tâches « par personne »).
+    fn done_for_me(&self, task: &Value) -> bool {
+        if task["is_per_person"] == true {
+            let me = self.me().unwrap_or_default();
+            task["validations"].as_array().is_some_and(|v| v.iter().any(|x| x == me.as_str()))
+        } else {
+            task["is_completed"] == true
+        }
     }
 
     fn task_label(&self, id: &str) -> String {
@@ -541,9 +559,23 @@ impl Offline {
         let mut refused = 0;
         let result = loop {
             let Some(q) = self.outbox.lock().unwrap().first().cloned() else { break Ok(refused) };
+            // Bascule : déjà dans l'état voulu sur le serveur ? Rien à envoyer.
+            let desired = q.body.as_ref().and_then(|b| b["_desired"].as_bool());
+            if let (Some(want), Some(task_path)) = (desired, q.path.strip_suffix("/toggle_validation")) {
+                let current = match client.get(format!("{origin}{task_path}")).timeout(std::time::Duration::from_secs(15)).send().await {
+                    Ok(r) if r.status().is_success() => r.json::<Value>().await.ok().map(|v| self.done_for_me(&v["task"])),
+                    Ok(r) if r.status().is_client_error() => None,
+                    _ => break Err(()),
+                };
+                if current == Some(want) {
+                    self.outbox.lock().unwrap().remove(0);
+                    self.persist();
+                    continue;
+                }
+            }
             let method = reqwest::Method::from_bytes(q.method.as_bytes()).unwrap_or(reqwest::Method::POST);
             let mut req = client.request(method, format!("{origin}{}", q.path)).timeout(std::time::Duration::from_secs(30));
-            if let Some(b) = &q.body {
+            if let Some(b) = q.body.as_ref().filter(|_| desired.is_none()) {
                 req = req.json(b);
             }
             match req.send().await {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy } from 'lucide-vue-next'
+import { isDesktop, openInDesktop } from '~/composables/useDesktop'
+import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
 import { CalendarSync } from 'lucide-vue-next'
@@ -136,6 +137,7 @@ const menuOpen = ref(false)
 const menu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, shortcut: ['mod', '.'], onSelect: copyLink },
   { label: t('task.copyId'), icon: Copy, onSelect: () => { navigator.clipboard.writeText(props.taskId); toast.success(t('common.copied')) } },
+  ...(isDesktop ? [] : [{ label: t('desktop.openInApp'), icon: AppWindow, onSelect: () => openInDesktop(links.task(wsId.value, props.board.id, props.taskId)) }]),
   ...(props.canWrite && task.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await actions.deleteTask(task.value!)) close() } }] : []),
 ])
 

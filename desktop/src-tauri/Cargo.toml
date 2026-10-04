@@ -40,6 +40,8 @@ base64 = "0.22"
 bytes = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+keyring = { version = "3", features = ["async-secret-service", "tokio", "crypto-rust"] }
+aes-gcm = "0.10"
 
 [profile.release]
 lto = true

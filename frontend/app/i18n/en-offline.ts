@@ -1,4 +1,5 @@
 export default {
+  desktop: { openInApp: 'Open in the desktop app' },
   errors: { offline_unavailable: 'Not available offline' },
   offline: {
     banner: 'Offline — showing saved data',

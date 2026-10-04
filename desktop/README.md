@@ -60,6 +60,29 @@ The app keeps working in the background when the window is closed:
 - **Downloads** (exports, attachments) go to your Downloads folder, with a
   notification to open the folder.
 
+## Quick add shortcut
+
+Wayland doesn't let applications grab global keys themselves, so bind a key in your
+desktop to `looty --quick-add` (it opens the quick-add window, starting Looty if needed):
+
+- **GNOME**: Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → `+`,
+  command `looty --quick-add`.
+- **KDE Plasma**: System Settings → Keyboard → Shortcuts → Add New → Command or Script,
+  command `looty --quick-add`.
+- **Hyprland**: in `hyprland.conf`: `bind = SUPER, N, exec, looty --quick-add`.
+
+The launcher's right-click menu (GNOME, KDE) also has *New task*.
+
+## Links
+
+`looty://` links open a page in the app, e.g. `looty://w/<workspace>/doc/<page>`. On the
+website, *Open in the desktop app* is in the menu of every document and task. From a
+terminal: `looty --open /w/<workspace>/doc/<page>`. Only Looty pages can be opened this
+way (a link can never sign you out or call the API).
+
+The `.deb` registers the `looty://` scheme automatically. With Nix, if links don't open:
+`xdg-mime default looty.desktop x-scheme-handler/looty`.
+
 ## Offline mode
 
 When the server can't be reached, Looty keeps working with a banner at the top
@@ -99,9 +122,11 @@ The window loads `http://127.0.0.1:<random port>`, served by a proxy inside the 
 that forwards the interface, API, files and WebSockets (realtime, collaborative editing)
 to your server.
 
-- The session (server cookies) is held by the Rust process in
-  `~/.local/share/looty/session.json` (mode 0600), not by the web view, so the tray
-  and notifications can work while the window is closed.
+- The session (server cookies) is held by the Rust process, not by the web view, so the
+  tray and notifications can work while the window is closed. It is encrypted
+  (`~/.local/share/looty/session.enc`, AES-256-GCM) with a key kept in the system keyring
+  (GNOME Keyring, KWallet, or any Secret Service). Without a keyring (e.g. a bare
+  Hyprland setup) it falls back to `session.json`, readable by you only.
 - Only the app's window can use the proxy: requests must carry the right `Host`
   and an access cookie set at startup from a random secret, which only exists in the
   app's own web view profile,
@@ -137,6 +162,13 @@ With the proprietary NVIDIA driver, WebKitGTK may show a blank window; the app s
    instance, Nix flake, `.deb`.
 2. **System integration**: native notifications, tray with my tasks and
    check-off, quick task add, unread badge, launch at login, downloads.
-3. **Offline** (this version): cached interface and data, offline editing (wiki merge,
-   queued task changes), sync status.
-4. **Polish**: `looty://` links, global shortcut, keyring, automated packaging.
+3. **Offline**: cached interface and data, offline editing (wiki merge, queued task
+   changes), sync status.
+4. **Polish** (this version): `looty://` links, quick-add shortcut, keyring-encrypted
+   session, automated packaging.
+
+## Releases
+
+`./desktop/scripts/release.sh 0.2.0` sets the version; push a `desktop-v0.2.0` tag and
+the *Desktop* GitHub workflow builds the Nix package and the `.deb` (tested on a clean
+Debian 12) and attaches the `.deb` to the GitHub release.
