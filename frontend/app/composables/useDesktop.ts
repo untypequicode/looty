@@ -12,3 +12,8 @@ export interface NetState {
 
 /** État réseau de l'application de bureau (hors ligne, modifications en attente). */
 export const net = ref<NetState>({ online: true, syncing: false, pending: 0, failed: [] })
+
+/** Ouvre une page de Looty dans l'application de bureau (lien looty://w/…). */
+export function openInDesktop(path: string) {
+  window.location.href = `looty:/${path}`
+}

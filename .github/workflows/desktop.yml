@@ -1,0 +1,65 @@
+# Application de bureau Linux : paquet Nix et .deb (Debian 12), publiés sur les tags desktop-v*.
+name: Desktop
+
+on:
+  push:
+    tags: ['desktop-v*']
+  pull_request:
+    paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Version check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches Cargo.toml and tauri.conf.json
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        run: |
+          tag="${GITHUB_REF_NAME#desktop-v}"
+          cargo=$(grep -m1 '^version' desktop/src-tauri/Cargo.toml | cut -d'"' -f2)
+          tauri=$(grep -m1 '"version"' desktop/src-tauri/tauri.conf.json | cut -d'"' -f4)
+          echo "tag=$tag cargo=$cargo tauri=$tauri"
+          test "$tag" = "$cargo" && test "$tag" = "$tauri"
+
+  nix:
+    name: Nix package
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build .#looty-desktop -L
+      - run: test -x result/bin/looty && test -f result/share/applications/looty.desktop
+
+  deb:
+    name: Debian package
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Debian 12 container)
+        run: ./desktop/scripts/build-deb.sh
+      - name: Install test on a clean Debian 12
+        run: |
+          docker run --rm -v "$PWD/desktop/dist:/dist:ro" debian:bookworm bash -euc '
+            apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends /dist/*.deb
+            ! ldd /usr/bin/looty | grep "not found"
+            grep -q "x-scheme-handler/looty" /usr/share/applications/*.desktop'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: looty-deb
+          path: desktop/dist/*.deb
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/*.deb
+          generate_release_notes: true

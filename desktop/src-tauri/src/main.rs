@@ -100,6 +100,60 @@ fn decide_navigation(app: &AppHandle, url: &Url) -> bool {
     false
 }
 
+/// Action demandée en ligne de commande (premier lancement ou instance déjà ouverte).
+enum Action {
+    Show,
+    QuickAdd,
+    Open(String),
+}
+
+/// Lien `looty://w/<espace>/doc/<page>` ou `--open /w/…` → chemin interne.
+/// N'importe quel site peut déclencher un lien looty:// : seules les pages de Looty
+/// sont acceptées (jamais l'API, la déconnexion ou les pages internes de l'application).
+fn safe_path(raw: &str) -> Option<String> {
+    let path = match raw.strip_prefix("looty://") {
+        Some(rest) => format!("/{}", rest.trim_start_matches('/')),
+        None => raw.to_string(),
+    };
+    let route = path.split(['?', '#']).next().unwrap_or("");
+    let ok = path.starts_with("/w/")
+        && !route.contains("..")
+        && !route.contains("//")
+        && route.chars().all(|c| c.is_ascii_alphanumeric() || "/-_.".contains(c))
+        && path.len() < 2048;
+    ok.then_some(path)
+}
+
+fn action_from(args: &[String]) -> Action {
+    let mut it = args.iter().skip(1);
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--quick-add" => return Action::QuickAdd,
+            "--open" => {
+                if let Some(p) = it.next().and_then(|p| safe_path(p)) {
+                    return Action::Open(p);
+                }
+            }
+            s if s.starts_with("looty://") => {
+                if let Some(p) = safe_path(s) {
+                    return Action::Open(p);
+                }
+                tracing::warn!("ignored looty:// link (only Looty pages can be opened)");
+            }
+            _ => {}
+        }
+    }
+    Action::Show
+}
+
+fn run_action(app: &AppHandle, action: Action) {
+    match action {
+        Action::Show => show_main(app),
+        Action::QuickAdd => open_quick_add(app),
+        Action::Open(path) => open_path(app, &path),
+    }
+}
+
 fn notifications_on(app: &AppHandle) -> bool {
     app.state::<proxy::Shared>().config.read().map(|c| c.notifications).unwrap_or(true)
 }
@@ -249,18 +303,29 @@ fn main() {
     if std::path::Path::new("/proc/driver/nvidia").exists() && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
-    // Lancement à l'ouverture de session : directement dans la barre système.
-    let start_hidden = std::env::args().any(|a| a == "--hidden");
+    // Lancement à l'ouverture de session (--hidden) ou ajout rapide : sans la fenêtre.
+    let args: Vec<String> = std::env::args().collect();
+    let first_action = action_from(&args);
+    let start_hidden = args.iter().any(|a| a == "--hidden") || matches!(first_action, Action::QuickAdd);
+    // Clé de chiffrement de la session (trousseau système), avant de lire la session.
+    if config::init_session_key() {
+        tracing::info!("session encrypted with a key from the system keyring");
+    }
 
     tauri::Builder::default()
         // Une seule instance : relancer l'application ramène la fenêtre existante.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| show_main(app)))
+        // Les arguments (lien looty://, --quick-add…) sont transmis à l'instance ouverte.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| run_action(app, action_from(&argv))))
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             let cfg = config::Config::load();
             let notifications = cfg.notifications;
             let jar = config::load_jar();
+            config::migrate_plain_session(&jar);
             let proxy = tauri::async_runtime::block_on(proxy::start(cfg, jar))?;
+            if let Action::Open(path) = &first_action {
+                *proxy.initial_path.lock().unwrap() = Some(path.clone());
+            }
             let boot: Url = proxy.boot_url().parse()?;
             let handle = app.handle().clone();
             app.manage(Native { tray: Mutex::new(None), last_state: Mutex::new(TrayState::default()), service: Mutex::new(None) });
@@ -314,6 +379,9 @@ fn main() {
                         if let Some(title) = created {
                             if let Some(s) = service(&h) {
                                 s.refresh_soon();
+                            }
+                            if let Some(w) = h.get_webview_window("main") {
+                                let _ = w.eval("window.dispatchEvent(new CustomEvent('looty:refresh'))");
                             }
                             let body = format!("{} {title}", tr("Tâche créée :", "Task created:"));
                             tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into() });
@@ -378,6 +446,9 @@ fn main() {
                 notifications,
             );
             *app.state::<Native>().service.lock().unwrap() = Some(svc);
+            if matches!(first_action, Action::QuickAdd) {
+                open_quick_add(&handle);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

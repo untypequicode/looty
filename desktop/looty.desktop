@@ -5,10 +5,17 @@ GenericName=Tasks and wiki
 GenericName[fr]=Tâches et wiki
 Comment=Boards, tasks and collaborative wiki
 Comment[fr]=Tableaux, tâches et wiki collaboratif
-Exec=looty
+Exec=looty %u
 Icon=looty
 Terminal=false
 Categories=Office;ProjectManagement;
 Keywords=tasks;wiki;kanban;notes;tâches;
+MimeType=x-scheme-handler/looty;
 StartupWMClass=looty
 StartupNotify=true
+Actions=quick-add;
+
+[Desktop Action quick-add]
+Name=New task
+Name[fr]=Nouvelle tâche
+Exec=looty --quick-add

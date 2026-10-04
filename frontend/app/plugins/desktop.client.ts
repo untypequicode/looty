@@ -11,6 +11,8 @@ export default defineNuxtPlugin((nuxtApp) => {
   if (!isDesktop) return
   // Le client de requêtes est fourni par un autre plugin : récupéré au moment voulu.
   const qc = () => nuxtApp.vueApp.runWithContext(() => useQueryClient())
+  // Tâche créée depuis l'ajout rapide (autre fenêtre) : données rechargées.
+  window.addEventListener('looty:refresh', () => qc().invalidateQueries())
   let lastPending = 0
   let wasOffline = false
   async function poll() {
