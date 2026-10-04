@@ -1,4 +1,10 @@
 export default {
+  tabs: {
+    title: 'Onglets', new: 'Nouvel onglet', close: 'Fermer l’onglet', closeOthers: 'Fermer les autres onglets', closeRight: 'Fermer les onglets à droite',
+    duplicate: 'Dupliquer l’onglet', openInNew: 'Ouvrir dans un nouvel onglet', opened: 'Ouvert dans un nouvel onglet',
+    show: 'Onglets', showHint: 'Ouvrez plusieurs documents et tableaux à la fois : Ctrl+clic ou clic du milieu sur un lien pour l’ouvrir dans un nouvel onglet.',
+    shortcuts: 'Onglets : nouveau / fermer / suivant', switchTo: 'Aller à l’onglet 1–9',
+  },
   presence: {
     status: { active: 'Actif', idle: 'Absent', offline: 'Hors ligne' },
     currently: 'Actuellement sur', join: 'Rejoindre', follow: 'Suivre', stopFollowing: 'Arrêter de suivre', activity: 'Activité',

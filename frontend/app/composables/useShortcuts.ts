@@ -1,4 +1,4 @@
-import { onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, onActivated, onDeactivated } from 'vue'
 import { hasModalLayer } from './useLayer'
 
 /**
@@ -81,4 +81,7 @@ export function useShortcuts(list: Shortcut[]) {
   }
   for (const s of list) registry.add(s)
   onBeforeUnmount(() => list.forEach((s) => registry.delete(s)))
+  // Pages gardées en mémoire (onglets) : leurs raccourcis ne valent que quand elles sont affichées.
+  onDeactivated(() => list.forEach((s) => registry.delete(s)))
+  onActivated(() => list.forEach((s) => registry.add(s)))
 }

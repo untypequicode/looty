@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
-  MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine,
+  MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -13,6 +13,7 @@ import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useUi } from '~/composables/useUi'
 import { presence } from '~/composables/useRealtime'
 import { following } from '~/composables/usePresenceInfo'
+import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
@@ -50,8 +51,10 @@ async function commitRenameBoard() {
   if (id && b && boardDraft.value.trim() && boardDraft.value.trim() !== b.name) await renameBoard(id, boardDraft.value.trim())
 }
 
+const tabsApi = useTabs(wsId)
 function boardMenu(b: { id: string; name: string }): MenuItem[] {
   return [
+    ...(tabsEnabled.value ? [{ label: t('tabs.openInNew'), icon: SquareArrowOutUpRight, onSelect: () => tabsApi.open(links.board(wsId.value, b.id)) }] : []),
     { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + links.board(wsId.value, b.id)); toast.success(t('common.linkCopied')) } },
     ...(canWrite.value
       ? [

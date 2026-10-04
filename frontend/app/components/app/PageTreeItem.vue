@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ChevronRight, FileText, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil } from 'lucide-vue-next'
+import { ChevronRight, FileText, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight } from 'lucide-vue-next'
+import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import type { PageNode } from '~/composables/usePages'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { usePages } from '~/composables/usePages'
@@ -51,7 +52,9 @@ async function addChild() {
 }
 
 const menuOpen = ref(false)
+const tabsApi = useTabs(useWorkspace().wsId)
 const menuItems = computed<MenuItem[]>(() => [
+  ...(tabsEnabled.value ? [{ label: translate('tabs.openInNew'), icon: SquareArrowOutUpRight, onSelect: () => tabsApi.open(to.value) }] : []),
   { label: props.node.is_favorite ? translate('docs.unfavorite') : translate('docs.favorite'), icon: props.node.is_favorite ? StarOff : Star, onSelect: () => toggleFavorite(props.node) },
   { label: translate('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + to.value); toast.success(translate('common.linkCopied')) } },
   ...(canWrite.value && props.node.can_edit !== false

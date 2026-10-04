@@ -6,6 +6,7 @@ import { useUi } from '~/composables/useUi'
 import { api } from '~/composables/api'
 import { toast } from '~/composables/useToast'
 import { shareLocation } from '~/composables/useRealtime'
+import { tabsEnabled } from '~/composables/useTabs'
 
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
@@ -39,6 +40,9 @@ const themes = computed(() => [
     </SettingsRow>
     <SettingsRow :label="t('settings.prefs.compactSidebar')" :hint="t('settings.prefs.compactSidebarHint')">
       <UiSwitch v-model="sidebarCollapsed" />
+    </SettingsRow>
+    <SettingsRow :label="t('tabs.show')" :hint="t('tabs.showHint')">
+      <UiSwitch v-model="tabsEnabled" />
     </SettingsRow>
     <SettingsRow :label="t('presence.share')" :hint="t('presence.shareHint')">
       <UiSwitch v-model="shareLocation" />
