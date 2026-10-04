@@ -1,0 +1,79 @@
+{
+  "repository": "https://github.com/untypequicode/looty",
+  "releases": [
+    {
+      "platform": "web",
+      "version": "0.2.0",
+      "date": "2026-10-05",
+      "title": { "en": "A new Looty", "fr": "Un nouveau Looty" },
+      "notes": {
+        "en": [
+          "**New design** inspired by Linear: sidebar, command palette (Ctrl+K), keyboard shortcuts, light and dark themes, French and English.",
+          "**Boards** with list and timeline views, filters, sub-tasks, per-person validation, comments, attachments and history.",
+          "**Collaborative wiki**: real-time editing, LaTeX (with shared macros), Mermaid, Excalidraw, PDF and link embeds, Outline import and export.",
+          "**Calendar**: university timetables (ICS), CalDAV accounts, and a **shared calendar per workspace** synced with your calendar apps.",
+          "**Mail**: read your university inbox in Looty, mark as read or unread, get notified of new messages.",
+          "**Notifications** by email and push, chosen event by event.",
+          "**Tabs** to keep several documents and boards open, **reading mode**, and a **trash** to restore deleted tasks and documents.",
+          "**Who's where**: see what members have open, follow them, and browse their activity.",
+          "**Graph** of the workspace to see and create links between documents and tasks.",
+          "**CalDAV server**: your tasks and the workspace calendar in Thunderbird, DAVx⁵, Apple Calendar…",
+          "Admin: storage dashboard with the real size of uploaded files."
+        ],
+        "fr": [
+          "**Nouveau design** inspiré de Linear : barre latérale, palette de commandes (Ctrl+K), raccourcis clavier, thèmes clair et sombre, français et anglais.",
+          "**Tableaux** avec vues liste et chronologie, filtres, sous-tâches, validation individuelle, commentaires, pièces jointes et historique.",
+          "**Wiki collaboratif** : édition en temps réel, LaTeX (avec macros partagées), Mermaid, Excalidraw, PDF et liens intégrés, import et export Outline.",
+          "**Calendrier** : emplois du temps universitaires (ICS), comptes CalDAV, et un **calendrier partagé par espace** synchronisé avec vos applications.",
+          "**Mail** : lisez votre boîte universitaire dans Looty, marquez comme lu ou non lu, soyez notifié des nouveaux messages.",
+          "**Notifications** par e-mail et push, au choix pour chaque événement.",
+          "**Onglets** pour garder plusieurs documents et tableaux ouverts, **mode lecture**, et une **corbeille** pour restaurer tâches et documents supprimés.",
+          "**Qui est où** : voyez ce que les membres ont ouvert, suivez-les, et consultez leur activité.",
+          "**Graphe** de l’espace pour voir et créer des liens entre documents et tâches.",
+          "**Serveur CalDAV** : vos tâches et le calendrier de l’espace dans Thunderbird, DAVx⁵, Apple Calendrier…",
+          "Administration : tableau de bord du stockage avec la taille réelle des fichiers envoyés."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.1.0",
+      "date": "2026-10-05",
+      "title": { "en": "Looty for Linux", "fr": "Looty pour Linux" },
+      "notes": {
+        "en": [
+          "Native app for NixOS (flake) and Debian/Ubuntu (.deb), for GNOME, KDE and Hyprland.",
+          "Sign in through your browser (passkeys supported); session kept in the system keyring.",
+          "System tray with today's tasks, quick add (from the tray, or a keyboard shortcut bound to `looty --quick-add`) and native notifications.",
+          "Offline mode: read your documents and boards, check tasks off, edit documents; everything syncs when you're back online.",
+          "looty:// links open the right page in the app."
+        ],
+        "fr": [
+          "Application native pour NixOS (flake) et Debian/Ubuntu (.deb), sous GNOME, KDE et Hyprland.",
+          "Connexion par le navigateur (clés d’accès prises en charge) ; session gardée dans le trousseau du système.",
+          "Icône dans la barre système avec les tâches du jour, ajout rapide (depuis la barre système, ou un raccourci clavier lié à `looty --quick-add`) et notifications natives.",
+          "Mode hors ligne : consultez documents et tableaux, cochez des tâches, modifiez des documents ; tout se synchronise au retour du réseau.",
+          "Les liens looty:// ouvrent la bonne page dans l’application."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.1.0",
+      "date": "2026-10-05",
+      "title": { "en": "Looty for Android (preview)", "fr": "Looty pour Android (aperçu)" },
+      "notes": {
+        "en": [
+          "First preview: Looty in an app, without Google services.",
+          "Sign in through your browser, uploads and downloads, looty:// links.",
+          "Native screens and notifications are coming in the next versions."
+        ],
+        "fr": [
+          "Premier aperçu : Looty dans une application, sans services Google.",
+          "Connexion par le navigateur, envoi et téléchargement de fichiers, liens looty://.",
+          "Les écrans natifs et les notifications arrivent dans les prochaines versions."
+        ]
+      }
+    }
+  ]
+}

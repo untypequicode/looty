@@ -1,4 +1,10 @@
 export default {
+  releases: {
+    whatsNew: 'Nouveautés', allReleases: 'Toutes les versions', gotIt: 'Compris', all: 'Tout', current: 'Actuelle', updateShort: 'Mise à jour',
+    platform: { web: 'Looty', desktop: 'Looty pour Linux', android: 'Looty pour Android' },
+    webReady: 'Une nouvelle version de Looty est disponible.', reload: 'Recharger', download: 'Télécharger',
+    appReady: '{app} {version} est disponible.', installed: 'installée : {v}', releasePage: 'Page de la version et instructions d’installation',
+  },
   graph: {
     title: 'Graphe', search: 'Trouver un élément…', filters: 'Filtres', fit: 'Tout afficher', graphView: 'Graphe', listView: 'Liste',
     opt: { tasks: 'Tâches', done: 'Tâches terminées', boards: 'Tableaux', hierarchy: 'Hiérarchie (sous-pages, tableaux)', orphans: 'Éléments sans lien', local: 'Seulement autour de la sélection' },

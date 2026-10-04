@@ -296,7 +296,8 @@ fn is_gateway_error(s: StatusCode) -> bool {
 fn mark_desktop(html: &[u8]) -> Vec<u8> {
     let s = String::from_utf8_lossy(html);
     match s.find("<head>") {
-        Some(i) => format!("{}<meta name=\"looty-desktop\" content=\"1\">{}", &s[..i + 6], &s[i + 6..]).into_bytes(),
+        // Le contenu donne la version de l'application (annonce des mises à jour).
+        Some(i) => format!("{}<meta name=\"looty-desktop\" content=\"{}\">{}", &s[..i + 6], env!("CARGO_PKG_VERSION"), &s[i + 6..]).into_bytes(),
         None => html.to_vec(),
     }
 }

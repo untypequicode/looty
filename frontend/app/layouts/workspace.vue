@@ -199,6 +199,7 @@ function onEdgeStart(e: TouchEvent) {
 
     <main class="app-main" :class="{ following: !!followed }">
       <AppTabBar v-if="showTabs" />
+      <AppUpdateBanner />
       <AppOfflineBanner />
       <slot />
       <Transition name="rm">
@@ -228,6 +229,7 @@ function onEdgeStart(e: TouchEvent) {
     </nav>
 
     <AppCommandPalette />
+    <AppWhatsNewDialog />
     <AppShortcutsDialog />
     <AppCreateBoardDialog />
     <TaskCreateDialog />

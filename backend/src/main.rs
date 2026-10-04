@@ -18,6 +18,7 @@ mod storage;
 mod events;
 mod activity;
 mod graph;
+mod releases;
 mod notifications;
 mod push;
 mod page;
@@ -93,6 +94,8 @@ async fn main() {
         .nest("/auth", auth::routes())
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes())
+        .nest("/user/releases", releases::user_routes())
+        .nest("/releases", releases::routes())
         .nest("/user/caldav", caldav::routes())
         .nest("/user/notifications", delivery::routes())
         .nest("/user/push", push::routes())
