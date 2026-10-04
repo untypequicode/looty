@@ -267,6 +267,76 @@ fn rrule_line(name: &str, p: &Prop) -> Option<String> {
     Some(format!("{name};TZID={}:{v}", default_tz().name()))
 }
 
+/// Événement principal d'un objet iCalendar (hors exceptions RECURRENCE-ID).
+#[derive(Debug, Clone)]
+pub(crate) struct MasterEvent {
+    pub uid: String,
+    pub summary: String,
+    pub description: Option<String>,
+    pub location: Option<String>,
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub all_day: bool,
+    /// Valeur brute de RRULE (série), le cas échéant.
+    pub rrule: Option<String>,
+    /// Fuseau de DTSTART (IANA), pour l'affichage dans le formulaire.
+    pub tzid: Option<String>,
+    /// La série a des exceptions (EXDATE, RDATE, occurrences modifiées).
+    pub has_exceptions: bool,
+}
+
+pub(crate) fn master_event(ics: &str) -> Option<MasterEvent> {
+    let roots = parse_ics(ics);
+    let events: Vec<&Comp> = roots.iter().flat_map(|r| r.children.iter().filter(|c| c.name == "VEVENT")).collect();
+    let e = events.iter().find(|e| e.prop("RECURRENCE-ID").is_none())?;
+    let dtstart = e.prop("DTSTART")?;
+    let start = parse_when(dtstart)?;
+    let all_day = matches!(start, When::Date(_));
+    let dur = e
+        .prop("DTEND")
+        .and_then(parse_when)
+        .map(|end| end.utc() - start.utc())
+        .or_else(|| e.prop("DURATION").and_then(|d| parse_duration(&d.value)))
+        .unwrap_or_else(|| if all_day { Duration::days(1) } else { Duration::zero() })
+        .max(Duration::zero());
+    let text = |n: &str| e.prop(n).map(|p| unescape(&p.value)).filter(|s| !s.trim().is_empty());
+    Some(MasterEvent {
+        uid: e.prop("UID").map(|p| p.value.trim().to_string()).unwrap_or_default(),
+        summary: text("SUMMARY").unwrap_or_default(),
+        description: text("DESCRIPTION"),
+        location: text("LOCATION"),
+        start: start.utc(),
+        end: start.utc() + dur,
+        all_day,
+        rrule: e.prop("RRULE").map(|p| p.value.trim().to_string()),
+        tzid: dtstart.param("TZID").and_then(resolve_tz).map(|t| t.name().to_string()),
+        has_exceptions: e.prop("EXDATE").is_some() || e.prop("RDATE").is_some() || events.len() > 1,
+    })
+}
+
+/// Fin de la dernière occurrence ; `None` pour une série sans fin.
+pub(crate) fn series_end(ics: &str) -> Option<DateTime<Utc>> {
+    let m = master_event(ics)?;
+    let Some(rule) = m.rrule.as_deref() else { return Some(m.end) };
+    let upper = rule.to_ascii_uppercase();
+    if !upper.contains("COUNT=") && !upper.contains("UNTIL=") {
+        return None;
+    }
+    let to = m.start + Duration::days(366 * 30);
+    let last = expand(ics, m.start - Duration::days(1), to).into_iter().map(|o| o.end).max();
+    Some(last.unwrap_or(m.end).max(m.end))
+}
+
+/// Échappement d'un texte iCalendar (SUMMARY, DESCRIPTION, LOCATION).
+pub(crate) fn escape_text(s: &str) -> String {
+    s.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace("\r\n", "\\n").replace('\n', "\\n")
+}
+
+/// Lignes dépliées (pour retoucher un objet iCalendar en conservant le reste).
+pub(crate) fn unfolded_lines(ics: &str) -> Vec<String> {
+    unfold(ics)
+}
+
 /// Développe les VEVENT d'un ou plusieurs VCALENDAR sur la fenêtre donnée.
 pub fn expand(ics: &str, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<Occurrence> {
     let mut events: Vec<&Comp> = Vec::new();
@@ -741,10 +811,11 @@ struct TaskDue {
 /// Événements des calendriers visibles (espace + personnels) et tâches qui me sont
 /// assignées, sur une période d'au plus 400 jours.
 async fn events(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<RangeQuery>) -> ApiResult<Json<serde_json::Value>> {
-    require_member(&state.pool, &user, ws).await?;
+    let role = require_member(&state.pool, &user, ws).await?;
     if q.to <= q.from || q.to - q.from > Duration::days(400) {
         return Err(ApiError::bad_request("invalid_range"));
     }
+    let shared = crate::events::occurrences(&state.pool, ws, q.from, q.to, role.can_write()).await?;
     let events: Vec<EventDto> = sqlx::query_as(
         "SELECT e.id, e.calendar_id, e.summary, e.description, e.location, e.url, e.starts_at, e.ends_at, e.all_day
          FROM calendar_events e JOIN calendars c ON c.id = e.calendar_id
@@ -772,7 +843,10 @@ async fn events(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     .bind(q.to)
     .fetch_all(&state.pool)
     .await?;
-    Ok(Json(serde_json::json!({ "events": events, "tasks": tasks })))
+    // Calendrier de l'espace (événements Looty) en premier, puis les abonnements.
+    let mut all = shared;
+    all.extend(events.into_iter().filter_map(|e| serde_json::to_value(e).ok()));
+    Ok(Json(serde_json::json!({ "events": all, "tasks": tasks })))
 }
 
 #[cfg(test)]

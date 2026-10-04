@@ -20,7 +20,7 @@ export default {
       revokeTitle: 'Revoke “{name}”?', revokeMessage: 'The device using this password will no longer be able to sync.',
       howTitle: 'What you get',
       how1: '“Looty · Assigned to me” holds every task assigned to you, across all workspaces.',
-      how2: 'Each board you can access is also a task list: to-dos created there become tasks in its first column.',
+      how2: 'Each board you can access is also a task list: to-dos created there become tasks in its first column. Each workspace also has a shared event calendar (“Workspace · Calendar”), readable and editable by its members.',
       how3: 'Title, description, dates, priority and completion edited in the app are applied in Looty, with history.',
       how4: 'Deleting a to-do deletes the task in a board list; in “Assigned to me” it only unassigns you.',
     },

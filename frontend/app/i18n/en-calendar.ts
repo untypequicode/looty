@@ -1,11 +1,24 @@
 export default {
+  event: {
+    new: 'Event', newTitle: 'New event', editTitle: 'Edit event', titlePlaceholder: 'Event title',
+    sharedHint: 'Visible to every member of the workspace, and in their calendar apps (CalDAV).', seriesHint: 'Changes apply to every occurrence.',
+    starts: 'Starts', ends: 'Ends', noRepeat: 'Does not repeat', daily: 'Every day', weekly: 'Every week', monthly: 'Every month', yearly: 'Every year',
+    custom: 'Custom repetition (kept)', customHint: 'This repetition was set in a calendar app (exceptions, specific days…). It is kept as is.',
+    every: 'every', until: 'until', location: 'Location', description: 'Description',
+    created: 'Event created', saved: 'Event saved', recurring: 'Repeating event',
+    editSeries: 'Edit series', deleteOne: 'This occurrence', deleteAll: 'All occurrences',
+    deleteTitle: 'Delete “{title}”?', deleteOneTitle: 'Delete this occurrence?', deleteSeries: 'Every occurrence of the series will be deleted.',
+    shareHint: 'Use it in your calendar app (CalDAV)',
+  },
   home: { upcoming: 'Upcoming', noEvents: 'Nothing planned today or tomorrow' },
   errors: {
+    event_invalid: 'Check the title and dates of the event', event_too_many: 'Too many events in this workspace',
     calendar_too_many: 'Too many calendars (30 max)', calendar_auth_failed: 'The calendar server refused the credentials',
     calendar_not_ics: 'This link doesn’t point to an ICS calendar', calendar_http_error: 'The calendar server returned an error',
     calendar_secret_unreadable: 'Stored address unreadable: add the calendar again', invalid_range: 'Invalid date range',
   },
   calendar: {
+    workspaceCal: 'Workspace calendar',
     title: 'Calendar', calendars: 'Calendars', today: 'Today', previous: 'Previous', next: 'Next',
     week: 'Week', month: 'Month', agenda: 'Agenda', addShort: 'Calendar', allDay: 'All day', due: 'Due',
     group: { shared: 'Workspace', personal: 'Personal' },

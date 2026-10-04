@@ -20,7 +20,11 @@ export interface CalendarSource {
 
 export interface CalEvent {
   id: string
+  /** `workspace` : calendrier partagé de l'espace (événements Looty). */
   calendar_id: string
+  event_id?: string
+  recurring?: boolean
+  can_edit?: boolean
   summary: string
   description?: string | null
   location?: string | null
@@ -29,6 +33,24 @@ export interface CalEvent {
   ends_at: string
   all_day: boolean
 }
+
+/** Événement du calendrier de l'espace, pour le formulaire. */
+export interface EventDetail {
+  id: string
+  title: string
+  description?: string | null
+  location?: string | null
+  start: string
+  end: string
+  all_day: boolean
+  tzid?: string | null
+  repeat?: { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number; until?: string | null } | null
+  complex_recurrence: boolean
+  created_by_name?: string | null
+  updated_at: string
+}
+
+export const WORKSPACE_CAL = 'workspace'
 
 export interface CalTask {
   id: string
