@@ -143,13 +143,16 @@ async fn begin_login(session: &Session, state: &AppState, provider_id: Uuid, red
 // Le moteur web de l'application (WebKitGTK) ne gère pas WebAuthn (clés d'accès,
 // empreinte…). L'application ouvre donc le navigateur sur `desktop/start` ; une fois
 // connecté, `desktop/complete` renvoie le navigateur vers l'application
-// (http://127.0.0.1:<port>, uniquement) avec un code à usage unique, que l'application
+// (http://127.0.0.1:<port>, ou looty://sso pour Android) avec un code à usage unique, que l'application
 // échange contre sa propre session (`desktop/exchange`) en prouvant qu'elle détient le
 // secret PKCE dont le navigateur n'a vu que l'empreinte.
 
 #[derive(Deserialize)]
 struct DesktopParams {
-    port: u16,
+    /// Boucle locale de l'application de bureau.
+    port: Option<u16>,
+    /// `android` : retour par le lien looty://sso (l'application l'intercepte).
+    app: Option<String>,
     state: String,
     challenge: String,
     provider: Option<Uuid>,
@@ -161,10 +164,21 @@ fn token_ok(s: &str) -> bool {
 
 impl DesktopParams {
     fn valid(&self) -> bool {
-        self.port >= 1024 && token_ok(&self.state) && token_ok(&self.challenge)
+        let target = match (self.port, self.app.as_deref()) {
+            (Some(port), None) => port >= 1024,
+            (None, Some("android")) => true,
+            _ => false,
+        };
+        target && token_ok(&self.state) && token_ok(&self.challenge)
+    }
+    fn target_query(&self) -> String {
+        match self.port {
+            Some(port) => format!("port={port}"),
+            None => "app=android".into(),
+        }
     }
     fn complete_path(&self) -> String {
-        format!("/api/auth/desktop/complete?port={}&state={}&challenge={}", self.port, self.state, self.challenge)
+        format!("/api/auth/desktop/complete?{}&state={}&challenge={}", self.target_query(), self.state, self.challenge)
     }
 }
 
@@ -209,8 +223,12 @@ async fn desktop_complete(State(state): State<AppState>, user: Option<AuthUser>,
     if stored.is_err() {
         return login_error("database_error");
     }
-    // Destination fixe : la boucle locale de l'application (jamais un autre hôte).
-    Redirect::to(&format!("http://127.0.0.1:{}/__looty/sso?code={}&state={}", p.port, code, p.state)).into_response()
+    // Destination fixe : la boucle locale de l'application, ou son lien (jamais un autre hôte).
+    // Un autre programme qui capterait le lien ne peut rien en faire sans le secret PKCE.
+    match p.port {
+        Some(port) => Redirect::to(&format!("http://127.0.0.1:{port}/__looty/sso?code={code}&state={}", p.state)).into_response(),
+        None => Redirect::to(&format!("looty://sso?code={code}&state={}", p.state)).into_response(),
+    }
 }
 
 #[derive(Deserialize)]
