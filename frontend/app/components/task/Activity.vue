@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { readMode } from '~/composables/useReadMode'
 import { MessageSquare, MoreHorizontal, Pencil, Trash2, RotateCcw, ArrowRight, CircleCheck, CircleDot, UserPlus, UserMinus, Tag, Paperclip, Plus, Type, AlignLeft, Signal, CalendarDays } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Board, TaskActivity, TaskComment } from '~/types'
@@ -10,6 +11,7 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 
 const props = defineProps<{ taskId: string; board: Board; canWrite: boolean }>()
+// Mode lecture : ni nouveau commentaire, ni modification (les lecteurs peuvent commenter sinon).
 const { member, isAdmin } = useWorkspace()
 const { user } = useAuth()
 const { t, relativeTime, formatDateTime } = useI18n()
@@ -92,6 +94,7 @@ async function remove(c: TaskComment) {
 }
 const menus = ref<Record<string, boolean>>({})
 function commentMenu(c: TaskComment): MenuItem[] {
+  if (readMode.value) return []
   const mine = c.user_id === user.value?.id
   return [
     ...(mine ? [{ label: t('common.edit'), icon: Pencil, onSelect: () => { editing.value = c.id; editDraft.value = c.content } }] : []),
@@ -144,7 +147,7 @@ function commentMenu(c: TaskComment): MenuItem[] {
       </li>
     </ol>
 
-    <div class="composer">
+    <div v-if="!readMode" class="composer">
       <UiAvatar :name="user?.name" :src="user?.avatar_url" :size="24" />
       <div class="composer-box">
         <EditorLite ref="composer" v-model="draft" :placeholder="t('comments.placeholder')" submit-on-enter @submit="send" />

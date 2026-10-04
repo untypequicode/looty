@@ -3,7 +3,9 @@ import type { Component } from 'vue'
 import {
   Search, Home, Inbox, CircleUserRound, FileText, Kanban, SquarePen, FilePlus2, Plus, Settings,
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
+  BookOpen, PencilLine,
 } from 'lucide-vue-next'
+import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { refDebounced } from '@vueuse/core'
 import { useUi } from '~/composables/useUi'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -28,7 +30,7 @@ interface Cmd {
 }
 
 const { commandOpen, createBoardOpen, openCreateTask, shortcutsOpen } = useUi()
-const { wsId, boards, pages, canWrite } = useWorkspace()
+const { wsId, boards, pages, canWrite, canWriteRole } = useWorkspace()
 const { createAndOpen } = usePages()
 const { mode, setTheme } = useTheme()
 const { t, locale, setLocale } = useI18n()
@@ -76,6 +78,7 @@ const staticCommands = computed<Cmd[]>(() => {
       : []),
     { id: 'theme', group: pref, label: mode.value === 'light' ? t('command.darkTheme') : t('command.lightTheme'), icon: mode.value === 'light' ? Moon : Sun, run: () => { setTheme(mode.value === 'light' ? 'dark' : 'light'); commandOpen.value = false } },
     { id: 'lang', group: pref, label: locale.value === 'fr' ? 'Switch to English' : 'Passer en français', icon: Languages, keywords: 'language langue', run: () => { setLocale(locale.value === 'fr' ? 'en' : 'fr'); commandOpen.value = false } },
+    ...(canWriteRole.value ? [{ id: 'readmode', group: pref, label: readMode.value ? t('readMode.toEdit') : t('readMode.toRead'), icon: readMode.value ? PencilLine : BookOpen, shortcut: ['mod', 'shift', 'E'], keywords: 'read only lecture seule edit', run: () => { toggleReadMode(); commandOpen.value = false } }] : []),
     { id: 'shortcuts', group: pref, label: t('nav.shortcuts'), icon: Keyboard, shortcut: '?', run: () => { commandOpen.value = false; shortcutsOpen.value = true } },
     { id: 'logout', group: pref, label: t('auth.logout'), icon: LogOut, run: logout },
   ]

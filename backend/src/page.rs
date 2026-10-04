@@ -311,8 +311,7 @@ async fn delete_page(
     if ws != workspace_id {
         return Err(ApiError::NotFound);
     }
-    sqlx::query("DELETE FROM pages WHERE id = $1").bind(page_id).execute(&state.pool).await?;
-    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": page_id })).await;
+    crate::trash::trash_page(&state, workspace_id, page_id, Some(user.id)).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

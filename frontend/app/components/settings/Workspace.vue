@@ -6,8 +6,9 @@ import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
+import { useTrash } from '~/composables/useTrash'
 
-const { wsId, workspace, role, isAdmin, canWrite } = useWorkspace()
+const { wsId, workspace, role, isAdmin, canWriteRole: canWrite } = useWorkspace()
 const importOpen = ref(false)
 const exportOpen = ref(false)
 const { t } = useI18n()
@@ -15,6 +16,19 @@ const qc = useQueryClient()
 const name = ref('')
 watch(() => workspace.data.value?.name, (v) => { if (v) name.value = v }, { immediate: true })
 const saving = ref(false)
+
+// Corbeille : durée de conservation (administrateurs)
+const RETENTION = [0, 7, 14, 30, 60, 90, 180, 365]
+const trash = useTrash(wsId)
+const retention = ref<number | null>(null)
+const retentionItems = computed(() => RETENTION.map((d) => ({ value: String(d), label: d ? t('trash.days', { count: d }) : t('trash.off') })))
+watch(() => trash.data.value?.retention_days, (d) => { if (d != null) retention.value = d }, { immediate: true })
+async function saveRetention(days: number) {
+  retention.value = days
+  await api(`/api/workspaces/${wsId.value}/trash/settings`, { method: 'PUT', body: { retention_days: days } })
+  trash.refetch()
+  toast.success(t('common.saved'))
+}
 
 async function save() {
   saving.value = true
@@ -49,6 +63,11 @@ async function remove() {
       <UiButton v-if="isAdmin" variant="primary" size="sm" :disabled="!name.trim() || name.trim() === workspace.data.value?.name" :loading="saving" @click="save">{{ t('common.save') }}</UiButton>
     </SettingsRow>
     <SettingsRow :label="t('settings.ws.yourRole')"><span class="muted">{{ role ? t(`roles.${role}`) : '' }}</span></SettingsRow>
+    <SettingsRow v-if="isAdmin && retention != null" :label="t('trash.retention')" :hint="t('trash.retentionHint')">
+      <UiCombobox :model-value="String(retention)" :items="retentionItems" :width="240" @update:model-value="(v: string) => saveRetention(Number(v))">
+        <button class="ws-select">{{ retentionItems.find((i) => i.value === String(retention))?.label }}</button>
+      </UiCombobox>
+    </SettingsRow>
   </SettingsSection>
   <SettingsLatexPreamble />
   <SettingsSection :title="t('transfer.sectionTitle')" :description="t('transfer.sectionHint')">
@@ -70,3 +89,7 @@ async function remove() {
     </SettingsRow>
   </SettingsSection>
 </template>
+
+<style scoped>
+.ws-select { height: 28px; min-width: 200px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); background: var(--bg-input); text-align: left; }
+</style>

@@ -6,6 +6,7 @@ import { useWorkspace, wsKeys, links } from './useWorkspace'
 import { confirmDialog } from './useConfirm'
 import { translate } from './useI18n'
 import { toast } from './useToast'
+import { trashedToast } from './useTrash'
 
 export interface PageNode extends Page {
   children: PageNode[]
@@ -120,8 +121,15 @@ export function usePages() {
     })
     if (!ok) return false
     await api(`/api/workspaces/${wsId.value}/pages/${page.id}`, { method: 'DELETE' })
-    qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => old?.filter((p) => p.id !== page.id))
-    toast.success(translate('docs.deleted'))
+    // La page et ses sous-pages partent dans la corbeille.
+    qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => {
+      if (!old) return old
+      const gone = new Set([page.id])
+      let grew = true
+      while (grew) { grew = false; for (const p of old) if (p.parent_id && gone.has(p.parent_id) && !gone.has(p.id)) { gone.add(p.id); grew = true } }
+      return old.filter((p) => !gone.has(p.id))
+    })
+    trashedToast('pages', page.id)
     return true
   }
 

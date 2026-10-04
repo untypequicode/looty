@@ -316,6 +316,7 @@ dependencies = [
  "futures",
  "hex",
  "lettre",
+ "libc",
  "mail-parser",
  "mime_guess",
  "openidconnect",

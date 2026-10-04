@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Mail, RefreshCw, ExternalLink, Plus, MoreHorizontal, Pencil, Trash2, Paperclip, AlertTriangle, ArrowLeft, Image, ChevronDown, Check } from 'lucide-vue-next'
+import { MailOpen, CheckCheck, Mail, RefreshCw, ExternalLink, Plus, MoreHorizontal, Pencil, Trash2, Paperclip, AlertTriangle, ArrowLeft, Image, ChevronDown, Check } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
+import { useLocalStorage } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
@@ -32,19 +33,39 @@ function selectAccount(id: string) {
   accountId.value = id
 }
 
-const { data: messages, isLoading: loadingMessages } = useMailMessages(accountId)
+const filter = useLocalStorage<'all' | 'unread'>('looty.mail.filter', 'all')
+const unreadOnly = computed(() => filter.value === 'unread')
+const pages = useMailMessages(accountId, unreadOnly)
+const loadingMessages = pages.isLoading
+/** État lu / non lu changé ici, en attendant la prochaine synchronisation. */
+const seenOverride = ref(new Map<number, boolean>())
+const messages = computed(() => (pages.data.value?.pages ?? []).flatMap((pg) => pg.messages).map((m) => (seenOverride.value.has(m.uid) ? { ...m, seen: seenOverride.value.get(m.uid)! } : m)))
 const selected = ref<number | null>(null)
 const { data: message, isFetching: loadingMessage, error: messageError } = useMailMessage(accountId, selected)
-watch(accountId, () => (selected.value = null))
+watch(accountId, () => { selected.value = null; seenOverride.value = new Map() })
 
+function localSeen(uid: number, seen: boolean, wasSeen: boolean) {
+  seenOverride.value = new Map(seenOverride.value).set(uid, seen)
+  if (seen !== wasSeen) qc.setQueryData<MailAccount[]>(mailKeys.accounts, (l) => l?.map((a) => (a.id === accountId.value ? { ...a, unread: Math.max(0, a.unread + (seen ? -1 : 1)) } : a)))
+}
 function open(m: MailSummary) {
   selected.value = m.uid
   showImages.value = false
-  if (!m.seen) {
-    // Lu côté serveur à l'ouverture : on reflète tout de suite dans la liste et le compteur.
-    qc.setQueryData<MailSummary[]>(mailKeys.messages(accountId.value!), (l) => l?.map((x) => (x.uid === m.uid ? { ...x, seen: true } : x)))
-    qc.setQueryData<MailAccount[]>(mailKeys.accounts, (l) => l?.map((a) => (a.id === accountId.value ? { ...a, unread: Math.max(0, a.unread - 1) } : a)))
+  // Lu côté serveur à l'ouverture : on reflète tout de suite dans la liste et le compteur.
+  if (!m.seen) localSeen(m.uid, true, false)
+}
+async function setSeen(m: MailSummary, seen: boolean) {
+  localSeen(m.uid, seen, m.seen)
+  try {
+    await api(`/api/mail/accounts/${accountId.value}/messages/${m.uid}/seen`, { method: 'PUT', body: { seen } })
+  } catch {
+    localSeen(m.uid, m.seen, seen)
   }
+}
+async function readAll() {
+  await api(`/api/mail/accounts/${accountId.value}/read-all`, { method: 'POST' })
+  seenOverride.value = new Map()
+  invalidate()
 }
 const current = computed(() => messages.value?.find((m) => m.uid === selected.value) ?? null)
 
@@ -94,6 +115,8 @@ const accountItems = computed<MenuItem[]>(() => [
 ])
 const moreOpen = ref(false)
 const moreItems = computed<MenuItem[]>(() => [
+  { label: t('mail.readAll'), icon: CheckCheck, disabled: !account.value?.unread, onSelect: readAll },
+  { divider: true },
   { label: t('mail.editAccount'), icon: Pencil, onSelect: () => { editing.value = account.value; dialogOpen.value = true } },
   { label: t('mail.addAccount'), icon: Plus, onSelect: addAccount },
   { divider: true },
@@ -118,6 +141,7 @@ useHead({ title: () => t('mail.title') })
         <UiMenu v-if="(accounts?.length ?? 0) > 1" v-model:open="accountMenuOpen" :items="accountItems" placement="bottom-end">
           <UiButton size="sm" variant="ghost">{{ account.label }}<ChevronDown :size="14" /></UiButton>
         </UiMenu>
+        <UiSegmented v-model="filter" :options="[{ value: 'all', label: t('mail.all') }, { value: 'unread', label: account.unread ? `${t('mail.unread')} · ${account.unread}` : t('mail.unread') }]" />
         <UiTooltip :text="t('mail.refresh')">
           <UiButton size="sm" variant="ghost" :icon="RefreshCw" :loading="refreshing" :aria-label="t('mail.refresh')" @click="refresh" />
         </UiTooltip>
@@ -141,16 +165,24 @@ useHead({ title: () => t('mail.title') })
           <UiButton size="xs" variant="ghost" @click="editing = account; dialogOpen = true">{{ t('mail.fix') }}</UiButton>
         </div>
         <div v-if="loadingMessages" class="m-skel"><div v-for="i in 8" :key="i" class="skeleton" style="height: 58px; margin: 4px 0" /></div>
-        <p v-else-if="!messages?.length" class="m-none">{{ account.last_check_at ? t('mail.noMessages') : t('mail.syncing') }}</p>
-        <button v-for="m in messages" v-else :key="m.uid" class="m-row" :class="{ unread: !m.seen, on: m.uid === selected }" @click="open(m)">
+        <p v-else-if="!messages.length" class="m-none">{{ unreadOnly ? t('mail.noUnread') : account.last_check_at ? t('mail.noMessages') : t('mail.syncing') }}</p>
+        <div v-for="m in messages" v-else :key="m.uid" class="m-row" role="button" tabindex="0" :class="{ unread: !m.seen, on: m.uid === selected }" @click="open(m)" @keydown.enter="open(m)">
           <span class="m-top">
             <span class="m-from truncate">{{ m.from_name || m.from_addr || t('mail.unknownSender') }}</span>
             <Paperclip v-if="m.has_attachments" :size="12" class="m-clip" />
             <time class="m-date">{{ shortDate(m.sent_at) }}</time>
+            <UiTooltip :text="m.seen ? t('mail.markUnread') : t('mail.markRead')">
+              <button class="m-toggle" :aria-label="m.seen ? t('mail.markUnread') : t('mail.markRead')" @click.stop="setSeen(m, !m.seen)">
+                <Mail v-if="m.seen" :size="13" /><MailOpen v-else :size="13" />
+              </button>
+            </UiTooltip>
           </span>
           <span class="m-subject truncate">{{ m.subject || t('mail.noSubject') }}</span>
           <span class="m-snippet truncate">{{ m.snippet }}</span>
-        </button>
+        </div>
+        <div v-if="pages.hasNextPage.value" class="m-more">
+          <UiButton size="sm" variant="ghost" :loading="pages.isFetchingNextPage.value" @click="pages.fetchNextPage()">{{ t('mail.loadMore') }}</UiButton>
+        </div>
         <p v-if="account.last_check_at" class="m-checked">{{ t('mail.checked', { when: relativeTime(account.last_check_at) }) }}</p>
       </section>
 
@@ -159,6 +191,9 @@ useHead({ title: () => t('mail.title') })
         <template v-else>
           <header class="r-head">
             <UiButton v-if="isMobile" size="sm" variant="ghost" :icon="ArrowLeft" :aria-label="t('common.close')" @click="selected = null" />
+            <div class="r-actions">
+              <UiButton v-if="current" size="xs" variant="ghost" :icon="Mail" @click="setSeen(current, false); selected = null">{{ t('mail.markUnread') }}</UiButton>
+            </div>
             <h2 class="r-subject">{{ message?.subject || current?.subject || t('mail.noSubject') }}</h2>
             <div class="r-meta">
               <UiAvatar :name="who(message?.from[0]) || current?.from_name || current?.from_addr || '?'" :size="32" />
@@ -192,6 +227,12 @@ useHead({ title: () => t('mail.title') })
 .m-list { overflow-y: auto; border-right: 1px solid var(--border); padding: 6px; }
 .m-row { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 8px 10px; border-radius: var(--r-md); text-align: left; position: relative; }
 .m-row:hover { background: var(--bg-hover); }
+.m-row { cursor: pointer; }
+.m-toggle { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--text-3); opacity: 0; flex: none; }
+.m-row:hover .m-toggle, .m-toggle:focus-visible { opacity: 1; }
+.m-toggle:hover { color: var(--text); background: var(--bg-active, var(--bg-hover)); }
+@media (hover: none) { .m-toggle { opacity: 1; } }
+.m-more { display: flex; justify-content: center; padding: 8px; }
 .m-row.on { background: var(--bg-active, var(--bg-hover)); }
 .m-row.unread::before { content: ''; position: absolute; left: 2px; top: 14px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .m-top { display: flex; align-items: center; gap: 6px; }
@@ -208,6 +249,7 @@ useHead({ title: () => t('mail.title') })
 .m-read { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .m-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-3); }
 .r-head { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+.r-actions { display: flex; justify-content: flex-end; margin: -6px -6px -6px 0; }
 .r-subject { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; }
 .r-meta { display: flex; align-items: center; gap: 10px; }
 .r-people { flex: 1; min-width: 0; }

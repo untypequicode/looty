@@ -21,6 +21,8 @@ import frCalendar from '~/i18n/fr-calendar'
 import enCalendar from '~/i18n/en-calendar'
 import frMail from '~/i18n/fr-mail'
 import enMail from '~/i18n/en-mail'
+import frFeatures from '~/i18n/fr-features'
+import enFeatures from '~/i18n/en-features'
 
 export type Locale = 'fr' | 'en'
 type Messages = Record<string, any>
@@ -34,7 +36,7 @@ function merge(...parts: Messages[]): Messages {
   return out
 }
 
-const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard, frDocs, frSettings, frEmbeds, frCaldav, frTransfer, frNotify, frOffline, frCalendar, frMail), en: merge(enCore, enBoard, enDocs, enSettings, enEmbeds, enCaldav, enTransfer, enNotify, enOffline, enCalendar, enMail) }
+const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard, frDocs, frSettings, frEmbeds, frCaldav, frTransfer, frNotify, frOffline, frCalendar, frMail, frFeatures), en: merge(enCore, enBoard, enDocs, enSettings, enEmbeds, enCaldav, enTransfer, enNotify, enOffline, enCalendar, enMail, enFeatures) }
 export const LOCALES: { code: Locale; label: string }[] = [
   { code: 'fr', label: 'Français' },
   { code: 'en', label: 'English' },

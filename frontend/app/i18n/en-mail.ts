@@ -21,6 +21,7 @@ export default {
     noMessages: 'No messages in the inbox.', syncing: 'Fetching your messages…', checked: 'Checked {when}', fix: 'Fix',
     unknownSender: 'Unknown sender', noSubject: '(no subject)', pick: 'Select a message to read it',
     to: 'To', cc: 'Cc', showImages: 'Show images', attachmentsHint: 'Open the webmail to download attachments.',
-    loadFailed: 'Couldn’t load this message.', newCount: { one: '1 new message', other: '{count} new messages' },
+    loadFailed: 'Couldn’t load this message.', all: 'All', unread: 'Unread', noUnread: 'No unread messages.',
+    markRead: 'Mark as read', markUnread: 'Mark as unread', readAll: 'Mark all as read', loadMore: 'Load older messages', newCount: { one: '1 new message', other: '{count} new messages' },
   },
 }

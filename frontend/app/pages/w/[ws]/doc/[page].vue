@@ -16,6 +16,7 @@ import { toast } from '~/composables/useToast'
 import { motion } from '~/composables/useMotion'
 import { exportMarkdown } from '~/editor/export'
 import { isDesktop, openInDesktop } from '~/composables/useDesktop'
+import { readMode } from '~/composables/useReadMode'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -38,7 +39,7 @@ const live = computed<Page | undefined>(() => {
   const fromList = pages.data.value?.find((p) => p.id === pageId.value)
   return page.value ? { ...page.value, ...(fromList ?? {}), content: page.value.content } : undefined
 })
-const canEdit = computed(() => live.value?.can_edit !== false)
+const canEdit = computed(() => live.value?.can_edit !== false && !readMode.value)
 const path = computed(() => pagePath(pages.data.value ?? [], pageId.value))
 const children = computed(() => (pages.data.value ?? []).filter((p) => p.parent_id === pageId.value).sort((a, b) => a.position - b.position))
 

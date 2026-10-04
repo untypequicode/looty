@@ -13,6 +13,7 @@ const sections = computed(() => [
       { keys: ['C'], label: t('task.new') },
       { keys: ['['], label: t('nav.collapseSidebar') },
       { keys: ['?'], label: t('nav.shortcuts') },
+      { keys: ['mod', 'shift', 'E'], label: t('readMode.toRead') + ' / ' + t('readMode.edit').toLowerCase() },
     ],
   },
   {

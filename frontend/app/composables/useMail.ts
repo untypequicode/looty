@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue'
-import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/vue-query'
 import { api } from './api'
 
 export interface MailAccount {
@@ -44,7 +44,7 @@ export interface MailMessage {
 
 export const mailKeys = {
   accounts: ['mail', 'accounts'] as const,
-  messages: (id: string) => ['mail', 'messages', id] as const,
+  messages: (id: string, unread = false) => ['mail', 'messages', id, unread] as const,
   message: (id: string, uid: number) => ['mail', 'message', id, uid] as const,
 }
 
@@ -52,10 +52,15 @@ export function useMailAccounts() {
   return useQuery({ queryKey: mailKeys.accounts, queryFn: () => api<MailAccount[]>('/api/mail/accounts'), refetchInterval: 120_000 })
 }
 
-export function useMailMessages(account: Ref<string | null>) {
-  return useQuery({
-    queryKey: computed(() => mailKeys.messages(account.value ?? '')),
-    queryFn: () => api<MailSummary[]>(`/api/mail/accounts/${account.value}/messages`),
+/** Boîte de réception paginée (« Charger plus » va chercher les plus anciens sur le serveur). */
+export function useMailMessages(account: Ref<string | null>, unread: Ref<boolean>) {
+  return useInfiniteQuery({
+    queryKey: computed(() => mailKeys.messages(account.value ?? '', unread.value)),
+    queryFn: ({ pageParam }) => api<{ messages: MailSummary[]; has_more: boolean }>(
+      `/api/mail/accounts/${account.value}/messages?${unread.value ? 'unread=true&' : ''}${pageParam ? `before=${pageParam}` : ''}`,
+    ),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.has_more && last.messages.length ? last.messages[last.messages.length - 1]!.uid : undefined),
     enabled: computed(() => !!account.value),
     refetchInterval: 120_000,
   })

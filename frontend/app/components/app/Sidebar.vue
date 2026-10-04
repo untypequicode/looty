@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import {
   Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
-  MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard,
+  MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
 import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
+import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useUi } from '~/composables/useUi'
 import { presence } from '~/composables/useRealtime'
@@ -15,7 +16,7 @@ import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
 
-const { wsId, boards, pages, members, canWrite } = useWorkspace()
+const { wsId, boards, pages, members, canWrite, canWriteRole } = useWorkspace()
 const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
@@ -183,6 +184,12 @@ async function onRootDrop(e: DragEvent) {
         <span v-if="online.length > 6" class="faint sb-more">+{{ online.length - 6 }}</span>
       </div>
       <div class="spacer" />
+      <UiTooltip v-if="canWriteRole" :text="readMode ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
+        <UiButton variant="ghost" size="sm" :icon="readMode ? PencilLine : BookOpen" :class="{ 'rm-on': readMode }" :aria-pressed="readMode" @click="toggleReadMode" />
+      </UiTooltip>
+      <UiTooltip :text="t('trash.title')" placement="top">
+        <UiButton variant="ghost" size="sm" :icon="Trash2" :to="`/w/${wsId}/trash`" :aria-label="t('trash.title')" />
+      </UiTooltip>
       <UiTooltip :text="t('nav.shortcuts')" shortcut="?" placement="top">
         <UiButton variant="ghost" size="sm" :icon="Keyboard" @click="shortcutsOpen = true" />
       </UiTooltip>
@@ -266,6 +273,7 @@ async function onRootDrop(e: DragEvent) {
 }
 .tree { min-height: 8px; border-radius: var(--r-sm); }
 .tree.root-drop { box-shadow: inset 0 -2px 0 var(--accent); }
+.rm-on { color: var(--accent); background: var(--accent-soft); }
 .sb-bottom {
   display: flex;
   align-items: center;
