@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck } from 'lucide-vue-next'
+import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail } from 'lucide-vue-next'
 import type { Notification } from '~/types'
 import { useNotifications } from '~/composables/useNotifications'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -14,7 +14,7 @@ const { t, relativeTime } = useI18n()
 const filter = ref<'all' | 'unread'>('all')
 
 const list = computed(() => (notifications.value ?? []).filter((n) => filter.value === 'all' || !n.read_at))
-const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck }
+const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail }
 
 function targetLink(n: Notification): string {
   const [kind, id] = n.target.split(':')
@@ -22,11 +22,13 @@ function targetLink(n: Notification): string {
   if (kind === 'task') return links.taskById(wsId.value, id)
   if (kind === 'page') return links.doc(wsId.value, id)
   if (kind === 'board') return links.board(wsId.value, id)
+  if (kind === 'mail') return links.mail(wsId.value, id)
   return links.home(wsId.value)
 }
 function targetLabel(n: Notification): string {
   const [kind, id] = n.target.split(':')
   if (n.data?.title) return n.data.title
+  if (kind === 'mail' && n.data?.count) return t('mail.newCount', { count: n.data.count })
   if (kind === 'page') return pages.data.value?.find((p) => p.id === id)?.title || t('docs.untitled')
   if (kind === 'board') return boards.data.value?.find((b) => b.id === id)?.name || ''
   return ''

@@ -34,7 +34,7 @@ use crate::state::AppState;
 // Garde-fous réseau (SSRF)
 // ---------------------------------------------------------------------------
 
-fn allow_private() -> bool {
+pub(crate) fn allow_private() -> bool {
     std::env::var("CALDAV_ALLOW_PRIVATE").as_deref() == Ok("true")
 }
 
