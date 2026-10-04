@@ -17,6 +17,9 @@ pub struct Config {
     /// Fermer la fenêtre la cache dans la barre système au lieu de quitter.
     #[serde(default = "yes")]
     pub close_to_tray: bool,
+    /// Notifications système.
+    #[serde(default = "yes")]
+    pub notifications: bool,
 }
 
 fn yes() -> bool {
@@ -25,7 +28,7 @@ fn yes() -> bool {
 
 impl Default for Config {
     fn default() -> Self {
-        Config { server: None, close_to_tray: true }
+        Config { server: None, close_to_tray: true, notifications: true }
     }
 }
 

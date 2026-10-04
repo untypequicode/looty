@@ -45,6 +45,21 @@ the app, and is used automatically with servers that predate this feature.
 The session is kept by the app between launches. To switch servers:
 tray icon → *Change server…*.
 
+## Tray menu and notifications
+
+The app keeps working in the background when the window is closed:
+
+- **System notifications** for Looty notifications (assignments, mentions, comments,
+  due dates…), shown by your desktop (GNOME, KDE, or mako/dunst/swaync on Hyprland).
+  They follow the *Push* choices in Looty → Settings → Notifications, and stay quiet
+  while the Looty window is focused. Click one to open the task or page.
+- **Tray icon** with a red badge when you have unread notifications, and a menu with:
+  your inbox, your overdue tasks and tasks due today (each with *Open* and *Mark as
+  done*), *New task…* (a small quick-add window), *All my tasks*, and toggles for
+  notifications and *Launch at login* (starts hidden in the tray).
+- **Downloads** (exports, attachments) go to your Downloads folder, with a
+  notification to open the folder.
+
 ## Tray icon by desktop environment
 
 | Desktop  | Tray icon |
@@ -97,10 +112,10 @@ With the proprietary NVIDIA driver, WebKitGTK may show a blank window; the app s
 
 ## Roadmap
 
-1. **Shell** (this version): window, server setup, login (SSO), basic tray, single
+1. **Shell**: window, server setup, login (SSO), basic tray, single
    instance, Nix flake, `.deb`.
-2. **System integration**: native notifications, tray with my tasks and quick
-   check-off, quick task add, unread badge, autostart.
+2. **System integration** (this version): native notifications, tray with my tasks and
+   check-off, quick task add, unread badge, launch at login, downloads.
 3. **Offline**: cached interface and data, offline editing (wiki merge, queued task
    changes), sync status.
 4. **Polish**: `looty://` links, global shortcut, keyring, automated packaging.
