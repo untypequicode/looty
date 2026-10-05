@@ -28,8 +28,6 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
     val ws = s.workspaceId
     val opener = LocalOpener.current
     val links: List<Triple<ImageVector, Int, String>> = listOf(
-        Triple(Icons.Outlined.CalendarMonth, R.string.calendar, "calendar"),
-        Triple(Icons.Outlined.Mail, R.string.mail, "mail"),
         Triple(Icons.Outlined.Hub, R.string.graph, "graph"),
         Triple(Icons.Outlined.History, R.string.activity, "activity"),
         Triple(Icons.Outlined.AutoAwesome, R.string.whats_new, "whats-new"),
@@ -52,6 +50,16 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
                     modifier = Modifier.clickable { state.switchWorkspace(w.id) },
                 )
             }
+        }
+        item {
+            ListItem(headlineContent = { Text(stringResource(R.string.calendar)) }, leadingContent = { Icon(Icons.Outlined.CalendarMonth, null) }, modifier = Modifier.clickable { opener.route("calendar") })
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.mail)) }, leadingContent = { Icon(Icons.Outlined.Mail, null) },
+                trailingContent = { if (state.mailUnread > 0) Badge { Text(if (state.mailUnread > 99) "99+" else state.mailUnread.toString()) } },
+                modifier = Modifier.clickable { opener.route("mail") },
+            )
         }
         item { SectionTitle(stringResource(R.string.boards)) }
         items(state.boards, key = { "b" + it.id }) { b ->

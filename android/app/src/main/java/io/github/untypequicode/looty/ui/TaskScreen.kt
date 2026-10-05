@@ -305,11 +305,13 @@ private fun DescriptionBlock(state: AppState, boardId: String, task: Task) {
 @Composable
 private fun AssigneesSheet(state: AppState, task: Task, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        NoNavScrim()
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(stringResource(R.string.assignees), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             state.members.values.sortedBy { it.name }.forEach { m ->
                 val on = m.user_id in task.assignees
                 ListItem(
+                    colors = sheetItemColors(),
                     headlineContent = { Text(m.name) }, supportingContent = { Text(m.email) },
                     leadingContent = { Avatar(m.name, 32.dp) },
                     trailingContent = { Checkbox(checked = on, onCheckedChange = { state.setAssignee(task, m.user_id, !on) }) },

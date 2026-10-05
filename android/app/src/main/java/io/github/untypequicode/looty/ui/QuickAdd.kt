@@ -48,6 +48,7 @@ fun QuickAddSheet(state: AppState, onDismiss: () -> Unit, onCreated: () -> Unit)
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+        NoNavScrim()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(stringResource(R.string.new_task), style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(

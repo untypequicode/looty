@@ -112,3 +112,22 @@ fun notificationText(n: Notification): String {
         else -> stringResource(R.string.n_other)
     }
 }
+
+/**
+ * À appeler dans le contenu d'une feuille modale : sa fenêtre de dialogue ajoute sinon un
+ * voile clair sur la barre de navigation par gestes (comme l'activité, qui le désactive).
+ */
+@Composable
+fun NoNavScrim() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.LaunchedEffect(view) {
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val provider = (view.parent as? androidx.compose.ui.window.DialogWindowProvider) ?: (view as? androidx.compose.ui.window.DialogWindowProvider)
+            provider?.window?.isNavigationBarContrastEnforced = false
+        }
+    }
+}
+
+/** Lignes de liste dans une feuille modale : fond de la feuille, pas celui de l'écran. */
+@Composable
+fun sheetItemColors() = ListItemDefaults.colors(containerColor = Color.Transparent)

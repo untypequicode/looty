@@ -62,12 +62,51 @@ import kotlinx.serialization.json.JsonObject
     val id: String,
     val calendar_id: String = "",
     val summary: String = "",
+    val description: String? = null,
     val location: String? = null,
+    val url: String? = null,
     val starts_at: String,
     val ends_at: String,
     val all_day: Boolean = false,
+    /** Calendrier de l'espace (« workspace ») : événement Looty modifiable. */
+    val event_id: String? = null,
+    val recurring: Boolean = false,
+    val can_edit: Boolean = false,
 )
-@Serializable data class CalEvents(val events: List<CalEvent> = emptyList())
+@Serializable data class CalTask(val id: String, val title: String, val due_date: String, val is_completed: Boolean = false, val board_id: String, val board_name: String = "")
+@Serializable data class CalEvents(val events: List<CalEvent> = emptyList(), val tasks: List<CalTask> = emptyList())
+@Serializable data class CalendarSource(val id: String, val name: String, val color: String = "#5e6ad2", val kind: String = "ics", val scope: String = "personal", val last_error: String? = null)
+@Serializable data class Repeat(val freq: String, val interval: Int = 1, val until: String? = null)
+@Serializable data class EventDetail(
+    val id: String,
+    val title: String = "",
+    val description: String? = null,
+    val location: String? = null,
+    val start: String,
+    val end: String,
+    val all_day: Boolean = false,
+    val tzid: String? = null,
+    val repeat: Repeat? = null,
+    val complex_recurrence: Boolean = false,
+)
+
+// --- Mail (lecture seule) ---
+@Serializable data class MailAccount(val id: String, val label: String, val email: String = "", val webmail_url: String? = null, val unread: Int = 0, val last_error: String? = null, val last_check_at: String? = null)
+@Serializable data class MailSummary(val uid: Long, val from_name: String = "", val from_addr: String = "", val subject: String = "", val snippet: String = "", val sent_at: String? = null, val seen: Boolean = false, val has_attachments: Boolean = false)
+@Serializable data class MailPage(val messages: List<MailSummary> = emptyList(), val has_more: Boolean = false)
+@Serializable data class MailAddress(val name: String? = null, val address: String? = null)
+@Serializable data class MailAttachment(val name: String = "", val size: Long = 0, val type: String? = null)
+@Serializable data class MailMessage(
+    val uid: Long,
+    val subject: String? = null,
+    val from: List<MailAddress> = emptyList(),
+    val to: List<MailAddress> = emptyList(),
+    val cc: List<MailAddress> = emptyList(),
+    val date: String? = null,
+    val html: String? = null,
+    val text: String? = null,
+    val attachments: List<MailAttachment> = emptyList(),
+)
 @Serializable data class Created(val id: String)
 
 // --- Tableaux et tâches (G2) ---
