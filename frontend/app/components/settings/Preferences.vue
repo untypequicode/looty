@@ -7,6 +7,11 @@ import { api } from '~/composables/api'
 import { toast } from '~/composables/useToast'
 import { shareLocation } from '~/composables/useRealtime'
 import { tabsEnabled } from '~/composables/useTabs'
+import { useUserPrefs } from '~/composables/usePrefs'
+
+const { prefs, update: updatePrefs } = useUserPrefs()
+const spellOn = computed({ get: () => prefs.value.spellcheck !== false, set: (v: boolean) => updatePrefs({ spellcheck: v }) })
+const spellLang = computed({ get: () => prefs.value.spellLang ?? '', set: (v: string) => updatePrefs({ spellLang: v || null }) })
 
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
@@ -46,6 +51,14 @@ const themes = computed(() => [
     </SettingsRow>
     <SettingsRow :label="t('presence.share')" :hint="t('presence.shareHint')">
       <UiSwitch v-model="shareLocation" />
+    </SettingsRow>
+  </SettingsSection>
+  <SettingsSection :title="t('spell.title')">
+    <SettingsRow :label="t('spell.check')" :hint="t('spell.checkHint')">
+      <UiSwitch v-model="spellOn" />
+    </SettingsRow>
+    <SettingsRow v-if="spellOn" :label="t('spell.lang')" :hint="t('spell.langHint')">
+      <UiSegmented v-model="spellLang" size="md" :options="[{ value: '', label: t('spell.auto') }, { value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]" />
     </SettingsRow>
   </SettingsSection>
 </template>

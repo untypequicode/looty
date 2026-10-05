@@ -4,6 +4,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { renderMath } from '~/editor/latex'
 import { useNodeScope } from '~/editor/mathScope'
+import { useLatexField } from '~/editor/latexInput'
 
 const props = defineProps(nodeViewProps)
 const editing = ref(false)
@@ -26,6 +27,7 @@ function start() {
   nextTick(() => input.value?.focus())
 }
 function commit() {
+  if (!editing.value) return
   editing.value = false
   if (!draft.value.trim()) {
     props.deleteNode()
@@ -33,12 +35,33 @@ function commit() {
   }
   if (draft.value !== props.node.attrs.latex) props.updateAttributes({ latex: draft.value })
 }
+const latex = useLatexField(input, () => Object.keys(result.value.scope.macros ?? {}))
+
+/** Quitte la formule au clavier : curseur juste avant ou juste après, dans le texte. */
+function leave(side: 'before' | 'after') {
+  const at = props.getPos() as number
+  // toRaw : sous le proxy réactif de Vue, ProseMirror ne reconnaît plus une feuille (taille 2 au lieu de 1).
+  const pos = side === 'after' ? at + toRaw(props.node).nodeSize : at
+  latex.close()
+  // D'abord le curseur et le focus dans l'éditeur (le navigateur y place sa sélection),
+  // ensuite seulement le champ disparaît : sinon la sélection du DOM, relue par
+  // ProseMirror, se retrouve un caractère plus loin.
+  const max = props.editor.state.doc.content.size
+  props.editor.chain().setTextSelection(Math.max(0, Math.min(pos, max))).focus().run()
+  commit()
+}
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Enter' || e.key === 'Escape') {
+  if (latex.onKeydown(e)) return
+  const f = input.value
+  if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Tab') {
     e.preventDefault()
-    commit()
-    const pos = (props.getPos() as number) + props.node.nodeSize
-    props.editor.chain().focus().setTextSelection(pos).run()
+    leave(e.key === 'Tab' && e.shiftKey ? 'before' : 'after')
+  } else if (f && e.key === 'ArrowRight' && f.selectionStart === f.value.length && f.selectionEnd === f.value.length) {
+    e.preventDefault()
+    leave('after')
+  } else if (f && e.key === 'ArrowLeft' && f.selectionStart === 0 && f.selectionEnd === 0) {
+    e.preventDefault()
+    leave('before')
   }
 }
 </script>
@@ -46,7 +69,8 @@ function onKey(e: KeyboardEvent) {
 <template>
   <NodeViewWrapper as="span" class="math-inline" :class="{ selected }">
     <span v-if="editing" class="mi-edit" contenteditable="false">
-      <span class="mi-dollar">$</span><input ref="input" v-model="draft" spellcheck="false" :size="Math.max(4, draft.length)" @keydown.stop="onKey" @blur="commit" /><span class="mi-dollar">$</span>
+      <span class="mi-dollar">$</span><input ref="input" v-model="draft" spellcheck="false" :size="Math.max(4, draft.length)" @keydown.stop="onKey" @input="latex.refresh()" @click="latex.refresh()" @blur="latex.close(); commit()" /><span class="mi-dollar">$</span>
+      <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="latex.pick" />
     </span>
     <span v-else-if="preambleOnly" class="mi-render mi-preamble" :title="definesTitle" @click="start">ƒ</span>
     <span v-else-if="html" class="mi-render" @click="start" v-html="html" />
@@ -61,7 +85,7 @@ function onKey(e: KeyboardEvent) {
 .mi-render:hover { background: var(--bg-hover); border-radius: 4px; }
 .mi-error { color: var(--red); font-family: var(--font-mono); font-size: 0.85em; }
 .mi-preamble { color: var(--text-3); font-style: italic; font-family: var(--font-mono); font-size: 0.85em; padding: 0 3px; background: var(--bg-code); border-radius: 4px; }
-.mi-edit { display: inline-flex; align-items: center; background: var(--bg-code); border-radius: 4px; padding: 0 4px; font-family: var(--font-mono); font-size: 0.85em; }
+.mi-edit { position: relative; display: inline-flex; align-items: center; background: var(--bg-code); border-radius: 4px; padding: 0 4px; font-family: var(--font-mono); font-size: 0.85em; }
 .mi-edit input { border: none; outline: none; background: transparent; font: inherit; color: var(--text); }
 .mi-dollar { color: var(--text-3); }
 </style>

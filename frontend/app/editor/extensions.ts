@@ -84,6 +84,9 @@ export function docExtensions(o: DocEditorOptions): Extensions {
     Placeholder.configure({
       includeChildren: true,
       placeholder: ({ node, editor }) => {
+        // Seuls les blocs de texte affichent une invite : un encadré, une liste ou une cellule
+        // vides contiennent eux-mêmes un paragraphe vide (sinon deux textes superposés).
+        if (!node.isTextblock) return ''
         if (node.type.name === 'heading') return t('editor.headingPlaceholder', { level: node.attrs.level })
         if (node.type.name === 'toggleSummary') return t('editor.togglePlaceholder')
         if (editor.isEmpty) return t('editor.placeholder')

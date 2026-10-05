@@ -67,6 +67,8 @@ pub fn build_menu(app: &AppHandle, state: &TrayState, launch_at_login: bool, not
         items.push(Box::new(sep(app)?));
     }
     items.push(Box::new(CheckMenuItem::with_id(app, "notifications", tr("Notifications", "Notifications"), true, notifications, None::<&str>)?));
+    let ask = app.state::<crate::proxy::Shared>().config.read().map(|c| c.ask_download_location).unwrap_or(true);
+    items.push(Box::new(CheckMenuItem::with_id(app, "ask-download", tr("Demander où enregistrer les fichiers", "Ask where to save files"), true, ask, None::<&str>)?));
     items.push(Box::new(CheckMenuItem::with_id(app, "autostart", tr("Lancer à l’ouverture de session", "Launch at login"), true, launch_at_login, None::<&str>)?));
     items.push(Box::new(MenuItem::with_id(app, "server", tr("Changer de serveur…", "Change server…"), true, None::<&str>)?));
     items.push(Box::new(sep(app)?));

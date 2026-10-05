@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
+  NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -10,7 +10,7 @@ import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
 import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
-import { useUi } from '~/composables/useUi'
+import { useUi, notepadOpen } from '~/composables/useUi'
 import { presence } from '~/composables/useRealtime'
 import { following } from '~/composables/usePresenceInfo'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
@@ -203,6 +203,9 @@ async function onRootDrop(e: DragEvent) {
       <div class="spacer" />
       <UiTooltip v-if="canWriteRole" :text="readMode ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
         <UiButton variant="ghost" size="sm" :icon="readMode ? PencilLine : BookOpen" :class="{ 'rm-on': readMode }" :aria-pressed="readMode" @click="toggleReadMode" />
+      </UiTooltip>
+      <UiTooltip :text="t('notepad.open')" :shortcut="['mod', 'alt', 'N']" placement="top">
+        <UiButton variant="ghost" size="sm" :icon="NotebookPen" :class="{ 'rm-on': notepadOpen }" :aria-pressed="notepadOpen" :aria-label="t('notepad.open')" @click="notepadOpen = !notepadOpen" />
       </UiTooltip>
       <UiTooltip :text="t('trash.title')" placement="top">
         <UiButton variant="ghost" size="sm" :icon="Trash2" :to="`/w/${wsId}/trash`" :aria-label="t('trash.title')" />

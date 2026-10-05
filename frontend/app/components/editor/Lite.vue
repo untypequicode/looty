@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEditorSpellcheck } from '~/composables/usePrefs'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -80,6 +81,7 @@ const editor = useEditor({
   },
   onBlur: () => emit('blur'),
 })
+useEditorSpellcheck(editor)
 
 watch(model, (v) => {
   if (!editor.value) return

@@ -14,7 +14,7 @@ import { toast } from '~/composables/useToast'
 import { useTabs, tabsEnabled, isWorkspaceLink, tabMod } from '~/composables/useTabs'
 import { saveScroll, restoreScroll } from '~/composables/useScrollMemory'
 import { useAuth } from '~/composables/useAuth'
-import { useUi } from '~/composables/useUi'
+import { useUi, notepadOpen } from '~/composables/useUi'
 import { useShortcuts } from '~/composables/useShortcuts'
 import { useNotifications } from '~/composables/useNotifications'
 import { usePages } from '~/composables/usePages'
@@ -155,6 +155,7 @@ onBeforeUnmount(() => {
 
 useShortcuts([
   { keys: 'mod+k', global: true, handler: () => (commandOpen.value = !commandOpen.value) },
+  { keys: 'mod+alt+n', global: true, handler: () => { notepadOpen.value = !notepadOpen.value } },
   { keys: '/', handler: () => (commandOpen.value = true) },
   { keys: '?', handler: () => (shortcutsOpen.value = true) },
   ...tabShortcuts(),
@@ -246,6 +247,7 @@ function onEdgeStart(e: TouchEvent) {
     </nav>
 
     <AppCommandPalette />
+    <AppNotepad />
     <AppWhatsNewDialog />
     <AppShortcutsDialog />
     <AppCreateBoardDialog />
