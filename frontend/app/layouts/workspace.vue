@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Home, Inbox, CircleUserRound, Search, SquarePen, BookOpen, Eye, X } from 'lucide-vue-next'
 import { readMode, toggleReadMode } from '~/composables/useReadMode'
+import { isNativeApp } from '~/composables/useNative'
 import gsap from 'gsap'
 import { useQuery } from '@tanstack/vue-query'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
@@ -192,6 +193,7 @@ function onTouchEnd() {
 
 // Ouverture par glissement depuis le bord gauche
 function onEdgeStart(e: TouchEvent) {
+  if (isNativeApp) return
   if (!isTablet.value || sidebarOpen.value) return
   if (e.touches[0].clientX < 18) sidebarOpen.value = true
 }
@@ -252,6 +254,9 @@ function onEdgeStart(e: TouchEvent) {
 </template>
 
 <style scoped>
+/* Application Android native : sa propre navigation remplace celle du site. */
+:global(html.native-embed .tabbar) { display: none !important; }
+:global(html.native-embed .app-main) { padding-bottom: 0 !important; }
 .rm-badge {
   position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
   display: inline-flex; align-items: center; gap: 7px; padding: 6px 8px 6px 12px; border-radius: var(--r-full);

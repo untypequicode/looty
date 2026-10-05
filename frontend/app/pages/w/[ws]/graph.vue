@@ -188,10 +188,10 @@ useHead({ title: () => t('graph.title') })
 .lg-dot.task.done { background: transparent; box-shadow: inset 0 0 0 1.5px #eb6834; }
 .lg-dot.board, .lg-sq { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: #1baf7a; }
 .lg-line { display: inline-block; width: 18px; border-top: 2px dashed var(--accent); }
-:global(html.dark) .lg-dot.page { background: #3987e5; }
-:global(html.dark) .lg-dot.task { background: #d95926; }
-:global(html.dark) .lg-dot.task.done { background: transparent; box-shadow: inset 0 0 0 1.5px #d95926; }
-:global(html.dark) .lg-dot.board, :global(html.dark) .lg-sq { background: #199e70; }
+:global(html.dark .lg-dot.page) { background: #3987e5; }
+:global(html.dark .lg-dot.task) { background: #d95926; }
+:global(html.dark .lg-dot.task.done) { background: transparent; box-shadow: inset 0 0 0 1.5px #d95926; }
+:global(html.dark .lg-dot.board), :global(html.dark .lg-sq) { background: #199e70; }
 .gr-list { flex: 1; overflow-y: auto; padding: 8px 16px 40px; }
 .gr-list table { width: 100%; max-width: 900px; margin: 0 auto; border-collapse: collapse; font-size: var(--fs-md); }
 .gr-list th { text-align: left; font-size: var(--fs-sm); font-weight: 500; color: var(--text-3); padding: 8px 10px; border-bottom: 1px solid var(--border); }
