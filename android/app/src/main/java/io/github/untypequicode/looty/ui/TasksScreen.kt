@@ -70,6 +70,7 @@ fun TasksScreen(state: AppState, padding: PaddingValues, snackbar: SnackbarHostS
 fun TaskRow(state: AppState, t: MyTask, compact: Boolean = false, snackbar: SnackbarHostState? = null, scope: kotlinx.coroutines.CoroutineScope? = null) {
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    val opener = LocalOpener.current
     var done by remember(t.id, t.done_by_me) { mutableStateOf(t.done_by_me) }
     val doneMsg = stringResource(R.string.task_done)
     val undo = stringResource(R.string.undo)
@@ -95,7 +96,7 @@ fun TaskRow(state: AppState, t: MyTask, compact: Boolean = false, snackbar: Snac
             }) { Icon(if (done) Icons.Filled.CheckCircle else Icons.Outlined.Circle, null, tint = tint) }
         },
         trailingContent = due?.let { { Text(dayLabel(it), style = MaterialTheme.typography.labelMedium, color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } },
-        modifier = Modifier.clickable { state.ws?.let { openWeb(ctx, Paths.task(it, t.board_id, t.id)) } },
+        modifier = Modifier.clickable { state.taskBoard[t.id] = t.board_id; opener.task(t.id) },
     )
 }
 

@@ -40,6 +40,29 @@
     },
     {
       "platform": "android",
+      "version": "0.3.0",
+      "date": "2026-10-05",
+      "title": {
+        "en": "Native boards and tasks",
+        "fr": "Tableaux et tâches natifs"
+      },
+      "notes": {
+        "en": [
+          "**Boards**: swipe between columns, cards with labels, due date, sub-tasks and assignees, filters (completed, only mine).",
+          "Long-press a card to mark it done, move it to another column or delete it (with undo).",
+          "**Task details** in the app: title, status, priority, start and due dates, assignees, labels, description, sub-tasks, attachments and comments.",
+          "Tasks and boards open in these native screens from everywhere in the app, including notifications."
+        ],
+        "fr": [
+          "**Tableaux** : balayez d’une colonne à l’autre, cartes avec étiquettes, échéance, sous-tâches et assignés, filtres (terminées, seulement les miennes).",
+          "Appui long sur une carte pour la terminer, la déplacer vers une autre colonne ou la supprimer (avec annulation).",
+          "**Détail des tâches** dans l’application : titre, statut, priorité, dates de début et d’échéance, assignés, étiquettes, description, sous-tâches, pièces jointes et commentaires.",
+          "Les tâches et les tableaux s’ouvrent dans ces écrans natifs depuis toute l’application, notifications comprises."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.2.0",
       "date": "2026-10-05",
       "title": {

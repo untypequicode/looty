@@ -26,6 +26,7 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
     val ctx = LocalContext.current
     val s = state.session as? Session.Ready ?: return
     val ws = s.workspaceId
+    val opener = LocalOpener.current
     val links: List<Triple<ImageVector, Int, String>> = listOf(
         Triple(Icons.Outlined.CalendarMonth, R.string.calendar, "calendar"),
         Triple(Icons.Outlined.Mail, R.string.mail, "mail"),
@@ -54,7 +55,7 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
         }
         item { SectionTitle(stringResource(R.string.boards)) }
         items(state.boards, key = { "b" + it.id }) { b ->
-            ListItem(headlineContent = { Text(b.name) }, leadingContent = { Icon(Icons.Outlined.ViewKanban, null) }, modifier = Modifier.clickable { openWeb(ctx, Paths.board(ws, b.id)) })
+            ListItem(headlineContent = { Text(b.name) }, leadingContent = { Icon(Icons.Outlined.ViewKanban, null) }, modifier = Modifier.clickable { opener.board(b.id) })
         }
         item { SectionTitle(stringResource(R.string.open_web)) }
         items(links, key = { it.third }) { (icon, label, screen) ->

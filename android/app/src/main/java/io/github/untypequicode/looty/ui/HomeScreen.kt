@@ -35,6 +35,7 @@ fun HomeScreen(state: AppState, padding: PaddingValues, onTasks: () -> Unit) {
     val hour = LocalTime.now().hour
     val greeting = stringResource(if (hour < 12) R.string.greeting_morning else if (hour < 18) R.string.greeting_afternoon else R.string.greeting_evening, first)
     val counts = state.overview.data?.my
+    val opener = LocalOpener.current
     PullToRefreshBox(isRefreshing = state.overview.loading && state.overview.data != null, onRefresh = { state.refreshAll() }, modifier = Modifier.padding(padding)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
             item {
@@ -80,7 +81,7 @@ fun HomeScreen(state: AppState, padding: PaddingValues, onTasks: () -> Unit) {
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(boards, key = { it.id }) { b ->
-                            ElevatedCard(onClick = { openWeb(ctx, Paths.board(ws, b.id)) }, modifier = Modifier.width(200.dp)) {
+                            ElevatedCard(onClick = { opener.board(b.id) }, modifier = Modifier.width(200.dp)) {
                                 Column(Modifier.padding(14.dp)) {
                                     Text(b.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Spacer(Modifier.height(10.dp))

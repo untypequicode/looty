@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.untypequicode.looty.api.*
@@ -13,6 +14,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.JsonObject
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -165,6 +167,150 @@ class AppState(app: Application) : AndroidViewModel(app) {
         loadPages()
         p.id
     }
+
+    // -----------------------------------------------------------------------
+    // Tableaux et tâches (écrans natifs G2). Changement appliqué tout de suite à
+    // l'écran (copie locale), envoyé au serveur, puis le tableau est rechargé.
+    // -----------------------------------------------------------------------
+
+    val boardData = mutableStateMapOf<String, Loadable<BoardFull>>()
+    /** Tâche → tableau (pour ouvrir une tâche depuis n'importe où). */
+    val taskBoard = mutableStateMapOf<String, String>()
+    val comments = mutableStateMapOf<String, List<Comment>>()
+    val attachments = mutableStateMapOf<String, List<Attachment>>()
+    var lastError by mutableStateOf<String?>(null)
+
+    fun loadBoard(id: String) {
+        val cur = boardData[id] ?: Loadable()
+        boardData[id] = cur.copy(loading = true, error = null)
+        viewModelScope.launch {
+            boardData[id] = try {
+                val b = api.get<BoardFull>("/api/boards/$id")
+                b.allTasks.forEach { taskBoard[it.id] = id }
+                Loadable(b)
+            } catch (e: ApiException) {
+                (boardData[id] ?: Loadable()).copy(loading = false, error = e.code)
+            } catch (e: Exception) {
+                (boardData[id] ?: Loadable()).copy(loading = false, error = "offline")
+            }
+        }
+    }
+
+    /** Ouvre une tâche connue seulement par son identifiant : trouve son tableau. */
+    fun ensureTask(taskId: String) {
+        val b = taskBoard[taskId]
+        if (b != null) { if (boardData[b]?.data == null) loadBoard(b); return }
+        viewModelScope.launch {
+            runCatching { api.get<TaskEnvelope>("/api/boards/tasks/$taskId") }
+                .onSuccess { env -> taskBoard[taskId] = env.board_id; loadBoard(env.board_id) }
+                .onFailure { lastError = (it as? ApiException)?.code ?: "offline" }
+        }
+    }
+
+    fun boardOf(taskId: String): BoardFull? = taskBoard[taskId]?.let { boardData[it]?.data }
+
+    private fun patchLocal(boardId: String, f: (BoardFull) -> BoardFull) {
+        val entry = boardData[boardId] ?: return
+        val cur = entry.data ?: return
+        boardData[boardId] = entry.copy(data = f(cur))
+    }
+
+    private fun mapTask(b: BoardFull, id: String, f: (Task) -> Task) =
+        b.copy(columns = b.columns.map { c -> c.copy(tasks = c.tasks.map { if (it.id == id) f(it) else it }) })
+
+    /** Écriture : copie locale, appel, rechargement (qui corrige en cas de refus). */
+    private fun mutate(boardId: String, local: (BoardFull) -> BoardFull, call: suspend () -> Unit) {
+        patchLocal(boardId, local)
+        viewModelScope.launch {
+            try { call() } catch (e: ApiException) { lastError = e.code } catch (e: Exception) { lastError = "offline" }
+            loadBoard(boardId)
+            loadTasks(); loadOverview()
+        }
+    }
+
+    fun updateTask(task: Task, body: JsonObject, local: (Task) -> Task) {
+        val b = taskBoard[task.id] ?: return
+        mutate(b, { mapTask(it, task.id, local) }) { api.send("PUT", "/api/boards/tasks/${task.id}", body) }
+    }
+
+    fun toggleDone(task: Task) {
+        val b = taskBoard[task.id] ?: return
+        val meId = me?.id ?: return
+        mutate(b, { bd -> mapTask(bd, task.id) { t ->
+            if (t.is_per_person) t.copy(validations = if (meId in t.validations) t.validations - meId else t.validations + meId)
+            else t.copy(is_completed = !t.is_completed)
+        } }) { api.send("PUT", "/api/boards/tasks/${task.id}/toggle_validation") }
+    }
+
+    fun moveTask(task: Task, columnId: String) {
+        val b = taskBoard[task.id] ?: return
+        val board = boardData[b]?.data ?: return
+        val target = board.column(columnId) ?: return
+        // En haut de la colonne d'arrivée.
+        val pos = (target.tasks.filter { it.parent_id == null }.minOfOrNull { it.position } ?: 65536.0) / 2
+        mutate(b, { bd ->
+            val moved = task.copy(column_id = columnId, position = pos)
+            bd.copy(columns = bd.columns.map { c ->
+                if (c.id == columnId) c.copy(tasks = listOf(moved) + c.tasks.filter { it.id != task.id })
+                else c.copy(tasks = c.tasks.filter { it.id != task.id })
+            })
+        }) { api.send("PUT", "/api/boards/tasks/${task.id}/move", buildJsonObject { put("column_id", columnId); put("position", pos) }) }
+    }
+
+    fun setLabel(task: Task, label: Label, on: Boolean) {
+        val b = taskBoard[task.id] ?: return
+        mutate(b, { bd -> mapTask(bd, task.id) { t -> t.copy(labels = if (on) t.labels + label else t.labels.filter { it.id != label.id }) } }) {
+            api.send(if (on) "POST" else "DELETE", "/api/boards/tasks/${task.id}/labels/${label.id}")
+        }
+    }
+
+    fun setAssignee(task: Task, userId: String, on: Boolean) {
+        val b = taskBoard[task.id] ?: return
+        mutate(b, { bd -> mapTask(bd, task.id) { t -> t.copy(assignees = if (on) t.assignees + userId else t.assignees - userId) } }) {
+            api.send(if (on) "POST" else "DELETE", "/api/boards/tasks/${task.id}/assignees/$userId")
+        }
+    }
+
+    fun addSubtask(parent: Task, title: String) {
+        val b = taskBoard[parent.id] ?: return
+        viewModelScope.launch {
+            runCatching { api.send("POST", "/api/boards/tasks/${parent.id}/subtasks", buildJsonObject { put("title", title.trim()) }) }
+                .onFailure { lastError = (it as? ApiException)?.code ?: "offline" }
+            loadBoard(b)
+        }
+    }
+
+    suspend fun createInColumn(boardId: String, columnId: String, title: String): Result<String> = runCatching {
+        val created = api.post<Created>("/api/boards/columns/$columnId/tasks", buildJsonObject { put("title", title.trim()); put("at_top", true) })
+        taskBoard[created.id] = boardId
+        loadBoard(boardId)
+        created.id
+    }
+
+    fun deleteTask(task: Task) {
+        val b = taskBoard[task.id] ?: return
+        mutate(b, { bd -> bd.copy(columns = bd.columns.map { c -> c.copy(tasks = c.tasks.filter { it.id != task.id && it.parent_id != task.id }) }) }) {
+            api.send("DELETE", "/api/boards/tasks/${task.id}")
+        }
+    }
+
+    /** Annulation d'une suppression (corbeille). */
+    fun restoreTask(taskId: String) {
+        val b = taskBoard[taskId] ?: return
+        viewModelScope.launch { runCatching { api.send("POST", "/api/trash/tasks/$taskId/restore") }; loadBoard(b); loadTasks() }
+    }
+
+    fun loadComments(taskId: String) {
+        viewModelScope.launch {
+            runCatching { api.get<List<Comment>>("/api/boards/tasks/$taskId/comments") }.onSuccess { comments[taskId] = it }
+            runCatching { api.get<List<Attachment>>("/api/boards/tasks/$taskId/attachments") }.onSuccess { attachments[taskId] = it }
+        }
+    }
+
+    suspend fun addComment(taskId: String, text: String): Boolean = runCatching {
+        api.send("POST", "/api/boards/tasks/$taskId/comments", buildJsonObject { put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)) })
+        loadComments(taskId)
+    }.isSuccess
 
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
