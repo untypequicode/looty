@@ -69,3 +69,33 @@ import kotlinx.serialization.json.JsonObject
 )
 @Serializable data class CalEvents(val events: List<CalEvent> = emptyList())
 @Serializable data class Created(val id: String)
+
+// --- Tableaux et tâches (G2) ---
+@Serializable data class Label(val id: String, val name: String, val color: String = "#5e6ad2")
+@Serializable data class Task(
+    val id: String,
+    val column_id: String,
+    val parent_id: String? = null,
+    val title: String,
+    val description: String? = null,
+    val position: Double = 0.0,
+    val is_per_person: Boolean = false,
+    val is_completed: Boolean = false,
+    val require_all_validations: Boolean = true,
+    val start_date: String? = null,
+    val due_date: String? = null,
+    val priority: Int = 0,
+    val labels: List<Label> = emptyList(),
+    val assignees: List<String> = emptyList(),
+    val validations: List<String> = emptyList(),
+    val updated_at: String? = null,
+)
+@Serializable data class ColumnFull(val id: String, val name: String, val position: Double = 0.0, val tasks: List<Task> = emptyList())
+@Serializable data class BoardFull(val id: String, val name: String, val columns: List<ColumnFull> = emptyList(), val labels: List<Label> = emptyList()) {
+    val allTasks: List<Task> get() = columns.flatMap { it.tasks }
+    fun task(id: String): Task? = columns.firstNotNullOfOrNull { c -> c.tasks.firstOrNull { it.id == id } }
+    fun column(id: String): ColumnFull? = columns.firstOrNull { it.id == id }
+}
+@Serializable data class TaskEnvelope(val task: Task, val board_id: String)
+@Serializable data class Comment(val id: String, val task_id: String, val user_id: String, val content: String, val created_at: String, val updated_at: String? = null)
+@Serializable data class Attachment(val id: String, val filename: String, val file_path: String, val mime_type: String? = null, val size_bytes: Long? = null)

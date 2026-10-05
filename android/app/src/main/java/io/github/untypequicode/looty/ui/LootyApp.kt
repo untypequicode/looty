@@ -44,12 +44,15 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     var quickAdd by remember { mutableStateOf(false) }
     val createdMsg = stringResource(R.string.created)
+    val isTab = TABS.any { it.route == route }
+    val opener = remember(nav) { Opener(task = { nav.navigate("task/$it") }, board = { nav.navigate("board/$it") }) }
     val workspace = (state.session as? Session.Ready)?.let { s -> s.workspaces.firstOrNull { it.id == s.workspaceId }?.name }.orEmpty()
 
+    CompositionLocalProvider(LocalOpener provides opener) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(if (route == "home") workspace else stringResource(TABS.first { it.route == route }.label)) },
+            if (isTab) TopAppBar(
+                title = { Text(if (route == "home") workspace else stringResource(TABS.firstOrNull { it.route == route }?.label ?: R.string.nav_home)) },
                 actions = {
                     when (route) {
                         "inbox" -> if (state.unread > 0) TextButton(onClick = { state.markAllRead() }) { Text(stringResource(R.string.mark_all_read)) }
@@ -61,7 +64,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             )
         },
         bottomBar = {
-            NavigationBar {
+            if (isTab) NavigationBar {
                 TABS.forEach { tab ->
                     val selected = route == tab.route
                     NavigationBarItem(
@@ -89,14 +92,19 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
+    ) { innerPadding ->
+        // Écrans de détail : leur propre barre supérieure, sans barre de navigation du bas.
+        val padding = if (isTab) innerPadding else PaddingValues()
         NavHost(nav, startDestination = "home") {
             composable("home") { HomeScreen(state, padding) { nav.navigate("tasks") { launchSingleTop = true } } }
             composable("tasks") { TasksScreen(state, padding, snackbar) }
             composable("docs") { DocsScreen(state, padding) }
             composable("inbox") { InboxScreen(state, padding) }
             composable("more") { MoreScreen(state, padding, onSignedOut) }
+            composable("board/{id}") { e -> BoardScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
+            composable("task/{id}") { e -> TaskScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
         }
+    }
     }
     if (quickAdd) {
         QuickAddSheet(state, onDismiss = { quickAdd = false }, onCreated = {

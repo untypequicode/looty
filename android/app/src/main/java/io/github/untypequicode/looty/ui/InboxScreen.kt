@@ -28,6 +28,7 @@ fun InboxScreen(state: AppState, padding: PaddingValues) {
     val ctx = LocalContext.current
     val ws = state.ws ?: return
     val list = state.inbox.data.orEmpty()
+    val opener = LocalOpener.current
     PullToRefreshBox(isRefreshing = state.inbox.loading && state.inbox.data != null, onRefresh = { state.loadInbox() }, modifier = Modifier.padding(padding)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (list.isEmpty() && !state.inbox.loading) item { EmptyState(Icons.Outlined.NotificationsNone, stringResource(R.string.inbox_empty)) }
@@ -47,7 +48,12 @@ fun InboxScreen(state: AppState, padding: PaddingValues) {
                         }
                     },
                     colors = if (unread) ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) else ListItemDefaults.colors(),
-                    modifier = Modifier.clickable { state.markRead(n); openWeb(ctx, Paths.notification(ws, n)) },
+                    modifier = Modifier.clickable {
+                        state.markRead(n)
+                        // Tâche : écran natif ; le reste (pages, mail…) dans l'écran web.
+                        val (kind, id) = n.target.split(":", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+                        if (kind == "task") opener.task(id) else openWeb(ctx, Paths.notification(ws, n))
+                    },
                 )
             }
         }

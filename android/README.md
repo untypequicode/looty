@@ -19,12 +19,12 @@ no Firebase). Built with compile/target SDK 37 (Android 17), minimum Android 8.0
   bar colors that follow the page's light or dark theme.
 - An "offline" page with *Try again* / *Change server* when the server can't be reached.
 
-Native screens (since 0.2.0): **Home** (stats, today's events, upcoming tasks, boards),
+Native screens (since 0.2.0, boards and tasks since 0.3.0): **Boards** (swipe between columns, cards, long-press to move / complete / delete with undo), **Task details** (title, status, priority, dates, assignees, labels, description, sub-tasks, attachments, comments), **Home** (stats, today's events, upcoming tasks, boards),
 **Tasks** (mine to do / all pending, check off with undo, pull to refresh), **Documents**
 (tree, favorites, search, new document), **Inbox** (notifications, mark as read) and **More**
 (workspaces, boards, other screens, server, sign out); **New task** bottom sheet.
 
-Next phases: native boards and task details, calendar and mail, notifications
+Next phases: calendar and mail, notifications
 (UnifiedPush/ntfy with a periodic check as fallback), widget and sharing, offline cache.
 
 ## Install
