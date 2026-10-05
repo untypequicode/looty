@@ -1,6 +1,6 @@
 [package]
 name = "looty-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Looty desktop app"
 edition = "2021"
 license = "MIT"
@@ -42,6 +42,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 keyring = { version = "3", features = ["async-secret-service", "tokio", "crypto-rust"] }
 aes-gcm = "0.10"
+# Mêmes versions que Tauri / wry : fenêtre « Enregistrer sous » et correcteur orthographique.
+gtk = "0.18"
+webkit2gtk = { version = "2.0", features = ["v2_40"] }
 
 [profile.release]
 lto = true

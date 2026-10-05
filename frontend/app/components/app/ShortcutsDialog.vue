@@ -19,6 +19,7 @@ const sections = computed(() => [
       { keys: [...tabKeyLabel('shift'), 'T'], label: t('tabs.reopen') },
       { keys: tabKeyLabel(tabMod === 'mod' ? 'Tab' : 'PgDn'), label: t('tabs.next') },
       { keys: tabKeyLabel('1–9'), label: t('tabs.switchTo') },
+      { keys: ['mod', 'alt', 'N'], label: t('notepad.open') },
       { keys: ['mod', 'shift', 'E'], label: t('readMode.toRead') + ' / ' + t('readMode.edit').toLowerCase() },
     ],
   },

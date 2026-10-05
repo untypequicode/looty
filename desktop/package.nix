@@ -9,6 +9,7 @@
 , openssl
 , librsvg
 , libayatana-appindicator
+, hunspellDicts
 }:
 
 rustPlatform.buildRustPackage {
@@ -26,9 +27,11 @@ rustPlatform.buildRustPackage {
   nativeBuildInputs = [ pkg-config wrapGAppsHook3 ];
   buildInputs = [ webkitgtk_4_1 libsoup_3 gtk3 glib-networking openssl librsvg ];
 
-  # L'icône de la barre système charge libayatana-appindicator à l'exécution.
+  # L'icône de la barre système charge libayatana-appindicator à l'exécution ;
+  # le correcteur orthographique (enchant / hunspell) cherche ses dictionnaires dans DICPATH.
   preFixup = ''
     gappsWrapperArgs+=(--prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libayatana-appindicator ]}")
+    gappsWrapperArgs+=(--prefix DICPATH : "${hunspellDicts.fr-any}/share/hunspell:${hunspellDicts.en_US}/share/hunspell")
   '';
 
   postInstall = ''

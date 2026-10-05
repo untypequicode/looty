@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css'
 import { Sigma, Package, AlertTriangle } from 'lucide-vue-next'
 import { renderMath } from '~/editor/latex'
 import { useNodeScope } from '~/editor/mathScope'
+import { useLatexField } from '~/editor/latexInput'
 
 const props = defineProps(nodeViewProps)
 const editing = ref(!props.node.attrs.latex)
@@ -34,11 +35,13 @@ function commit() {
   editing.value = false
   if (draft.value !== props.node.attrs.latex) props.updateAttributes({ latex: draft.value })
 }
+const latex = useLatexField(area, () => Object.keys(result.value.scope.macros ?? {}))
 function onKey(e: KeyboardEvent) {
+  if (latex.onKeydown(e)) { autosize(); return }
   if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
     e.preventDefault()
     commit()
-    const pos = (props.getPos() as number) + props.node.nodeSize
+    const pos = (props.getPos() as number) + toRaw(props.node).nodeSize
     props.editor.chain().focus().setTextSelection(Math.min(pos, props.editor.state.doc.content.size)).run()
   }
 }
@@ -63,7 +66,10 @@ function autosize() {
       <span v-else class="math-error">{{ error }}</span>
     </div>
     <div v-if="editing" class="math-edit" contenteditable="false">
-      <textarea ref="area" v-model="draft" spellcheck="false" placeholder="\int_0^1 x^2\,dx" @input="autosize" @keydown.stop="onKey" @blur="commit" />
+      <div class="math-field">
+        <textarea ref="area" v-model="draft" spellcheck="false" placeholder="\int_0^1 x^2\,dx" @input="autosize(); latex.refresh()" @click="latex.refresh()" @keydown.stop="onKey" @blur="latex.close(); commit()" />
+        <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="(c) => { latex.pick(c); autosize() }" />
+      </div>
       <div v-if="unknownPackages.length" class="math-note warn"><AlertTriangle :size="12" /> {{ $t('editor.mathPackageUnknown', { name: unknownPackages.join(', ') }) }}</div>
       <div v-else-if="!preambleOnly && defines.length" class="math-note">{{ $t('editor.mathDefines', { names: defines.join(', ') }) }}</div>
       <div class="math-hint">LaTeX · <UiKbd :keys="['mod', 'enter']" /> {{ $t('editor.toValidate') }} · {{ $t('editor.mathScopeHint') }}</div>
@@ -84,6 +90,7 @@ function autosize() {
 .mp-label { font-weight: 500; }
 .mp-pkg { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; }
 .mp-pkg.unknown { color: var(--orange, #e2a03f); }
+.math-field { position: relative; }
 .math-edit { border-top: 1px solid var(--border); padding: 8px 12px; }
 .math-edit textarea {
   width: 100%; border: none; outline: none; resize: none; background: transparent; overflow: hidden;

@@ -29,6 +29,8 @@ pub struct WorkspaceResponse {
     pub role: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// Couleur du calendrier de l'espace (sinon la couleur d'accent).
+    pub calendar_color: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -51,6 +53,7 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(list_workspaces).post(create_workspace))
         .route("/:workspace_id", get(get_workspace).put(update_workspace).delete(delete_workspace))
         .route("/:workspace_id/latex", get(get_latex).put(put_latex))
+        .route("/:workspace_id/calendar-color", put(put_calendar_color))
         .route("/:workspace_id/members", get(list_members))
         .route("/:workspace_id/members/:member_id", put(update_member_role).delete(remove_member))
         .route("/:workspace_id/leave", post(leave_workspace))
@@ -77,7 +80,7 @@ fn validate_name(name: &str) -> ApiResult<String> {
 
 async fn list_workspaces(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
     let ws: Vec<WorkspaceResponse> = sqlx::query_as(
-        "SELECT w.id, w.name, wm.role, w.created_at, w.updated_at
+        "SELECT w.id, w.name, wm.role, w.created_at, w.updated_at, w.calendar_color
          FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id
          WHERE wm.user_id = $1 ORDER BY w.created_at ASC",
     )
@@ -97,12 +100,14 @@ async fn get_workspace(
         .bind(workspace_id)
         .fetch_one(&pool)
         .await?;
+    let calendar_color: Option<String> = sqlx::query_scalar("SELECT calendar_color FROM workspaces WHERE id = $1").bind(workspace_id).fetch_one(&pool).await?;
     Ok(Json(WorkspaceResponse {
         id: w.id,
         name: w.name,
         role: role.as_str().into(),
         created_at: w.created_at,
         updated_at: w.updated_at,
+        calendar_color,
     }))
 }
 
@@ -146,6 +151,24 @@ async fn update_workspace(
         .emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_UPDATED", "workspace": &ws }))
         .await;
     Ok(Json(serde_json::json!({ "workspace": ws })))
+}
+
+#[derive(Deserialize)]
+struct ColorPayload {
+    color: Option<String>,
+}
+
+/// Couleur du calendrier de l'espace (administrateurs) ; `null` = couleur d'accent.
+async fn put_calendar_color(State(state): State<AppState>, user: AuthUser, Path(workspace_id): Path<Uuid>, Json(p): Json<ColorPayload>) -> ApiResult<StatusCode> {
+    require_ws_admin(&state.pool, &user, workspace_id).await?;
+    let color = match p.color {
+        Some(c) if c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit()) => Some(c),
+        Some(_) => return Err(ApiError::bad_request("invalid_value")),
+        None => None,
+    };
+    sqlx::query("UPDATE workspaces SET calendar_color = $1 WHERE id = $2").bind(&color).bind(workspace_id).execute(&state.pool).await?;
+    state.emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_UPDATED" })).await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]

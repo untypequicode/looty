@@ -8,6 +8,7 @@ export interface User {
   theme?: 'system' | 'light' | 'dark' | null
   locale?: 'fr' | 'en' | null
   is_super_admin?: boolean
+  prefs?: Record<string, unknown>
 }
 
 export interface Me {
@@ -21,6 +22,7 @@ export interface Workspace {
   role: Role
   created_at?: string
   updated_at?: string
+  calendar_color?: string | null
 }
 
 export interface WorkspaceMember {

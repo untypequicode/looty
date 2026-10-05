@@ -8,6 +8,8 @@ const shortcutsOpen = ref(false)
 const createBoardOpen = ref(false)
 const createTaskOpen = ref(false)
 const createTaskDefaults = ref<{ boardId?: string; columnId?: string }>({})
+/** Bloc-notes personnel (reste ouvert d'une page à l'autre). */
+export const notepadOpen = ref(false)
 
 export function useUi() {
   const sidebarCollapsed = useLocalStorage('looty.sidebar.collapsed', false)

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEditorSpellcheck } from '~/composables/usePrefs'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import type { Editor as TEditor } from '@tiptap/core'
 import * as Y from 'yjs'
@@ -125,6 +126,7 @@ const editor = useEditor({
     if (synced.value && props.canEdit && !fromYjs(transaction)) pushHtml()
   },
 })
+useEditorSpellcheck(editor)
 
 /** Transaction appliquée par la synchronisation Yjs (clé « y-sync… », quelle que soit
  * la copie de y-prosemirror qui l'a produite). */
@@ -287,7 +289,7 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
 .embed-hint { margin: 0; padding: 0 10px 10px; font-size: var(--fs-xs); color: var(--text-3); }
 .doc-loading { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }
 .doc-editor :deep(.ProseMirror) { outline: none; min-height: 50vh; padding-bottom: 30vh; }
-.doc-editor :deep(.ProseMirror .is-empty::before) {
+.doc-editor :deep(.ProseMirror .is-empty:not([data-placeholder=''])::before) {
   content: attr(data-placeholder);
   color: var(--text-4);
   float: left;

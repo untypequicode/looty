@@ -15,7 +15,18 @@ import {
 
 definePageMeta({ layout: 'workspace' })
 
-const { wsId, workspace, canWrite } = useWorkspace()
+const { wsId, workspace, canWrite, isAdmin, invalidate: invalidateWs } = useWorkspace()
+/** Couleur du calendrier de l'espace (réglable par les administrateurs). */
+const wsColor = computed(() => workspace.data.value?.calendar_color || 'var(--accent)')
+async function setWsColor(c: string | null) {
+  await api(`/api/workspaces/${wsId.value}/calendar-color`, { method: 'PUT', body: { color: c } })
+  invalidateWs('one')
+}
+async function setCalColor(c: CalendarSource, color: string | null) {
+  if (!color) return
+  await api(`/api/calendars/${c.id}`, { method: 'PUT', body: { color } })
+  invalidate(wsId.value)
+}
 const { t, locale } = useI18n()
 const { isMobile } = useBreakpoint()
 const view = useLocalStorage<'month' | 'week' | 'agenda'>('looty.calendar.view', 'week')
@@ -49,7 +60,7 @@ const { data, isFetching } = useCalendarEvents(wsId, from, to)
 const calById = computed(() => new Map((calendars.value ?? []).map((c) => [c.id, c])))
 const events = computed(() => (data.value?.events ?? []).filter((e) => !hiddenIds.value.has(e.calendar_id)))
 const tasks = computed(() => (showTasks.value ? data.value?.tasks ?? [] : []))
-const color = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? 'var(--accent)' : calById.value.get(e.calendar_id)?.color ?? 'var(--accent)')
+const color = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? wsColor.value : calById.value.get(e.calendar_id)?.color ?? 'var(--accent)')
 const calName = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? `${workspace.data.value?.name ?? ''} · ${t('calendar.workspaceCal')}` : calById.value.get(e.calendar_id)?.name)
 
 // --- Calendrier de l'espace : création, modification, suppression ---
@@ -223,9 +234,10 @@ useHead({ title: () => t('calendar.title') })
           <div class="cs-head"><component :is="grp.icon" :size="12" /> {{ t(`calendar.group.${grp.key}`) }}</div>
           <div v-if="grp.key === 'shared'" class="cs-item">
             <button class="cs-toggle" @click="toggle(WORKSPACE_CAL)">
-              <span class="cs-box" :style="{ background: hiddenIds.has(WORKSPACE_CAL) ? 'transparent' : 'var(--accent)', borderColor: 'var(--accent)' }" />
+              <span class="cs-box" :style="{ background: hiddenIds.has(WORKSPACE_CAL) ? 'transparent' : wsColor, borderColor: wsColor }" />
               <span class="truncate">{{ t('calendar.workspaceCal') }}</span>
             </button>
+            <CalendarColorPicker v-if="isAdmin" :color="workspace.data.value?.calendar_color || '#5e6ad2'" resettable @pick="setWsColor" />
             <UiTooltip :text="t('event.shareHint')"><UiButton size="xs" variant="ghost" :icon="Share2" class="cs-more" :to="`/w/${wsId}/settings/calendars`" :aria-label="t('event.shareHint')" /></UiTooltip>
           </div>
           <div v-for="c in grp.list" :key="c.id" class="cs-item">
@@ -234,6 +246,7 @@ useHead({ title: () => t('calendar.title') })
               <span class="truncate">{{ c.name }}</span>
             </button>
             <AlertTriangle v-if="c.last_error" :size="13" class="cs-err" :title="c.last_error" />
+            <CalendarColorPicker v-if="c.can_manage" :color="c.color" @pick="(col) => setCalColor(c, col)" />
             <UiMenu v-if="c.can_manage" :open="menuFor === c.id" :items="calMenu(c)" placement="bottom-end" @update:open="(o: boolean) => (menuFor = o ? c.id : null)">
               <UiButton size="xs" variant="ghost" :icon="MoreHorizontal" class="cs-more" />
             </UiMenu>
@@ -364,8 +377,8 @@ useHead({ title: () => t('calendar.title') })
 .cs-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; margin: 12px 6px 4px; }
 .cs-head:first-child { margin-top: 0; }
 .cs-item { display: flex; align-items: center; gap: 4px; }
-.cs-item .cs-more { opacity: 0; }
-.cs-item:hover .cs-more { opacity: 1; }
+.cs-item :deep(.cs-more) { opacity: 0; }
+.cs-item:hover :deep(.cs-more), .cs-item :deep(.cs-more:focus-visible) { opacity: 1; }
 .cs-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px; border-radius: var(--r-sm); text-align: left; color: var(--text-2); }
 .cs-toggle:hover { background: var(--bg-hover); color: var(--text); }
 .cs-box { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; flex-shrink: 0; }

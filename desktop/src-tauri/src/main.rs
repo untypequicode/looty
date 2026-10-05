@@ -197,6 +197,13 @@ fn on_tray_menu(app: &AppHandle, id: &str) {
             }
             refresh_tray(app);
         }
+        "ask-download" => {
+            if let Ok(mut cfg) = app.state::<proxy::Shared>().config.write() {
+                cfg.ask_download_location = !cfg.ask_download_location;
+                let _ = cfg.save();
+            }
+            refresh_tray(app);
+        }
         "autostart" => {
             if let Err(e) = tray::set_autostart(!tray::autostart_enabled()) {
                 tracing::warn!("autostart: {e}");
@@ -241,7 +248,61 @@ fn open_quick_add(app: &AppHandle) {
         .build();
 }
 
-/// Téléchargements (exports, pièces jointes) : dossier Téléchargements, nom unique.
+/// Correcteur orthographique de WebKitGTK (désactivé par défaut) : langue du système,
+/// plus le français et l'anglais (dictionnaires hunspell installés via enchant).
+fn enable_spellcheck(window: &tauri::WebviewWindow) {
+    let _ = window.with_webview(|wv| {
+        use webkit2gtk::{WebContextExt, WebViewExt};
+        let Some(ctx) = wv.inner().context() else { return };
+        let mut langs: Vec<String> = Vec::new();
+        for var in ["LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"] {
+            if let Ok(v) = std::env::var(var) {
+                for part in v.split(':') {
+                    let code = part.split(['.', '@']).next().unwrap_or("").to_string();
+                    if code.len() >= 2 && code != "C" && code != "POSIX" && !langs.contains(&code) {
+                        langs.push(code);
+                    }
+                }
+            }
+        }
+        for l in ["fr_FR", "en_US"] {
+            if !langs.iter().any(|x| x == l) {
+                langs.push(l.into());
+            }
+        }
+        let refs: Vec<&str> = langs.iter().map(String::as_str).collect();
+        ctx.set_spell_checking_enabled(true);
+        ctx.set_spell_checking_languages(&refs);
+    });
+}
+
+/// Sans les schémas GSettings de GTK, la fenêtre de fichiers ferait planter le processus :
+/// dans ce cas, enregistrement direct dans Téléchargements.
+fn file_chooser_available() -> bool {
+    let ok = gtk::gio::SettingsSchemaSource::default().and_then(|s| s.lookup("org.gtk.Settings.FileChooser", true)).is_some();
+    if !ok {
+        tracing::warn!("GTK file chooser schema missing: saving to the Downloads folder");
+    }
+    ok
+}
+
+/// Fenêtre « Enregistrer sous » native (portail XDG si disponible). Appelée sur le fil
+/// principal GTK (signal de WebKit) : `run()` tourne une boucle imbriquée.
+fn ask_save_path(app: &AppHandle, dir: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
+    use gtk::prelude::*;
+    let parent = app.get_webview_window("main").and_then(|w| w.gtk_window().ok());
+    let dialog = gtk::FileChooserNative::new(Some(tr("Enregistrer le fichier", "Save file")), parent.as_ref(), gtk::FileChooserAction::Save, Some(tr("Enregistrer", "Save")), Some(tr("Annuler", "Cancel")));
+    dialog.set_do_overwrite_confirmation(true);
+    let _ = dialog.set_current_folder(dir);
+    dialog.set_current_name(name);
+    let res = dialog.run();
+    let path = if res == gtk::ResponseType::Accept { dialog.filename() } else { None };
+    dialog.destroy();
+    path
+}
+
+/// Téléchargements (exports, pièces jointes) : « Enregistrer sous » ou dossier
+/// Téléchargements avec un nom unique.
 fn on_download(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
     match event {
         DownloadEvent::Requested { url, destination } => {
@@ -256,6 +317,17 @@ fn on_download(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
                 Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
                 _ => (suggested.clone(), String::new()),
             };
+            let ask = app.state::<proxy::Shared>().config.read().map(|c| c.ask_download_location).unwrap_or(true);
+            if ask && file_chooser_available() {
+                // Annuler la fenêtre annule le téléchargement.
+                return match ask_save_path(app, &dir, &suggested) {
+                    Some(p) => {
+                        *destination = p;
+                        true
+                    }
+                    None => false,
+                };
+            }
             let mut target = dir.join(&suggested);
             let mut i = 1;
             while target.exists() {
@@ -395,7 +467,7 @@ fn main() {
             let nav_handle = handle.clone();
             let popup_handle = handle.clone();
             let dl_handle = handle.clone();
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(boot))
+            let main_window = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(boot))
                 .title("Looty")
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(380.0, 480.0)
@@ -412,6 +484,7 @@ fn main() {
                 })
                 .on_download(move |_webview, event| on_download(&dl_handle, event))
                 .build()?;
+            enable_spellcheck(&main_window);
 
             // Barre système
             let menu_handle = handle.clone();

@@ -92,7 +92,8 @@ export const MathInline = Node.create({
       new InputRule({
         find: /(?:^|[^$])\$([^$\s][^$]*?)\$$/,
         handler: ({ state, range, match }) => {
-          const start = range.to - match[1].length - 2
+          // Le « $ » final n'est pas encore dans le document : « $ » ouvrant + formule.
+          const start = range.to - match[1].length - 1
           state.tr.replaceWith(start, range.to, this.type.create({ latex: match[1] }))
         },
       }),

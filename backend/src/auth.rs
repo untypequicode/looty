@@ -436,6 +436,8 @@ pub struct UserProfile {
     pub theme: Option<String>,
     pub locale: Option<String>,
     pub is_super_admin: bool,
+    /// Préférences synchronisées (voir prefs.rs).
+    pub prefs: serde_json::Value,
 }
 
 async fn me_handler(State(state): State<AppState>, user: Option<AuthUser>) -> ApiResult<Json<serde_json::Value>> {
@@ -443,7 +445,7 @@ async fn me_handler(State(state): State<AppState>, user: Option<AuthUser>) -> Ap
         return Ok(Json(serde_json::json!({ "authenticated": false })));
     };
     let profile: UserProfile = sqlx::query_as(
-        "SELECT id, email, name, avatar_url, theme, locale, is_super_admin FROM users WHERE id = $1",
+        "SELECT id, email, name, avatar_url, theme, locale, is_super_admin, prefs FROM users WHERE id = $1",
     )
     .bind(user.id)
     .fetch_one(&state.pool)

@@ -31,4 +31,16 @@ impl AppState {
         }
         self.hub.broadcast(workspace_id, event).await;
     }
+
+    /// Événement destiné à une seule personne (tous ses onglets, dans chacun de ses espaces).
+    pub async fn emit_user(&self, user_id: Uuid, event: serde_json::Value) {
+        let spaces: Vec<Uuid> = sqlx::query_scalar("SELECT workspace_id FROM workspace_members WHERE user_id = $1")
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await
+            .unwrap_or_default();
+        for ws in spaces {
+            self.hub.send_to(ws, user_id, event.clone()).await;
+        }
+    }
 }

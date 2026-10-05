@@ -3,6 +3,52 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.3.0",
+      "date": "2026-10-05",
+      "title": {
+        "en": "Notepad, smarter LaTeX and editor fixes",
+        "fr": "Bloc-notes, LaTeX plus pratique et corrections de l’éditeur"
+      },
+      "notes": {
+        "en": [
+          "**Notepad**: your personal notes, the same on every page and every device. Open it from the sidebar or with `Ctrl+Alt+N`.",
+          "**LaTeX**: brackets close automatically and commands are suggested as you type (`\\fr` → `\\frac{}{}`, `\\begin{` → environments); press `Tab` to accept.",
+          "Leave a formula with the keyboard: `Esc`, `Enter`, `Tab` or the arrow keys at either end. Typing `$x$` no longer swallows the space before it.",
+          "**Spell checker** settings (Preferences → Writing): turn it on or off and choose the dictionary language.",
+          "Calendars can be **recolored** at any time, including the workspace calendar (administrators).",
+          "Fixed: two placeholder texts overlapped when inserting a callout or other blocks into an empty document."
+        ],
+        "fr": [
+          "**Bloc-notes** : vos notes personnelles, les mêmes sur toutes les pages et tous vos appareils. Ouvrez-le depuis la barre latérale ou avec `Ctrl+Alt+N`.",
+          "**LaTeX** : les accolades se ferment toutes seules et les commandes sont proposées pendant la frappe (`\\fr` → `\\frac{}{}`, `\\begin{` → environnements) ; `Tab` pour valider.",
+          "Sortez d’une formule au clavier : `Échap`, `Entrée`, `Tab` ou les flèches aux extrémités. Taper `$x$` n’avale plus l’espace qui précède.",
+          "Réglages du **correcteur orthographique** (Préférences → Écriture) : l’activer ou non et choisir la langue du dictionnaire.",
+          "Les calendriers peuvent être **recolorés** à tout moment, y compris celui de l’espace (administrateurs).",
+          "Corrigé : deux textes d’invite se superposaient en insérant un encadré ou d’autres blocs dans un document vide."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.2.0",
+      "date": "2026-10-05",
+      "title": {
+        "en": "Choose where to save files, spell checking",
+        "fr": "Choix de l’emplacement des fichiers, correcteur orthographique"
+      },
+      "notes": {
+        "en": [
+          "Every download now asks where to save the file. Turn it off from the tray menu (“Ask where to save files”) to save straight to Downloads.",
+          "Spell checking works in the desktop app (system language, French and English dictionaries)."
+        ],
+        "fr": [
+          "Chaque téléchargement demande désormais où enregistrer le fichier. Désactivable depuis le menu de la barre système (« Demander où enregistrer les fichiers ») pour enregistrer directement dans Téléchargements.",
+          "Le correcteur orthographique fonctionne dans l’application de bureau (langue du système, dictionnaires français et anglais)."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.2.0",
       "date": "2026-10-05",
       "title": {

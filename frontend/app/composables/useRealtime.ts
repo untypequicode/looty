@@ -246,6 +246,9 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
     case 'CALENDAR_EVENTS_UPDATED':
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'calendar-events'] })
       break
+    case 'NOTEPAD_UPDATED':
+      window.dispatchEvent(new CustomEvent('looty:notepad'))
+      break
     case 'WORKSPACE_LATEX_UPDATED':
       qc.setQueryData(wsKeys.latex(wsId), { preamble: ev.preamble ?? '' })
       break

@@ -22,6 +22,7 @@ mod releases;
 mod notifications;
 mod push;
 mod page;
+mod prefs;
 mod state;
 mod upload;
 mod user_settings;
@@ -93,7 +94,7 @@ async fn main() {
         .route("/public/pages/:token", get(page::get_public_page))
         .nest("/auth", auth::routes())
         .nest("/admin", admin::routes())
-        .nest("/user", user_settings::routes())
+        .nest("/user", user_settings::routes().merge(prefs::user_routes()))
         .nest("/user/releases", releases::user_routes())
         .nest("/releases", releases::routes())
         .nest("/user/caldav", caldav::routes())
@@ -114,6 +115,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/trash", trash::workspace_routes())
         .nest("/workspaces/:workspace_id/events", events::workspace_routes())
         .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
+        .nest("/workspaces/:workspace_id/prefs", prefs::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
