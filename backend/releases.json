@@ -40,6 +40,29 @@
     },
     {
       "platform": "android",
+      "version": "0.4.0",
+      "date": "2026-10-05",
+      "title": {
+        "en": "Native calendar and mail",
+        "fr": "Calendrier et mail natifs"
+      },
+      "notes": {
+        "en": [
+          "**Calendar**: agenda of the coming days or month view (swipe between months), with your due tasks; choose which calendars to show.",
+          "Create, edit and delete events of the workspace calendar, including recurring ones (only one occurrence or the whole series).",
+          "**Mail**: read your inbox in the app, switch accounts, all or unread, swipe a message to mark it read or unread.",
+          "Messages open without remote images until you allow them; links open in your browser, and the webmail is one tap away."
+        ],
+        "fr": [
+          "**Calendrier** : agenda des prochains jours ou vue mois (balayez d’un mois à l’autre), avec vos tâches à échéance ; choisissez les calendriers affichés.",
+          "Créez, modifiez et supprimez les événements du calendrier de l’espace, récurrents compris (une seule occurrence ou toute la série).",
+          "**Mail** : lisez votre boîte de réception dans l’application, changez de compte, tous ou non lus, balayez un message pour le marquer lu ou non lu.",
+          "Les messages s’ouvrent sans images distantes tant que vous ne les autorisez pas ; les liens s’ouvrent dans le navigateur et le webmail est à portée de main."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.3.0",
       "date": "2026-10-05",
       "title": {

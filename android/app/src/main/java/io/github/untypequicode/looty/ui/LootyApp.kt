@@ -45,7 +45,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
     var quickAdd by remember { mutableStateOf(false) }
     val createdMsg = stringResource(R.string.created)
     val isTab = TABS.any { it.route == route }
-    val opener = remember(nav) { Opener(task = { nav.navigate("task/$it") }, board = { nav.navigate("board/$it") }) }
+    val opener = remember(nav) { Opener(task = { nav.navigate("task/$it") }, board = { nav.navigate("board/$it") }, route = { nav.navigate(it) { launchSingleTop = true } }) }
     val workspace = (state.session as? Session.Ready)?.let { s -> s.workspaces.firstOrNull { it.id == s.workspaceId }?.name }.orEmpty()
 
     CompositionLocalProvider(LocalOpener provides opener) {
@@ -102,6 +102,14 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("inbox") { InboxScreen(state, padding) }
             composable("more") { MoreScreen(state, padding, onSignedOut) }
             composable("board/{id}") { e -> BoardScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
+            composable("calendar") { CalendarScreen(state, onBack = { nav.popBackStack() }, onEdit = { id, date -> nav.navigate("event?id=${id.orEmpty()}&date=$date") }) }
+            composable("event?id={id}&date={date}") { e ->
+                val id = e.arguments?.getString("id")?.ifEmpty { null }
+                val date = e.arguments?.getString("date")?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now()
+                EventEditor(state, id, date, onDone = { nav.popBackStack() })
+            }
+            composable("mail") { MailScreen(state, onBack = { nav.popBackStack() }, onMessage = { nav.navigate("mail/$it") }) }
+            composable("mail/{uid}") { e -> MessageScreen(state, e.arguments?.getString("uid")?.toLongOrNull() ?: 0L, onBack = { nav.popBackStack() }) }
             composable("task/{id}") { e -> TaskScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
         }
     }

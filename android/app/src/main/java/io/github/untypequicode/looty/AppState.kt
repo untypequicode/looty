@@ -84,7 +84,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshAll() {
-        loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards()
+        loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
     }
 
     private fun <T> load(get: () -> Loadable<T>, set: (Loadable<T>) -> Unit, block: suspend () -> T) {
@@ -311,6 +311,144 @@ class AppState(app: Application) : AndroidViewModel(app) {
         api.send("POST", "/api/boards/tasks/$taskId/comments", buildJsonObject { put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)) })
         loadComments(taskId)
     }.isSuccess
+
+    // -----------------------------------------------------------------------
+    // Calendrier (G3)
+    // -----------------------------------------------------------------------
+
+    var calSources by mutableStateOf<List<CalendarSource>>(emptyList()); private set
+    var calRange by mutableStateOf<Pair<LocalDate, LocalDate>?>(null); private set
+    var calEvents by mutableStateOf(Loadable<CalEvents>()); private set
+    /** Calendriers masqués (propres à l'appareil) ; « workspace » = calendrier de l'espace. */
+    var hiddenCalendars by mutableStateOf(prefs.getStringSet("hiddenCalendars", emptySet()).orEmpty()); private set
+    val canWrite: Boolean get() = (session as? Session.Ready)?.let { s -> s.workspaces.firstOrNull { it.id == s.workspaceId }?.role } in setOf("owner", "admin", "member")
+
+    fun loadCalendars() {
+        val w = ws ?: return
+        viewModelScope.launch { runCatching { calSources = api.get<List<CalendarSource>>("/api/workspaces/$w/calendars") } }
+    }
+
+    fun loadEvents(from: LocalDate, to: LocalDate) {
+        val w = ws ?: return
+        calRange = from to to
+        val zone = ZoneId.systemDefault()
+        val f = from.atStartOfDay(zone).toInstant()
+        val t = to.atStartOfDay(zone).toInstant()
+        load({ calEvents }, { calEvents = it }) { api.get<CalEvents>("/api/workspaces/$w/calendars/events?from=$f&to=$t") }
+    }
+
+    private fun reloadEvents() { calRange?.let { (f, t) -> loadEvents(f, t) }; loadUpcoming() }
+
+    fun toggleCalendar(id: String) {
+        hiddenCalendars = if (id in hiddenCalendars) hiddenCalendars - id else hiddenCalendars + id
+        prefs.edit().putStringSet("hiddenCalendars", hiddenCalendars).apply()
+    }
+
+    suspend fun eventDetail(id: String): EventDetail? = ws?.let { w -> runCatching { api.get<EventDetail>("/api/workspaces/$w/events/$id") }.getOrNull() }
+
+    /** Création ou modification d'un événement de l'espace (corps comme l'interface web). */
+    suspend fun saveEvent(id: String?, body: JsonObject): Result<Unit> = runCatching {
+        val w = ws ?: throw ApiException(0, "no_workspace")
+        if (id == null) api.send("POST", "/api/workspaces/$w/events", body) else api.send("PUT", "/api/workspaces/$w/events/$id", body)
+        reloadEvents()
+    }
+
+    /** Supprime l'événement, ou une seule occurrence d'une série. */
+    fun deleteEvent(e: CalEvent, onlyThis: Boolean) {
+        val w = ws ?: return
+        val id = e.event_id ?: return
+        calEvents = calEvents.copy(data = calEvents.data?.let { d -> d.copy(events = d.events.filter { if (onlyThis) it.id != e.id else it.event_id != id }) })
+        viewModelScope.launch {
+            val q = if (onlyThis && e.recurring) "?occurrence=${java.net.URLEncoder.encode(e.starts_at, "UTF-8")}" else ""
+            runCatching { api.send("DELETE", "/api/workspaces/$w/events/$id$q") }.onFailure { lastError = (it as? ApiException)?.code ?: "offline" }
+            reloadEvents()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Mail en lecture seule (G3)
+    // -----------------------------------------------------------------------
+
+    var mailAccounts by mutableStateOf(Loadable<List<MailAccount>>()); private set
+    var mailAccount by mutableStateOf(prefs.getString("mailAccount", null)); private set
+    var mailUnreadOnly by mutableStateOf(false); private set
+    var mailList by mutableStateOf(Loadable<List<MailSummary>>()); private set
+    var mailHasMore by mutableStateOf(false); private set
+    var mailLoadingMore by mutableStateOf(false); private set
+
+    val currentMailAccount: MailAccount? get() = mailAccounts.data?.let { l -> l.firstOrNull { it.id == mailAccount } ?: l.firstOrNull() }
+    val mailUnread: Int get() = mailAccounts.data?.sumOf { it.unread } ?: 0
+
+    fun loadMailAccounts() {
+        load({ mailAccounts }, { mailAccounts = it }) { api.get<List<MailAccount>>("/api/mail/accounts") }
+    }
+
+    fun selectMailAccount(id: String) {
+        mailAccount = id
+        prefs.edit().putString("mailAccount", id).apply()
+        loadMail()
+    }
+
+    fun setMailFilter(unread: Boolean) { mailUnreadOnly = unread; loadMail() }
+
+    fun loadMail() {
+        val acc = currentMailAccount?.id ?: return
+        load({ mailList }, { mailList = it }) {
+            val page = api.get<MailPage>("/api/mail/accounts/$acc/messages${if (mailUnreadOnly) "?unread=true" else ""}")
+            mailHasMore = page.has_more
+            page.messages
+        }
+    }
+
+    fun loadMoreMail() {
+        val acc = currentMailAccount?.id ?: return
+        val last = mailList.data?.lastOrNull()?.uid ?: return
+        if (mailLoadingMore) return
+        mailLoadingMore = true
+        viewModelScope.launch {
+            runCatching { api.get<MailPage>("/api/mail/accounts/$acc/messages?before=$last${if (mailUnreadOnly) "&unread=true" else ""}") }.onSuccess { p ->
+                mailList = mailList.copy(data = mailList.data.orEmpty() + p.messages)
+                mailHasMore = p.has_more
+            }
+            mailLoadingMore = false
+        }
+    }
+
+    /** Relève la boîte maintenant (serveur IMAP), puis recharge. */
+    fun refreshMail() {
+        val acc = currentMailAccount?.id ?: return
+        mailList = mailList.copy(loading = true)
+        viewModelScope.launch {
+            runCatching { api.send("POST", "/api/mail/accounts/$acc/refresh") }
+            loadMailAccounts(); loadMail()
+        }
+    }
+
+    private fun localSeen(uid: Long, seen: Boolean) {
+        val was = mailList.data?.firstOrNull { it.uid == uid }?.seen ?: return
+        mailList = mailList.copy(data = mailList.data?.map { if (it.uid == uid) it.copy(seen = seen) else it })
+        if (was != seen) mailAccounts = mailAccounts.copy(data = mailAccounts.data?.map { if (it.id == currentMailAccount?.id) it.copy(unread = (it.unread + if (seen) -1 else 1).coerceAtLeast(0)) else it })
+    }
+
+    fun setSeen(uid: Long, seen: Boolean) {
+        val acc = currentMailAccount?.id ?: return
+        localSeen(uid, seen)
+        viewModelScope.launch {
+            runCatching { api.send("PUT", "/api/mail/accounts/$acc/messages/$uid/seen", buildJsonObject { put("seen", seen) }) }.onFailure { localSeen(uid, !seen) }
+        }
+    }
+
+    fun readAllMail() {
+        val acc = currentMailAccount?.id ?: return
+        viewModelScope.launch { runCatching { api.send("POST", "/api/mail/accounts/$acc/read-all") }; loadMailAccounts(); loadMail() }
+    }
+
+    /** Lecture d'un message (marqué lu par le serveur). */
+    suspend fun readMail(uid: Long): MailMessage? {
+        val acc = currentMailAccount?.id ?: return null
+        localSeen(uid, true)
+        return runCatching { api.get<MailMessage>("/api/mail/accounts/$acc/messages/$uid") }.getOrNull()
+    }
 
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {

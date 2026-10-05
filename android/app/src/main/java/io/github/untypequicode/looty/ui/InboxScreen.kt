@@ -50,9 +50,13 @@ fun InboxScreen(state: AppState, padding: PaddingValues) {
                     colors = if (unread) ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) else ListItemDefaults.colors(),
                     modifier = Modifier.clickable {
                         state.markRead(n)
-                        // Tâche : écran natif ; le reste (pages, mail…) dans l'écran web.
+                        // Tâche et mail : écrans natifs ; le reste (pages…) dans l'écran web.
                         val (kind, id) = n.target.split(":", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
-                        if (kind == "task") opener.task(id) else openWeb(ctx, Paths.notification(ws, n))
+                        when (kind) {
+                            "task" -> opener.task(id)
+                            "mail" -> { if (id.isNotEmpty()) state.selectMailAccount(id); opener.route("mail") }
+                            else -> openWeb(ctx, Paths.notification(ws, n))
+                        }
                     },
                 )
             }

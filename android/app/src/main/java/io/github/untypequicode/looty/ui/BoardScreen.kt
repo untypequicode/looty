@@ -204,9 +204,11 @@ fun TaskActionsSheet(state: AppState, board: BoardFull, t: Task, onDismiss: () -
     val me = state.me?.id
     // Ouvert en entier, défilant : « Supprimer » reste accessible même avec beaucoup de colonnes.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        NoNavScrim()
         Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(t.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             ListItem(
+                colors = sheetItemColors(),
                 headlineContent = { Text(stringResource(if (t.doneFor(me)) R.string.reopen else R.string.mark_done)) },
                 leadingContent = { Icon(if (t.doneFor(me)) Icons.Outlined.RemoveDone else Icons.Outlined.TaskAlt, null) },
                 modifier = Modifier.clickable(onClick = { state.toggleDone(t); onDismiss() }),
@@ -214,6 +216,7 @@ fun TaskActionsSheet(state: AppState, board: BoardFull, t: Task, onDismiss: () -
             Text(stringResource(R.string.move_to), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             board.columns.sortedBy { it.position }.forEach { c ->
                 ListItem(
+                    colors = sheetItemColors(),
                     headlineContent = { Text(c.name) },
                     leadingContent = { RadioButton(selected = c.id == t.column_id, onClick = null) },
                     modifier = Modifier.clickable(onClick = { if (c.id != t.column_id) state.moveTask(t, c.id); onDismiss() }),
@@ -221,6 +224,7 @@ fun TaskActionsSheet(state: AppState, board: BoardFull, t: Task, onDismiss: () -
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             ListItem(
+                colors = sheetItemColors(),
                 headlineContent = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
                 leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
                 modifier = Modifier.clickable(onClick = { state.deleteTask(t); onDismiss(); onDeleted() }),
@@ -236,6 +240,7 @@ fun NewTaskInColumnSheet(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        NoNavScrim()
         Row(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = title, onValueChange = { title = it }, singleLine = true, label = { Text(stringResource(R.string.task_title)) },

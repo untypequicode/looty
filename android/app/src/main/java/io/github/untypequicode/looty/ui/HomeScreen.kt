@@ -53,7 +53,7 @@ fun HomeScreen(state: AppState, padding: PaddingValues, onTasks: () -> Unit) {
                     }
                 }
             }
-            item { SectionTitle(stringResource(R.string.upcoming), action = { TextButton(onClick = { openWeb(ctx, Paths.screen(ws, "calendar")) }) { Text(stringResource(R.string.view_all)) } }) }
+            item { SectionTitle(stringResource(R.string.upcoming), action = { TextButton(onClick = { opener.route("calendar") }) { Text(stringResource(R.string.view_all)) } }) }
             val events = state.upcoming.data.orEmpty().take(5)
             if (events.isEmpty()) item { Text(stringResource(R.string.no_events), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
             items(events, key = { it.id }) { e ->
@@ -68,7 +68,7 @@ fun HomeScreen(state: AppState, padding: PaddingValues, onTasks: () -> Unit) {
                             Text(dayLabel(start.toLocalDate()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     },
-                    modifier = Modifier.clickable { openWeb(ctx, Paths.screen(ws, "calendar")) },
+                    modifier = Modifier.clickable { opener.route("calendar") },
                 )
             }
             item { SectionTitle(stringResource(R.string.my_tasks), action = { TextButton(onClick = onTasks) { Text(stringResource(R.string.view_all)) } }) }
