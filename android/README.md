@@ -1,8 +1,10 @@
 # Looty for Android
 
-Native Kotlin shell around the Looty web app: the system WebView (Chromium) displays your
-Looty server, and the Android side handles everything the web view can't do on its own.
-The APK has no Google dependencies (no Play Services, no Firebase).
+Native Kotlin app (Jetpack Compose, Material 3 Expressive, Material You colours). Home,
+tasks, documents, inbox and settings are native screens that talk to the Looty API; the
+collaborative editor and the screens that are not native yet open in a web screen (system
+WebView) without the website's menus. The APK has no Google dependencies (no Play Services,
+no Firebase). Built with compile/target SDK 37 (Android 17), minimum Android 8.0.
 
 ## Features
 
@@ -17,8 +19,13 @@ The APK has no Google dependencies (no Play Services, no Firebase).
   bar colors that follow the page's light or dark theme.
 - An "offline" page with *Try again* / *Change server* when the server can't be reached.
 
-Next phases: notifications (UnifiedPush/ntfy, with a periodic check as fallback), quick add,
-and offline reading.
+Native screens (since 0.2.0): **Home** (stats, today's events, upcoming tasks, boards),
+**Tasks** (mine to do / all pending, check off with undo, pull to refresh), **Documents**
+(tree, favorites, search, new document), **Inbox** (notifications, mark as read) and **More**
+(workspaces, boards, other screens, server, sign out); **New task** bottom sheet.
+
+Next phases: native boards and task details, calendar and mail, notifications
+(UnifiedPush/ntfy with a periodic check as fallback), widget and sharing, offline cache.
 
 ## Install
 
@@ -28,9 +35,10 @@ the phone (allow installing from your browser or file manager). Android 8.0+.
 ## Build
 
 ```sh
-nix develop .#android          # SDK 35, JDK 17, Gradle, emulator
+nix develop .#android          # SDK 36–37, JDK 17, Gradle 9, emulator
 cd android
 gradle assembleDebug           # app/build/outputs/apk/debug/app-debug.apk
+gradle assembleQa              # like the release (R8) but debuggable, for end-to-end tests
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 

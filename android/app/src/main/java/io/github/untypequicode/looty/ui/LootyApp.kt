@@ -1,0 +1,107 @@
+package io.github.untypequicode.looty.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import io.github.untypequicode.looty.AppState
+import io.github.untypequicode.looty.R
+import io.github.untypequicode.looty.Session
+import kotlinx.coroutines.launch
+
+private data class Tab(val route: String, val label: Int, val icon: ImageVector, val selected: ImageVector)
+
+private val TABS = listOf(
+    Tab("home", R.string.nav_home, Icons.Outlined.Home, Icons.Filled.Home),
+    Tab("tasks", R.string.nav_tasks, Icons.Outlined.TaskAlt, Icons.Filled.TaskAlt),
+    Tab("docs", R.string.nav_docs, Icons.AutoMirrored.Outlined.Article, Icons.AutoMirrored.Filled.Article),
+    Tab("inbox", R.string.nav_inbox, Icons.Outlined.Inbox, Icons.Filled.Inbox),
+    Tab("more", R.string.nav_more, Icons.Outlined.Menu, Icons.Filled.Menu),
+)
+
+/** Écrans natifs : barre de navigation du bas, une barre supérieure par écran. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
+    val ctx = LocalContext.current
+    val nav = rememberNavController()
+    val entry by nav.currentBackStackEntryAsState()
+    val route = entry?.destination?.route ?: "home"
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var quickAdd by remember { mutableStateOf(false) }
+    val createdMsg = stringResource(R.string.created)
+    val workspace = (state.session as? Session.Ready)?.let { s -> s.workspaces.firstOrNull { it.id == s.workspaceId }?.name }.orEmpty()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(if (route == "home") workspace else stringResource(TABS.first { it.route == route }.label)) },
+                actions = {
+                    when (route) {
+                        "inbox" -> if (state.unread > 0) TextButton(onClick = { state.markAllRead() }) { Text(stringResource(R.string.mark_all_read)) }
+                        "docs" -> IconButton(onClick = {
+                            scope.launch { state.createPage().onSuccess { id -> state.ws?.let { openWeb(ctx, Paths.doc(it, id)) } } }
+                        }) { Icon(Icons.Outlined.NoteAdd, stringResource(R.string.new_doc)) }
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                TABS.forEach { tab ->
+                    val selected = route == tab.route
+                    NavigationBarItem(
+                        selected = selected,
+                        onClick = {
+                            nav.navigate(tab.route) {
+                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = {
+                            BadgedBox(badge = { if (tab.route == "inbox" && state.unread > 0) Badge { Text(if (state.unread > 99) "99+" else state.unread.toString()) } }) {
+                                Icon(if (selected) tab.selected else tab.icon, null)
+                            }
+                        },
+                        label = { Text(stringResource(tab.label)) },
+                    )
+                }
+            }
+        },
+        floatingActionButton = {
+            if (route == "home" || route == "tasks") {
+                ExtendedFloatingActionButton(onClick = { quickAdd = true }, icon = { Icon(Icons.Filled.Add, null) }, text = { Text(stringResource(R.string.new_task)) })
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
+        NavHost(nav, startDestination = "home") {
+            composable("home") { HomeScreen(state, padding) { nav.navigate("tasks") { launchSingleTop = true } } }
+            composable("tasks") { TasksScreen(state, padding, snackbar) }
+            composable("docs") { DocsScreen(state, padding) }
+            composable("inbox") { InboxScreen(state, padding) }
+            composable("more") { MoreScreen(state, padding, onSignedOut) }
+        }
+    }
+    if (quickAdd) {
+        QuickAddSheet(state, onDismiss = { quickAdd = false }, onCreated = {
+            quickAdd = false
+            scope.launch { snackbar.showSnackbar(createdMsg) }
+        })
+    }
+}

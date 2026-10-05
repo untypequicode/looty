@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Menu, PanelLeftOpen, ChevronRight } from 'lucide-vue-next'
+import { Menu, PanelLeftOpen, ChevronRight, ArrowLeft } from 'lucide-vue-next'
+import { isNativeApp, nativeBack } from '~/composables/useNative'
 import type { Component } from 'vue'
 import { useUi } from '~/composables/useUi'
 const NuxtLink = resolveComponent('NuxtLink')
@@ -17,7 +18,9 @@ const { sidebarOpen, sidebarCollapsed } = useUi()
 
 <template>
   <header class="ph">
-    <UiButton class="ph-menu" variant="ghost" size="sm" :icon="Menu" :aria-label="$t('nav.openMenu')" @click="sidebarOpen = true" />
+    <!-- Application Android : retour vers l'écran natif au lieu du menu latéral. -->
+    <UiButton v-if="isNativeApp" class="ph-menu ph-back" variant="ghost" size="sm" :icon="ArrowLeft" :aria-label="$t('common.back')" @click="nativeBack" />
+    <UiButton v-else class="ph-menu" variant="ghost" size="sm" :icon="Menu" :aria-label="$t('nav.openMenu')" @click="sidebarOpen = true" />
     <UiTooltip v-if="sidebarCollapsed" :text="$t('nav.expandSidebar')" shortcut="[">
       <UiButton class="ph-expand" variant="ghost" size="sm" :icon="PanelLeftOpen" @click="sidebarCollapsed = false" />
     </UiTooltip>

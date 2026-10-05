@@ -5,7 +5,10 @@
       "platform": "web",
       "version": "0.2.0",
       "date": "2026-10-05",
-      "title": { "en": "A new Looty", "fr": "Un nouveau Looty" },
+      "title": {
+        "en": "A new Looty",
+        "fr": "Un nouveau Looty"
+      },
       "notes": {
         "en": [
           "**New design** inspired by Linear: sidebar, command palette (Ctrl+K), keyboard shortcuts, light and dark themes, French and English.",
@@ -36,10 +39,38 @@
       }
     },
     {
+      "platform": "android",
+      "version": "0.2.0",
+      "date": "2026-10-05",
+      "title": {
+        "en": "Native Looty for Android",
+        "fr": "Looty natif pour Android"
+      },
+      "notes": {
+        "en": [
+          "**Native screens** in Material 3 Expressive, with your phone’s colours (Material You): Home, Tasks, Documents, Inbox and More.",
+          "Check tasks off with one tap (and undo), switch between “Mine to do” and “All pending”, pull to refresh.",
+          "**New task** button: title, board, due date and “Assign to me” in a bottom sheet.",
+          "Documents open in the collaborative editor, without the website’s menus; the back gesture returns to the app with Android’s predictive animation.",
+          "Built for Android 17 (target API 37)."
+        ],
+        "fr": [
+          "**Écrans natifs** en Material 3 Expressive, aux couleurs de votre téléphone (Material You) : Accueil, Tâches, Documents, Boîte de réception et Plus.",
+          "Cochez une tâche d’un geste (avec annulation), basculez entre « À faire par moi » et « Tout ce qui est en cours », tirez pour actualiser.",
+          "Bouton **Nouvelle tâche** : titre, tableau, échéance et « M’assigner » dans un panneau.",
+          "Les documents s’ouvrent dans l’éditeur collaboratif, sans les menus du site ; le geste retour revient à l’application avec l’animation prédictive d’Android.",
+          "Conçu pour Android 17 (API cible 37)."
+        ]
+      }
+    },
+    {
       "platform": "desktop",
       "version": "0.1.0",
       "date": "2026-10-05",
-      "title": { "en": "Looty for Linux", "fr": "Looty pour Linux" },
+      "title": {
+        "en": "Looty for Linux",
+        "fr": "Looty pour Linux"
+      },
       "notes": {
         "en": [
           "Native app for NixOS (flake) and Debian/Ubuntu (.deb), for GNOME, KDE and Hyprland.",
@@ -61,7 +92,10 @@
       "platform": "android",
       "version": "0.1.0",
       "date": "2026-10-05",
-      "title": { "en": "Looty for Android (preview)", "fr": "Looty pour Android (aperçu)" },
+      "title": {
+        "en": "Looty for Android (preview)",
+        "fr": "Looty pour Android (aperçu)"
+      },
       "notes": {
         "en": [
           "First preview: Looty in an app, without Google services.",
