@@ -25,6 +25,8 @@ import { FindInPage } from './search'
 import { EmojiSuggestion } from './emoji'
 import { slashCommands, type SlashContext } from './slash'
 import { mentionExtension } from './mention'
+import { PageMention, pageMentionSuggest, type PageSource } from './pageMention'
+import { CommentMark } from './commentMark'
 import { TrailingNode } from './TrailingNode'
 import { embedExtensions, EmbedPaste } from './embeds'
 import { translate as t } from '~/composables/useI18n'
@@ -57,6 +59,8 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
     ResizableImage,
     MathBlock,
     MathInline,
+    PageMention,
+    CommentMark,
     MathScope,
     Callout,
     Toggle,
@@ -74,6 +78,8 @@ export interface DocEditorOptions {
   getMembers: () => WorkspaceMember[]
   onMention?: (userId: string) => void
   slash?: SlashContext
+  /** Pages de l'espace : mentions `[[` et `@`. */
+  pages?: PageSource
 }
 
 /** Extensions de l'éditeur de documents (collaboratif). */
@@ -93,7 +99,8 @@ export function docExtensions(o: DocEditorOptions): Extensions {
         return t('editor.emptyLine')
       },
     }),
-    mentionExtension(o.getMembers, o.onMention),
+    mentionExtension(o.getMembers, o.onMention, o.pages),
+    ...(o.pages ? [pageMentionSuggest(o.pages)] : []),
     slashCommands(o.slash),
     EmojiSuggestion,
     FindInPage,
@@ -111,4 +118,9 @@ export function docExtensions(o: DocEditorOptions): Extensions {
 /** Lecture seule (pages publiques, commentaires). */
 export function readonlyExtensions(): Extensions {
   return [...schemaExtensions(), Mention.configure({ HTMLAttributes: { class: 'mention' } })]
+}
+
+/** Aperçu d'une version enregistrée (état Yjs) : lecture seule, sans fournisseur réseau. */
+export function revisionExtensions(ydoc: Y.Doc): Extensions {
+  return [...schemaExtensions({ collaborative: true }), Mention.configure({ HTMLAttributes: { class: 'mention' } }), Collaboration.configure({ document: ydoc })]
 }

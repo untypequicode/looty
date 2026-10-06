@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
 import type { Page } from '~/types'
@@ -17,6 +17,8 @@ import { motion } from '~/composables/useMotion'
 import { exportMarkdown } from '~/editor/export'
 import { isDesktop, openInDesktop } from '~/composables/useDesktop'
 import { readMode } from '~/composables/useReadMode'
+import { useComments, type ItemComment } from '~/composables/useComments'
+import { replaceCommentMark, findCommentMark } from '~/editor/commentMark'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -95,6 +97,59 @@ async function saveHtml(html: string) {
   }
 }
 
+// --- Commentaires ---
+const commentsOpen = useLocalStorage<boolean>('looty.doc.comments', false)
+const pendingQuote = ref<string | null>(null)
+const focusThread = ref<string | null>(null)
+const { threads: commentThreads, openCount: openComments } = useComments(wsId, ref('page'), pageId)
+const canComment = computed(() => !!live.value)
+function onCommentSelection(e: Event) {
+  pendingQuote.value = (e as CustomEvent).detail.quote
+  commentsOpen.value = true
+}
+function onCommentOpen(e: Event) {
+  focusThread.value = (e as CustomEvent).detail.id
+  commentsOpen.value = true
+}
+onMounted(() => {
+  window.addEventListener('looty:comment-selection', onCommentSelection)
+  window.addEventListener('looty:comment-open', onCommentOpen)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('looty:comment-selection', onCommentSelection)
+  window.removeEventListener('looty:comment-open', onCommentOpen)
+})
+// Lien vers un commentaire (notification) : ouvrir la discussion sur ce fil.
+watch(() => route.query.comment as string | undefined, (id) => { if (id) { commentsOpen.value = true; focusThread.value = id } }, { immediate: true })
+// Passage cité abandonné : retirer la marque provisoire.
+watch(pendingQuote, (q) => { if (!q && editorInst.value && canEdit.value) replaceCommentMark(editorInst.value, 'pending', null) })
+watch(commentsOpen, (o) => { if (!o) pendingQuote.value = null })
+function onCommentCreated(c: ItemComment) {
+  if (c.quote && editorInst.value && canEdit.value) replaceCommentMark(editorInst.value, 'pending', c.id)
+}
+function onCommentRemoved(c: ItemComment) {
+  if (editorInst.value && canEdit.value) replaceCommentMark(editorInst.value, c.id, null)
+}
+function onCommentSelect(c: ItemComment) {
+  focusThread.value = c.id
+  const e = editorInst.value
+  const pos = e ? findCommentMark(e, c.id) : null
+  if (e && pos !== null) {
+    e.commands.setTextSelection(pos)
+    const el = e.view.domAtPos(pos).node as HTMLElement
+    ;(el.nodeType === 1 ? el : el.parentElement)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
+}
+/** Surlignage des passages des fils ouverts (les fils résolus restent discrets). */
+const commentCss = computed(() => commentThreads.value
+  .filter((th) => !th.root.resolved_at)
+  .map((th) => `.doc-prose .comment-mark[data-comment-id="${th.root.id}"]`)
+  .join(',') + '{background:color-mix(in srgb,var(--yellow,#e2a03f) 22%,transparent);border-bottom:2px solid color-mix(in srgb,var(--yellow,#e2a03f) 70%,transparent);cursor:pointer}'
+  + (focusThread.value ? `.doc-prose .comment-mark[data-comment-id="${focusThread.value}"]{background:color-mix(in srgb,var(--yellow,#e2a03f) 45%,transparent)}` : ''))
+
+// --- Historique ---
+const historyOpen = ref(false)
+
 // --- Interface ---
 const fullWidth = useLocalStorage<boolean>('looty.doc.fullWidth', false)
 const findOpen = ref(false)
@@ -110,11 +165,14 @@ const menu = computed<MenuItem[]>(() => {
   return [
     { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + links.doc(wsId.value, p.id)); toast.success(t('common.linkCopied')) } },
     ...(isDesktop ? [] : [{ label: t('desktop.openInApp'), icon: AppWindow, onSelect: () => openInDesktop(links.doc(wsId.value, p.id)) }]),
+    { label: t('reader.open'), icon: BookOpenText, shortcut: ['mod', 'alt', 'R'], onSelect: () => navigateTo(links.read(wsId.value, p.id)) },
+    { label: t('history.title'), icon: History, onSelect: () => (historyOpen.value = true) },
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },
     { label: fullWidth.value ? t('editor.normalWidth') : t('editor.fullWidthPage'), icon: fullWidth.value ? Minimize2 : Maximize2, onSelect: () => (fullWidth.value = !fullWidth.value) },
     { divider: true },
     ...(canEdit.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },
+    { label: t('exportFormats.printPdf'), icon: Printer, onSelect: async () => { const { printToPdf } = await import('~/editor/exportDoc'); printToPdf(title.value, [{ title: title.value || t('docs.untitled'), html: editorInst.value?.getHTML() ?? p.content ?? '' }]) } },
     { label: t('transfer.exportMenu'), icon: FileArchive, onSelect: () => (exportOpen.value = true) },
     ...(canEdit.value ? [{ label: t('transfer.importHere'), icon: Upload, onSelect: () => (importOpen.value = true) }] : []),
     ...(canEdit.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await deletePage(p)) navigateTo(p.parent_id ? links.doc(wsId.value, p.parent_id) : links.docs(wsId.value)) } }] : []),
@@ -124,6 +182,7 @@ const menu = computed<MenuItem[]>(() => {
 useShortcuts([
   { keys: 'mod+f', global: true, handler: () => { findOpen.value = true } },
   { keys: 'mod+shift+l', global: true, handler: () => { fullWidth.value = !fullWidth.value } },
+  { keys: 'mod+alt+r', global: true, handler: () => { navigateTo(links.read(wsId.value, pageId.value)) } },
 ])
 
 async function newChild() {
@@ -156,6 +215,12 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <UiTooltip :text="live.is_favorite ? t('docs.unfavorite') : t('docs.favorite')">
           <UiButton size="sm" variant="ghost" :icon="Star" :class="{ fav: live.is_favorite }" @click="toggleFavorite(live)" />
         </UiTooltip>
+        <UiTooltip :text="t('reader.open')" :shortcut="['mod', 'alt', 'R']">
+          <UiButton size="sm" variant="ghost" :icon="BookOpenText" :to="links.read(wsId, live.id)" :aria-label="t('reader.open')" />
+        </UiTooltip>
+        <UiTooltip :text="t('itemComments.title')">
+          <UiButton size="sm" variant="ghost" :icon="MessageSquare" :class="{ 'cm-on': commentsOpen }" :aria-pressed="commentsOpen" @click="commentsOpen = !commentsOpen">{{ openComments || '' }}</UiButton>
+        </UiTooltip>
         <UiButton size="sm" :icon="Share2" @click="shareOpen = true">{{ t('share.share') }}</UiButton>
         <UiMenu v-model:open="menuOpen" :items="menu" placement="bottom-end" :width="250"><UiButton size="sm" variant="ghost" :icon="MoreHorizontal" /></UiMenu>
       </template>
@@ -164,7 +229,9 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
     <UiEmpty v-if="error && !isLoading" :icon="FileQuestion" :title="t('docs.notFound')" :description="t('docs.notFoundHint')">
       <UiButton :to="links.docs(wsId)">{{ t('nav.allDocs') }}</UiButton>
     </UiEmpty>
-    <div v-else ref="scroller" class="doc-scroll">
+    <div v-else class="doc-body">
+    <component :is="'style'">{{ commentCss }}</component>
+    <div ref="scroller" class="doc-scroll">
       <DocFindBar v-model:open="findOpen" :editor="editorInst ?? undefined" />
       <div class="doc-layout" :class="{ wide: fullWidth }">
         <article class="doc-col">
@@ -198,6 +265,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
               :page-id="pageId"
               :initial-html="page?.content"
               :can-edit="canEdit"
+              :can-comment="canComment"
               :user="cursorUser"
               @ready="(e) => (editorInst = e)"
               @html="saveHtml"
@@ -225,10 +293,32 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <aside class="toc-col"><DocToc :headings="headings" :scroller="scroller" /></aside>
       </div>
     </div>
+    <Transition name="side">
+      <aside v-if="commentsOpen && live" class="side-panel" :aria-label="t('itemComments.title')">
+        <header class="side-head">
+          <MessageSquare :size="14" />
+          <span>{{ t('itemComments.title') }}</span>
+          <span class="spacer" />
+          <UiButton size="xs" variant="ghost" :icon="X" :aria-label="t('common.close')" @click="commentsOpen = false" />
+        </header>
+        <CommentsPanel
+          v-model:quote="pendingQuote"
+          kind="page"
+          :target-id="pageId"
+          :can-comment="canComment"
+          :focus-id="focusThread"
+          @created="onCommentCreated"
+          @removed="onCommentRemoved"
+          @select="onCommentSelect"
+        />
+      </aside>
+    </Transition>
+    </div>
 
     <DocShareDialog v-if="live" v-model:open="shareOpen" :page="live" />
     <DocExportDialog v-if="live" v-model:open="exportOpen" :page="{ ...live, title }" :get-html="() => editorInst?.getHTML() ?? ''" />
     <DocImportDialog v-if="live" v-model:open="importOpen" :parent="live" />
+    <DocHistoryDialog v-if="live" v-model:open="historyOpen" :page-id="pageId" :editor="editorInst as any" :can-edit="canEdit" :current-title="title" @restore-title="(v) => { title = v; updatePage(pageId, { title: v }) }" />
   </div>
 </template>
 
@@ -239,7 +329,14 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 .collabs { display: flex; margin-right: 4px; }
 .collab { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 0 0 2px var(--bg); margin-left: -4px; }
 .fav :deep(svg) { fill: var(--yellow); color: var(--yellow); }
-.doc-scroll { position: relative; flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+.doc-body { flex: 1; min-height: 0; display: flex; }
+.doc-scroll { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; }
+.side-panel { width: 360px; flex-shrink: 0; display: flex; flex-direction: column; padding: 10px 14px 14px; border-left: 1px solid var(--border); background: var(--bg-panel); min-height: 0; }
+.side-head { display: flex; align-items: center; gap: 8px; height: 30px; margin-bottom: 6px; font-weight: 600; }
+.side-enter-active, .side-leave-active { transition: margin-right var(--dur) var(--ease-out), opacity var(--dur); }
+.side-enter-from, .side-leave-to { margin-right: -360px; opacity: 0; }
+.cm-on { background: var(--bg-active); }
+@media (max-width: 900px) { .side-panel { position: fixed; z-index: 50; inset: 48px 0 0 auto; width: min(380px, 100vw); box-shadow: var(--shadow-lg); } }
 .doc-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 760px) minmax(0, 1fr); padding: 48px 24px 0; }
 .doc-layout.wide { grid-template-columns: 0 minmax(0, 1fr) 240px; padding: 48px 80px 0; }
 .doc-col { grid-column: 2; min-width: 0; }

@@ -10,6 +10,7 @@ import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import { Bold, Italic, Strikethrough, Code, Link2, List, ListChecks } from 'lucide-vue-next'
 import { mentionExtension } from '~/editor/mention'
+import { PageMention, pageMentionSuggest, type PageSource } from '~/editor/pageMention'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { uploadFile } from '~/composables/api'
 
@@ -27,7 +28,8 @@ const props = withDefaults(defineProps<{
 }>(), { editable: true })
 const emit = defineEmits<{ (e: 'blur'): void; (e: 'submit'): void; (e: 'mention', id: string): void }>()
 
-const { members } = useWorkspace()
+const { members, pages, wsId } = useWorkspace()
+const pageSource: PageSource = { wsId: () => wsId.value, pages: () => pages.data.value ?? [] }
 
 async function insertImage(file: File, pos?: number) {
   const r = await uploadFile(file)
@@ -51,7 +53,9 @@ const editor = useEditor({
     TaskList,
     TaskItem.configure({ nested: true }),
     Image.configure({ HTMLAttributes: { loading: 'lazy' } }),
-    mentionExtension(() => members.data.value ?? [], (id) => emit('mention', id)),
+    mentionExtension(() => members.data.value ?? [], (id) => emit('mention', id), pageSource),
+    PageMention,
+    pageMentionSuggest(pageSource),
   ],
   editorProps: {
     attributes: { class: 'prose prose-sm lite-editor' },

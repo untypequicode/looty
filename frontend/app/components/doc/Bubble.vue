@@ -2,12 +2,12 @@
 import { BubbleMenu, type Editor } from '@tiptap/vue-3'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2, Highlighter, Heading1, Heading2, Pilcrow, Quote, ChevronDown, Check, X,
-  FileText, ExternalLink, Rows3, Columns3, Trash2, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, TableCellsMerge,
+  FileText, ExternalLink, MessageSquarePlus, Rows3, Columns3, Trash2, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, TableCellsMerge,
 } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 
-const props = defineProps<{ editor: Editor }>()
+const props = defineProps<{ editor: Editor; canComment?: boolean }>()
 const { pages, wsId } = useWorkspace()
 const { t } = useI18n()
 
@@ -22,6 +22,18 @@ function shouldShowText({ editor, state, from, to }: any) {
   if (editor.isActive('codeBlock') || editor.isActive('image') || editor.isActive('mathBlock')) return false
   const sel = state.selection
   return !(sel.node) && state.doc.textBetween(from, to).length > 0 || linkMode.value
+}
+/** Lecture seule : seul le bouton « Commenter » est proposé sur une sélection. */
+function shouldShowComment({ editor, state, from, to }: any) {
+  return !editor.isEditable && !!props.canComment && from !== to && !state.selection.node && state.doc.textBetween(from, to).trim().length > 0
+}
+/** Commenter la sélection : la page ouvre la discussion avec le passage cité. */
+function comment() {
+  const { from, to } = props.editor.state.selection
+  const quote = props.editor.state.doc.textBetween(from, to, ' ').trim()
+  // Marque provisoire (éditeurs) ; remplacée par l'identifiant du fil une fois créé.
+  if (props.editor.isEditable) props.editor.chain().setMark('comment', { id: 'pending' }).run()
+  window.dispatchEvent(new CustomEvent('looty:comment-selection', { detail: { quote } }))
 }
 function shouldShowTable({ editor }: any) {
   return editor.isEditable && editor.isActive('table')
@@ -98,6 +110,10 @@ const isInternal = computed(() => (props.editor.getAttributes('link').href ?? ''
         <button :class="{ on: editor.isActive('highlight') }" :title="t('editor.highlight')" @click="editor.chain().focus().toggleHighlight().run()"><Highlighter :size="15" /></button>
         <span class="sep" />
         <button :class="{ on: editor.isActive('link') }" :title="`${t('editor.link')} (Ctrl+K)`" @click="openLink"><Link2 :size="15" /></button>
+        <template v-if="canComment">
+          <span class="sep" />
+          <button :title="t('itemComments.commentSelection')" @click="comment"><MessageSquarePlus :size="15" /></button>
+        </template>
         <a v-if="editor.isActive('link')" class="b-open" :href="editor.getAttributes('link').href" :target="isInternal ? undefined : '_blank'" rel="noopener" :title="t('common.open')"><ExternalLink :size="14" /></a>
       </template>
       <div v-else class="link-edit">
@@ -114,6 +130,12 @@ const isInternal = computed(() => (props.editor.getAttributes('link').href ?? ''
           </button>
         </div>
       </div>
+    </div>
+  </BubbleMenu>
+
+  <BubbleMenu :editor="editor" :should-show="shouldShowComment" :tippy-options="{ duration: 120, zIndex: 1400 }" plugin-key="commentBubble">
+    <div class="bubble">
+      <button class="b-comment" @click="comment"><MessageSquarePlus :size="15" /> {{ t('itemComments.commentSelection') }}</button>
     </div>
   </BubbleMenu>
 
@@ -134,6 +156,7 @@ const isInternal = computed(() => (props.editor.getAttributes('link').href ?? ''
 </template>
 
 <style scoped>
+.b-comment { display: inline-flex; align-items: center; gap: 6px; width: auto !important; padding: 0 8px; }
 .bubble {
   display: flex;
   align-items: center;

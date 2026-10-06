@@ -3,6 +3,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.4.0",
+      "date": "2026-10-06",
+      "title": {
+        "en": "Comments, version history and reading view",
+        "fr": "Commentaires, historique des versions et vue de lecture"
+      },
+      "notes": {
+        "en": [
+          "**Comments on documents**: select a passage and click the comment button, or start a discussion from the comments panel. Threads support replies, mentions and resolving.",
+          "**Comments on events** of the workspace calendar, from the event details.",
+          "**Version history** (document menu): a version is saved for each editing session; preview any version and restore it, or save a named version. Restoring is safe: the current state is kept as a version.",
+          "**Mention documents** with `[[` or `@` in documents, task descriptions and comments; events can link documents from their description. These links appear in the graph, where events now show up too.",
+          "**Export** documents as HTML (with images and formulas) or print / save as PDF, in addition to Markdown and Outline JSON.",
+          "**Reading view** for courses (`Ctrl+Alt+R`): only the text, with text size, font, line width, spacing and theme (including sepia), contents, previous / next page and resume where you left off."
+        ],
+        "fr": [
+          "**Commentaires sur les documents** : sélectionnez un passage et cliquez sur le bouton de commentaire, ou ouvrez une discussion depuis le panneau des commentaires. Réponses, mentions et résolution des fils.",
+          "**Commentaires sur les événements** du calendrier de l’espace, depuis leur détail.",
+          "**Historique des versions** (menu du document) : une version par session d’édition ; prévisualisez et restaurez n’importe quelle version, ou enregistrez une version nommée. La restauration est sans risque : l’état actuel est gardé comme version.",
+          "**Mentionnez des documents** avec `[[` ou `@` dans les documents, les descriptions de tâches et les commentaires ; les événements peuvent lier des documents dans leur description. Ces liens apparaissent dans le graphe, qui affiche aussi les événements.",
+          "**Export** des documents en HTML (avec images et formules) ou impression / enregistrement en PDF, en plus du Markdown et du JSON Outline.",
+          "**Vue de lecture** pour les cours (`Ctrl+Alt+R`) : seulement le texte, avec taille, police, largeur des lignes, interligne et thème (dont sépia), sommaire, page précédente / suivante et reprise de la lecture."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.3.0",
       "date": "2026-10-05",
       "title": {

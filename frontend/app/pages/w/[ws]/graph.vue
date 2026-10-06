@@ -126,6 +126,7 @@ useHead({ title: () => t('graph.title') })
           <span><i class="lg-dot page" /> {{ t('graph.kinds.page') }}</span>
           <span><i class="lg-dot task" /> {{ t('graph.kinds.task') }}</span>
           <span><i class="lg-dot task done" /> {{ t('graph.done') }}</span>
+          <span><i class="lg-dot event" /> {{ t('graph.kinds.event') }}</span>
           <span><i class="lg-sq" /> {{ t('graph.kinds.board') }}</span>
           <span><i class="lg-line" /> {{ t('graph.relation') }}</span>
         </div>
@@ -189,6 +190,8 @@ useHead({ title: () => t('graph.title') })
 .lg-dot.board, .lg-sq { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: #1baf7a; }
 .lg-line { display: inline-block; width: 18px; border-top: 2px dashed var(--accent); }
 :global(html.dark .lg-dot.page) { background: #3987e5; }
+.lg-dot.event { background: #8a5cd8; }
+:global(html.dark .lg-dot.event) { background: #9d74e6; }
 :global(html.dark .lg-dot.task) { background: #d95926; }
 :global(html.dark .lg-dot.task.done) { background: transparent; box-shadow: inset 0 0 0 1.5px #d95926; }
 :global(html.dark .lg-dot.board), :global(html.dark .lg-sq) { background: #199e70; }

@@ -5,7 +5,7 @@ import { useI18n } from '~/composables/useI18n'
 import { useGraph, useRelated, useGraphActions, nodeLink } from '~/composables/useGraph'
 
 /** Éléments reliés à une page ou une tâche : liens dans le contenu et relations manuelles. */
-const props = defineProps<{ kind: 'page' | 'task'; id: string; compact?: boolean }>()
+const props = defineProps<{ kind: 'page' | 'task' | 'event'; id: string; compact?: boolean }>()
 const { wsId, canWrite } = useWorkspace()
 const { t } = useI18n()
 const related = useRelated(wsId, computed(() => props.id))
@@ -53,6 +53,7 @@ const list = computed(() => related.data.value?.items ?? [])
 .rp-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .rp-dot.page { background: #2a78d6; }
 .rp-dot.task { background: #eb6834; }
+.rp-dot.event { background: #8a5cd8; }
 .rp-dot.task.done { background: transparent; box-shadow: inset 0 0 0 1.5px #eb6834; }
 .rp-name { flex: 1; min-width: 0; font-size: var(--fs-md); color: var(--text); }
 .rp-name:hover { color: var(--accent); }

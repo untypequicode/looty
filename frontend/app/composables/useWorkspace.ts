@@ -105,5 +105,7 @@ export const links = {
   task: (ws: string, board: string, task: string) => `/w/${ws}/board/${board}?task=${task}`,
   taskById: (ws: string, task: string) => `/w/${ws}/task/${task}`,
   doc: (ws: string, page: string, anchor?: string) => `/w/${ws}/doc/${page}${anchor ? `#${anchor}` : ''}`,
+  /** Vue de lecture (cours). */
+  read: (ws: string, page: string) => `/w/${ws}/read/${page}`,
   settings: (ws: string, section = 'profile') => `/w/${ws}/settings/${section}`,
 }

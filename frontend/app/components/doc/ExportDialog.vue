@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, FileJson, FileText } from 'lucide-vue-next'
+import { Download, FileJson, FileText, FileCode2, Printer } from 'lucide-vue-next'
 import type { Page } from '~/types'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
@@ -14,7 +14,8 @@ const { wsId, workspace, pages } = useWorkspace()
 const { user } = useAuth()
 const { t } = useI18n()
 
-const format = ref<'json' | 'markdown'>('json')
+const format = ref<'json' | 'markdown' | 'html' | 'pdf'>('json')
+const FORMAT_NAMES = { json: 'Outline JSON', markdown: 'Markdown', html: 'HTML', pdf: 'PDF' } as const
 const scope = ref<'page' | 'tree'>('tree')
 const busy = ref(false)
 const progress = ref(0)
@@ -36,8 +37,22 @@ async function run() {
   if (!user.value) return
   busy.value = true
   try {
-    const { buildExport } = await import('~/editor/outline')
     const name = props.page ? props.page.title || t('docs.untitled') : workspace.data.value?.name ?? 'Looty'
+    if (format.value === 'pdf') {
+      // Impression (Enregistrer en PDF) : pages à la suite, une par feuille.
+      const { printToPdf } = await import('~/editor/exportDoc')
+      const { api } = await import('~/composables/api')
+      const sections: { title: string; html: string }[] = []
+      for (const [i, p] of selection.value.entries()) {
+        const html = props.page && p.id === props.page.id && props.getHtml?.() ? props.getHtml() : (await api<Page>(`/api/workspaces/${wsId.value}/pages/${p.id}`)).content ?? ''
+        sections.push({ title: p.title || t('docs.untitled'), html })
+        progress.value = (i + 1) / selection.value.length
+      }
+      await printToPdf(name, sections)
+      open.value = false
+      return
+    }
+    const { buildExport } = await import('~/editor/outline')
     const blob = await buildExport({
       wsId: wsId.value,
       name,
@@ -49,7 +64,7 @@ async function run() {
     })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `${name.replace(/[/\\?%*:|"<>]/g, '-').slice(0, 100)} (${format.value === 'json' ? 'Outline JSON' : 'Markdown'}).zip`
+    a.download = `${name.replace(/[/\\?%*:|"<>]/g, '-').slice(0, 100)} (${FORMAT_NAMES[format.value]}).zip`
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 2000)
     toast.success(t('transfer.exported', { n: selection.value.length }))
@@ -75,6 +90,14 @@ async function run() {
           <FileText :size="18" />
           <span><b>Markdown</b><small>{{ t('transfer.markdownHint') }}</small></span>
         </button>
+        <button class="tf-choice" :class="{ on: format === 'html' }" @click="format = 'html'">
+          <FileCode2 :size="18" />
+          <span><b>HTML</b><small>{{ t('exportFormats.htmlHint') }}</small></span>
+        </button>
+        <button class="tf-choice" :class="{ on: format === 'pdf' }" @click="format = 'pdf'">
+          <Printer :size="18" />
+          <span><b>PDF</b><small>{{ t('exportFormats.pdfHint') }}</small></span>
+        </button>
       </div>
 
       <template v-if="page">
@@ -91,7 +114,7 @@ async function run() {
     </div>
     <template #footer>
       <UiButton variant="ghost" :disabled="busy" @click="open = false">{{ t('common.cancel') }}</UiButton>
-      <UiButton variant="primary" :icon="Download" :loading="busy" :disabled="!selection.length" @click="run">{{ t('transfer.export') }}</UiButton>
+      <UiButton variant="primary" :icon="format === 'pdf' ? Printer : Download" :loading="busy" :disabled="!selection.length" @click="run">{{ format === 'pdf' ? t('exportFormats.print') : t('transfer.export') }}</UiButton>
     </template>
   </UiDialog>
 </template>

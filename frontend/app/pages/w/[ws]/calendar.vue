@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2 } from 'lucide-vue-next'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2, MessageSquare } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api } from '~/composables/api'
@@ -8,6 +8,7 @@ import { useI18n } from '~/composables/useI18n'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
+import { useCommentCounts } from '~/composables/useComments'
 import {
   useCalendars, useCalendarEvents, useCalendarPrefs, useCalendarInvalidate,
   startOfDay, startOfWeek, addDays, sameDay, onDay, eventDays, WORKSPACE_CAL, type CalEvent, type CalTask, type CalendarSource, type EventDetail,
@@ -169,6 +170,8 @@ const agenda = computed(() => {
 })
 
 // --- Détail d'un événement ---
+const evComments = ref(false)
+const { data: eventCommentCounts } = useCommentCounts(wsId, 'event')
 const detail = ref<CalEvent | null>(null)
 const detailRect = ref<{ x: number; y: number; width?: number; height?: number } | null>(null)
 const detailOpen = ref(false)
@@ -178,6 +181,26 @@ function openEvent(e: CalEvent, ev: MouseEvent) {
   detail.value = e
   detailOpen.value = true
 }
+const route = useRoute()
+const wantEvent = ref<string | null>(null)
+watch(() => route.query.event as string | undefined, async (id) => {
+  if (!id || !wsId.value) return
+  try {
+    const d = await api<EventDetail>(`/api/workspaces/${wsId.value}/events/${id}`, { silent: true })
+    cursor.value = startOfDay(new Date(d.start))
+    if (view.value === 'agenda') cursor.value = startOfDay(new Date(d.start))
+    wantEvent.value = id
+  } catch { /* événement supprimé */ }
+}, { immediate: true })
+watch([data, wantEvent], () => {
+  const id = wantEvent.value
+  const e = id ? (data.value?.events ?? []).find((x) => x.event_id === id) : null
+  if (!e) return
+  wantEvent.value = null
+  detailRect.value = { x: window.innerWidth / 2 - 170, y: 120 }
+  detail.value = e
+  detailOpen.value = true
+})
 function eventWhen(e: CalEvent) {
   const { start, end } = eventDays(e)
   if (e.all_day) {
@@ -342,14 +365,14 @@ useHead({ title: () => t('calendar.title') })
       </div>
     </div>
 
-    <UiPopover v-model:open="detailOpen" :virtual-rect="detailRect" :width="340" placement="right-start">
+    <UiPopover v-model:open="detailOpen" :virtual-rect="detailRect" :width="evComments ? 380 : 340" placement="right-start">
       <div v-if="detail" class="ev">
         <div class="ev-head"><span class="ev-dot" :style="{ background: color(detail) }" /><h4>{{ detail.summary || t('calendar.untitled') }}</h4></div>
         <p class="ev-when">{{ eventWhen(detail) }}</p>
         <p v-if="detail.location" class="ev-line"><MapPin :size="13" /> {{ detail.location }}</p>
         <p class="ev-line faint"><CalendarDays :size="13" /> {{ calName(detail) }}</p>
         <p v-if="detail.recurring" class="ev-line faint"><Repeat :size="13" /> {{ t('event.recurring') }}</p>
-        <p v-if="detail.description" class="ev-desc">{{ detail.description }}</p>
+        <CalendarEventDescription v-if="detail.description" :text="detail.description" class="ev-desc" />
         <a v-if="detail.url" :href="detail.url" target="_blank" rel="noopener noreferrer" class="ev-link"><ExternalLink :size="13" /> {{ t('calendar.openLink') }}</a>
         <div v-if="detail.calendar_id === WORKSPACE_CAL && detail.can_edit" class="ev-actions">
           <UiButton size="sm" :icon="Pencil" @click="editEvent(detail)">{{ detail.recurring ? t('event.editSeries') : t('common.edit') }}</UiButton>
@@ -359,6 +382,13 @@ useHead({ title: () => t('calendar.title') })
           </template>
           <UiButton v-else size="sm" variant="ghost" :icon="Trash2" @click="deleteEvent(detail, 'all')">{{ t('common.delete') }}</UiButton>
         </div>
+        <template v-if="detail.calendar_id === WORKSPACE_CAL && detail.event_id">
+          <GraphRelatedPanel kind="event" :id="detail.event_id" compact class="ev-related" />
+          <button class="ev-cm-toggle" @click="evComments = !evComments">
+            <MessageSquare :size="13" /> {{ t('itemComments.title') }}<span v-if="eventCommentCounts?.[detail.event_id]" class="ev-cm-n">{{ eventCommentCounts[detail.event_id] }}</span>
+          </button>
+          <CommentsPanel v-if="evComments" kind="event" :target-id="detail.event_id" can-comment class="ev-comments" />
+        </template>
       </div>
     </UiPopover>
     <CalendarAddDialog v-model:open="addOpen" />
@@ -448,7 +478,12 @@ useHead({ title: () => t('calendar.title') })
 .ev-dot { width: 10px; height: 10px; border-radius: 3px; margin-top: 5px; flex-shrink: 0; }
 .ev-when { margin: 0; color: var(--text-2); font-size: var(--fs-sm); text-transform: capitalize; }
 .ev-line { margin: 0; display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); }
-.ev-desc { margin: 4px 0 0; white-space: pre-wrap; font-size: var(--fs-sm); color: var(--text-2); max-height: 200px; overflow-y: auto; }
+.ev-desc { max-height: 200px; overflow-y: auto; }
+.ev-related { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.ev-cm-toggle { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin-top: 4px; font-size: var(--fs-sm); color: var(--text-2); padding: 3px 6px; margin-left: -6px; border-radius: var(--r-sm); }
+.ev-cm-toggle:hover { background: var(--bg-hover); }
+.ev-cm-n { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: var(--r-full); background: var(--accent-soft); }
+.ev-comments { max-height: 360px; }
 .ev-link { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--accent); }
 
 @media (max-width: 767px) {

@@ -245,6 +245,12 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       break
     case 'CALENDAR_EVENTS_UPDATED':
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'calendar-events'] })
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'graph'] })
+      break
+    case 'COMMENTS_UPDATED':
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'comments', ev.kind, ev.id] })
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'comment-counts', ev.kind] })
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'graph'] })
       break
     case 'NOTEPAD_UPDATED':
       window.dispatchEvent(new CustomEvent('looty:notepad'))

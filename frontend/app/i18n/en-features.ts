@@ -8,7 +8,7 @@ export default {
   graph: {
     title: 'Graph', search: 'Find an item…', filters: 'Filters', fit: 'Fit to screen', graphView: 'Graph', listView: 'List',
     opt: { tasks: 'Tasks', done: 'Completed tasks', boards: 'Boards', hierarchy: 'Hierarchy (sub-pages, boards)', orphans: 'Unlinked items', local: 'Only around the selection' },
-    kinds: { page: 'Document', task: 'Task', board: 'Board' }, done: 'Completed', relation: 'Relation',
+    kinds: { page: 'Document', task: 'Task', board: 'Board', event: 'Event' }, done: 'Completed', relation: 'Relation',
     hint: 'Double-click to open · Shift+drag from one item to another to link them', hintRead: 'Double-click to open',
     count: '{nodes} items, {edges} links', aria: 'Graph of the workspace: {nodes} items and {edges} links (the list view shows the same data)',
     col: { name: 'Name', type: 'Type', links: 'Links' }, open: 'Open', related: 'Related', noRelated: 'No links yet.',
