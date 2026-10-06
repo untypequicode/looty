@@ -38,6 +38,8 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true },
   trash: { icon: Trash2, label: () => t('trash.title'), to: () => `/w/${wsId.value}/trash`, hiddenByDefault: true },
 }, { favorites: () => true, boards: () => can.value.seeBoards, docs: () => can.value.seeDocs })
+/** Sections visibles, dans l'ordre choisi. */
+const sectionOrder = computed(() => Object.entries(sections.value).filter(([, v]) => v !== undefined).sort((a, b) => a[1]! - b[1]!).map(([k]) => k))
 const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
@@ -120,12 +122,13 @@ async function onRootDrop(e: DragEvent) {
     </div>
 
     <div class="sb-scroll">
-      <div class="sb-group" :style="{ order: -1 }">
+      <div class="sb-group">
         <AppSidebarItem v-for="it in navItems" :key="it.key" :to="it.to" :icon="it.icon" :label="it.label" :badge="it.badge" :exact="it.exact" />
       </div>
 
       <!-- Favoris -->
-      <section v-if="favorites.length && sections.favorites !== undefined" class="sb-section" :style="{ order: sections.favorites }">
+      <template v-for="sec in sectionOrder" :key="sec">
+      <section v-if="sec === 'favorites' && favorites.length" class="sb-section">
         <button class="sb-section-head" @click="toggleSection('favorites')">
           <span>{{ t('nav.favorites') }}</span>
           <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.favorites }" />
@@ -136,7 +139,7 @@ async function onRootDrop(e: DragEvent) {
       </section>
 
       <!-- Tableaux -->
-      <section v-if="sections.boards !== undefined" class="sb-section" :style="{ order: sections.boards }">
+      <section v-else-if="sec === 'boards'" class="sb-section">
         <div class="sb-section-head">
           <button class="sb-section-title" @click="toggleSection('boards')">
             <span>{{ t('nav.boards') }}</span>
@@ -172,7 +175,7 @@ async function onRootDrop(e: DragEvent) {
       </section>
 
       <!-- Documents -->
-      <section v-if="sections.docs !== undefined" class="sb-section" :style="{ order: sections.docs }">
+      <section v-else-if="sec === 'docs'" class="sb-section">
         <div class="sb-section-head">
           <button class="sb-section-title" @click="toggleSection('docs')">
             <span>{{ t('nav.docs') }}</span>
@@ -194,6 +197,7 @@ async function onRootDrop(e: DragEvent) {
           </button>
         </div>
       </section>
+      </template>
     </div>
 
     <div class="sb-bottom">
@@ -254,8 +258,7 @@ async function onRootDrop(e: DragEvent) {
   padding: 8px 8px 4px 8px;
   min-height: 46px;
 }
-.sb-scroll { flex: 1; overflow-y: auto; padding: 4px 8px 12px; display: flex; flex-direction: column; }
-.sb-scroll > * { flex-shrink: 0; }
+.sb-scroll { flex: 1; overflow-y: auto; padding: 4px 8px 12px; }
 .sb-group { display: flex; flex-direction: column; gap: 1px; }
 .sb-section { margin-top: 18px; }
 .sb-section-head {

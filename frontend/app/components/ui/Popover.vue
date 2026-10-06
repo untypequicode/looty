@@ -1,3 +1,7 @@
+<script lang="ts">
+let popoverSeq = 0
+</script>
+
 <script setup lang="ts">
 import { useFloating, autoUpdate, offset, flip, shift, size as sizeMw, type Placement } from '@floating-ui/vue'
 import { onClickOutside } from '@vueuse/core'
@@ -58,9 +62,15 @@ function close() {
   emit('close')
 }
 
+// Popovers imbriqués (liste déroulante ouverte depuis un popover) : un clic dans un calque
+// ouvert après celui-ci ne le ferme pas.
+const layer = ref(0)
+watch(open, (o) => { if (o) layer.value = ++popoverSeq })
 onClickOutside(floating, (e) => {
   if (asSheet.value) return
   if (reference.value?.contains(e.target as Node)) return
+  const other = (e.target as HTMLElement | null)?.closest?.('[data-popover-layer]') as HTMLElement | null
+  if (other && Number(other.dataset.popoverLayer) > layer.value) return
   close()
 })
 useLayer(open, close)
@@ -78,7 +88,7 @@ defineExpose({ close, toggle, reference })
         <div v-if="open" class="sheet-overlay" @click="close" />
       </Transition>
       <Transition :css="false" @enter="motion.sheet.onEnter" @leave="motion.sheet.onLeave">
-        <div v-if="open" ref="floating" class="sheet" role="dialog">
+        <div v-if="open" ref="floating" class="sheet" role="dialog" :data-popover-layer="layer">
           <div class="sheet-handle" />
           <slot :close="close" />
         </div>
@@ -89,6 +99,7 @@ defineExpose({ close, toggle, reference })
         v-if="open"
         ref="floating"
         class="popover"
+        :data-popover-layer="layer"
         :style="[floatingStyles, typeof width === 'number' ? { width: `${width}px` } : {}]"
         role="dialog"
       >

@@ -3,7 +3,9 @@ import { isDesktop, openInDesktop } from '~/composables/useDesktop'
 import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow } from 'lucide-vue-next'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
-import { CalendarSync } from 'lucide-vue-next'
+import { CalendarSync, CalendarRange, ExternalLink } from 'lucide-vue-next'
+import type { CalEvent, EventDetail } from '~/composables/useCalendar'
+import { isTimed, timeOf } from '~/utils/dates'
 import { api } from '~/composables/api'
 import type { Board, Task, Priority } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -96,6 +98,19 @@ const dueModel = computed({
   get: () => task.value?.due_date ?? null,
   set: (d: string | null | undefined) => task.value && actions.updateTask(task.value.id, { due_date: d ?? null }),
 })
+// Événement lié (créneau) : l'échéance prend le début de l'occurrence choisie.
+const eventOpen = ref(false)
+const { data: linkedEvent } = useQuery({
+  queryKey: computed(() => ['ws', wsId.value, 'event', task.value?.event_id]),
+  queryFn: () => api<EventDetail>(`/api/workspaces/${wsId.value}/events/${task.value!.event_id}`, { silent: true }),
+  enabled: computed(() => !!task.value?.event_id),
+})
+function linkEvent(e: CalEvent | null) {
+  if (!task.value) return
+  if (!e) actions.updateTask(task.value.id, { event_id: null, event_start: null })
+  else actions.updateTask(task.value.id, { event_id: e.event_id!, event_start: e.starts_at, due_date: e.starts_at })
+}
+const dueLabel = (d: string) => (isTimed(d) ? `${formatDate(d)} · ${timeOf(d)}` : formatDate(d))
 const startModel = computed({
   get: () => task.value?.start_date ?? null,
   set: (d: string | null | undefined) => task.value && actions.updateTask(task.value.id, { start_date: d ?? null }),
@@ -256,11 +271,22 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
             <span class="prop-label">{{ t('task.dueDate') }}</span>
             <TaskDatePicker v-model="dueModel">
               <button class="prop-val" :disabled="!canWrite" :class="{ overdue: task.due_date && !task.is_completed && new Date(task.due_date) < new Date() }">
-                <CalendarDays :size="14" class="faint" /> <span :class="{ faint: !task.due_date }">{{ task.due_date ? formatDate(task.due_date) : t('task.noDate') }}</span>
+                <CalendarDays :size="14" class="faint" /> <span :class="{ faint: !task.due_date }">{{ task.due_date ? dueLabel(task.due_date) : t('task.noDate') }}</span>
               </button>
             </TaskDatePicker>
           </div>
 
+          <div class="prop">
+            <span class="prop-label">{{ t('planning.event') }}</span>
+            <TaskEventPicker v-model:open="eventOpen" :linked="!!task.event_id" @pick="linkEvent">
+              <button class="prop-val" :disabled="!canWrite">
+                <CalendarRange :size="14" class="faint" />
+                <span v-if="task.event_id" class="truncate">{{ linkedEvent?.title ?? '…' }}<span v-if="task.event_start" class="faint"> · {{ dueLabel(task.event_start) }}</span></span>
+                <span v-else class="faint">{{ t('planning.linkEvent') }}</span>
+              </button>
+            </TaskEventPicker>
+            <NuxtLink v-if="task.event_id" :to="`${links.calendar(wsId)}?event=${task.event_id}`" class="prop-open" :title="t('planning.openEvent')"><ExternalLink :size="12" /></NuxtLink>
+          </div>
           <div v-if="calLinks?.length || assignedToMe" class="prop">
             <span class="prop-label">{{ t('settings.caldav.calendar') }}</span>
             <template v-if="calLinks?.length">
@@ -343,6 +369,8 @@ a.crumb:hover { color: var(--text); }
 .panel-props { border-left: 1px solid var(--border); padding: 20px 16px; display: flex; flex-direction: column; gap: 2px; background: var(--bg-sidebar); }
 .prop { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .prop-label { font-size: var(--fs-xs); color: var(--text-3); font-weight: 500; padding-left: 8px; }
+.prop-open { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-xs); color: var(--text-3); flex-shrink: 0; }
+.prop-open:hover { background: var(--bg-hover); color: var(--text); }
 .prop-val {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 4px 8px; border-radius: var(--r-sm);
   text-align: left; font-weight: 500; transition: background var(--dur-fast);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2, MessageSquare } from 'lucide-vue-next'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2, MessageSquare, Kanban } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api } from '~/composables/api'
@@ -12,7 +12,8 @@ import { toast } from '~/composables/useToast'
 import { useCommentCounts } from '~/composables/useComments'
 import {
   useCalendars, useCalendarEvents, useCalendarPrefs, useCalendarInvalidate,
-  startOfDay, startOfWeek, addDays, sameDay, onDay, eventDays, WORKSPACE_CAL, type CalEvent, type CalTask, type CalendarSource, type EventDetail,
+  useLootyCalendars, type LootyCalendar,
+  startOfDay, startOfWeek, addDays, sameDay, onDay, eventDays, type CalEvent, type CalTask, type CalendarSource, type EventDetail,
 } from '~/composables/useCalendar'
 
 definePageMeta({ layout: 'workspace' })
@@ -65,8 +66,33 @@ const { data, isFetching } = useCalendarEvents(wsId, from, to)
 const calById = computed(() => new Map((calendars.value ?? []).map((c) => [c.id, c])))
 const events = computed(() => (data.value?.events ?? []).filter((e) => !hiddenIds.value.has(e.calendar_id)))
 const tasks = computed(() => (showTasks.value ? data.value?.tasks ?? [] : []))
-const color = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? wsColor.value : calById.value.get(e.calendar_id)?.color ?? 'var(--accent)')
-const calName = (e: CalEvent) => (e.calendar_id === WORKSPACE_CAL ? `${workspace.data.value?.name ?? ''} · ${t('calendar.workspaceCal')}` : calById.value.get(e.calendar_id)?.name)
+// Calendriers Looty de l'espace (par défaut, thématiques, tableaux).
+const { data: lootyCals } = useLootyCalendars(wsId)
+const lootyById = computed(() => new Map((lootyCals.value ?? []).map((c) => [c.id, c])))
+const color = (e: CalEvent) => lootyById.value.get(e.calendar_id)?.color ?? calById.value.get(e.calendar_id)?.color ?? 'var(--accent)'
+const calName = (e: CalEvent) => lootyById.value.get(e.calendar_id)?.name ?? calById.value.get(e.calendar_id)?.name
+async function patchLooty(c: LootyCalendar, body: Record<string, unknown>) {
+  await api(`/api/workspaces/${wsId.value}/planning/calendars/${c.id}`, { method: 'PATCH', body })
+  invalidate(wsId.value)
+}
+async function newLootyCalendar() {
+  const name = window.prompt(t('planning.newCalendarPrompt'), '')
+  if (!name?.trim()) return
+  await api(`/api/workspaces/${wsId.value}/planning/calendars`, { method: 'POST', body: { name: name.trim() } })
+  invalidate(wsId.value)
+}
+function lootyMenu(c: LootyCalendar): MenuItem[] {
+  return [
+    { label: t('common.rename'), icon: Pencil, onSelect: async () => { const n = window.prompt(t('planning.renamePrompt'), c.name); if (n?.trim()) await patchLooty(c, { name: n.trim() }) } },
+    ...(c.board_id ? [{ label: t('planning.openBoard'), icon: Kanban, onSelect: () => navigateTo(links.board(wsId.value, c.board_id!)) }] : []),
+    ...(!c.is_default ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => {
+      if (!(await confirmDialog({ title: t('planning.deleteTitle', { name: c.name }), message: t('planning.deleteHint'), danger: true, confirmLabel: t('common.delete') }))) return
+      await api(`/api/workspaces/${wsId.value}/planning/calendars/${c.id}`, { method: 'DELETE' })
+      invalidate(wsId.value)
+    } }] : []),
+  ]
+}
+const lootyMenuOpen = ref<Record<string, boolean>>({})
 
 // --- Calendrier de l'espace : création, modification, suppression ---
 const evOpen = ref(false)
@@ -260,14 +286,20 @@ useHead({ title: () => t('calendar.title') })
       <aside v-if="sideOpen" class="cal-side">
         <template v-for="grp in [{ key: 'shared', icon: Users, list: shared }, { key: 'personal', icon: Lock, list: personal }]" :key="grp.key">
           <div class="cs-head"><component :is="grp.icon" :size="12" /> {{ t(`calendar.group.${grp.key}`) }}</div>
-          <div v-if="grp.key === 'shared'" class="cs-item">
-            <button class="cs-toggle" @click="toggle(WORKSPACE_CAL)">
-              <span class="cs-box" :style="{ background: hiddenIds.has(WORKSPACE_CAL) ? 'transparent' : wsColor, borderColor: wsColor }" />
-              <span class="truncate">{{ t('calendar.workspaceCal') }}</span>
-            </button>
-            <CalendarColorPicker v-if="isAdmin" :color="workspace.data.value?.calendar_color || '#5e6ad2'" resettable @pick="setWsColor" />
-            <UiTooltip :text="t('event.shareHint')"><UiButton size="xs" variant="ghost" :icon="Share2" class="cs-more" :to="`/w/${wsId}/settings/calendars`" :aria-label="t('event.shareHint')" /></UiTooltip>
-          </div>
+          <template v-if="grp.key === 'shared'">
+            <div v-for="c in lootyCals ?? []" :key="c.id" class="cs-item">
+              <button class="cs-toggle" @click="toggle(c.id)">
+                <span class="cs-box" :style="{ background: hiddenIds.has(c.id) ? 'transparent' : c.color, borderColor: c.color }" />
+                <span class="truncate">{{ c.is_default ? t('calendar.workspaceCal') : c.name }}</span>
+                <Kanban v-if="c.board_id" :size="11" class="faint" />
+              </button>
+              <CalendarColorPicker v-if="canWrite" :color="c.color" @pick="(col) => col && patchLooty(c, { color: col })" />
+              <UiMenu v-if="canWrite" :open="lootyMenuOpen[c.id]" :items="lootyMenu(c)" placement="bottom-end" @update:open="(o: boolean) => (lootyMenuOpen[c.id] = o)">
+                <UiButton size="xs" variant="ghost" :icon="MoreHorizontal" class="cs-more" />
+              </UiMenu>
+            </div>
+            <button v-if="canWrite" class="cs-new" @click="newLootyCalendar"><Plus :size="12" /> {{ t('planning.newCalendar') }}</button>
+          </template>
           <div v-for="c in grp.list" :key="c.id" class="cs-item">
             <button class="cs-toggle" :title="c.url_host" @click="toggle(c.id)">
               <span class="cs-box" :style="{ background: hiddenIds.has(c.id) ? 'transparent' : c.color, borderColor: c.color }" />
@@ -379,7 +411,7 @@ useHead({ title: () => t('calendar.title') })
         <p v-if="detail.recurring" class="ev-line faint"><Repeat :size="13" /> {{ t('event.recurring') }}</p>
         <CalendarEventDescription v-if="detail.description" :text="detail.description" class="ev-desc" />
         <a v-if="detail.url" :href="detail.url" target="_blank" rel="noopener noreferrer" class="ev-link"><ExternalLink :size="13" /> {{ t('calendar.openLink') }}</a>
-        <div v-if="detail.calendar_id === WORKSPACE_CAL && detail.can_edit" class="ev-actions">
+        <div v-if="detail.looty && canWrite" class="ev-actions">
           <UiButton size="sm" :icon="Pencil" @click="editEvent(detail)">{{ detail.recurring ? t('event.editSeries') : t('common.edit') }}</UiButton>
           <template v-if="detail.recurring">
             <UiButton size="sm" variant="ghost" :icon="Trash2" @click="deleteEvent(detail, 'one')">{{ t('event.deleteOne') }}</UiButton>
@@ -387,7 +419,8 @@ useHead({ title: () => t('calendar.title') })
           </template>
           <UiButton v-else size="sm" variant="ghost" :icon="Trash2" @click="deleteEvent(detail, 'all')">{{ t('common.delete') }}</UiButton>
         </div>
-        <template v-if="detail.calendar_id === WORKSPACE_CAL && detail.event_id">
+        <template v-if="detail.looty && detail.event_id">
+          <CalendarEventPlanning :event="detail" :can-write="canWrite" />
           <GraphRelatedPanel kind="event" :id="detail.event_id" compact class="ev-related" />
           <button class="ev-cm-toggle" @click="evComments = !evComments">
             <MessageSquare :size="13" /> {{ t('itemComments.title') }}<span v-if="eventCommentCounts?.[detail.event_id]" class="ev-cm-n">{{ eventCommentCounts[detail.event_id] }}</span>
@@ -419,6 +452,8 @@ useHead({ title: () => t('calendar.title') })
 .cs-box { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; flex-shrink: 0; }
 .cs-err { color: var(--orange, #e2a03f); flex-shrink: 0; }
 .cs-empty { margin: 0 6px; font-size: var(--fs-sm); color: var(--text-3); }
+.cs-new { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; margin-top: 2px; font-size: var(--fs-sm); color: var(--text-3); border-radius: var(--r-sm); }
+.cs-new:hover { background: var(--bg-hover); color: var(--text); }
 .cal-side > .cs-toggle { flex: none; }
 .wk-col.add, .wk-cell.add, .mo-cell.add { cursor: cell; }
 .ev-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }

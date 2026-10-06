@@ -3,6 +3,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.6.0",
+      "date": "2026-10-07",
+      "title": {
+        "en": "Your own home page, and tasks planned around events",
+        "fr": "Votre accueil sur mesure, et des tâches planifiées autour des événements"
+      },
+      "notes": {
+        "en": [
+          "**Customizable home**: choose your widgets, their order and width (new: overdue tasks, waiting for my approval, events I’m tagged on, this month, unread notifications, favorites, notepad, mail, online now). On your first visit Looty asks you to pick and save your layout.",
+          "**Several workspace calendars**: create calendars with their own color, and a **calendar per board** (new Calendar view on boards with its tasks and events). Move an event to another calendar at any time; existing events are kept in the workspace calendar.",
+          "**Tasks linked to events**: link a task to a session (e.g. “to hand in at Thursday’s class”) — its due date follows the session. From an event, see its tasks and add one in a click.",
+          "**Due times**: due dates can now have a precise time.",
+          "**Tag members on events**: they are notified and find the event on their home page."
+        ],
+        "fr": [
+          "**Accueil personnalisable** : choisissez vos widgets, leur ordre et leur largeur (nouveaux : tâches en retard, en attente de ma validation, événements où je suis mentionné, ce mois-ci, notifications non lues, favoris, bloc-notes, mail, en ligne). À la première visite, Looty vous propose de choisir et d’enregistrer votre disposition.",
+          "**Plusieurs calendriers d’espace** : créez des calendriers avec leur couleur, et un **calendrier par tableau** (nouvelle vue Calendrier des tableaux avec ses tâches et ses événements). Déplacez un événement vers un autre calendrier à tout moment ; les événements existants restent dans le calendrier de l’espace.",
+          "**Tâches liées aux événements** : liez une tâche à une séance (« à rendre au TD de jeudi ») — son échéance suit la séance. Depuis un événement, retrouvez ses tâches et ajoutez-en une en un clic.",
+          "**Heures d’échéance** : une échéance peut désormais avoir une heure précise.",
+          "**Mentionner des membres sur un événement** : ils sont notifiés et le retrouvent sur leur accueil."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.5.0",
       "date": "2026-10-06",
       "title": {

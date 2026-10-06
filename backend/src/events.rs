@@ -26,6 +26,8 @@ pub fn workspace_routes() -> Router<AppState> {
     Router::new()
         .route("/", axum::routing::post(create))
         .route("/:id", get(get_one).put(update).delete(remove))
+        .route("/:id/calendar", axum::routing::put(move_to_calendar))
+        .route("/:id/members", axum::routing::put(set_members_route))
 }
 
 #[derive(sqlx::FromRow, Clone)]
@@ -126,10 +128,14 @@ async fn changed(state: &AppState, workspace_id: Uuid) {
 
 /// Occurrences sur une période, pour la vue Calendrier.
 pub(crate) async fn occurrences(pool: &sqlx::PgPool, workspace_id: Uuid, from: DateTime<Utc>, to: DateTime<Utc>, can_edit: bool) -> ApiResult<Vec<serde_json::Value>> {
-    let rows: Vec<(Uuid, String, bool)> = sqlx::query_as(
-        "SELECT id, ics, recurring FROM workspace_events
-         WHERE workspace_id = $1 AND starts_at < $3 AND (series_end IS NULL OR series_end >= $2)
-         ORDER BY starts_at LIMIT 2000",
+    let rows: Vec<(Uuid, String, bool, Option<Uuid>, Vec<Uuid>, i64)> = sqlx::query_as(
+        "SELECT e.id, e.ics, e.recurring,
+                COALESCE(e.calendar_id, (SELECT c.id FROM looty_calendars c WHERE c.workspace_id = e.workspace_id AND c.is_default)),
+                ARRAY(SELECT m.user_id FROM event_members m WHERE m.event_id = e.id ORDER BY m.created_at),
+                (SELECT count(*) FROM tasks t WHERE t.event_id = e.id)
+         FROM workspace_events e
+         WHERE e.workspace_id = $1 AND e.starts_at < $3 AND (e.series_end IS NULL OR e.series_end >= $2)
+         ORDER BY e.starts_at LIMIT 2000",
     )
     .bind(workspace_id)
     .bind(from)
@@ -137,11 +143,15 @@ pub(crate) async fn occurrences(pool: &sqlx::PgPool, workspace_id: Uuid, from: D
     .fetch_all(pool)
     .await?;
     let mut out = Vec::new();
-    for (id, ics, recurring) in rows {
+    for (id, ics, recurring, cal, members, task_count) in rows {
         for o in expand(&ics, from, to) {
             out.push(serde_json::json!({
                 "id": format!("ws-{id}-{}", o.start.timestamp()),
-                "calendar_id": "workspace",
+                // Calendrier Looty de l'espace (par défaut, d'un tableau…).
+                "calendar_id": cal.map(|c| c.to_string()).unwrap_or_else(|| "workspace".into()),
+                "looty": true,
+                "members": members,
+                "task_count": task_count,
                 "event_id": id,
                 "recurring": recurring,
                 "can_edit": can_edit,
@@ -218,6 +228,10 @@ struct EventReq {
     /// Modification : garder la répétition existante (règle non éditable dans le formulaire).
     #[serde(default)]
     keep_recurrence: bool,
+    /// Calendrier Looty de l'espace (défaut : calendrier par défaut).
+    calendar_id: Option<Uuid>,
+    /// Membres mentionnés (notifiés).
+    members: Option<Vec<Uuid>>,
 }
 
 /// Propriétés produites par le formulaire.
@@ -437,6 +451,10 @@ struct EventDetail {
     complex_recurrence: bool,
     created_by_name: Option<String>,
     updated_at: DateTime<Utc>,
+    calendar_id: Option<Uuid>,
+    members: Vec<Uuid>,
+    /// Tâches liées (toutes occurrences).
+    tasks: Vec<serde_json::Value>,
 }
 
 /// Règle simple FREQ[;INTERVAL][;UNTIL] → formulaire ; sinon `None`.
@@ -500,7 +518,86 @@ async fn get_one(State(state): State<AppState>, user: AuthUser, Path((ws, id)): 
         repeat,
         created_by_name,
         updated_at,
+        calendar_id: sqlx::query_scalar("SELECT COALESCE(calendar_id, (SELECT c.id FROM looty_calendars c WHERE c.workspace_id = e.workspace_id AND c.is_default)) FROM workspace_events e WHERE e.id = $1").bind(id).fetch_one(&state.pool).await?,
+        members: sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1 ORDER BY created_at").bind(id).fetch_all(&state.pool).await?,
+        tasks: linked_tasks(&state, id).await?,
     }))
+}
+
+/// Tâches liées à un événement, avec leur tableau.
+async fn linked_tasks(state: &AppState, event: Uuid) -> ApiResult<Vec<serde_json::Value>> {
+    let rows: Vec<(Uuid, String, bool, Option<DateTime<Utc>>, Option<DateTime<Utc>>, Uuid, String)> = sqlx::query_as(
+        "SELECT t.id, t.title, t.is_completed, t.event_start, t.due_date, b.id, b.name FROM tasks t
+         JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+         WHERE t.event_id = $1 ORDER BY t.event_start NULLS LAST, t.position LIMIT 200",
+    )
+    .bind(event)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id, title, done, start, due, board, board_name)| serde_json::json!({
+        "id": id, "title": title, "is_completed": done, "event_start": start, "due_date": due, "board_id": board, "board_name": board_name,
+    })).collect())
+}
+
+/// Calendrier Looty valide de l'espace (sinon le calendrier par défaut).
+async fn calendar_for(state: &AppState, ws: Uuid, wanted: Option<Uuid>) -> ApiResult<Uuid> {
+    if let Some(c) = wanted {
+        let ok: Option<Uuid> = sqlx::query_scalar("SELECT id FROM looty_calendars WHERE id = $1 AND workspace_id = $2").bind(c).bind(ws).fetch_optional(&state.pool).await?;
+        return ok.ok_or_else(|| ApiError::bad_request("calendar_invalid"));
+    }
+    Ok(sqlx::query_scalar("SELECT id FROM looty_calendars WHERE workspace_id = $1 AND is_default").bind(ws).fetch_one(&state.pool).await?)
+}
+
+/// Remplace les membres mentionnés ; les nouveaux sont notifiés.
+async fn set_members(state: &AppState, ws: Uuid, event: Uuid, title: &str, members: &[Uuid], actor: Uuid) -> ApiResult<()> {
+    let before: Vec<Uuid> = sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1").bind(event).fetch_all(&state.pool).await?;
+    sqlx::query("DELETE FROM event_members WHERE event_id = $1 AND NOT (user_id = ANY($2))").bind(event).bind(members).execute(&state.pool).await?;
+    for &u in members.iter().take(100) {
+        let n = sqlx::query(
+            "INSERT INTO event_members (event_id, user_id)
+             SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $3 AND m.user_id = $2::varchar)
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(event)
+        .bind(u)
+        .bind(ws)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+        if n > 0 && !before.contains(&u) {
+            crate::notifications::notify(&state.pool, &state.hub, ws, u, Some(actor), "event_tag", &format!("event:{event}"), serde_json::json!({ "title": title })).await;
+        }
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct MoveReq {
+    calendar_id: Uuid,
+}
+
+/// Déplace un événement vers un autre calendrier Looty de l'espace.
+async fn move_to_calendar(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Json(p): Json<MoveReq>) -> ApiResult<StatusCode> {
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::EDIT).await?;
+    load(&state, ws, id).await?;
+    let cal = calendar_for(&state, ws, Some(p.calendar_id)).await?;
+    sqlx::query("UPDATE workspace_events SET calendar_id = $2, updated_by = $3, updated_at = NOW() WHERE id = $1").bind(id).bind(cal).bind(user.id).execute(&state.pool).await?;
+    changed(&state, ws).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct MembersReq {
+    members: Vec<Uuid>,
+}
+
+async fn set_members_route(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Json(p): Json<MembersReq>) -> ApiResult<StatusCode> {
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::EDIT).await?;
+    let (e, _, _) = load(&state, ws, id).await?;
+    let title = master_event(&e.ics).map(|m| m.summary).unwrap_or_default();
+    set_members(&state, ws, id, &title, &p.members, user.id).await?;
+    changed(&state, ws).await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<EventReq>) -> ApiResult<Json<serde_json::Value>> {
@@ -514,8 +611,8 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let ics = new_ics(&uid, props, rrule);
     let (m, end) = indexed(&ics)?;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO workspace_events (workspace_id, uid, ics, summary, starts_at, series_end, recurring, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) RETURNING id",
+        "INSERT INTO workspace_events (workspace_id, uid, ics, summary, starts_at, series_end, recurring, created_by, updated_by, calendar_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9) RETURNING id",
     )
     .bind(ws)
     .bind(&uid)
@@ -525,8 +622,12 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     .bind(end)
     .bind(m.rrule.is_some())
     .bind(user.id)
+    .bind(calendar_for(&state, ws, p.calendar_id).await?)
     .fetch_one(&state.pool)
     .await?;
+    if let Some(members) = &p.members {
+        set_members(&state, ws, id, &m.summary, members, user.id).await?;
+    }
     changed(&state, ws).await;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -538,7 +639,8 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     let ics = patch_ics(&e.ics, props, rrule, p.keep_recurrence);
     let (m, end) = indexed(&ics)?;
     sqlx::query(
-        "UPDATE workspace_events SET ics = $2, summary = $3, starts_at = $4, series_end = $5, recurring = $6, updated_by = $7, updated_at = NOW() WHERE id = $1",
+        "UPDATE workspace_events SET ics = $2, summary = $3, starts_at = $4, series_end = $5, recurring = $6, updated_by = $7, updated_at = NOW(),
+                calendar_id = COALESCE($8, calendar_id) WHERE id = $1",
     )
     .bind(id)
     .bind(&ics)
@@ -547,8 +649,12 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     .bind(end)
     .bind(m.rrule.is_some())
     .bind(user.id)
+    .bind(match p.calendar_id { Some(c) => Some(calendar_for(&state, ws, Some(c)).await?), None => None })
     .execute(&state.pool)
     .await?;
+    if let Some(members) = &p.members {
+        set_members(&state, ws, id, &m.summary, members, user.id).await?;
+    }
     changed(&state, ws).await;
     Ok(StatusCode::NO_CONTENT)
 }

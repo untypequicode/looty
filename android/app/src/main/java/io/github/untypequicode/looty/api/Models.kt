@@ -76,6 +76,7 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class CalTask(val id: String, val title: String, val due_date: String, val is_completed: Boolean = false, val board_id: String, val board_name: String = "")
 @Serializable data class CalEvents(val events: List<CalEvent> = emptyList(), val tasks: List<CalTask> = emptyList())
 @Serializable data class CalendarSource(val id: String, val name: String, val color: String = "#5e6ad2", val kind: String = "ics", val scope: String = "personal", val last_error: String? = null)
+@Serializable data class LootyCalendar(val id: String, val name: String = "", val color: String = "#5e6ad2", val is_default: Boolean = false, val board_id: String? = null)
 @Serializable data class Repeat(val freq: String, val interval: Int = 1, val until: String? = null)
 @Serializable data class EventDetail(
     val id: String,

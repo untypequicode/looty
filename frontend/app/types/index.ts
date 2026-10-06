@@ -85,6 +85,9 @@ export interface Task {
   priority: Priority
   start_date?: string | null
   due_date?: string | null
+  /** Événement lié (créneau) et occurrence. */
+  event_id?: string | null
+  event_start?: string | null
   is_per_person: boolean
   require_all_validations: boolean
   is_completed: boolean

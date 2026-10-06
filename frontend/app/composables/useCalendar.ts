@@ -20,8 +20,12 @@ export interface CalendarSource {
 
 export interface CalEvent {
   id: string
-  /** `workspace` : calendrier partagé de l'espace (événements Looty). */
+  /** Calendrier (abonnement, ou calendrier Looty de l'espace si `looty`). */
   calendar_id: string
+  /** Événement Looty de l'espace (modifiable selon le rôle). */
+  looty?: boolean
+  members?: string[]
+  task_count?: number
   event_id?: string
   recurring?: boolean
   can_edit?: boolean
@@ -48,6 +52,22 @@ export interface EventDetail {
   complex_recurrence: boolean
   created_by_name?: string | null
   updated_at: string
+  calendar_id?: string | null
+  members?: string[]
+  tasks?: LinkedTask[]
+}
+export interface LinkedTask { id: string; title: string; is_completed: boolean; event_start?: string | null; due_date?: string | null; board_id: string; board_name: string }
+
+/** Calendrier Looty de l'espace (par défaut, thématique ou d'un tableau). */
+export interface LootyCalendar { id: string; name: string; color: string; board_id: string | null; board_name: string | null; is_default: boolean; position: number; event_count: number }
+
+export function useLootyCalendars(ws: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ['ws', ws.value, 'looty-calendars']),
+    queryFn: () => api<LootyCalendar[]>(`/api/workspaces/${ws.value}/planning/calendars`),
+    enabled: computed(() => !!ws.value),
+    staleTime: 60_000,
+  })
 }
 
 export const WORKSPACE_CAL = 'workspace'
@@ -98,6 +118,7 @@ export function useCalendarInvalidate() {
   return (ws: string) => {
     qc.invalidateQueries({ queryKey: calKeys.list(ws) })
     qc.invalidateQueries({ queryKey: ['ws', ws, 'calendar-events'] })
+    qc.invalidateQueries({ queryKey: ['ws', ws, 'looty-calendars'] })
   }
 }
 
