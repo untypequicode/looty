@@ -41,7 +41,7 @@ pub struct BoardColumn {
 }
 
 pub const TASK_COLUMNS: &str = "id, column_id, parent_id, title, description, position, previous_column_id, \
-    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at";
+    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start";
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Task {
@@ -60,6 +60,11 @@ pub struct Task {
     pub priority: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Événement lié (ex. la séance où la tâche est à rendre) et occurrence précise.
+    #[sqlx(default)]
+    pub event_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub event_start: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -741,6 +746,8 @@ pub struct CreateTaskReq {
     pub require_all_validations: Option<bool>,
     /// Insère la tâche en haut de la colonne plutôt qu'en bas.
     pub at_top: Option<bool>,
+    pub event_id: Option<Uuid>,
+    pub event_start: Option<DateTime<Utc>>,
 }
 
 async fn get_task(
@@ -783,8 +790,9 @@ async fn create_task(
 
     let mut tx = pool.begin().await?;
     let task_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations)
-         VALUES (COALESCE($10, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true)) RETURNING id",
+        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations, event_id, event_start)
+         VALUES (COALESCE($10, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true),
+                 (SELECT id FROM workspace_events WHERE id = $11 AND workspace_id = $13), CASE WHEN $11 IS NULL THEN NULL ELSE $12 END) RETURNING id",
     )
     .bind(column_id)
     .bind(&title)
@@ -796,6 +804,9 @@ async fn create_task(
     .bind(req.is_per_person)
     .bind(req.require_all_validations)
     .bind(req.id)
+    .bind(req.event_id)
+    .bind(req.event_start)
+    .bind(ctx.workspace_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -866,6 +877,10 @@ pub struct UpdateTaskReq {
     pub require_all_validations: Option<bool>,
     /// Uniquement pour les tâches sans validation par personne.
     pub is_completed: Option<bool>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub event_id: Option<Option<Uuid>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub event_start: Option<Option<DateTime<Utc>>>,
 }
 
 async fn update_task(
@@ -895,6 +910,8 @@ async fn update_task(
             priority = COALESCE($9, priority),
             require_all_validations = COALESCE($10, require_all_validations),
             is_completed = COALESCE($11, is_completed),
+            event_id = CASE WHEN $13 THEN (SELECT id FROM workspace_events WHERE id = $14 AND workspace_id = $17) ELSE event_id END,
+            event_start = CASE WHEN $15 THEN $16 WHEN $13 AND $14 IS NULL THEN NULL ELSE event_start END,
             updated_at = NOW()
          WHERE id = $12 RETURNING {TASK_COLUMNS}"
     ))
@@ -910,6 +927,11 @@ async fn update_task(
     .bind(req.require_all_validations)
     .bind(req.is_completed)
     .bind(task_id)
+    .bind(req.event_id.is_some())
+    .bind(req.event_id.flatten())
+    .bind(req.event_start.is_some())
+    .bind(req.event_start.flatten())
+    .bind(ctx.workspace_id)
     .fetch_one(pool)
     .await?;
 

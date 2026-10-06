@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-vue-next'
+import { timeOf } from '~/utils/dates'
 import { useI18n } from '~/composables/useI18n'
 
 /** Sélecteur de date compact avec raccourcis (aujourd'hui, demain, semaine prochaine...). */
@@ -9,7 +10,9 @@ defineProps<{ virtualRect?: { x: number; y: number } | null }>()
 const { t, dateLocale } = useI18n()
 
 const view = ref(new Date())
-watch(open, (v) => { if (v) view.value = model.value ? new Date(model.value) : new Date() })
+/** Heure facultative (« HH:MM ») ; vide = échéance pour la journée. */
+const time = ref('')
+watch(open, (v) => { if (v) { view.value = model.value ? new Date(model.value) : new Date(); time.value = timeOf(model.value) } })
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 function addDays(n: number) { const d = startOfDay(new Date()); d.setDate(d.getDate() + n); return d }
@@ -36,9 +39,29 @@ const selected = computed(() => (model.value ? startOfDay(new Date(model.value))
 const today = startOfDay(new Date()).getTime()
 
 function pick(d: Date | null) {
-  // Midi UTC pour éviter les décalages de fuseau sur une date « jour ».
-  model.value = d ? new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12)).toISOString() : null
+  if (d && time.value) {
+    // Heure précise, en heure locale.
+    const [h, m] = time.value.split(':').map(Number)
+    model.value = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h ?? 0, m ?? 0).toISOString()
+  } else {
+    // Midi UTC pour éviter les décalages de fuseau sur une date « jour ».
+    model.value = d ? new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12)).toISOString() : null
+  }
   open.value = false
+}
+/** Changer l'heure d'une date déjà choisie (sans refermer). */
+function onTime() {
+  if (!model.value) return
+  const cur = new Date(model.value)
+  const day = new Date(cur.getUTCFullYear(), cur.getUTCMonth(), cur.getUTCDate())
+  const local = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate())
+  const base = timeOf(model.value) ? local : day
+  if (time.value) {
+    const [h, m] = time.value.split(':').map(Number)
+    model.value = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h ?? 0, m ?? 0).toISOString()
+  } else {
+    model.value = new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), 12)).toISOString()
+  }
 }
 function shift(m: number) { view.value = new Date(view.value.getFullYear(), view.value.getMonth() + m, 1) }
 </script>
@@ -65,6 +88,11 @@ function shift(m: number) { view.value = new Date(view.value.getFullYear(), view
           @click="pick(d)"
         >{{ d.getDate() }}</button>
       </div>
+      <label class="dp-time">
+        <Clock :size="13" class="faint" />
+        <input v-model="time" type="time" step="300" :aria-label="t('date.time')" @change="onTime" />
+        <button v-if="time" class="dp-time-clear" @click="time = ''; onTime()">{{ t('date.allDay') }}</button>
+      </label>
       <button v-if="model" class="dp-clear" @click="pick(null)">{{ t('date.clear') }}</button>
     </div>
   </UiPopover>
@@ -86,6 +114,9 @@ function shift(m: number) { view.value = new Date(view.value.getFullYear(), view
 .dp-day.out { color: var(--text-4); }
 .dp-day.today { color: var(--accent-text); font-weight: 600; }
 .dp-day.sel { background: var(--accent); color: #fff; }
+.dp-time { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 0 4px; font-size: var(--fs-sm); }
+.dp-time input { flex: 1; height: 28px; padding: 0 8px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-input); color: var(--text); font: inherit; }
+.dp-time-clear { font-size: var(--fs-xs); color: var(--text-3); }
 .dp-clear { width: 100%; margin-top: 8px; height: 28px; border-radius: var(--r-sm); color: var(--text-2); font-size: var(--fs-sm); }
 .dp-clear:hover { background: var(--bg-hover); color: var(--red); }
 </style>

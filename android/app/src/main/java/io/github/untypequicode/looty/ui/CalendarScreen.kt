@@ -97,7 +97,7 @@ fun CalendarScreen(state: AppState, onBack: () -> Unit, onEdit: (id: String?, da
     LaunchedEffect(Unit) { state.loadCalendars() }
 
     val primary = MaterialTheme.colorScheme.primary
-    val colors = remember(state.calSources, primary) { state.calSources.associate { it.id to parseColor(it.color, primary) } + (WORKSPACE_CAL to primary) }
+    val colors = remember(state.calSources, primary) { mapOf(WORKSPACE_CAL to primary) + state.calSources.associate { it.id to parseColor(it.color, primary) } }
     val events = state.calEvents.data?.events.orEmpty().filter { it.calendar_id !in state.hiddenCalendars }
     val tasks = if ("tasks" in state.hiddenCalendars) emptyList() else state.calEvents.data?.tasks.orEmpty()
 
@@ -274,8 +274,8 @@ private fun CalendarFilterSheet(state: AppState, colors: Map<String, Color>, onD
                     modifier = Modifier.clickable { state.toggleCalendar(id) },
                 )
             }
-            row(WORKSPACE_CAL, stringResource(R.string.workspace_calendar), MaterialTheme.colorScheme.primary)
-            state.calSources.filter { it.scope == "workspace" }.forEach { row(it.id, it.name, colors[it.id] ?: MaterialTheme.colorScheme.primary, it.last_error) }
+            // Calendriers Looty (le calendrier par défaut n'a pas de nom propre) puis abonnements partagés.
+            state.calSources.filter { it.scope == "workspace" }.forEach { row(it.id, it.name.ifEmpty { stringResource(R.string.workspace_calendar) }, colors[it.id] ?: MaterialTheme.colorScheme.primary, it.last_error) }
             val personal = state.calSources.filter { it.scope != "workspace" }
             if (personal.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.personal_calendars))
@@ -296,7 +296,7 @@ private fun CalendarFilterSheet(state: AppState, colors: Map<String, Color>, onD
 private fun EventSheet(state: AppState, e: CalEvent, color: Color, onDismiss: () -> Unit, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     var confirm by remember { mutableStateOf(false) }
-    val calName = if (e.calendar_id == WORKSPACE_CAL) stringResource(R.string.workspace_calendar) else state.calSources.firstOrNull { it.id == e.calendar_id }?.name.orEmpty()
+    val calName = state.calSources.firstOrNull { it.id == e.calendar_id }?.name?.ifEmpty { null } ?: if (e.event_id != null) stringResource(R.string.workspace_calendar) else ""
     val (d0, d1) = e.days()
     val lastDay = if (e.all_day) d1.minusDays(1) else d1
     val fmt = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)

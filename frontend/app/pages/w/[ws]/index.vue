@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { useCalendars, useCalendarEvents, useCalendarPrefs, startOfDay, addDays, sameDay } from '~/composables/useCalendar'
-import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin } from 'lucide-vue-next'
+import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange } from 'lucide-vue-next'
+import { useDashboard } from '~/composables/useDashboard'
+import { useNotifications } from '~/composables/useNotifications'
+import { useMailAccounts } from '~/composables/useMail'
+import { presence } from '~/composables/useRealtime'
+import { notepadOpen } from '~/composables/useUi'
+import { useLootyCalendars, startOfWeek } from '~/composables/useCalendar'
 import { useQuery } from '@tanstack/vue-query'
 import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, useMyTasks, links } from '~/composables/useWorkspace'
@@ -26,6 +32,13 @@ const { data: myTasks, isLoading: loadingTasks } = useMyTasks()
 const { createAndOpen } = usePages()
 const { user } = useAuth()
 const { createBoardOpen, openCreateTask } = useUi()
+
+// --- Tableau de bord personnalisable ---
+const { layout, saved: dashSaved, loaded: dashLoaded } = useDashboard(wsId)
+const customizeOpen = ref(false)
+// Première visite : la personnalisation s'ouvre ; elle doit être enregistrée au moins une fois.
+watch([dashLoaded, dashSaved], ([l, s]) => { if (l && !s) customizeOpen.value = true }, { immediate: true })
+const has = (id: string) => layout.value.some((w) => w.id === id)
 const { t, relativeTime, formatDate } = useI18n()
 
 const { data: overview, isLoading } = useQuery({
@@ -98,7 +111,34 @@ const { data: calendarsList } = useCalendars(wsId)
 const { data: upcomingCal } = useCalendarEvents(wsId, calFrom, calTo)
 const { hiddenIds: hiddenCals } = useCalendarPrefs(wsId)
 const calColor = (id: string) => calendarsList.value?.find((c) => c.id === id)?.color ?? 'var(--accent)'
+const { data: lootyCals } = useLootyCalendars(wsId)
+const evColor = (id: string) => lootyCals.value?.find((c) => c.id === id)?.color ?? calColor(id)
 const nextEvents = computed(() => (upcomingCal.value?.events ?? []).filter((e) => !hiddenCals.value.has(e.calendar_id) && (e.all_day || +new Date(e.ends_at) > Date.now())).slice(0, 6))
+// Widgets supplémentaires
+const overdueTasks = computed(() => (myTasks.value ?? []).filter((tk) => tk.due_date && new Date(tk.due_date) < new Date()).slice(0, 7))
+const toApprove = computed(() => (myTasks.value ?? []).filter((tk) => tk.is_per_person && tk.assigned_to_me && !tk.done_by_me).slice(0, 7))
+const favoritePages = computed(() => (pages.data.value ?? []).filter((p) => p.is_favorite).slice(0, 8))
+const { notifications } = useNotifications()
+const unreadNotifs = computed(() => (notifications.value ?? []).filter((n) => !n.read_at).slice(0, 6))
+const { data: mailAccounts } = useMailAccounts()
+const { members } = useWorkspace()
+const onlineMembers = computed(() => (members.data.value ?? []).filter((m) => presence.value[m.user_id] && m.user_id !== user.value?.id))
+const { data: notepad } = useQuery({
+  queryKey: ['notepad'],
+  queryFn: () => api<{ content: string }>('/api/user/notepad', { silent: true }),
+  enabled: computed(() => has('notepad')),
+  staleTime: 30_000,
+})
+// Mini-calendrier du mois et événements où je suis mentionné (14 jours).
+const monthStart = computed(() => startOfWeek(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
+const monthEnd = computed(() => addDays(monthStart.value, 42))
+const { data: monthEvents } = useCalendarEvents(wsId, monthStart, monthEnd)
+const monthDays = computed(() => Array.from({ length: 42 }, (_, i) => addDays(monthStart.value, i)))
+const dayEvents = (d: Date) => (monthEvents.value?.events ?? []).filter((e) => !hiddenCals.value.has(e.calendar_id) && sameDay(new Date(e.starts_at), d))
+const myEvents = computed(() => (monthEvents.value?.events ?? [])
+  .filter((e) => e.members?.includes(user.value?.id ?? '') && +new Date(e.ends_at) > Date.now() && +new Date(e.starts_at) < Date.now() + 14 * 86400000)
+  .sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at)).slice(0, 6))
+const notifText = (n: { kind: string; data?: any; actor_name?: string | null }) => `${n.actor_name ?? ''} · ${t(`dashboard.notif.${n.kind}`, {})} ${n.data?.title ?? ''}`.replace(/^ · /, '')
 const evTime = (e: { all_day: boolean; starts_at: string }) => {
   if (e.all_day) return t('calendar.allDay')
   const d = new Date(e.starts_at)
@@ -110,136 +150,219 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 <template>
   <div class="page">
     <AppPageHeader :crumbs="[{ label: workspace.data.value?.name ?? '', icon: Home }]">
+      <UiTooltip :text="t('dashboard.customize')"><UiButton size="sm" variant="ghost" :icon="LayoutGrid" :aria-label="t('dashboard.customize')" @click="customizeOpen = true" /></UiTooltip>
       <UiButton v-if="can.editTasks" size="sm" variant="primary" :icon="Plus" @click="openCreateTask()">{{ t('task.new') }}</UiButton>
     </AppPageHeader>
   
     <div ref="root" class="home">
-      <section class="hero" data-reveal>
-        <p class="date">{{ today }}</p>
-        <h1>{{ greeting }}</h1>
-      </section>
-  
-      <section class="stats">
-        <NuxtLink v-for="(s, i) in stats" :key="s.key" :to="s.to" class="stat" :class="`tone-${s.tone}`" data-reveal>
-          <div class="stat-icon"><component :is="s.icon" :size="16" /></div>
-          <div class="stat-value tabular" :ref="(el) => { if (el) statEls[i] = el as HTMLElement }">{{ isLoading ? '–' : s.value }}</div>
-          <div class="stat-label">{{ s.label }}</div>
-        </NuxtLink>
-      </section>
-  
       <div class="grid">
-        <!-- Agenda -->
-        <section v-if="calendarsList?.length" class="panel" data-reveal>
-          <header class="panel-head">
-            <h2><CalendarDays :size="15" /> {{ t('home.upcoming') }}</h2>
-            <NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-          </header>
-          <div v-if="!nextEvents.length" class="panel-empty"><CalendarDays :size="20" /><span>{{ t('home.noEvents') }}</span></div>
-          <div v-else class="panel-body">
-            <NuxtLink v-for="e in nextEvents" :key="e.id" :to="links.calendar(wsId)" class="task-row">
-              <span class="ev-bar" :style="{ background: calColor(e.calendar_id) }" />
-              <span class="task-title truncate">{{ e.summary }}</span>
-              <span v-if="e.location" class="task-board truncate"><MapPin :size="11" /> {{ e.location }}</span>
-              <span class="task-due">{{ evTime(e) }}</span>
-            </NuxtLink>
-          </div>
-        </section>
+        <template v-for="w in layout" :key="w.id">
+          <section v-if="w.id === 'greeting'" class="hero full" data-reveal>
+            <div>
+              <p class="date">{{ today }}</p>
+              <h1>{{ greeting }}</h1>
+            </div>
+          </section>
 
-        <!-- Mes tâches -->
-        <section class="panel" data-reveal>
-          <header class="panel-head">
-            <h2><CircleUserRound :size="15" /> {{ t('home.myTasks') }}</h2>
-            <NuxtLink :to="links.myTasks(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-          </header>
-          <div v-if="loadingTasks" class="panel-body"><div v-for="i in 4" :key="i" class="skeleton row-skel" /></div>
-          <div v-else-if="!upcoming.length" class="panel-empty">
-            <CheckCircle2 :size="20" />
-            <span>{{ t('home.noTasks') }}</span>
-          </div>
-          <div v-else class="panel-body">
-            <NuxtLink v-for="tk in upcoming" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="task-row">
-              <TaskPriorityIcon :priority="tk.priority" :size="14" />
-              <span class="task-title truncate">{{ tk.title }}</span>
-              <span class="task-board truncate">{{ tk.board_name }} · {{ tk.column_name }}</span>
-              <span v-if="tk.due_date" class="task-due" :class="dueClass(tk.due_date)">{{ formatDate(tk.due_date) }}</span>
+          <section v-else-if="w.id === 'stats'" class="stats full">
+            <NuxtLink v-for="(s, i) in stats" :key="s.key" :to="s.to" class="stat" :class="`tone-${s.tone}`" data-reveal>
+              <div class="stat-icon"><component :is="s.icon" :size="16" /></div>
+              <div class="stat-value tabular" :ref="(el) => { if (el) statEls[i] = el as HTMLElement }">{{ isLoading ? '–' : s.value }}</div>
+              <div class="stat-label">{{ s.label }}</div>
             </NuxtLink>
-          </div>
-        </section>
-  
-        <!-- Documents -->
-        <section class="panel" data-reveal>
-          <header class="panel-head">
-            <h2><FileText :size="15" /> {{ t('nav.docs') }}</h2>
-            <UiSegmented
-              v-model="docTab"
-              :options="[{ value: 'viewed', label: t('home.recentlyViewed') }, { value: 'updated', label: t('home.recentlyUpdated') }]"
-              @update:model-value="touchedTab = true"
-            />
-          </header>
-          <div v-if="!docList.length" class="panel-empty">
-            <FileText :size="20" />
-            <span>{{ t('home.noDocs') }}</span>
-            <UiButton v-if="can.editDocs" size="sm" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
-          </div>
-          <div v-else class="panel-body">
-            <NuxtLink v-for="p in docList" :key="p.id" :to="links.doc(wsId, p.id)" class="doc-row">
-              <span class="doc-icon">{{ p.icon || '' }}<FileText v-if="!p.icon" :size="15" /></span>
-              <span class="truncate doc-title">{{ p.title || t('docs.untitled') }}</span>
-              <span class="doc-meta">
-                <UiAvatar v-if="docTab === 'updated' && p.updated_by" :name="member(p.updated_by)?.name" :src="member(p.updated_by)?.avatar_url" :size="16" />
-                {{ relativeTime(docTab === 'viewed' ? p.last_viewed_at : p.updated_at) }}
-              </span>
-            </NuxtLink>
-          </div>
-        </section>
-  
-        <!-- Tableaux -->
-        <section class="panel wide" data-reveal>
-          <header class="panel-head">
-            <h2><Kanban :size="15" /> {{ t('nav.boards') }}</h2>
-            <UiButton v-if="can.manageBoards" size="xs" variant="ghost" :icon="Plus" @click="createBoardOpen = true">{{ t('board.new') }}</UiButton>
-          </header>
-          <div v-if="!overview?.boards.length" class="panel-empty">
-            <Kanban :size="20" />
-            <span>{{ t('board.noBoards') }}</span>
-          </div>
-          <div v-else class="boards">
-            <NuxtLink v-for="b in overview.boards" :key="b.id" :to="links.board(wsId, b.id)" class="board-card">
-              <div class="board-top">
-                <span class="board-name truncate">{{ b.name }}</span>
-                <span class="board-pct tabular">{{ b.total ? Math.round((b.done / b.total) * 100) : 0 }}%</span>
-              </div>
-              <div class="bar"><div class="bar-fill" :style="{ width: `${b.total ? (b.done / b.total) * 100 : 0}%` }" /></div>
-              <div class="board-meta">
-                <span>{{ t('home.boardOpen', { count: b.total - b.done }) }}</span>
-                <span v-if="b.overdue" class="overdue">· {{ t('home.boardOverdue', { count: b.overdue }) }}</span>
-                <span v-else-if="b.due_soon" class="soon">· {{ t('home.boardDueSoon', { count: b.due_soon }) }}</span>
-              </div>
-            </NuxtLink>
-          </div>
-        </section>
-  
-        <!-- Activité -->
-        <section class="panel wide" data-reveal>
-          <header class="panel-head">
-            <h2><Activity :size="15" /> {{ t('home.activity') }}</h2>
-            <NuxtLink :to="`/w/${wsId}/activity`" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-          </header>
-          <div v-if="!overview?.activity.length" class="panel-empty"><Activity :size="20" /><span>{{ t('home.noActivity') }}</span></div>
-          <ol v-else class="feed">
-            <li v-for="a in overview.activity" :key="a.id" class="feed-item">
-              <UiAvatar :name="a.user_name" :src="member(a.user_id)?.avatar_url" :size="20" />
-              <span class="feed-text">
-                <strong>{{ a.user_name }}</strong> {{ activityText(a) }}
-                <NuxtLink :to="links.task(wsId, a.board_id, a.task_id)" class="feed-link">{{ a.task_title }}</NuxtLink>
-                <span class="faint"> · {{ a.board_name }}</span>
-              </span>
-              <time class="feed-time">{{ relativeTime(a.created_at) }}</time>
-            </li>
-          </ol>
-        </section>
+          </section>
+
+          <section v-else-if="w.id === 'agenda'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><CalendarDays :size="15" /> {{ t('home.upcoming') }}</h2>
+              <NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+            </header>
+            <div v-if="!nextEvents.length" class="panel-empty"><CalendarDays :size="20" /><span>{{ t('home.noEvents') }}</span></div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="e in nextEvents" :key="e.id" :to="e.event_id ? `${links.calendar(wsId)}?event=${e.event_id}` : links.calendar(wsId)" class="task-row">
+                <span class="ev-bar" :style="{ background: evColor(e.calendar_id) }" />
+                <span class="task-title truncate">{{ e.summary }}</span>
+                <span v-if="e.location" class="task-board truncate"><MapPin :size="11" /> {{ e.location }}</span>
+                <span class="task-due">{{ evTime(e) }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'myTasks' || w.id === 'overdue' || w.id === 'toApprove'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><component :is="w.id === 'overdue' ? AlertTriangle : w.id === 'toApprove' ? BadgeCheck : CircleUserRound" :size="15" /> {{ t(`dashboard.widgets.${w.id}`) }}</h2>
+              <NuxtLink :to="links.myTasks(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+            </header>
+            <div v-if="loadingTasks" class="panel-body"><div v-for="i in 3" :key="i" class="skeleton row-skel" /></div>
+            <div v-else-if="!(w.id === 'overdue' ? overdueTasks : w.id === 'toApprove' ? toApprove : upcoming).length" class="panel-empty">
+              <CheckCircle2 :size="20" /><span>{{ t(`dashboard.empty.${w.id}`) }}</span>
+            </div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="tk in (w.id === 'overdue' ? overdueTasks : w.id === 'toApprove' ? toApprove : upcoming)" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="task-row">
+                <TaskPriorityIcon :priority="tk.priority" :size="14" />
+                <span class="task-title truncate">{{ tk.title }}</span>
+                <span class="task-board truncate">{{ tk.board_name }} · {{ tk.column_name }}</span>
+                <span v-if="tk.due_date" class="task-due" :class="dueClass(tk.due_date)">{{ formatDate(tk.due_date) }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'docs'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><FileText :size="15" /> {{ t('nav.docs') }}</h2>
+              <UiSegmented v-model="docTab" :options="[{ value: 'viewed', label: t('home.recentlyViewed') }, { value: 'updated', label: t('home.recentlyUpdated') }]" @update:model-value="touchedTab = true" />
+            </header>
+            <div v-if="!docList.length" class="panel-empty">
+              <FileText :size="20" /><span>{{ t('home.noDocs') }}</span>
+              <UiButton v-if="can.editDocs" size="sm" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
+            </div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="p in docList" :key="p.id" :to="links.doc(wsId, p.id)" class="doc-row">
+                <span class="doc-icon">{{ p.icon || '' }}<FileText v-if="!p.icon" :size="15" /></span>
+                <span class="truncate doc-title">{{ p.title || t('docs.untitled') }}</span>
+                <span class="doc-meta">
+                  <UiAvatar v-if="docTab === 'updated' && p.updated_by" :name="member(p.updated_by)?.name" :src="member(p.updated_by)?.avatar_url" :size="16" />
+                  {{ relativeTime(docTab === 'viewed' ? p.last_viewed_at : p.updated_at) }}
+                </span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'favorites'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head"><h2><Star :size="15" /> {{ t('dashboard.widgets.favorites') }}</h2></header>
+            <div v-if="!favoritePages.length" class="panel-empty"><Star :size="20" /><span>{{ t('dashboard.empty.favorites') }}</span></div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="p in favoritePages" :key="p.id" :to="links.doc(wsId, p.id)" class="doc-row">
+                <span class="doc-icon">{{ p.icon || '' }}<FileText v-if="!p.icon" :size="15" /></span>
+                <span class="truncate doc-title">{{ p.title || t('docs.untitled') }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'inbox'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><InboxIcon :size="15" /> {{ t('dashboard.widgets.inbox') }}</h2>
+              <NuxtLink :to="links.inbox(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+            </header>
+            <div v-if="!unreadNotifs.length" class="panel-empty"><InboxIcon :size="20" /><span>{{ t('dashboard.empty.inbox') }}</span></div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="n in unreadNotifs" :key="n.id" :to="links.inbox(wsId)" class="task-row">
+                <UiAvatar :name="n.actor_name ?? undefined" :size="18" />
+                <span class="task-title truncate">{{ notifText(n) }}</span>
+                <span class="task-due">{{ relativeTime(n.created_at) }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'notepad'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><NotebookPen :size="15" /> {{ t('notepad.title') }}</h2>
+              <button class="panel-link" @click="notepadOpen = true">{{ t('common.open') }} <ArrowRight :size="13" /></button>
+            </header>
+            <div v-if="!notepad?.content" class="panel-empty"><NotebookPen :size="20" /><span>{{ t('notepad.placeholder') }}</span></div>
+            <DocViewer v-else :html="notepad.content" size="sm" class="np-preview" />
+          </section>
+
+          <section v-else-if="w.id === 'mail'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><Mail :size="15" /> {{ t('nav.mail') }}</h2>
+              <NuxtLink :to="links.mail(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+            </header>
+            <div v-if="!mailAccounts?.length" class="panel-empty"><Mail :size="20" /><span>{{ t('dashboard.empty.mail') }}</span></div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="a in mailAccounts" :key="a.id" :to="links.mail(wsId, a.id)" class="task-row">
+                <Mail :size="14" class="faint" />
+                <span class="task-title truncate">{{ a.label }}</span>
+                <span class="task-due" :class="{ soon: a.unread }">{{ a.unread ? t('dashboard.unread', { n: a.unread }) : t('dashboard.upToDate') }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'online'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head"><h2><Users :size="15" /> {{ t('dashboard.widgets.online') }}</h2></header>
+            <div v-if="!onlineMembers.length" class="panel-empty"><Users :size="20" /><span>{{ t('dashboard.empty.online') }}</span></div>
+            <div v-else class="panel-body online">
+              <NuxtLink v-for="m in onlineMembers" :key="m.user_id" :to="`/w/${wsId}/activity?user=${m.user_id}`" class="task-row">
+                <UiAvatar :name="m.name" :src="m.avatar_url" :size="22" online />
+                <span class="task-title truncate">{{ m.name }}</span>
+                <span class="task-board truncate">{{ presence[m.user_id]?.location }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'month'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><CalendarRange :size="15" /> {{ formatDate(new Date(), { month: 'long', year: 'numeric' }) }}</h2>
+              <NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+            </header>
+            <div class="mini">
+              <NuxtLink v-for="d in monthDays" :key="+d" :to="links.calendar(wsId)" class="mini-day" :class="{ out: d.getMonth() !== new Date().getMonth(), today: sameDay(d, new Date()) }">
+                <span>{{ d.getDate() }}</span>
+                <span class="mini-dots"><i v-for="e in dayEvents(d).slice(0, 3)" :key="e.id" :style="{ background: evColor(e.calendar_id) }" /></span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'myEvents'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head"><h2><CalendarHeart :size="15" /> {{ t('dashboard.widgets.myEvents') }}</h2></header>
+            <div v-if="!myEvents.length" class="panel-empty"><CalendarHeart :size="20" /><span>{{ t('dashboard.empty.myEvents') }}</span></div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="e in myEvents" :key="e.id" :to="`${links.calendar(wsId)}?event=${e.event_id}`" class="task-row">
+                <span class="ev-bar" :style="{ background: evColor(e.calendar_id) }" />
+                <span class="task-title truncate">{{ e.summary }}</span>
+                <span class="task-due">{{ evTime(e) }}</span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'boards'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><Kanban :size="15" /> {{ t('nav.boards') }}</h2>
+              <UiButton v-if="can.manageBoards" size="xs" variant="ghost" :icon="Plus" @click="createBoardOpen = true">{{ t('board.new') }}</UiButton>
+            </header>
+            <div v-if="!overview?.boards.length" class="panel-empty"><Kanban :size="20" /><span>{{ t('board.noBoards') }}</span></div>
+            <div v-else class="boards">
+              <NuxtLink v-for="b in overview.boards" :key="b.id" :to="links.board(wsId, b.id)" class="board-card">
+                <div class="board-top">
+                  <span class="board-name truncate">{{ b.name }}</span>
+                  <span class="board-pct tabular">{{ b.total ? Math.round((b.done / b.total) * 100) : 0 }}%</span>
+                </div>
+                <div class="bar"><div class="bar-fill" :style="{ width: `${b.total ? (b.done / b.total) * 100 : 0}%` }" /></div>
+                <div class="board-meta">
+                  <span>{{ t('home.boardOpen', { count: b.total - b.done }) }}</span>
+                  <span v-if="b.overdue" class="overdue">· {{ t('home.boardOverdue', { count: b.overdue }) }}</span>
+                  <span v-else-if="b.due_soon" class="soon">· {{ t('home.boardDueSoon', { count: b.due_soon }) }}</span>
+                </div>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'activity'" class="panel" :class="w.size" data-reveal>
+            <header class="panel-head">
+              <h2><Activity :size="15" /> {{ t('home.activity') }}</h2>
+              <NuxtLink :to="`/w/${wsId}/activity`" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
+            </header>
+            <div v-if="!overview?.activity.length" class="panel-empty"><Activity :size="20" /><span>{{ t('home.noActivity') }}</span></div>
+            <ol v-else class="feed">
+              <li v-for="a in overview.activity" :key="a.id" class="feed-item">
+                <UiAvatar :name="a.user_name" :src="member(a.user_id)?.avatar_url" :size="20" />
+                <span class="feed-text">
+                  <strong>{{ a.user_name }}</strong> {{ activityText(a) }}
+                  <NuxtLink :to="links.task(wsId, a.board_id, a.task_id)" class="feed-link">{{ a.task_title }}</NuxtLink>
+                  <span class="faint"> · {{ a.board_name }}</span>
+                </span>
+                <time class="feed-time">{{ relativeTime(a.created_at) }}</time>
+              </li>
+            </ol>
+          </section>
+        </template>
+      </div>
+      <div v-if="dashLoaded && !dashSaved" class="customize-hint">
+        <LayoutGrid :size="15" /> {{ t('dashboard.notSaved') }}
+        <UiButton size="xs" variant="primary" @click="customizeOpen = true">{{ t('dashboard.customize') }}</UiButton>
       </div>
     </div>
+    <HomeCustomize v-model:open="customizeOpen" />
   </div>
 </template>
 
@@ -250,7 +373,18 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 .hero .date { margin: 0; color: var(--text-3); font-size: var(--fs-sm); text-transform: capitalize; }
 .hero h1 { margin: 4px 0 0; font-family: var(--font-display); font-size: 26px; font-weight: 600; letter-spacing: -0.022em; }
 
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.grid > .full, .grid > .panel.full { grid-column: 1 / -1; }
+.hero { padding: 4px 0 4px; }
+.customize-hint { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px; color: var(--text-3); font-size: var(--fs-sm); }
+.np-preview { padding: 0 14px 12px; max-height: 220px; overflow: hidden; }
+.mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 10px 12px; }
+.mini-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: var(--r-sm); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.mini-day:hover { background: var(--bg-hover); }
+.mini-day.out { color: var(--text-4); }
+.mini-day.today span:first-child { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 6px; }
+.mini-dots { display: flex; gap: 2px; height: 5px; }
+.mini-dots i { width: 5px; height: 5px; border-radius: 50%; }
 .stat {
   position: relative;
   padding: 14px 16px;
@@ -269,7 +403,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 .stat-value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
 .stat-label { margin-top: 6px; color: var(--text-2); font-size: var(--fs-sm); }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .panel { background: var(--bg-panel); border-radius: var(--r-lg); box-shadow: var(--shadow-card); min-width: 0; display: flex; flex-direction: column; }
 .panel.wide { grid-column: span 1; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }

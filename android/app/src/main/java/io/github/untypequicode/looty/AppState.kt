@@ -325,7 +325,14 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun loadCalendars() {
         val w = ws ?: return
-        viewModelScope.launch { runCatching { calSources = api.get<List<CalendarSource>>("/api/workspaces/$w/calendars") } }
+        viewModelScope.launch {
+            runCatching {
+                // Calendriers Looty de l'espace (par défaut, thématiques, tableaux) puis abonnements.
+                val looty = runCatching { api.get<List<LootyCalendar>>("/api/workspaces/$w/planning/calendars") }.getOrDefault(emptyList())
+                    .map { CalendarSource(it.id, if (it.is_default) "" else it.name, it.color, "looty", "workspace") }
+                calSources = looty + api.get<List<CalendarSource>>("/api/workspaces/$w/calendars")
+            }
+        }
     }
 
     fun loadEvents(from: LocalDate, to: LocalDate) {

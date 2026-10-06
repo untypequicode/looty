@@ -26,6 +26,7 @@ mod prefs;
 mod comments;
 mod revisions;
 mod roles;
+mod planning;
 mod state;
 mod upload;
 mod user_settings;
@@ -123,6 +124,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/prefs", prefs::workspace_routes())
         .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
         .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
+        .nest("/workspaces/:workspace_id/planning", planning::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());

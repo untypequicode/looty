@@ -253,6 +253,8 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       break
     case 'CALENDAR_EVENTS_UPDATED':
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'calendar-events'] })
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'looty-calendars'] })
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'event'] })
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'graph'] })
       break
     case 'COMMENTS_UPDATED':

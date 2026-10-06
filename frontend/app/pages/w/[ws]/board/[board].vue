@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Kanban, Columns3, List, GanttChart, Settings2, MoreHorizontal, Link2, Trash2, Pencil, Plus, SearchX, ExternalLink, CircleCheck, Signal, UserRound, Tag, CalendarDays, ArrowRightLeft } from 'lucide-vue-next'
+import { Kanban, Columns3, List, GanttChart, Settings2, MoreHorizontal, Link2, Trash2, Pencil, Plus, SearchX, ExternalLink, CircleCheck, Signal, UserRound, Tag, CalendarDays, ArrowRightLeft, CalendarRange } from 'lucide-vue-next'
 import type { Task, Priority } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardQuery, useBoardActions, allTasks, positionBetween } from '~/composables/useBoard'
@@ -33,8 +33,8 @@ const boardId = computed(() => route.params.board as string)
 const { data: board, isLoading, error } = useBoardQuery(boardId)
 const actions = useBoardActions(boardId)
 const filters = useBoardFilters(board)
-const view = computed<'board' | 'list' | 'timeline'>({
-  get: () => (['list', 'timeline'].includes(route.query.view as string) ? (route.query.view as any) : 'board'),
+const view = computed<'board' | 'list' | 'timeline' | 'calendar'>({
+  get: () => (['list', 'timeline', 'calendar'].includes(route.query.view as string) ? (route.query.view as any) : 'board'),
   set: (v) => router.replace({ query: { ...route.query, view: v === 'board' ? undefined : v } }),
 })
 
@@ -199,7 +199,7 @@ async function shiftColumn(dir: number) {
 const toolbar = ref<{ openSearch: () => void; openFilters: () => void } | null>(null)
 const panelOpen = computed(() => !!taskId.value)
 const when = (fn: () => void) => () => {
-  if (panelOpen.value || view.value === 'timeline') return false
+  if (panelOpen.value || view.value === 'timeline' || view.value === 'calendar') return false
   fn()
 }
 useShortcuts([
@@ -227,6 +227,7 @@ useShortcuts([
   { keys: '1', handler: () => (view.value = 'board') },
   { keys: '2', handler: () => (view.value = 'list') },
   { keys: '3', handler: () => (view.value = 'timeline') },
+  { keys: '4', handler: () => (view.value = 'calendar') },
 ])
 
 // Tableau introuvable / inaccessible
@@ -258,7 +259,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
       <UiSegmented
         v-model="view"
         class="views"
-        :options="[{ value: 'board', icon: Columns3, title: t('board.views.board') }, { value: 'list', icon: List, title: t('board.views.list') }, { value: 'timeline', icon: GanttChart, title: t('board.views.timeline') }]"
+        :options="[{ value: 'board', icon: Columns3, title: t('board.views.board') }, { value: 'list', icon: List, title: t('board.views.list') }, { value: 'timeline', icon: GanttChart, title: t('board.views.timeline') }, { value: 'calendar', icon: CalendarRange, title: t('planning.boardCalendar') }]"
       />
       <UiMenu v-model:open="boardMenuOpen" :items="boardMenu" placement="bottom-end">
         <UiButton size="sm" variant="ghost" :icon="MoreHorizontal" />
@@ -307,6 +308,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
           @menu="openMenu"
           @create="onCreate"
         />
+        <BoardCalendarView v-else-if="view === 'calendar'" :board="visible!" :full-board="board" @open="openTask" />
         <BoardTimeline v-else :board="visible!" :full-board="board" :can-write="canWrite" @open="openTask" @reschedule="onReschedule" />
 
         <Transition :css="false" @enter="motion.panelRight.onEnter" @leave="motion.panelRight.onLeave">

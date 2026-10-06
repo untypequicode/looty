@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail } from 'lucide-vue-next'
+import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart } from 'lucide-vue-next'
 import type { Notification } from '~/types'
 import { useNotifications } from '~/composables/useNotifications'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -14,7 +14,7 @@ const { t, relativeTime } = useI18n()
 const filter = ref<'all' | 'unread'>('all')
 
 const list = computed(() => (notifications.value ?? []).filter((n) => filter.value === 'all' || !n.read_at))
-const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail }
+const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, event_tag: CalendarHeart }
 
 function targetLink(n: Notification): string {
   const [kind, id] = n.target.split(':')

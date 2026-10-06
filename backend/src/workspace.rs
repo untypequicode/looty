@@ -175,6 +175,7 @@ async fn put_calendar_color(State(state): State<AppState>, user: AuthUser, Path(
         None => None,
     };
     sqlx::query("UPDATE workspaces SET calendar_color = $1 WHERE id = $2").bind(&color).bind(workspace_id).execute(&state.pool).await?;
+    sqlx::query("UPDATE looty_calendars SET color = COALESCE($1, '#5e6ad2') WHERE workspace_id = $2 AND is_default").bind(&color).bind(workspace_id).execute(&state.pool).await?;
     state.emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_UPDATED" })).await;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -98,7 +98,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
     return t
   }
 
-  async function updateTask(id: string, data: Partial<Pick<Task, 'title' | 'description' | 'priority' | 'due_date' | 'start_date' | 'is_per_person' | 'require_all_validations' | 'is_completed'>>) {
+  async function updateTask(id: string, data: Partial<Pick<Task, 'title' | 'description' | 'priority' | 'due_date' | 'start_date' | 'is_per_person' | 'require_all_validations' | 'is_completed' | 'event_id' | 'event_start'>>) {
     const t = await withRollback(
       () => patch((b) => { for (const c of b.columns) for (const t of c.tasks) if (t.id === id) Object.assign(t, data) }),
       () => api<Task>(`/api/boards/tasks/${id}`, { method: 'PUT', body: data }),
