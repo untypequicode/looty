@@ -17,7 +17,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { motion } from '~/composables/useMotion'
 import { toast } from '~/composables/useToast'
 
-const props = defineProps<{ board: Board; taskId: string; order: string[]; canWrite: boolean }>()
+const props = defineProps<{ board: Board; taskId: string; order: string[]; canWrite: boolean; canValidate?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'navigate', id: string): void }>()
 
 // Clic à côté du panneau : il se ferme. Sauf sur une autre tâche (le panneau passe à
@@ -111,7 +111,7 @@ function setRequireAll(v: boolean) { if (task.value) actions.updateTask(task.val
 const myValidated = computed(() => !!task.value?.is_per_person && !!user.value && task.value.validations.includes(user.value.id))
 const checkEl = ref<HTMLElement | null>(null)
 function toggleDone() {
-  if (!task.value || !props.canWrite) return
+  if (!task.value || !(props.canValidate ?? props.canWrite)) return
   motion.pulse(checkEl.value)
   actions.toggleDone(task.value.id, user.value?.id)
 }
@@ -178,7 +178,7 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
         <div ref="body" class="panel-main">
           <NuxtLink v-if="parent" :to="links.task(wsId, board.id, parent.id)" class="parent-link"><CornerLeftUp :size="13" /> {{ parent.title }}</NuxtLink>
           <div class="title-row">
-            <button ref="checkEl" class="big-check" :class="{ on: task.is_completed, partial: myValidated && !task.is_completed }" :disabled="!canWrite" :title="t('task.markDone')" @click="toggleDone">
+            <button ref="checkEl" class="big-check" :class="{ on: task.is_completed, partial: myValidated && !task.is_completed }" :disabled="!(canValidate ?? canWrite)" :title="t('task.markDone')" @click="toggleDone">
               <svg v-if="task.is_completed || myValidated" width="12" height="12" viewBox="0 0 10 10"><path d="M2 5.2 4.1 7.2 8 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
             <textarea

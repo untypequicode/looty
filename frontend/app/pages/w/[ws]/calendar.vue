@@ -3,6 +3,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreH
 import { useLocalStorage } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api } from '~/composables/api'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { useBreakpoint } from '~/composables/useBreakpoint'
@@ -16,7 +17,10 @@ import {
 
 definePageMeta({ layout: 'workspace' })
 
-const { wsId, workspace, canWrite, isAdmin, invalidate: invalidateWs } = useWorkspace()
+const { wsId, workspace, isAdmin, invalidate: invalidateWs } = useWorkspace()
+const { can } = useAccess(wsId)
+/** Calendrier de l'espace : rôle + mode d'édition personnel. */
+const canWrite = computed(() => can.value.editCalendar)
 /** Couleur du calendrier de l'espace (réglable par les administrateurs). */
 const wsColor = computed(() => workspace.data.value?.calendar_color || 'var(--accent)')
 async function setWsColor(c: string | null) {
@@ -248,6 +252,7 @@ useHead({ title: () => t('calendar.title') })
       <span class="grow" />
       <UiSegmented v-model="view" :options="[...(isMobile ? [] : [{ value: 'week' as const, label: t('calendar.week') }]), { value: 'month' as const, label: t('calendar.month') }, { value: 'agenda' as const, label: t('calendar.agenda') }]" />
       <UiTooltip :text="t('calendar.addTitle')"><UiButton size="sm" variant="ghost" :icon="CalendarPlus" :aria-label="t('calendar.addTitle')" @click="addOpen = true" /></UiTooltip>
+      <AppEditToggle area="calendar" />
       <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" @click="newEvent()">{{ isMobile ? '' : t('event.new') }}</UiButton>
     </AppPageHeader>
 
@@ -387,7 +392,7 @@ useHead({ title: () => t('calendar.title') })
           <button class="ev-cm-toggle" @click="evComments = !evComments">
             <MessageSquare :size="13" /> {{ t('itemComments.title') }}<span v-if="eventCommentCounts?.[detail.event_id]" class="ev-cm-n">{{ eventCommentCounts[detail.event_id] }}</span>
           </button>
-          <CommentsPanel v-if="evComments" kind="event" :target-id="detail.event_id" can-comment class="ev-comments" />
+          <CommentsPanel v-if="evComments" kind="event" :target-id="detail.event_id" :can-comment="can.seeCalendar" class="ev-comments" />
         </template>
       </div>
     </UiPopover>

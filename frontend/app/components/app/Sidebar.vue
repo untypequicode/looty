@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {
   NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
-  MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight,
+  MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links } from '~/composables/useWorkspace'
+import { useAccess } from '~/composables/useAccess'
+import { useSidebarLayout } from '~/composables/useSidebarLayout'
 import { usePages } from '~/composables/usePages'
 import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
@@ -18,7 +20,24 @@ import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
 
-const { wsId, boards, pages, members, canWrite, canWriteRole } = useWorkspace()
+const { wsId, boards, pages, members, canWriteRole } = useWorkspace()
+const { can } = useAccess(wsId)
+const canEditDocs = computed(() => can.value.editDocs)
+const canEditTasks = computed(() => can.value.editTasks)
+const canManageBoards = computed(() => can.value.manageBoards)
+
+// --- Barre latérale personnalisable (par espace) ---
+const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
+  home: { icon: Home, label: () => t('nav.home'), to: () => links.home(wsId.value), exact: true },
+  inbox: { icon: Inbox, label: () => t('nav.inbox'), to: () => links.inbox(wsId.value), badge: () => unread.value || undefined },
+  myTasks: { icon: CircleUserRound, label: () => t('nav.myTasks'), to: () => links.myTasks(wsId.value), when: () => can.value.seeBoards },
+  calendar: { icon: CalendarDays, label: () => t('calendar.title'), to: () => links.calendar(wsId.value) },
+  mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined },
+  docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => can.value.seeDocs },
+  graph: { icon: Waypoints, label: () => t('graph.title'), to: () => `/w/${wsId.value}/graph` },
+  activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true },
+  trash: { icon: Trash2, label: () => t('trash.title'), to: () => `/w/${wsId.value}/trash`, hiddenByDefault: true },
+}, { favorites: () => true, boards: () => can.value.seeBoards, docs: () => can.value.seeDocs })
 const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
@@ -56,7 +75,7 @@ function boardMenu(b: { id: string; name: string }): MenuItem[] {
   return [
     ...(tabsEnabled.value ? [{ label: t('tabs.openInNew'), icon: SquareArrowOutUpRight, onSelect: () => tabsApi.open(links.board(wsId.value, b.id)) }] : []),
     { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + links.board(wsId.value, b.id)); toast.success(t('common.linkCopied')) } },
-    ...(canWrite.value
+    ...(canManageBoards.value
       ? [
           { label: t('common.rename'), icon: Pencil, onSelect: () => startRenameBoard(b.id, b.name) },
           { divider: true },
@@ -92,7 +111,7 @@ async function onRootDrop(e: DragEvent) {
       <UiTooltip :text="t('nav.search')" shortcut="mod+k">
         <UiButton variant="ghost" size="sm" :icon="Search" :aria-label="t('nav.search')" @click="commandOpen = true" />
       </UiTooltip>
-      <UiTooltip v-if="canWrite" :text="t('task.new')" shortcut="c">
+      <UiTooltip v-if="canEditTasks" :text="t('task.new')" shortcut="c">
         <UiButton variant="ghost" size="sm" :icon="SquarePen" :aria-label="t('task.new')" @click="openCreateTask()" />
       </UiTooltip>
       <UiTooltip :text="t('nav.collapseSidebar')" shortcut="[">
@@ -101,18 +120,12 @@ async function onRootDrop(e: DragEvent) {
     </div>
 
     <div class="sb-scroll">
-      <div class="sb-group">
-        <AppSidebarItem :to="links.home(wsId)" :icon="Home" :label="t('nav.home')" exact />
-        <AppSidebarItem :to="links.inbox(wsId)" :icon="Inbox" :label="t('nav.inbox')" :badge="unread || undefined" />
-        <AppSidebarItem :to="links.myTasks(wsId)" :icon="CircleUserRound" :label="t('nav.myTasks')" />
-        <AppSidebarItem :to="links.calendar(wsId)" :icon="CalendarDays" :label="t('calendar.title')" />
-        <AppSidebarItem :to="links.mail(wsId)" :icon="Mail" :label="t('nav.mail')" :badge="mailUnread(mailAccounts) || undefined" />
-        <AppSidebarItem :to="links.docs(wsId)" :icon="FileText" :label="t('nav.allDocs')" exact />
-        <AppSidebarItem :to="`/w/${wsId}/graph`" :icon="Waypoints" :label="t('graph.title')" />
+      <div class="sb-group" :style="{ order: -1 }">
+        <AppSidebarItem v-for="it in navItems" :key="it.key" :to="it.to" :icon="it.icon" :label="it.label" :badge="it.badge" :exact="it.exact" />
       </div>
 
       <!-- Favoris -->
-      <section v-if="favorites.length" class="sb-section">
+      <section v-if="favorites.length && sections.favorites !== undefined" class="sb-section" :style="{ order: sections.favorites }">
         <button class="sb-section-head" @click="toggleSection('favorites')">
           <span>{{ t('nav.favorites') }}</span>
           <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.favorites }" />
@@ -123,13 +136,13 @@ async function onRootDrop(e: DragEvent) {
       </section>
 
       <!-- Tableaux -->
-      <section class="sb-section">
+      <section v-if="sections.boards !== undefined" class="sb-section" :style="{ order: sections.boards }">
         <div class="sb-section-head">
           <button class="sb-section-title" @click="toggleSection('boards')">
             <span>{{ t('nav.boards') }}</span>
             <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.boards }" />
           </button>
-          <button v-if="canWrite" class="sb-section-add" :aria-label="t('board.new')" @click="createBoardOpen = true"><Plus :size="14" /></button>
+          <button v-if="canManageBoards" class="sb-section-add" :aria-label="t('board.new')" @click="createBoardOpen = true"><Plus :size="14" /></button>
         </div>
         <div v-show="!sectionsCollapsed.boards" class="sb-group">
           <template v-for="b in boards.data.value ?? []" :key="b.id">
@@ -142,7 +155,7 @@ async function onRootDrop(e: DragEvent) {
               :to="links.board(wsId, b.id)"
               :icon="Kanban"
               :label="b.name"
-              @dblclick.prevent="canWrite && startRenameBoard(b.id, b.name)"
+              @dblclick.prevent="canManageBoards && startRenameBoard(b.id, b.name)"
               @contextmenu.prevent="boardMenuOpen[b.id] = true"
             >
               <template #actions>
@@ -152,20 +165,20 @@ async function onRootDrop(e: DragEvent) {
               </template>
             </AppSidebarItem>
           </template>
-          <button v-if="!(boards.data.value ?? []).length && canWrite" class="sb-hint" @click="createBoardOpen = true">
+          <button v-if="!(boards.data.value ?? []).length && canManageBoards" class="sb-hint" @click="createBoardOpen = true">
             <Plus :size="14" /> {{ t('board.createFirst') }}
           </button>
         </div>
       </section>
 
       <!-- Documents -->
-      <section class="sb-section">
+      <section v-if="sections.docs !== undefined" class="sb-section" :style="{ order: sections.docs }">
         <div class="sb-section-head">
           <button class="sb-section-title" @click="toggleSection('docs')">
             <span>{{ t('nav.docs') }}</span>
             <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.docs }" />
           </button>
-          <button v-if="canWrite" class="sb-section-add" :aria-label="t('docs.new')" @click="createAndOpen()"><Plus :size="14" /></button>
+          <button v-if="canEditDocs" class="sb-section-add" :aria-label="t('docs.new')" @click="createAndOpen()"><Plus :size="14" /></button>
         </div>
         <div
           v-show="!sectionsCollapsed.docs"
@@ -176,7 +189,7 @@ async function onRootDrop(e: DragEvent) {
           @drop.self.prevent="onRootDrop"
         >
           <AppPageTreeItem v-for="n in tree" :key="n.id" :node="n" />
-          <button v-if="!tree.length && canWrite" class="sb-hint" @click="createAndOpen()">
+          <button v-if="!tree.length && canEditDocs" class="sb-hint" @click="createAndOpen()">
             <Plus :size="14" /> {{ t('docs.createFirst') }}
           </button>
         </div>
@@ -210,6 +223,9 @@ async function onRootDrop(e: DragEvent) {
       <UiTooltip :text="t('trash.title')" placement="top">
         <UiButton variant="ghost" size="sm" :icon="Trash2" :to="`/w/${wsId}/trash`" :aria-label="t('trash.title')" />
       </UiTooltip>
+      <UiTooltip :text="t('sidebarLayout.customize')" placement="top">
+        <UiButton variant="ghost" size="sm" :icon="PanelLeftDashed" :aria-label="t('sidebarLayout.customize')" @click="customizeOpen = true" />
+      </UiTooltip>
       <UiTooltip :text="t('nav.shortcuts')" shortcut="?" placement="top">
         <UiButton variant="ghost" size="sm" :icon="Keyboard" @click="shortcutsOpen = true" />
       </UiTooltip>
@@ -217,6 +233,7 @@ async function onRootDrop(e: DragEvent) {
         <UiButton variant="ghost" size="sm" :icon="Settings" :to="links.settings(wsId)" />
       </UiTooltip>
     </div>
+    <AppSidebarCustomize v-model:open="customizeOpen" />
   </nav>
 </template>
 
@@ -237,7 +254,8 @@ async function onRootDrop(e: DragEvent) {
   padding: 8px 8px 4px 8px;
   min-height: 46px;
 }
-.sb-scroll { flex: 1; overflow-y: auto; padding: 4px 8px 12px; }
+.sb-scroll { flex: 1; overflow-y: auto; padding: 4px 8px 12px; display: flex; flex-direction: column; }
+.sb-scroll > * { flex-shrink: 0; }
 .sb-group { display: flex; flex-direction: column; gap: 1px; }
 .sb-section { margin-top: 18px; }
 .sb-section-head {

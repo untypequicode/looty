@@ -7,6 +7,7 @@ import type { Page } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import type { HeadingInfo } from '~/editor/headings'
 import { api } from '~/composables/api'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { usePages, pagePath } from '~/composables/usePages'
 import { useAuth } from '~/composables/useAuth'
@@ -26,6 +27,7 @@ const route = useRoute()
 const qc = useQueryClient()
 const { t, relativeTime } = useI18n()
 const { wsId, pages, member } = useWorkspace()
+const { editing, allows } = useAccess(wsId)
 const { user } = useAuth()
 const { updatePage, toggleFavorite, deletePage, duplicatePage, createPage } = usePages()
 
@@ -41,7 +43,8 @@ const live = computed<Page | undefined>(() => {
   const fromList = pages.data.value?.find((p) => p.id === pageId.value)
   return page.value ? { ...page.value, ...(fromList ?? {}), content: page.value.content } : undefined
 })
-const canEdit = computed(() => live.value?.can_edit !== false && !readMode.value)
+// Droit sur la page (rôle, permissions de page) + mode d'édition personnel des documents.
+const canEdit = computed(() => live.value?.can_edit !== false && !readMode.value && editing('docs'))
 const path = computed(() => pagePath(pages.data.value ?? [], pageId.value))
 const children = computed(() => (pages.data.value ?? []).filter((p) => p.parent_id === pageId.value).sort((a, b) => a.position - b.position))
 
@@ -102,7 +105,7 @@ const commentsOpen = useLocalStorage<boolean>('looty.doc.comments', false)
 const pendingQuote = ref<string | null>(null)
 const focusThread = ref<string | null>(null)
 const { threads: commentThreads, openCount: openComments } = useComments(wsId, ref('page'), pageId)
-const canComment = computed(() => !!live.value)
+const canComment = computed(() => !!live.value && allows('docs', 'comment'))
 function onCommentSelection(e: Event) {
   pendingQuote.value = (e as CustomEvent).detail.quote
   commentsOpen.value = true
@@ -215,6 +218,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <UiTooltip :text="live.is_favorite ? t('docs.unfavorite') : t('docs.favorite')">
           <UiButton size="sm" variant="ghost" :icon="Star" :class="{ fav: live.is_favorite }" @click="toggleFavorite(live)" />
         </UiTooltip>
+        <AppEditToggle v-if="live.can_edit !== false" area="docs" />
         <UiTooltip :text="t('reader.open')" :shortcut="['mod', 'alt', 'R']">
           <UiButton size="sm" variant="ghost" :icon="BookOpenText" :to="links.read(wsId, live.id)" :aria-label="t('reader.open')" />
         </UiTooltip>

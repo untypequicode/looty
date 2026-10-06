@@ -8,6 +8,7 @@ import {
 import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { refDebounced } from '@vueuse/core'
 import { useUi } from '~/composables/useUi'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
 import { useTheme } from '~/composables/useTheme'
@@ -30,7 +31,8 @@ interface Cmd {
 }
 
 const { commandOpen, createBoardOpen, openCreateTask, shortcutsOpen } = useUi()
-const { wsId, boards, pages, canWrite, canWriteRole } = useWorkspace()
+const { wsId, boards, pages, canWriteRole } = useWorkspace()
+const { can } = useAccess(wsId)
 const { createAndOpen } = usePages()
 const { mode, setTheme } = useTheme()
 const { t, locale, setLocale } = useI18n()
@@ -71,13 +73,9 @@ const staticCommands = computed<Cmd[]>(() => {
     { id: 'docs', group: nav, label: t('nav.allDocs'), icon: FileText, shortcut: ['G', 'D'], run: () => go(links.docs(wsId.value)) },
     { id: 'settings', group: nav, label: t('nav.settings'), icon: Settings, shortcut: ['G', 'S'], run: () => go(links.settings(wsId.value)) },
     { id: 'members', group: nav, label: t('settings.nav.members'), icon: Users, run: () => go(links.settings(wsId.value, 'members')) },
-    ...(canWrite.value
-      ? [
-          { id: 'new-task', group: act, label: t('task.new'), icon: SquarePen, shortcut: 'C', run: () => { commandOpen.value = false; openCreateTask() } },
-          { id: 'new-doc', group: act, label: t('docs.new'), icon: FilePlus2, run: () => { commandOpen.value = false; createAndOpen() } },
-          { id: 'new-board', group: act, label: t('board.new'), icon: Plus, run: () => { commandOpen.value = false; createBoardOpen.value = true } },
-        ]
-      : []),
+    ...(can.value.editTasks ? [{ id: 'new-task', group: act, label: t('task.new'), icon: SquarePen, shortcut: 'C', run: () => { commandOpen.value = false; openCreateTask() } }] : []),
+    ...(can.value.editDocs ? [{ id: 'new-doc', group: act, label: t('docs.new'), icon: FilePlus2, run: () => { commandOpen.value = false; createAndOpen() } }] : []),
+    ...(can.value.manageBoards ? [{ id: 'new-board', group: act, label: t('board.new'), icon: Plus, run: () => { commandOpen.value = false; createBoardOpen.value = true } }] : []),
     { id: 'theme', group: pref, label: mode.value === 'light' ? t('command.darkTheme') : t('command.lightTheme'), icon: mode.value === 'light' ? Moon : Sun, run: () => { setTheme(mode.value === 'light' ? 'dark' : 'light'); commandOpen.value = false } },
     { id: 'lang', group: pref, label: locale.value === 'fr' ? 'Switch to English' : 'Passer en français', icon: Languages, keywords: 'language langue', run: () => { setLocale(locale.value === 'fr' ? 'en' : 'fr'); commandOpen.value = false } },
     ...(canWriteRole.value ? [{ id: 'readmode', group: pref, label: readMode.value ? t('readMode.toEdit') : t('readMode.toRead'), icon: readMode.value ? PencilLine : BookOpen, shortcut: ['mod', 'shift', 'E'], keywords: 'read only lecture seule edit', run: () => { toggleReadMode(); commandOpen.value = false } }] : []),

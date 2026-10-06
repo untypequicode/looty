@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::access::{require_member, require_writer, AuthUser};
+use crate::access::{require_member, AuthUser};
 use crate::calendar::{escape_text, expand, master_event, series_end, unfolded_lines, MasterEvent};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -504,7 +504,7 @@ async fn get_one(State(state): State<AppState>, user: AuthUser, Path((ws, id)): 
 }
 
 async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<EventReq>) -> ApiResult<Json<serde_json::Value>> {
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::EDIT).await?;
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM workspace_events WHERE workspace_id = $1").bind(ws).fetch_one(&state.pool).await?;
     if count >= 20_000 {
         return Err(ApiError::bad_request("event_too_many"));
@@ -532,7 +532,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
 }
 
 async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Json(p): Json<EventReq>) -> ApiResult<StatusCode> {
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::EDIT).await?;
     let (e, _, _) = load(&state, ws, id).await?;
     let (props, rrule) = form_props(&p)?;
     let ics = patch_ics(&e.ics, props, rrule, p.keep_recurrence);
@@ -560,7 +560,7 @@ struct RemoveQuery {
 }
 
 async fn remove(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Query(q): Query<RemoveQuery>) -> ApiResult<StatusCode> {
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::EDIT).await?;
     let (e, _, _) = load(&state, ws, id).await?;
     let m = master_event(&e.ics);
     match (q.occurrence, m) {

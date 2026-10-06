@@ -4,6 +4,7 @@ import type { Task, Priority } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardQuery, useBoardActions, allTasks, positionBetween } from '~/composables/useBoard'
 import { useBoardFilters } from '~/composables/useBoardFilters'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useBoards } from '~/composables/useBoards'
 import { useAuth } from '~/composables/useAuth'
@@ -18,7 +19,12 @@ definePageMeta({ layout: 'workspace' })
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const { wsId, canWrite, isAdmin, members } = useWorkspace()
+const { wsId, isAdmin, members } = useWorkspace()
+// Droits du rôle et mode d'édition personnel (tableaux).
+const { can } = useAccess(wsId)
+const canWrite = computed(() => can.value.editTasks)
+const canValidate = computed(() => can.value.validate)
+const canManage = computed(() => can.value.manageBoards)
 const { user } = useAuth()
 const { openCreateTask } = useUi()
 const { renameBoard, deleteBoard } = useBoards()
@@ -67,7 +73,7 @@ const settingsOpen = ref(false)
 const boardMenuOpen = ref(false)
 const boardMenu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.href.split('?')[0]); toast.success(t('common.linkCopied')) } },
-  ...(canWrite.value ? [
+  ...(canManage.value ? [
     { label: t('common.rename'), icon: Pencil, onSelect: startRename },
     { label: t('board.settings'), icon: Settings2, onSelect: () => (settingsOpen.value = true) },
   ] : []),
@@ -119,8 +125,8 @@ const ctxItems = computed<MenuItem[]>(() => {
   if (!tk) return []
   return [
     { label: t('common.open'), icon: ExternalLink, shortcut: 'enter', onSelect: () => openTask(tk) },
+    ...(canValidate.value ? [{ label: tk.is_completed ? t('task.reopen') : t('task.markDone'), icon: CircleCheck, shortcut: 'x', onSelect: () => onToggle(tk) }] : []),
     ...(canWrite.value ? [
-      { label: tk.is_completed ? t('task.reopen') : t('task.markDone'), icon: CircleCheck, shortcut: 'x', onSelect: () => onToggle(tk) },
       { divider: true },
       { label: t('task.changeStatus'), icon: ArrowRightLeft, shortcut: 's', onSelect: () => openPicker('status', tk) },
       { label: t('task.setPriority'), icon: Signal, shortcut: 'p', onSelect: () => openPicker('priority', tk) },
@@ -208,7 +214,7 @@ useShortcuts([
   { keys: 'shift+arrowleft', handler: when(() => shiftColumn(-1)) },
   { keys: 'shift+arrowright', handler: when(() => shiftColumn(1)) },
   { keys: 'enter', handler: when(() => focusedId.value && openTask(focusedId.value)) },
-  { keys: 'x', handler: when(() => { const tk = focusedTask(); if (tk && canWrite.value) onToggle(tk) }) },
+  { keys: 'x', handler: when(() => { const tk = focusedTask(); if (tk && canValidate.value) onToggle(tk) }) },
   { keys: 'p', handler: when(() => pickerAtFocus('priority')) },
   { keys: 'a', handler: when(() => pickerAtFocus('assignee')) },
   { keys: 's', handler: when(() => pickerAtFocus('status')) },
@@ -257,6 +263,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
       <UiMenu v-model:open="boardMenuOpen" :items="boardMenu" placement="bottom-end">
         <UiButton size="sm" variant="ghost" :icon="MoreHorizontal" />
       </UiMenu>
+      <AppEditToggle area="boards" />
       <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" class="new-btn" @click="openCreateTask({ boardId })">{{ t('task.new') }}</UiButton>
     </AppPageHeader>
 
@@ -274,6 +281,8 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
           :board="visible!"
           :full-board="board"
           :can-write="canWrite"
+          :can-manage="canManage"
+          :can-validate="canValidate"
           :focused-id="focusedId"
           @open="openTask"
           @toggle="onToggle"
@@ -291,6 +300,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
           :board="visible!"
           :full-board="board"
           :can-write="canWrite"
+          :can-validate="canValidate"
           :focused-id="focusedId"
           @open="openTask"
           @toggle="onToggle"
@@ -300,7 +310,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
         <BoardTimeline v-else :board="visible!" :full-board="board" :can-write="canWrite" @open="openTask" @reschedule="onReschedule" />
 
         <Transition :css="false" @enter="motion.panelRight.onEnter" @leave="motion.panelRight.onLeave">
-          <TaskPanel v-if="taskId" :key="'panel'" :board="board" :task-id="taskId" :order="order" :can-write="canWrite" @close="closeTask" @navigate="(id) => router.replace({ query: { ...route.query, task: id } })" />
+          <TaskPanel v-if="taskId" :key="'panel'" :board="board" :task-id="taskId" :order="order" :can-write="canWrite" :can-validate="canValidate" @close="closeTask" @navigate="(id) => router.replace({ query: { ...route.query, task: id } })" />
         </Transition>
       </div>
 

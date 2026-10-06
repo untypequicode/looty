@@ -12,6 +12,9 @@ const props = defineProps<{
   board: Board
   fullBoard: Board
   canWrite: boolean
+  /** Colonnes : créer, renommer, réordonner, supprimer. */
+  canManage?: boolean
+  canValidate?: boolean
   focusedId?: string | null
 }>()
 const emit = defineEmits<{
@@ -130,7 +133,7 @@ const sortableOpts = computed(() => ({
       class="kanban-sortable"
       :animation="200"
       handle=".col-handle"
-      :disabled="!canWrite || isTouch"
+      :disabled="!canManage || isTouch"
       direction="horizontal"
       ghost-class="col-ghost"
       @start="dragging = true"
@@ -138,8 +141,8 @@ const sortableOpts = computed(() => ({
     >
       <section v-for="col in cols" :key="col.id" class="col" :data-column-id="col.id">
         <header class="col-head">
-          <span class="col-handle" :class="{ grab: canWrite && !isTouch }">
-            <GripVertical v-if="canWrite && !isTouch" :size="12" class="col-grip" />
+          <span class="col-handle" :class="{ grab: canManage && !isTouch }">
+            <GripVertical v-if="canManage && !isTouch" :size="12" class="col-grip" />
             <TaskStatusIcon v-bind="columnProgress(fullBoard, col.id)" :size="14" />
           </span>
           <input
@@ -150,13 +153,13 @@ const sortableOpts = computed(() => ({
             @keydown.esc="renaming = null"
             @blur="commitRename"
           />
-          <span v-else class="col-name truncate" @dblclick="canWrite && startRename(col)">{{ col.name }}</span>
+          <span v-else class="col-name truncate" @dblclick="canManage && startRename(col)">{{ col.name }}</span>
           <span class="col-count tabular">{{ col.tasks.length }}</span>
           <span class="spacer" />
+          <UiMenu v-if="canManage" v-model:open="menuOpen[col.id]" :items="columnMenu(col)">
+            <button class="col-act" :aria-label="$t('common.more')"><MoreHorizontal :size="14" /></button>
+          </UiMenu>
           <template v-if="canWrite">
-            <UiMenu v-model:open="menuOpen[col.id]" :items="columnMenu(col)">
-              <button class="col-act" :aria-label="$t('common.more')"><MoreHorizontal :size="14" /></button>
-            </UiMenu>
             <button class="col-act" :aria-label="$t('board.addTask')" @click="topAdd[col.id] = true"><Plus :size="14" /></button>
           </template>
         </header>
@@ -186,6 +189,7 @@ const sortableOpts = computed(() => ({
               :subtasks="subtasksOf.get(tk.id) ?? []"
               :focused="focusedId === tk.id"
               :can-write="canWrite"
+              :can-validate="canValidate"
               @open="emit('open', $event)"
               @toggle="(task, ev) => emit('toggle', task, ev)"
               @menu="(task, ev) => emit('menu', task, ev)"
@@ -196,7 +200,7 @@ const sortableOpts = computed(() => ({
       </section>
 
     </VueDraggable>
-        <div v-if="canWrite" class="col col-new">
+        <div v-if="canManage" class="col col-new">
           <form v-if="addingColumn" class="col-new-form" @submit.prevent="submitColumn">
             <UiInput v-model="newColumn" size="sm" :placeholder="$t('board.columnName')" autofocus @keydown.esc="addingColumn = false" @blur="submitColumn" />
           </form>

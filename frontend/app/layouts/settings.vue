@@ -27,7 +27,9 @@ const groups = computed(() => [
     title: workspace.data.value?.name ?? t('settings.groups.workspace'),
     items: [
       { key: 'workspace', label: t('settings.nav.general'), icon: Building2 },
+      { key: 'my-space', label: t('access.mySpace'), icon: UserCog },
       { key: 'members', label: t('settings.nav.members'), icon: Users },
+      { key: 'roles', label: t('rolesUi.title'), icon: ShieldCheck },
     ],
   },
   ...(user.value?.is_super_admin

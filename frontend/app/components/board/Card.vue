@@ -10,6 +10,8 @@ const props = defineProps<{
   subtasks: Task[]
   focused?: boolean
   canWrite?: boolean
+  /** Valider / terminer (rôle « valider », possible sans droit de modification). */
+  canValidate?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'open', t: Task): void
@@ -50,7 +52,7 @@ const validationText = computed(() => {
   >
     <div class="card-head">
       <button
-        v-if="canWrite"
+        v-if="canValidate ?? canWrite"
         class="card-check"
         :class="{ on: task.is_completed, partial: myValidation && !task.is_completed }"
         :aria-label="$t('task.markDone')"

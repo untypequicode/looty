@@ -32,6 +32,10 @@ export interface WorkspaceMember {
   avatar_url?: string | null
   role: Role
   joined_at?: string
+  role_id?: string | null
+  role_name?: string | null
+  role_color?: string | null
+  group_tasks?: boolean | null
 }
 
 export interface Label {
@@ -106,6 +110,8 @@ export interface Page {
   updated_at?: string
   share_token?: string | null
   is_public?: boolean | null
+  /** Permissions particulières (membres ou invités). */
+  has_permissions?: boolean
   is_favorite?: boolean
   view_count?: number | null
   last_viewed_at?: string | null

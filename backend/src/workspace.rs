@@ -46,6 +46,14 @@ pub struct WorkspaceMemberResponse {
     pub avatar_url: Option<String>,
     pub role: String,
     pub joined_at: chrono::DateTime<chrono::Utc>,
+    #[sqlx(default)]
+    pub role_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub role_name: Option<String>,
+    #[sqlx(default)]
+    pub role_color: Option<String>,
+    #[sqlx(default)]
+    pub group_tasks: Option<bool>,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -219,8 +227,9 @@ async fn list_members(
 ) -> ApiResult<Json<serde_json::Value>> {
     require_member(&pool, &user, workspace_id).await?;
     let members: Vec<WorkspaceMemberResponse> = sqlx::query_as(
-        "SELECT wm.user_id, u.name, u.email, u.avatar_url, wm.role, wm.joined_at
+        "SELECT wm.user_id, u.name, u.email, u.avatar_url, wm.role, wm.joined_at, r.id AS role_id, r.name AS role_name, r.color AS role_color, wm.group_tasks
          FROM workspace_members wm JOIN users u ON wm.user_id = u.id::varchar
+         LEFT JOIN workspace_roles r ON r.workspace_id = wm.workspace_id AND r.id = COALESCE(wm.role_id, (SELECT id FROM workspace_roles x WHERE x.workspace_id = wm.workspace_id AND x.preset = wm.role))
          WHERE wm.workspace_id = $1
          ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, u.name",
     )
@@ -239,7 +248,9 @@ async fn owner_count(pool: &PgPool, workspace_id: Uuid) -> ApiResult<i64> {
 
 #[derive(Deserialize)]
 pub struct UpdateMemberRolePayload {
-    pub role: String,
+    pub role: Option<String>,
+    /// Rôle de l'espace (préréglage ou créé) ; prioritaire sur `role`.
+    pub role_id: Option<Uuid>,
 }
 
 async fn update_member_role(
@@ -249,8 +260,12 @@ async fn update_member_role(
     Json(payload): Json<UpdateMemberRolePayload>,
 ) -> ApiResult<StatusCode> {
     let pool = &state.pool;
+    if let Some(role_id) = payload.role_id {
+        crate::roles::assign_role(&state, &user, workspace_id, member_id, role_id).await?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
     let my_role = require_ws_admin(pool, &user, workspace_id).await?;
-    let new_role = Role::parse(&payload.role).ok_or_else(|| ApiError::bad_request("invalid_role"))?;
+    let new_role = Role::parse(payload.role.as_deref().unwrap_or("")).ok_or_else(|| ApiError::bad_request("invalid_role"))?;
     let target_role = crate::access::workspace_role(pool, member_id, workspace_id)
         .await?
         .ok_or(ApiError::NotFound)?;
@@ -264,7 +279,10 @@ async fn update_member_role(
         return Err(ApiError::Conflict("last_owner".into()));
     }
 
-    sqlx::query("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3")
+    sqlx::query(
+        "UPDATE workspace_members SET role = $1, role_id = (SELECT id FROM workspace_roles WHERE workspace_id = $2 AND preset = $1)
+         WHERE workspace_id = $2 AND user_id = $3",
+    )
         .bind(new_role.as_str())
         .bind(workspace_id)
         .bind(member_id.to_string())
@@ -344,6 +362,7 @@ struct InviteDto {
 #[derive(Deserialize)]
 struct CreateInvite {
     role: Option<String>,
+    role_id: Option<Uuid>,
     expires_in_days: Option<i64>,
     max_uses: Option<i32>,
 }
@@ -353,7 +372,7 @@ async fn list_invites(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<InviteDto>>> {
-    require_ws_admin(&pool, &user, workspace_id).await?;
+    crate::access::require_perm(&pool, &user, workspace_id, |p| p.invite).await?;
     Ok(Json(
         sqlx::query_as(
             "SELECT i.id, i.role, u.name AS created_by_name, i.expires_at, i.max_uses, i.uses, i.created_at
@@ -375,8 +394,17 @@ async fn create_invite(
     Path(workspace_id): Path<Uuid>,
     Json(body): Json<CreateInvite>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let my_role = require_ws_admin(&pool, &user, workspace_id).await?;
-    let role = Role::parse(body.role.as_deref().unwrap_or("member")).ok_or_else(|| ApiError::bad_request("invalid_role"))?;
+    let (my_role, _) = crate::access::require_perm(&pool, &user, workspace_id, |p| p.invite).await?;
+    let (role, role_id) = match body.role_id {
+        Some(id) => {
+            let (preset, perms) = crate::roles::role_info(&pool, workspace_id, id).await?;
+            if perms.admin && my_role != Role::Owner {
+                return Err(ApiError::Forbidden);
+            }
+            (crate::roles::base_of(preset.as_deref(), &perms), Some(id))
+        }
+        None => (Role::parse(body.role.as_deref().unwrap_or("member")).ok_or_else(|| ApiError::bad_request("invalid_role"))?, None),
+    };
     if role == Role::Owner || (role == Role::Admin && my_role != Role::Owner) {
         return Err(ApiError::Forbidden);
     }
@@ -386,8 +414,8 @@ async fn create_invite(
 
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO workspace_invites (workspace_id, token_hash, role, created_by, expires_at, max_uses)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO workspace_invites (workspace_id, token_hash, role, created_by, expires_at, max_uses, role_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
     )
     .bind(workspace_id)
     .bind(hash_token(&token))
@@ -395,6 +423,7 @@ async fn create_invite(
     .bind(user.id)
     .bind(expires)
     .bind(max_uses)
+    .bind(role_id)
     .fetch_one(&pool)
     .await?;
     // Le jeton brut n'est renvoyé qu'une seule fois.
@@ -406,7 +435,7 @@ async fn revoke_invite(
     user: AuthUser,
     Path((workspace_id, invite_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    require_ws_admin(&pool, &user, workspace_id).await?;
+    crate::access::require_perm(&pool, &user, workspace_id, |p| p.invite).await?;
     sqlx::query("UPDATE workspace_invites SET revoked_at = NOW() WHERE id = $1 AND workspace_id = $2")
         .bind(invite_id)
         .bind(workspace_id)
@@ -422,11 +451,13 @@ struct ValidInvite {
     workspace_name: String,
     role: String,
     member_count: i64,
+    #[sqlx(default)]
+    role_id: Option<Uuid>,
 }
 
 async fn find_invite(pool: &PgPool, token: &str) -> ApiResult<ValidInvite> {
     sqlx::query_as(
-        "SELECT i.id, i.workspace_id, w.name AS workspace_name, i.role,
+        "SELECT i.id, i.workspace_id, w.name AS workspace_name, i.role, i.role_id,
                 (SELECT count(*) FROM workspace_members m WHERE m.workspace_id = w.id) AS member_count
          FROM workspace_invites i JOIN workspaces w ON w.id = i.workspace_id
          WHERE i.token_hash = $1 AND i.revoked_at IS NULL
@@ -463,11 +494,12 @@ async fn accept_invite(
     let inv = find_invite(&state.pool, &token).await?;
     let mut tx = state.pool.begin().await?;
     let inserted = sqlx::query(
-        "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        "INSERT INTO workspace_members (workspace_id, user_id, role, role_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
     )
     .bind(inv.workspace_id)
     .bind(user.id.to_string())
     .bind(&inv.role)
+    .bind(inv.role_id)
     .execute(&mut *tx)
     .await?
     .rows_affected();
@@ -533,7 +565,12 @@ async fn get_my_tasks(
             FROM tasks t
             JOIN board_columns c ON c.id = t.column_id
             JOIN boards b ON b.id = c.board_id
-            WHERE b.workspace_id = $2 AND t.is_completed = false
+            WHERE b.workspace_id = $2 AND (t.is_completed = false
+                -- Validation collective terminée par les autres : reste à faire pour qui n'y participe pas.
+                OR (COALESCE(t.is_per_person, FALSE)
+                    AND NOT COALESCE((SELECT m.group_tasks FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = $1), TRUE)
+                    AND EXISTS(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)
+                    AND NOT EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $1)))
          ) x
          WHERE $3 OR (x.assigned_to_me AND NOT x.done_by_me)
          ORDER BY x.due_date ASC NULLS LAST, x.priority = 0, x.priority ASC

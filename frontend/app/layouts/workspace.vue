@@ -4,6 +4,7 @@ import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { isNativeApp } from '~/composables/useNative'
 import gsap from 'gsap'
 import { useQuery } from '@tanstack/vue-query'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { api } from '~/composables/api'
 import { workspacePreamble } from '~/editor/mathScope'
@@ -22,7 +23,9 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useI18n } from '~/composables/useI18n'
 
 const route = useRoute()
-const { wsId, workspace, canWrite, canWriteRole, member } = useWorkspace()
+const { wsId, workspace, canWriteRole, member } = useWorkspace()
+const { can } = useAccess(wsId)
+const canWrite = computed(() => can.value.editTasks)
 const { user } = useAuth()
 const { sidebarOpen, sidebarCollapsed, commandOpen, shortcutsOpen, openCreateTask } = useUi()
 const { unread } = useNotifications()
@@ -248,6 +251,7 @@ function onEdgeStart(e: TouchEvent) {
 
     <AppCommandPalette />
     <AppNotepad />
+    <AppWorkOnDialog />
     <AppWhatsNewDialog />
     <AppShortcutsDialog />
     <AppCreateBoardDialog />

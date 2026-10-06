@@ -5,7 +5,7 @@ import { columnProgress, allTasks } from '~/composables/useBoard'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 
-const props = defineProps<{ board: Board; fullBoard: Board; canWrite: boolean; focusedId?: string | null }>()
+const props = defineProps<{ board: Board; fullBoard: Board; canWrite: boolean; canValidate?: boolean; focusedId?: string | null }>()
 const emit = defineEmits<{
   (e: 'open', t: Task): void
   (e: 'toggle', t: Task, ev: MouseEvent): void
@@ -59,7 +59,7 @@ function dueTone(tk: Task) {
           @contextmenu.prevent="emit('menu', tk, $event)"
         >
           <span class="lv-prio"><TaskPriorityIcon :priority="tk.priority" :size="14" /></span>
-          <button class="lv-status" :disabled="!canWrite" @click.stop="emit('toggle', tk, $event)">
+          <button class="lv-status" :disabled="!(canValidate ?? canWrite)" @click.stop="emit('toggle', tk, $event)">
             <TaskStatusIcon v-bind="tk.is_completed ? { done: true } : columnProgress(fullBoard, col.id)" :size="15" />
           </button>
           <span class="lv-title truncate">{{ tk.title }}</span>

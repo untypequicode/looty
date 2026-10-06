@@ -7,6 +7,7 @@ import { api } from '~/composables/api'
 import { links, wsKeys } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
+import { useSharedPages } from '~/composables/useShared'
 
 const qc = useQueryClient()
 const { user, logout } = useAuth()
@@ -15,6 +16,7 @@ const ready = ref(false)
 const name = ref('')
 const creating = ref(false)
 const card = ref<HTMLElement | null>(null)
+const { data: shared } = useSharedPages()
 
 onMounted(async () => {
   const list = await qc.fetchQuery({
@@ -55,6 +57,7 @@ async function create() {
         <UiButton type="submit" variant="primary" size="lg" block :loading="creating" :disabled="!name.trim()">{{ t('workspace.create') }}</UiButton>
       </form>
       <p class="faint hint">{{ t('onboarding.inviteHint') }}</p>
+      <NuxtLink v-if="shared?.length" to="/shared" class="shared-link">{{ t('shared.link', { n: shared.length }) }}</NuxtLink>
       <button class="faint logout" @click="logout">{{ t('auth.logout') }}</button>
     </div>
   </div>
@@ -69,6 +72,7 @@ async function create() {
   background: radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), transparent 60%), var(--bg);
 }
 .center { display: grid; place-items: center; }
+.shared-link { display: inline-block; margin-top: 12px; color: var(--accent); font-weight: 500; }
 .card { width: 100%; max-width: 400px; text-align: center; }
 .logo {
   width: 48px; height: 48px; margin: 0 auto 20px; border-radius: 14px;

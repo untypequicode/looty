@@ -811,21 +811,28 @@ struct TaskDue {
 /// Événements des calendriers visibles (espace + personnels) et tâches qui me sont
 /// assignées, sur une période d'au plus 400 jours.
 async fn events(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<RangeQuery>) -> ApiResult<Json<serde_json::Value>> {
-    let role = require_member(&state.pool, &user, ws).await?;
+    let (_, perms) = crate::access::member_perms(&state.pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
     if q.to <= q.from || q.to - q.from > Duration::days(400) {
         return Err(ApiError::bad_request("invalid_range"));
     }
-    let shared = crate::events::occurrences(&state.pool, ws, q.from, q.to, role.can_write()).await?;
+    // Calendrier de l'espace masqué par le rôle : seulement les calendriers personnels.
+    let shared = if perms.calendar >= crate::access::level::READ {
+        crate::events::occurrences(&state.pool, ws, q.from, q.to, perms.calendar >= crate::access::level::EDIT).await?
+    } else {
+        Vec::new()
+    };
+    let ws_cals = perms.calendar >= crate::access::level::READ;
     let events: Vec<EventDto> = sqlx::query_as(
         "SELECT e.id, e.calendar_id, e.summary, e.description, e.location, e.url, e.starts_at, e.ends_at, e.all_day
          FROM calendar_events e JOIN calendars c ON c.id = e.calendar_id
-         WHERE c.enabled AND (c.workspace_id = $1 OR c.user_id = $2) AND e.starts_at < $4 AND e.ends_at >= $3
+         WHERE c.enabled AND ((c.workspace_id = $1 AND $5) OR c.user_id = $2) AND e.starts_at < $4 AND e.ends_at >= $3
          ORDER BY e.starts_at LIMIT 5000",
     )
     .bind(ws)
     .bind(user.id)
     .bind(q.from)
     .bind(q.to)
+    .bind(ws_cals)
     .fetch_all(&state.pool)
     .await?;
     let tasks: Vec<TaskDue> = sqlx::query_as(

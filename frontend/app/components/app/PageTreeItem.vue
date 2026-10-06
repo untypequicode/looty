@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, FileText, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight } from 'lucide-vue-next'
+import { ChevronRight, FileText, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe } from 'lucide-vue-next'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import type { PageNode } from '~/composables/usePages'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -11,7 +11,9 @@ import { translate } from '~/composables/useI18n'
 
 const props = defineProps<{ node: PageNode }>()
 const { expandedPages } = useUi()
-const { wsId, canWrite } = useWorkspace()
+const { wsId } = useWorkspace()
+const { can } = useAccess(wsId)
+const canWrite = computed(() => can.value.editDocs)
 const { createPage, movePage, deletePage, toggleFavorite, duplicatePage, updatePage } = usePages()
 const route = useRoute()
 
@@ -122,6 +124,8 @@ async function onDrop(e: DragEvent) {
         @blur="commitRename"
       />
       <span v-else class="tree-label truncate">{{ node.title || $t('docs.untitled') }}</span>
+      <UsersRound v-if="node.has_permissions" :size="12" class="tree-perm" :aria-label="$t('pagePerms.badge')"><title>{{ $t('pagePerms.badge') }}</title></UsersRound>
+      <Globe v-if="node.is_public" :size="12" class="tree-perm" :aria-label="$t('share.public')"><title>{{ $t('share.public') }}</title></Globe>
       <span class="tree-actions" @click.prevent.stop>
         <UiMenu v-model:open="menuOpen" :items="menuItems">
           <button class="tree-act" :aria-label="$t('common.more')"><MoreHorizontal :size="14" /></button>
@@ -136,6 +140,8 @@ async function onDrop(e: DragEvent) {
 </template>
 
 <style scoped>
+.tree-perm { flex-shrink: 0; color: var(--text-4); margin-left: 2px; }
+.tree-row:hover .tree-perm { display: none; }
 .tree-row {
   position: relative;
   display: flex;

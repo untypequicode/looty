@@ -3,6 +3,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.5.0",
+      "date": "2026-10-06",
+      "title": {
+        "en": "Roles, page permissions and your way of working",
+        "fr": "Rôles, permissions de page et votre façon de travailler"
+      },
+      "notes": {
+        "en": [
+          "**Roles** (Settings → Roles): presets (owner, admin, member, viewer) can be customized, and you can create your own roles. Each role sets a level for documents, boards and calendar (hidden, read, comment, approve, edit, manage) plus inviting, public links and administration. Existing members keep exactly their current access.",
+          "**How I work in this space** (Settings → My participation): for documents, boards and calendar, choose **always edit**, **read-only** (one click to edit) or **restricted** (unlock only until the window is closed). On your first visit, Looty asks what you work on. Comments and task approvals stay available in every mode.",
+          "**Group approvals**: you can choose not to take part. Tasks that everyone must approve no longer wait for you, and stay open for you until you approve them.",
+          "**Page permissions** (Share → Access): give a member more or less access to a page, with or without its sub-pages, or share it with **anyone who has a Looty account** as a guest. Pages with special permissions show an icon in the sidebar; guests find them under **Shared with me**.",
+          "**Add people directly**: pick someone who already has an account, or type an email address to send an invitation.",
+          "**Customize the sidebar** of each workspace: order and visibility of links and sections."
+        ],
+        "fr": [
+          "**Rôles** (Réglages → Rôles) : les préréglages (propriétaire, administrateur, membre, lecteur) se personnalisent et vous pouvez créer vos propres rôles. Chaque rôle fixe un niveau pour les documents, les tableaux et le calendrier (masqué, lecture, commentaire, validation, modification, gestion), plus l’invitation, les liens publics et l’administration. Les membres existants gardent exactement leurs droits actuels.",
+          "**Ma façon de travailler dans l’espace** (Réglages → Ma participation) : pour les documents, les tableaux et le calendrier, choisissez **toujours modifier**, **lecture seule** (un clic pour modifier) ou **restreint** (déverrouillage jusqu’à la fermeture de la fenêtre seulement). À la première visite, Looty vous demande sur quoi vous travaillez. Commentaires et validations de tâches restent possibles dans tous les modes.",
+          "**Validations collectives** : vous pouvez choisir de ne pas y participer. Les tâches que chacun doit valider ne vous attendent plus, et restent ouvertes pour vous jusqu’à votre validation.",
+          "**Permissions de page** (Partager → Accès) : donnez à un membre plus ou moins d’accès à une page, sous-pages comprises ou non, ou partagez-la avec **toute personne ayant un compte Looty** en tant qu’invité. Une icône signale ces pages dans la barre latérale ; les invités les retrouvent dans **Partagé avec moi**.",
+          "**Ajout direct de personnes** : choisissez quelqu’un qui a déjà un compte, ou saisissez une adresse e-mail pour envoyer une invitation.",
+          "**Barre latérale personnalisable** pour chaque espace : ordre et affichage des liens et des sections."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.4.0",
       "date": "2026-10-06",
       "title": {
