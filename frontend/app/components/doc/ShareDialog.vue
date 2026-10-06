@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { Link2, Globe, Lock, Copy } from 'lucide-vue-next'
+import { Link2, Globe, Lock, Copy, Search, UserPlus, CornerLeftUp } from 'lucide-vue-next'
+import { useDebounceFn } from '@vueuse/core'
+import { useAccess } from '~/composables/useAccess'
 import type { Page } from '~/types'
 import { api } from '~/composables/api'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -9,13 +11,13 @@ import { toast } from '~/composables/useToast'
 
 const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{ page: Page }>()
-const { wsId, members, isAdmin, member } = useWorkspace()
+const { wsId, members, member } = useWorkspace()
+const { can } = useAccess(wsId)
 const { patchLocal } = usePages()
 const { t } = useI18n()
 
 const tab = ref<'share' | 'access'>('share')
 const busy = ref(false)
-const perms = ref<Record<string, string>>({})
 
 const internal = computed(() => `${location.origin}${links.doc(wsId.value, props.page.id)}`)
 const publicUrl = computed(() => (props.page.share_token ? `${location.origin}/public/${props.page.share_token}` : ''))
@@ -35,29 +37,53 @@ async function setPublic(on: boolean) {
   }
 }
 
-watch([open, tab], async ([o, tb]) => {
-  if (!o || tb !== 'access' || !isAdmin.value) return
-  const list = await api<{ user_id: string; role: string }[]>(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`)
-  perms.value = Object.fromEntries(list.map((p) => [p.user_id, p.role]))
-})
-
+// --- Accès particuliers (membres et invités extérieurs à l'espace) ---
+interface PagePerm { user_id: string; name: string; email: string; avatar_url?: string | null; role: 'viewer' | 'editor' | 'blocked'; inherit: boolean; is_member: boolean; inherited_from?: { id: string; title: string } | null }
+const perms = ref<PagePerm[]>([])
+async function loadPerms() {
+  perms.value = await api<PagePerm[]>(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`)
+}
+watch([open, tab], ([o, tb]) => { if (o && tb === 'access' && can.value.admin) loadPerms() })
+const own = computed(() => perms.value.filter((p) => !p.inherited_from))
+const inherited = computed(() => perms.value.filter((p) => p.inherited_from))
 const roleItems = computed(() => [
-  { value: 'none', label: t('share.inherit') },
-  { value: 'editor', label: t('share.editor') },
-  { value: 'viewer', label: t('share.viewer') },
-  { value: 'blocked', label: t('share.blocked') },
+  { value: 'editor', label: t('share.editor'), hint: t('pagePerms.editorHint') },
+  { value: 'viewer', label: t('share.viewer'), hint: t('pagePerms.viewerHint') },
+  { value: 'blocked', label: t('share.blocked'), hint: t('pagePerms.blockedHint') },
+  { value: 'none', label: t('pagePerms.remove') },
 ])
-async function setPerm(userId: string, role: string) {
-  perms.value = { ...perms.value, [userId]: role }
-  await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`, { method: 'PUT', body: { user_id: userId, role } })
+const roleLabel = (r: string) => roleItems.value.find((x) => x.value === r)?.label ?? r
+async function setPerm(userId: string, role: string, inherit = true) {
+  await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`, { method: 'PUT', body: { user_id: userId, role, inherit } })
+  await loadPerms()
   toast.success(t('common.saved'))
 }
 const permOpen = ref<Record<string, boolean>>({})
+
+// Ajouter : membres de l'espace, puis toute personne ayant un compte Looty (invitée).
+const addQuery = ref('')
+const addRole = ref<'viewer' | 'editor' | 'blocked'>('viewer')
+const addInherit = ref(true)
+const outside = ref<{ id: string; name: string; email: string; avatar_url?: string | null }[]>([])
+const searchOutside = useDebounceFn(async () => {
+  const q = addQuery.value.trim()
+  outside.value = q.length >= 2 ? await api(`/api/users/search?q=${encodeURIComponent(q)}&exclude_ws=${wsId.value}`, { silent: true }).catch(() => []) : []
+}, 250)
+watch(addQuery, searchOutside)
+const memberHits = computed(() => {
+  const q = addQuery.value.trim().toLowerCase()
+  if (!q) return []
+  return (members.data.value ?? []).filter((m) => !own.value.some((p) => p.user_id === m.user_id) && `${m.name} ${m.email}`.toLowerCase().includes(q)).slice(0, 5)
+})
+async function add(userId: string, isMember: boolean) {
+  await setPerm(userId, !isMember && addRole.value === 'blocked' ? 'viewer' : addRole.value, addInherit.value)
+  addQuery.value = ''
+}
 </script>
 
 <template>
   <UiDialog v-model:open="open" :title="t('share.title')" :width="520">
-    <UiSegmented v-if="isAdmin" v-model="tab" size="md" :options="[{ value: 'share', label: t('share.share') }, { value: 'access', label: t('share.access') }]" />
+    <UiSegmented v-if="can.admin" v-model="tab" size="md" :options="[{ value: 'share', label: t('share.share') }, { value: 'access', label: t('share.access') }]" />
 
     <div v-if="tab === 'share'" class="pane">
       <div class="row-card">
@@ -75,7 +101,7 @@ const permOpen = ref<Record<string, boolean>>({})
           <div class="rc-title">{{ t('share.public') }}</div>
           <div class="rc-hint">{{ page.is_public ? t('share.publicOn') : t('share.publicOff') }}</div>
         </div>
-        <UiSwitch :model-value="!!page.is_public" :disabled="busy || page.can_edit === false" @update:model-value="setPublic" />
+        <UiSwitch :model-value="!!page.is_public" :disabled="busy || page.can_edit === false || !can.share" @update:model-value="setPublic" />
       </div>
       <div v-if="page.is_public && publicUrl" class="url">
         <input :value="publicUrl" readonly @focus="($event.target as HTMLInputElement).select()" />
@@ -84,26 +110,51 @@ const permOpen = ref<Record<string, boolean>>({})
     </div>
 
     <div v-else class="pane">
-      <p class="hint">{{ t('share.accessHint') }}</p>
-      <div v-for="m in members.data.value ?? []" :key="m.user_id" class="member">
-        <UiAvatar :name="m.name" :src="m.avatar_url" :size="26" />
-        <div class="m-body">
-          <div class="m-name truncate">{{ m.name }}</div>
-          <div class="m-role">{{ t(`roles.${m.role}`) }}</div>
-        </div>
-        <span v-if="m.role === 'owner' || m.role === 'admin'" class="faint m-full">{{ t('share.fullAccess') }}</span>
-        <UiCombobox
-          v-else
-          v-model:open="permOpen[m.user_id]"
-          :model-value="perms[m.user_id] ?? 'none'"
-          :items="roleItems"
-          :width="200"
-          placement="bottom-end"
-          @update:model-value="(v) => setPerm(m.user_id, v as string)"
-        >
-          <button class="m-select" :class="perms[m.user_id] ?? 'none'">{{ roleItems.find((r) => r.value === (perms[m.user_id] ?? 'none'))?.label }}</button>
+      <p class="hint">{{ t('pagePerms.hint') }}</p>
+      <div class="add">
+        <UiInput v-model="addQuery" :icon="Search" size="sm" :placeholder="t('pagePerms.addPlaceholder')" class="add-q" />
+        <UiCombobox v-model="addRole" :items="roleItems.filter((r) => r.value !== 'none')" :width="260" placement="bottom-end">
+          <button class="m-select" :class="addRole">{{ roleLabel(addRole) }}</button>
         </UiCombobox>
       </div>
+      <label class="scope"><UiSwitch v-model="addInherit" /> {{ t('pagePerms.withSubpages') }}</label>
+      <div v-if="addQuery.trim()" class="hits">
+        <button v-for="m in memberHits" :key="m.user_id" class="hit" @click="add(m.user_id, true)">
+          <UiAvatar :name="m.name" :src="m.avatar_url" :size="24" />
+          <span class="m-body"><span class="m-name truncate">{{ m.name }}</span><span class="m-role">{{ m.role_name ?? t(`roles.${m.role}`) }}</span></span>
+          <UserPlus :size="14" class="faint" />
+        </button>
+        <button v-for="u in outside" :key="u.id" class="hit" @click="add(u.id, false)">
+          <UiAvatar :name="u.name" :src="u.avatar_url" :size="24" />
+          <span class="m-body"><span class="m-name truncate">{{ u.name }}</span><span class="m-role">{{ u.email }} · {{ t('pagePerms.guest') }}</span></span>
+          <UserPlus :size="14" class="faint" />
+        </button>
+        <p v-if="!memberHits.length && !outside.length" class="hint">{{ t('pagePerms.noMatch') }}</p>
+      </div>
+
+      <div v-for="p in own" :key="p.user_id" class="member">
+        <UiAvatar :name="p.name" :src="p.avatar_url" :size="26" />
+        <div class="m-body">
+          <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('pagePerms.guest') }}</span></div>
+          <div class="m-role">{{ p.inherit ? t('pagePerms.scopeTree') : t('pagePerms.scopePage') }}
+            · <button class="link" @click="setPerm(p.user_id, p.role, !p.inherit)">{{ p.inherit ? t('pagePerms.onlyThis') : t('pagePerms.includeSub') }}</button></div>
+        </div>
+        <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.role" :items="p.is_member ? roleItems : roleItems.filter((r) => r.value !== 'blocked')" :width="260" placement="bottom-end" @update:model-value="(v) => setPerm(p.user_id, v as string, p.inherit)">
+          <button class="m-select" :class="p.role">{{ roleLabel(p.role) }}</button>
+        </UiCombobox>
+      </div>
+      <template v-if="inherited.length">
+        <div class="sub-label">{{ t('pagePerms.inherited') }}</div>
+        <div v-for="p in inherited" :key="'i' + p.user_id" class="member inh">
+          <UiAvatar :name="p.name" :src="p.avatar_url" :size="22" />
+          <div class="m-body">
+            <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('pagePerms.guest') }}</span></div>
+            <div class="m-role"><CornerLeftUp :size="11" /> {{ t('pagePerms.from', { title: p.inherited_from!.title || t('docs.untitled') }) }}</div>
+          </div>
+          <span class="m-select static" :class="p.role">{{ roleLabel(p.role) }}</span>
+        </div>
+      </template>
+      <p v-if="!own.length && !inherited.length" class="hint empty">{{ t('pagePerms.none') }}</p>
     </div>
   </UiDialog>
 </template>
@@ -128,4 +179,17 @@ const permOpen = ref<Record<string, boolean>>({})
 .m-select.blocked { color: var(--red); }
 .m-select.viewer { color: var(--yellow); }
 .m-select.editor { color: var(--green); }
+.m-select.static { display: inline-flex; align-items: center; border-style: dashed; }
+.add { display: flex; gap: 8px; }
+.add-q { flex: 1; }
+.scope { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); cursor: pointer; }
+.hits { display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: var(--r-md); background: var(--bg-hover); }
+.hit { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-sm); text-align: left; }
+.hit:hover { background: var(--bg-active); }
+.guest { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: var(--r-full); background: color-mix(in srgb, var(--orange, #e2a03f) 20%, transparent); color: var(--orange, #e2a03f); }
+.link { color: var(--accent); font-size: inherit; }
+.sub-label { font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); margin-top: 6px; }
+.member.inh { opacity: .8; }
+.m-role { display: flex; align-items: center; gap: 4px; }
+.empty { text-align: center; padding: 8px; }
 </style>

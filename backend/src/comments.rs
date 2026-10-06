@@ -133,6 +133,11 @@ async fn changed(state: &AppState, ws: Uuid, kind: &str, id: Uuid) {
 
 async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<CreateReq>) -> ApiResult<Json<CommentDto>> {
     let (title, author) = check_target(&state, &user, ws, &p.kind, p.id).await?;
+    if let Some((_, perms)) = crate::access::member_perms(&state.pool, user.id, ws).await? {
+        if !crate::roles::can_comment(&perms, &p.kind) {
+            return Err(ApiError::Forbidden);
+        }
+    }
     let content = clean_content(&p.content)?;
     let quote = p.quote.map(|q| q.trim().chars().take(500).collect::<String>()).filter(|q| !q.is_empty());
     // Réponse : toujours rattachée au commentaire racine du fil.
@@ -197,7 +202,7 @@ async fn load(state: &AppState, user: &AuthUser, id: Uuid) -> ApiResult<(Uuid, S
         sqlx::query_as("SELECT workspace_id, target_kind, target_id, user_id FROM item_comments WHERE id = $1").bind(id).fetch_optional(&state.pool).await?;
     let (ws, kind, target, author) = row.ok_or(ApiError::NotFound)?;
     check_target(state, user, ws, &kind, target).await?;
-    let admin = require_member(&state.pool, user, ws).await?.is_admin();
+    let admin = crate::access::member_perms(&state.pool, user.id, ws).await?.is_some_and(|(_, p)| p.admin);
     Ok((ws, kind, target, author, admin))
 }
 

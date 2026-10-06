@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FileText, Plus, LayoutGrid, List, Search, Star, Upload, Download } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
 import { useI18n } from '~/composables/useI18n'
@@ -8,7 +9,9 @@ import { motion } from '~/composables/useMotion'
 
 definePageMeta({ layout: 'workspace' })
 
-const { wsId, pages, member, canWrite } = useWorkspace()
+const { wsId, pages, member } = useWorkspace()
+const { can } = useAccess(wsId)
+const canWrite = computed(() => can.value.editDocs)
 const { createAndOpen, toggleFavorite } = usePages()
 const { t, relativeTime } = useI18n()
 const view = useLocalStorage<'grid' | 'list'>('looty.docs.view', 'list')

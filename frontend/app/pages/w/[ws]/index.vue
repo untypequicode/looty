@@ -2,6 +2,7 @@
 import { useCalendars, useCalendarEvents, useCalendarPrefs, startOfDay, addDays, sameDay } from '~/composables/useCalendar'
 import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin } from 'lucide-vue-next'
 import { useQuery } from '@tanstack/vue-query'
+import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, useMyTasks, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
 import { useAuth } from '~/composables/useAuth'
@@ -19,7 +20,8 @@ interface Overview {
   docs_updated_week: number
 }
 
-const { wsId, workspace, pages, member, canWrite } = useWorkspace()
+const { wsId, workspace, pages, member } = useWorkspace()
+const { can } = useAccess(wsId)
 const { data: myTasks, isLoading: loadingTasks } = useMyTasks()
 const { createAndOpen } = usePages()
 const { user } = useAuth()
@@ -108,7 +110,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 <template>
   <div class="page">
     <AppPageHeader :crumbs="[{ label: workspace.data.value?.name ?? '', icon: Home }]">
-      <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" @click="openCreateTask()">{{ t('task.new') }}</UiButton>
+      <UiButton v-if="can.editTasks" size="sm" variant="primary" :icon="Plus" @click="openCreateTask()">{{ t('task.new') }}</UiButton>
     </AppPageHeader>
   
     <div ref="root" class="home">
@@ -177,7 +179,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
           <div v-if="!docList.length" class="panel-empty">
             <FileText :size="20" />
             <span>{{ t('home.noDocs') }}</span>
-            <UiButton v-if="canWrite" size="sm" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
+            <UiButton v-if="can.editDocs" size="sm" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
           </div>
           <div v-else class="panel-body">
             <NuxtLink v-for="p in docList" :key="p.id" :to="links.doc(wsId, p.id)" class="doc-row">
@@ -195,7 +197,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
         <section class="panel wide" data-reveal>
           <header class="panel-head">
             <h2><Kanban :size="15" /> {{ t('nav.boards') }}</h2>
-            <UiButton v-if="canWrite" size="xs" variant="ghost" :icon="Plus" @click="createBoardOpen = true">{{ t('board.new') }}</UiButton>
+            <UiButton v-if="can.manageBoards" size="xs" variant="ghost" :icon="Plus" @click="createBoardOpen = true">{{ t('board.new') }}</UiButton>
           </header>
           <div v-if="!overview?.boards.length" class="panel-empty">
             <Kanban :size="20" />

@@ -9,7 +9,7 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use crate::access::{
-    is_member, require_member, require_page_read, require_page_write, require_writer, visible_pages, AuthUser,
+    is_member, require_member, require_page_read, require_page_write, visible_pages, AuthUser,
     PageAccess,
 };
 use crate::error::{ApiError, ApiResult};
@@ -46,11 +46,16 @@ pub struct Page {
     #[sqlx(skip)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub can_edit: Option<bool>,
+    /// Permissions particulières sur la page (icône dans la barre latérale).
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_permissions: Option<bool>,
 }
 
 /// Version allégée pour les listes / l'arbre (sans le contenu HTML).
 const PAGE_LIST_COLUMNS: &str = "p.id, p.workspace_id, p.parent_id, p.icon, p.title, NULL::text AS content,
-    p.created_by, p.updated_by, p.position, p.created_at, p.updated_at, p.share_token, p.is_public";
+    p.created_by, p.updated_by, p.position, p.created_at, p.updated_at, p.share_token, p.is_public,
+    EXISTS(SELECT 1 FROM page_permissions pp WHERE pp.page_id = p.id) AS has_permissions";
 
 /// Distingue un champ absent (`None`) d'un champ explicitement `null` (`Some(None)`).
 fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
@@ -186,7 +191,7 @@ async fn create_page(
     Json(payload): Json<CreatePage>,
 ) -> ApiResult<(StatusCode, Json<Page>)> {
     let pool = &state.pool;
-    require_writer(pool, &user, workspace_id).await?;
+    crate::access::require_perm(pool, &user, workspace_id, |p| p.docs >= crate::access::level::EDIT).await?;
     if let Some(parent) = payload.parent_id {
         let (ws, _) = require_page_write(pool, &user, parent).await?;
         if ws != workspace_id {
@@ -338,6 +343,7 @@ async fn share_page(
     if ws != workspace_id {
         return Err(ApiError::NotFound);
     }
+    crate::access::require_perm(&pool, &user, workspace_id, |p| p.share).await?;
     Ok(Json(
         sqlx::query_as(
             "UPDATE pages SET share_token = COALESCE(share_token, gen_random_uuid()), is_public = true
@@ -391,73 +397,106 @@ pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>
     ))
 }
 
-#[derive(Serialize, FromRow)]
-pub struct PagePermission {
-    pub id: Uuid,
-    pub page_id: Uuid,
-    pub user_id: Uuid,
-    pub role: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 #[derive(Deserialize)]
 pub struct SetPagePermissionReq {
     pub user_id: Uuid,
     pub role: String,
+    /// Sous-pages comprises (par défaut) ou page seule.
+    pub inherit: Option<bool>,
 }
 
 async fn get_page_permissions(
     State(pool): State<PgPool>,
     user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
-) -> ApiResult<Json<Vec<PagePermission>>> {
-    let (ws, role, _) = require_page_read(&pool, &user, page_id).await?;
-    if ws != workspace_id || !role.is_admin() {
-        return Err(ApiError::Forbidden);
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let (ws, _, _) = require_page_read(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
     }
-    Ok(Json(
-        sqlx::query_as("SELECT id, page_id, user_id, role, created_at FROM page_permissions WHERE page_id = $1")
-            .bind(page_id)
-            .fetch_all(&pool)
-            .await?,
-    ))
+    crate::access::require_perm(&pool, &user, workspace_id, |p| p.admin).await?;
+    // Permissions de la page et celles héritées d'un ancêtre (« sous-pages comprises »).
+    let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Uuid, String, i32, bool)> = sqlx::query_as(
+        "WITH RECURSIVE anc AS (
+            SELECT id, parent_id, title, 0 AS depth FROM pages WHERE id = $1
+            UNION ALL SELECT p.id, p.parent_id, p.title, anc.depth + 1 FROM pages p JOIN anc ON p.id = anc.parent_id WHERE anc.depth < 64
+         )
+         SELECT pp.user_id, u.name, u.email, u.avatar_url, pp.role, pp.inherit, anc.id, anc.title, anc.depth,
+                EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = pp.user_id::varchar) AS is_member
+         FROM anc JOIN page_permissions pp ON pp.page_id = anc.id JOIN users u ON u.id = pp.user_id
+         WHERE anc.depth = 0 OR pp.inherit
+         ORDER BY anc.depth, u.name",
+    )
+    .bind(page_id)
+    .bind(workspace_id)
+    .fetch_all(&pool)
+    .await?;
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for (uid, name, email, avatar, role, inherit, from, from_title, depth, is_member) in rows {
+        // La permission la plus proche s'applique ; les plus lointaines sont masquées.
+        if !seen.insert(uid) {
+            continue;
+        }
+        out.push(serde_json::json!({
+            "user_id": uid, "name": name, "email": email, "avatar_url": avatar, "role": role, "inherit": inherit,
+            "is_member": is_member, "inherited_from": if depth > 0 { Some(serde_json::json!({ "id": from, "title": from_title })) } else { None },
+        }));
+    }
+    Ok(Json(out))
 }
 
 async fn set_page_permission(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<SetPagePermissionReq>,
 ) -> ApiResult<StatusCode> {
-    ensure_in_workspace(&pool, page_id, workspace_id).await?;
-    let role = require_member(&pool, &user, workspace_id).await?;
-    if !role.is_admin() {
-        return Err(ApiError::Forbidden);
-    }
-    if !is_member(&pool, workspace_id, &payload.user_id.to_string()).await? {
-        return Err(ApiError::bad_request("not_a_member"));
-    }
+    let pool = &state.pool;
+    ensure_in_workspace(pool, page_id, workspace_id).await?;
+    crate::access::require_perm(pool, &user, workspace_id, |p| p.admin).await?;
+    let member = is_member(pool, workspace_id, &payload.user_id.to_string()).await?;
+    let inherit = payload.inherit.unwrap_or(true);
     match payload.role.as_str() {
         "none" => {
             sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
                 .bind(page_id)
                 .bind(payload.user_id)
-                .execute(&pool)
+                .execute(pool)
                 .await?;
         }
+        // Personne extérieure à l'espace : lecture ou écriture seulement (invité).
         "viewer" | "editor" | "blocked" => {
-            sqlx::query(
-                "INSERT INTO page_permissions (page_id, user_id, role) VALUES ($1, $2, $3)
-                 ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3",
+            if !member && payload.role == "blocked" {
+                return Err(ApiError::bad_request("not_a_member"));
+            }
+            let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE id = $1").bind(payload.user_id).fetch_optional(pool).await?;
+            exists.ok_or(ApiError::NotFound)?;
+            let created: bool = sqlx::query_scalar(
+                "INSERT INTO page_permissions (page_id, user_id, role, inherit, created_by) VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3, inherit = $4
+                 RETURNING (xmax = 0)",
             )
             .bind(page_id)
             .bind(payload.user_id)
             .bind(&payload.role)
-            .execute(&pool)
+            .bind(inherit)
+            .bind(user.id)
+            .fetch_one(pool)
             .await?;
+            if created && !member {
+                // Invité : prévenu par e-mail (page visible dans « Partagé avec moi »).
+                let (title,): (String,) = sqlx::query_as("SELECT title FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+                let (to, to_name): (String, String) = sqlx::query_as("SELECT email, name FROM users WHERE id = $1").bind(payload.user_id).fetch_one(pool).await?;
+                let from: String = sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(user.id).fetch_one(pool).await?;
+                let link = format!("{}/shared/{page_id}", state.base_url);
+                crate::roles::send_mail(&state, &to, &to_name, &format!("{from} a partagé « {title} » avec vous"),
+                    &format!("{from} a partagé le document « {title} » avec vous sur Looty.\nOuvrir : {link}\n\n{from} shared “{title}” with you: {link}")).await;
+            }
         }
         _ => return Err(ApiError::bad_request("invalid_role")),
     }
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

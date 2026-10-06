@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ChevronDown, Check, Plus, Settings, UserPlus, LogOut, Sun, Moon, Monitor, Languages, Shield, Sparkles } from 'lucide-vue-next'
+import { useSharedPages } from '~/composables/useShared'
+import { useAccess } from '~/composables/useAccess'
+import { ChevronDown, Check, Plus, Settings, UserPlus, LogOut, Sun, Moon, Monitor, Languages, Shield, Sparkles, Share2 } from 'lucide-vue-next'
 import { useReleases } from '~/composables/useReleases'
 import { useWorkspaces, useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
@@ -11,6 +13,8 @@ import { useQueryClient } from '@tanstack/vue-query'
 defineProps<{ collapsed?: boolean }>()
 const { data: workspaces } = useWorkspaces()
 const { wsId, workspace, isAdmin } = useWorkspace()
+const { can } = useAccess(wsId)
+const { data: shared } = useSharedPages()
 const { user, logout } = useAuth()
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
@@ -77,10 +81,11 @@ async function createWorkspace() {
         <Check v-if="w.id === wsId" :size="14" class="accent" />
       </button>
       <button class="ws-row" @click="open = false; createOpen = true"><Plus :size="15" class="faint" />{{ t('workspace.create') }}</button>
+      <button v-if="shared?.length" class="ws-row" @click="go('/shared')"><Share2 :size="15" class="faint" />{{ t('shared.title') }}<span class="ws-badge">{{ shared.length }}</span></button>
       <div class="ws-sep" />
       <button class="ws-row" @click="go(links.settings(wsId, 'profile'))"><Settings :size="15" class="faint" />{{ t('nav.settings') }}</button>
       <button class="ws-row" @click="go(`/w/${wsId}/whats-new`)"><Sparkles :size="15" class="faint" />{{ t('releases.whatsNew') }}<span v-if="appUpdate" class="ws-badge">{{ t('releases.updateShort') }}</span></button>
-      <button v-if="isAdmin" class="ws-row" @click="go(links.settings(wsId, 'members'))"><UserPlus :size="15" class="faint" />{{ t('workspace.inviteMembers') }}</button>
+      <button v-if="can.invite" class="ws-row" @click="go(links.settings(wsId, 'members'))"><UserPlus :size="15" class="faint" />{{ t('workspace.inviteMembers') }}</button>
       <button v-if="user?.is_super_admin" class="ws-row" @click="go(links.settings(wsId, 'admin'))"><Shield :size="15" class="faint" />{{ t('nav.admin') }}</button>
       <div class="ws-sep" />
       <div class="ws-inline">

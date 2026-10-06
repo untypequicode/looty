@@ -222,11 +222,19 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
         old ? { ...old, title: ev.page.title, icon: ev.page.icon, parent_id: ev.page.parent_id, updated_at: ev.page.updated_at, updated_by: ev.page.updated_by } : old,
       )
       break
+    case 'PAGE_PERMISSIONS_UPDATED':
+      // Accès éventuellement modifiés : liste des pages et page ouverte rechargées.
+      qc.invalidateQueries({ queryKey: wsKeys.pages(wsId) })
+      qc.invalidateQueries({ queryKey: ['page', ev.page_id] })
+      qc.invalidateQueries({ queryKey: ['page-permissions', ev.page_id] })
+      break
     case 'PAGE_DELETED':
       qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) => old?.filter((p) => p.id !== ev.page_id))
       break
 
     case 'MEMBERS_UPDATED':
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'roles'] })
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'me'] })
       qc.invalidateQueries({ queryKey: wsKeys.members(wsId) })
       if (ev.user_id === selfId) {
         qc.invalidateQueries({ queryKey: wsKeys.one(wsId) })

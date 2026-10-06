@@ -90,6 +90,8 @@ where
 /// Rôle d'un membre dans un workspace (ordre croissant de privilèges).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Role {
+    /// Personne extérieure à l'espace, invitée sur certaines pages seulement.
+    Guest,
     Viewer,
     Member,
     Admin,
@@ -108,6 +110,7 @@ impl Role {
     }
     pub fn as_str(&self) -> &'static str {
         match self {
+            Role::Guest => "guest",
             Role::Viewer => "viewer",
             Role::Member => "member",
             Role::Admin => "admin",
@@ -120,6 +123,127 @@ impl Role {
     pub fn is_admin(&self) -> bool {
         *self >= Role::Admin
     }
+}
+
+// ---------------------------------------------------------------------------
+// Permissions fines (rôles de l'espace)
+// ---------------------------------------------------------------------------
+
+/// Niveaux d'accès d'un domaine (échelle commune ; les documents n'utilisent pas
+/// `VALIDATE` ni `MANAGE`, le calendrier seulement NONE / READ / EDIT).
+pub mod level {
+    pub const NONE: u8 = 0;
+    pub const READ: u8 = 1;
+    pub const COMMENT: u8 = 2;
+    /// Tableaux : valider / terminer des tâches (sans les modifier).
+    pub const VALIDATE: u8 = 3;
+    pub const EDIT: u8 = 4;
+    /// Tableaux : créer et paramétrer les tableaux, colonnes, étiquettes.
+    pub const MANAGE: u8 = 5;
+
+    pub fn parse(s: &str) -> Option<u8> {
+        Some(match s {
+            "none" => NONE,
+            "read" => READ,
+            "comment" => COMMENT,
+            "validate" => VALIDATE,
+            "edit" => EDIT,
+            "manage" => MANAGE,
+            _ => return None,
+        })
+    }
+    pub fn name(l: u8) -> &'static str {
+        match l {
+            NONE => "none",
+            READ => "read",
+            COMMENT => "comment",
+            VALIDATE => "validate",
+            EDIT => "edit",
+            _ => "manage",
+        }
+    }
+}
+
+/// Permissions effectives d'un membre dans un espace.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Perms {
+    pub docs: u8,
+    pub boards: u8,
+    pub calendar: u8,
+    pub invite: bool,
+    pub share: bool,
+    pub admin: bool,
+}
+
+impl Perms {
+    pub fn all() -> Perms {
+        Perms { docs: level::EDIT, boards: level::MANAGE, calendar: level::EDIT, invite: true, share: true, admin: true }
+    }
+    /// Permissions par défaut d'un préréglage (si le rôle n'existe pas en base).
+    pub fn preset(role: Role) -> Perms {
+        match role {
+            Role::Owner | Role::Admin => Perms::all(),
+            Role::Member => Perms { docs: level::EDIT, boards: level::MANAGE, calendar: level::EDIT, invite: false, share: true, admin: false },
+            Role::Viewer => Perms { docs: level::COMMENT, boards: level::COMMENT, calendar: level::READ, invite: false, share: false, admin: false },
+            Role::Guest => Perms { docs: level::NONE, boards: level::NONE, calendar: level::NONE, invite: false, share: false, admin: false },
+        }
+    }
+    /// Lecture du JSON stocké ; les clés absentes prennent la valeur du préréglage `base`.
+    pub fn from_json(v: &serde_json::Value, base: Perms) -> Perms {
+        let lv = |k: &str, d: u8| v.get(k).and_then(|x| x.as_str()).and_then(level::parse).unwrap_or(d);
+        let b = |k: &str, d: bool| v.get(k).and_then(|x| x.as_bool()).unwrap_or(d);
+        Perms {
+            docs: lv("docs", base.docs).min(level::EDIT),
+            boards: lv("boards", base.boards),
+            calendar: lv("calendar", base.calendar).min(level::EDIT),
+            invite: b("invite", base.invite),
+            share: b("share", base.share),
+            admin: b("admin", base.admin),
+        }
+    }
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "docs": level::name(self.docs), "boards": level::name(self.boards), "calendar": level::name(self.calendar),
+            "invite": self.invite, "share": self.share, "admin": self.admin,
+        })
+    }
+    /// Rôle de base équivalent (anciens contrôles « écriture » / « admin »).
+    pub fn base_role(&self) -> Role {
+        if self.admin {
+            Role::Admin
+        } else if self.docs >= level::EDIT || self.boards >= level::EDIT || self.calendar >= level::EDIT {
+            Role::Member
+        } else {
+            Role::Viewer
+        }
+    }
+}
+
+/// Rôle et permissions d'un membre (None : pas membre de l'espace).
+pub async fn member_perms(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<Option<(Role, Perms)>> {
+    let row: Option<(String, Option<serde_json::Value>)> = sqlx::query_as(
+        "SELECT m.role, r.permissions FROM workspace_members m
+         LEFT JOIN workspace_roles r ON r.workspace_id = m.workspace_id AND (r.id = m.role_id OR (m.role_id IS NULL AND r.preset = m.role))
+         WHERE m.workspace_id = $1 AND m.user_id = $2
+         ORDER BY (r.id = m.role_id) DESC NULLS LAST LIMIT 1",
+    )
+    .bind(workspace_id)
+    .bind(user_id.to_string())
+    .fetch_optional(pool)
+    .await?;
+    let Some((role, perms)) = row else { return Ok(None) };
+    let Some(role) = Role::parse(&role) else { return Ok(None) };
+    let perms = if role == Role::Owner { Perms::all() } else { perms.map(|p| Perms::from_json(&p, Perms::preset(role))).unwrap_or(Perms::preset(role)) };
+    Ok(Some((role, perms)))
+}
+
+/// Exige d'être membre et une permission (`check`) ; NotFound si non membre, Forbidden sinon.
+pub async fn require_perm(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, check: impl Fn(&Perms) -> bool) -> ApiResult<(Role, Perms)> {
+    let (role, perms) = member_perms(pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)?;
+    if !check(&perms) {
+        return Err(ApiError::Forbidden);
+    }
+    Ok((role, perms))
 }
 
 pub async fn workspace_role(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<Option<Role>> {
@@ -237,21 +361,19 @@ pub enum PageAccess {
 /// - sinon, la permission explicite la plus proche (page ou ancêtre) s'applique :
 ///   `blocked` -> aucun accès, `viewer` -> lecture, `editor` -> écriture ;
 /// - à défaut, le rôle workspace s'applique (viewer -> lecture, member -> écriture).
-pub fn effective_page_access(role: Role, override_role: Option<&str>) -> PageAccess {
-    if role.is_admin() {
+pub fn effective_page_access(perms: &Perms, override_role: Option<&str>) -> PageAccess {
+    if perms.admin {
         return PageAccess::Write;
     }
     match override_role {
         Some("blocked") => PageAccess::None,
         Some("viewer") => PageAccess::Read,
         Some("editor") => PageAccess::Write,
-        _ => {
-            if role.can_write() {
-                PageAccess::Write
-            } else {
-                PageAccess::Read
-            }
-        }
+        _ => match perms.docs {
+            level::NONE => PageAccess::None,
+            l if l >= level::EDIT => PageAccess::Write,
+            _ => PageAccess::Read,
+        },
     }
 }
 
@@ -273,6 +395,7 @@ pub async fn nearest_page_override(pool: &PgPool, page_id: Uuid, user_id: Uuid) 
             WHERE anc.depth < 64
          )
          SELECT pp.role FROM anc JOIN page_permissions pp ON pp.page_id = anc.id AND pp.user_id = $2
+         WHERE anc.depth = 0 OR pp.inherit
          ORDER BY anc.depth LIMIT 1",
     )
     .bind(page_id)
@@ -284,9 +407,18 @@ pub async fn nearest_page_override(pool: &PgPool, page_id: Uuid, user_id: Uuid) 
 /// Accès effectif d'un utilisateur à une page (vérifie aussi l'appartenance au workspace).
 pub async fn page_access(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, PageAccess)> {
     let workspace_id = page_workspace(pool, page_id).await?;
-    let role = require_member(pool, user, workspace_id).await?;
-    let ov = if role.is_admin() { None } else { nearest_page_override(pool, page_id, user.id).await? };
-    Ok((workspace_id, role, effective_page_access(role, ov.as_deref())))
+    match member_perms(pool, user.id, workspace_id).await? {
+        Some((role, perms)) => {
+            let ov = if perms.admin { None } else { nearest_page_override(pool, page_id, user.id).await? };
+            Ok((workspace_id, role, effective_page_access(&perms, ov.as_deref())))
+        }
+        // Invité : seulement les pages partagées explicitement avec lui (et leurs sous-pages).
+        None => match nearest_page_override(pool, page_id, user.id).await?.as_deref() {
+            Some("editor") => Ok((workspace_id, Role::Guest, PageAccess::Write)),
+            Some("viewer") => Ok((workspace_id, Role::Guest, PageAccess::Read)),
+            _ => Err(ApiError::NotFound),
+        },
+    }
 }
 
 pub async fn require_page_read(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, PageAccess)> {
@@ -308,17 +440,18 @@ pub async fn require_page_write(pool: &PgPool, user: &AuthUser, page_id: Uuid) -
 
 /// Calcule l'accès de l'utilisateur à toutes les pages d'un workspace en une passe
 /// (utilisé pour filtrer les listes, la recherche, l'accueil...).
-pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, role: Role) -> ApiResult<HashMap<Uuid, PageAccess>> {
+pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _role: Role) -> ApiResult<HashMap<Uuid, PageAccess>> {
+    let perms = member_perms(pool, user.id, workspace_id).await?.map(|(_, p)| p).unwrap_or(Perms::preset(Role::Guest));
     let tree: Vec<(Uuid, Option<Uuid>)> =
         sqlx::query_as("SELECT id, parent_id FROM pages WHERE workspace_id = $1")
             .bind(workspace_id)
             .fetch_all(pool)
             .await?;
-    let overrides: HashMap<Uuid, String> = if role.is_admin() {
+    let overrides: HashMap<Uuid, (String, bool)> = if perms.admin {
         HashMap::new()
     } else {
-        sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT pp.page_id, pp.role FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
+        sqlx::query_as::<_, (Uuid, String, bool)>(
+            "SELECT pp.page_id, pp.role, pp.inherit FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
              WHERE p.workspace_id = $1 AND pp.user_id = $2",
         )
         .bind(workspace_id)
@@ -326,6 +459,7 @@ pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, r
         .fetch_all(pool)
         .await?
         .into_iter()
+        .map(|(id, r, i)| (id, (r, i)))
         .collect()
     };
     let parents: HashMap<Uuid, Option<Uuid>> = tree.into_iter().collect();
@@ -336,9 +470,12 @@ pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, r
         let mut found: Option<&str> = None;
         let mut guard = 0;
         while let Some(c) = cur {
-            if let Some(r) = overrides.get(&c) {
-                found = Some(r.as_str());
-                break;
+            // Permission sur la page elle-même, ou héritée d'un ancêtre « sous-pages comprises ».
+            if let Some((r, inherit)) = overrides.get(&c) {
+                if c == id || *inherit {
+                    found = Some(r.as_str());
+                    break;
+                }
             }
             cur = parents.get(&c).copied().flatten();
             guard += 1;
@@ -346,7 +483,7 @@ pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, r
                 break;
             }
         }
-        out.insert(id, effective_page_access(role, found));
+        out.insert(id, effective_page_access(&perms, found));
     }
     Ok(out)
 }

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::access::{
-    board_workspace, column_ctx, is_member, label_ctx, require_member, require_writer, task_ctx, AuthUser,
+    board_workspace, column_ctx, is_member, label_ctx, require_member, task_ctx, AuthUser,
 };
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -343,7 +343,10 @@ async fn list_boards(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<Board>>> {
-    require_member(&pool, &user, workspace_id).await?;
+    let (_, perms) = crate::access::member_perms(&pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)?;
+    if perms.boards == crate::access::level::NONE {
+        return Ok(Json(Vec::new()));
+    }
     Ok(Json(
         sqlx::query_as(
             "SELECT id, workspace_id, name, automations, created_at, updated_at FROM boards
@@ -368,7 +371,7 @@ async fn create_board(
     Path(workspace_id): Path<Uuid>,
     Json(req): Json<CreateBoardReq>,
 ) -> ApiResult<Json<Board>> {
-    require_writer(&state.pool, &user, workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = check_name(&req.name, 120)?;
     let mut tx = state.pool.begin().await?;
     let mut board: Board = sqlx::query_as(
@@ -424,7 +427,7 @@ async fn get_board(
     .fetch_optional(&pool)
     .await?
     .ok_or(ApiError::NotFound)?;
-    require_member(&pool, &user, board.workspace_id).await?;
+    crate::access::require_perm(&pool, &user, board.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
 
     let columns: Vec<BoardColumn> = sqlx::query_as(
         "SELECT id, board_id, name, position, created_at, updated_at FROM board_columns
@@ -525,7 +528,7 @@ async fn update_board(
     Json(req): Json<UpdateBoardReq>,
 ) -> ApiResult<Json<Board>> {
     let ws = board_workspace(&state.pool, board_id).await?;
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = req.name.as_deref().map(|n| check_name(n, 120)).transpose()?;
     if let Some(a) = &req.automations {
         if !a.is_object() {
@@ -574,7 +577,7 @@ async fn create_column(
     Json(req): Json<ColumnNameReq>,
 ) -> ApiResult<Json<BoardColumn>> {
     let ws = board_workspace(&state.pool, board_id).await?;
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = check_name(&req.name, 80)?;
     let col: BoardColumn = sqlx::query_as(
         "INSERT INTO board_columns (board_id, name, position)
@@ -596,7 +599,7 @@ async fn update_column(
     Json(req): Json<ColumnNameReq>,
 ) -> ApiResult<Json<BoardColumn>> {
     let ctx = column_ctx(&state.pool, column_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = check_name(&req.name, 80)?;
     let col: BoardColumn = sqlx::query_as(
         "UPDATE board_columns SET name = $1, updated_at = NOW() WHERE id = $2
@@ -616,7 +619,7 @@ async fn delete_column(
     Path(column_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     let ctx = column_ctx(&state.pool, column_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     sqlx::query("DELETE FROM board_columns WHERE id = $1").bind(column_id).execute(&state.pool).await?;
     state
         .emit(
@@ -639,7 +642,7 @@ async fn move_column(
     Json(req): Json<MoveColumnReq>,
 ) -> ApiResult<Json<BoardColumn>> {
     let ctx = column_ctx(&state.pool, column_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     if !req.position.is_finite() {
         return Err(ApiError::bad_request("invalid_position"));
     }
@@ -672,7 +675,7 @@ async fn create_label(
     Json(req): Json<LabelReq>,
 ) -> ApiResult<Json<Label>> {
     let ws = board_workspace(&state.pool, board_id).await?;
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let label: Label = sqlx::query_as(
         "INSERT INTO labels (board_id, name, color) VALUES ($1, $2, $3) RETURNING id, board_id, name, color, created_at",
     )
@@ -692,7 +695,7 @@ async fn update_label(
     Json(req): Json<LabelReq>,
 ) -> ApiResult<Json<Label>> {
     let (ws, _) = label_ctx(&state.pool, label_id).await?;
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let label: Label = sqlx::query_as(
         "UPDATE labels SET name = $1, color = $2 WHERE id = $3 RETURNING id, board_id, name, color, created_at",
     )
@@ -711,7 +714,7 @@ async fn delete_label(
     Path(label_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     let (ws, board_id) = label_ctx(&state.pool, label_id).await?;
-    require_writer(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     sqlx::query("DELETE FROM labels WHERE id = $1").bind(label_id).execute(&state.pool).await?;
     state
         .emit(ws, serde_json::json!({ "type": "LABEL_DELETED", "label_id": label_id, "board_id": board_id }))
@@ -746,7 +749,7 @@ async fn get_task(
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let ctx = task_ctx(&pool, task_id).await?;
-    require_member(&pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     let t = load_task_enriched(&pool, task_id).await?;
     Ok(Json(serde_json::json!({ "task": t, "board_id": ctx.board_id, "workspace_id": ctx.workspace_id })))
 }
@@ -759,7 +762,7 @@ async fn create_task(
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
     let ctx = column_ctx(pool, column_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     // Rejeu d'une création faite hors ligne : la tâche existe déjà ?
     if let Some(id) = req.id {
         if let Ok(existing) = task_ctx(pool, id).await {
@@ -873,7 +876,7 @@ async fn update_task(
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let old = fetch_task(pool, task_id).await?;
 
     let title = req.title.as_deref().map(|t| check_name(t, 255)).transpose()?;
@@ -948,7 +951,7 @@ async fn delete_task(
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     crate::trash::trash_task(&state, task_id, Some(user.id)).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -972,7 +975,7 @@ async fn move_task(
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let dest = column_ctx(pool, req.column_id).await?;
     if dest.workspace_id != ctx.workspace_id {
         return Err(ApiError::bad_request("invalid_column"));
@@ -1033,7 +1036,7 @@ async fn add_task_label(
     Path((task_id, label_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let (_, label_board) = label_ctx(&state.pool, label_id).await?;
     if label_board != ctx.board_id {
         return Err(ApiError::bad_request("label_not_in_board"));
@@ -1054,7 +1057,7 @@ async fn remove_task_label(
     Path((task_id, label_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     sqlx::query("DELETE FROM task_labels WHERE task_id = $1 AND label_id = $2")
         .bind(task_id)
         .bind(label_id)
@@ -1071,7 +1074,7 @@ async fn add_task_assignee(
     Path((task_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let target = target_user_id.to_string();
     if !is_member(&state.pool, ctx.workspace_id, &target).await? {
         return Err(ApiError::bad_request("not_a_member"));
@@ -1107,7 +1110,7 @@ async fn remove_task_assignee(
     Path((task_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let target = target_user_id.to_string();
     sqlx::query("DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2")
         .bind(task_id)
@@ -1132,7 +1135,7 @@ async fn create_subtask(
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
     let ctx = task_ctx(pool, parent_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let title = check_name(&req.title, 255)?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO tasks (column_id, parent_id, title, position, priority)
@@ -1156,7 +1159,7 @@ async fn toggle_task_validation(
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::VALIDATE).await?;
     let mut task = fetch_task(pool, task_id).await?;
     let was_completed = task.is_completed;
 
@@ -1187,7 +1190,13 @@ async fn toggle_task_validation(
                 .execute(pool)
                 .await?;
         }
-        let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1")
+        // Membres qui ne participent pas aux validations collectives : leur validation n'est
+        // pas attendue (la tâche reste ouverte pour eux seuls, voir doneFor côté client).
+        let assignees: Vec<String> = sqlx::query_scalar(
+            "SELECT a.user_id FROM task_assignees a
+             JOIN tasks t ON t.id = a.task_id JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+             LEFT JOIN workspace_members m ON m.workspace_id = b.workspace_id AND m.user_id = a.user_id
+             WHERE a.task_id = $1 AND COALESCE(m.group_tasks, TRUE)")
             .bind(task_id)
             .fetch_all(pool)
             .await?;
@@ -1254,7 +1263,7 @@ async fn upload_attachment(
 ) -> ApiResult<Json<TaskAttachment>> {
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
         if field.name() != Some("file") {
@@ -1289,7 +1298,7 @@ async fn delete_attachment(
     Path((task_id, attachment_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_writer(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let path: String = sqlx::query_scalar("DELETE FROM task_attachments WHERE id = $1 AND task_id = $2 RETURNING file_path")
         .bind(attachment_id)
         .bind(task_id)
@@ -1328,7 +1337,7 @@ async fn restore_task_activity(
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
-    require_writer(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let activity: TaskActivity = sqlx::query_as(
         "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at
          FROM task_activities WHERE id = $1 AND task_id = $2",
@@ -1459,7 +1468,7 @@ async fn add_task_comment(
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
     // Les lecteurs peuvent commenter (comme dans Linear), mais doivent être membres.
-    require_member(pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::COMMENT).await?;
     let content = comment_content(&payload.content)?;
     // Rejeu d'un commentaire écrit hors ligne : déjà enregistré ?
     if let Some(id) = payload.id {
@@ -1700,7 +1709,13 @@ pub async fn sync_apply_remote(state: &AppState, task_id: Uuid, user_id: Uuid, c
                 sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2")
                     .bind(task_id).bind(&me).execute(pool).await?;
             }
-            let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
+            // Membres qui ne participent pas aux validations collectives : leur validation n'est
+        // pas attendue (la tâche reste ouverte pour eux seuls, voir doneFor côté client).
+        let assignees: Vec<String> = sqlx::query_scalar(
+            "SELECT a.user_id FROM task_assignees a
+             JOIN tasks t ON t.id = a.task_id JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+             LEFT JOIN workspace_members m ON m.workspace_id = b.workspace_id AND m.user_id = a.user_id
+             WHERE a.task_id = $1 AND COALESCE(m.group_tasks, TRUE)").bind(task_id).fetch_all(pool).await?;
             let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
             task.is_completed = if task.require_all_validations && !assignees.is_empty() {
                 assignees.iter().all(|a| validations.contains(a))

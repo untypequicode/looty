@@ -25,6 +25,7 @@ mod page;
 mod prefs;
 mod comments;
 mod revisions;
+mod roles;
 mod state;
 mod upload;
 mod user_settings;
@@ -97,6 +98,7 @@ async fn main() {
         .nest("/auth", auth::routes())
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes().merge(prefs::user_routes()))
+        .merge(roles::user_routes())
         .nest("/user/releases", releases::user_routes())
         .nest("/releases", releases::routes())
         .nest("/user/caldav", caldav::routes())
@@ -120,6 +122,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
         .nest("/workspaces/:workspace_id/prefs", prefs::workspace_routes())
         .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
+        .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
