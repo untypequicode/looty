@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Repeat, MapPin, AlignLeft } from 'lucide-vue-next'
+import { Repeat, MapPin, AlignLeft, FileText } from 'lucide-vue-next'
 import { api, errorMessage } from '~/composables/api'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
@@ -9,7 +9,21 @@ import { useCalendarInvalidate, type EventDetail } from '~/composables/useCalend
 const open = defineModel<boolean>('open', { default: false })
 /** Événement à modifier, ou valeurs initiales d'une création (début, journée entière). */
 const props = defineProps<{ event?: EventDetail | null; defaults?: { start: Date; allDay?: boolean } | null }>()
-const { wsId } = useWorkspace()
+const { wsId, pages } = useWorkspace()
+// Lien vers un document : adresse complète (utile aussi dans les agendas externes),
+// affichée dans Looty comme une mention de page et reprise dans le graphe.
+const descEl = ref<HTMLTextAreaElement | null>(null)
+const pagePick = ref(false)
+const pageItems = computed(() => (pages.data.value ?? []).map((p) => ({ value: p.id, label: `${p.icon ? p.icon + ' ' : ''}${p.title || t('docs.untitled')}` })))
+function linkPage(id: string | null) {
+  if (!id) return
+  const url = `${location.origin}/w/${wsId.value}/doc/${id}`
+  const el = descEl.value
+  const at = el?.selectionStart ?? form.description.length
+  const before = form.description.slice(0, at)
+  const sep = before && !before.endsWith('\n') && !before.endsWith(' ') ? ' ' : ''
+  form.description = before + sep + url + ' ' + form.description.slice(at)
+}
 const { t } = useI18n()
 const invalidate = useCalendarInvalidate()
 
@@ -118,7 +132,12 @@ async function save() {
       </div>
       <p v-if="form.freq === 'custom'" class="evf-hint">{{ t('event.customHint') }}</p>
       <div class="evf-row"><MapPin :size="15" class="evf-ic" /><UiInput v-model="form.location" class="evf-grow" :placeholder="t('event.location')" maxlength="500" /></div>
-      <div class="evf-row top"><AlignLeft :size="15" class="evf-ic" /><textarea v-model="form.description" class="evf-desc" rows="3" :placeholder="t('event.description')" maxlength="10000" /></div>
+      <div class="evf-row top"><AlignLeft :size="15" class="evf-ic" /><textarea ref="descEl" v-model="form.description" class="evf-desc" rows="3" :placeholder="t('event.description')" maxlength="10000" /></div>
+      <div class="evf-row evf-sub">
+        <UiCombobox v-model:open="pagePick" :items="pageItems" :width="320" :model-value="null" @update:model-value="(v) => linkPage(v as string)">
+          <button type="button" class="evf-link"><FileText :size="13" /> {{ t('pageMention.linkPage') }}</button>
+        </UiCombobox>
+      </div>
       <p v-if="error" class="evf-err">{{ error }}</p>
       <button type="submit" hidden />
     </form>
@@ -135,6 +154,8 @@ async function save() {
 .evf-allday { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: var(--fs-md); }
 .evf-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .evf-row.top { align-items: flex-start; }
+.evf-link { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--text-3); }
+.evf-link:hover { background: var(--bg-hover); color: var(--text); }
 .evf-lab { width: 52px; font-size: var(--fs-sm); color: var(--text-3); }
 .evf-ic { color: var(--text-3); width: 52px; flex: none; }
 .evf-small { font-size: var(--fs-sm); color: var(--text-3); }

@@ -14,6 +14,33 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Document Yjs vide contenant un paragraphe (évite un crash TipTap sur document vide)
 const EMPTY_DOC = Buffer.from('0101ecc4b5ab070007010764656661756c74030970617261677261706800', 'hex')
 
+/**
+ * Historique des versions : une version par session d'édition (même auteur, dix minutes
+ * au plus). La dernière version automatique est mise à jour tant que la session dure,
+ * sinon une nouvelle est créée. L'élagage est fait par le backend (revisions.rs).
+ */
+async function recordRevision(pageId, state, userId) {
+  try {
+    const updated = await pool.query(
+      `UPDATE page_revisions r SET yjs_state = $2, title = p.title, updated_at = NOW()
+       FROM pages_all p
+       WHERE p.id = $1 AND r.id = (
+         SELECT id FROM page_revisions WHERE page_id = $1 ORDER BY updated_at DESC LIMIT 1
+       ) AND r.kind = 'auto' AND r.created_by IS NOT DISTINCT FROM $3::uuid AND r.created_at > NOW() - interval '10 minutes'`,
+      [pageId, state, userId],
+    )
+    if (updated.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO page_revisions (page_id, yjs_state, title, kind, created_by)
+         SELECT id, $2, title, 'auto', $3::uuid FROM pages_all WHERE id = $1`,
+        [pageId, state, userId],
+      )
+    }
+  } catch (e) {
+    console.error('Error recording revision', pageId, e.message)
+  }
+}
+
 const server = new Server({
   port: Number(process.env.PORT || 8082),
   // Ferme les connexions non authentifiées rapidement
@@ -63,15 +90,19 @@ const server = new Server({
         }
         return EMPTY_DOC
       },
-      store: async ({ documentName, state, context }) => {
+      store: async ({ documentName, state, context, lastContext }) => {
+        // Hocuspocus 4 : contexte de la dernière connexion ayant modifié le document.
+        const userId = lastContext?.user?.id || context?.user?.id || null
         try {
           await pool.query(
             'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
-            [state, documentName, context?.user?.id || null],
+            [state, documentName, userId],
           )
         } catch (e) {
           console.error('Error saving document', documentName, e.message)
+          return
         }
+        await recordRevision(documentName, state, userId)
       },
     }),
   ],

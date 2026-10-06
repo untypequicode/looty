@@ -30,7 +30,7 @@ pub fn workspace_routes() -> Router<AppState> {
 #[derive(Serialize, Clone)]
 pub struct Node {
     id: Uuid,
-    /// page | task | board
+    /// page | task | board | event
     kind: &'static str,
     label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,6 +98,24 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     .await?;
     let relations: Vec<(Uuid, Uuid, Uuid)> =
         sqlx::query_as("SELECT id, source_id, target_id FROM item_links WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
+    // Commentaires des pages et des événements (liens cités dans la discussion).
+    let item_comments: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT target_id, content FROM item_comments WHERE workspace_id = $1 AND (content LIKE '%/doc/%' OR content LIKE '%task%')")
+            .bind(ws)
+            .fetch_all(&state.pool)
+            .await?;
+    // Événements de l'espace : présents dans le graphe s'ils citent un élément (description,
+    // commentaires) ou ont une relation manuelle.
+    let linked_events: HashSet<Uuid> = relations.iter().flat_map(|(_, s, t)| [*s, *t]).chain(item_comments.iter().map(|(t, _)| *t)).collect();
+    let event_rows: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, ics FROM workspace_events WHERE workspace_id = $1 LIMIT 5000").bind(ws).fetch_all(&state.pool).await?;
+    let mut events: Vec<(Uuid, String, Vec<(&'static str, Uuid)>)> = Vec::new();
+    for (id, ics) in &event_rows {
+        let Some(m) = crate::calendar::master_event(ics) else { continue };
+        let refs = referenced_ids(m.description.as_deref().unwrap_or(""));
+        if !refs.is_empty() || linked_events.contains(id) {
+            events.push((*id, m.summary, refs));
+        }
+    }
 
     let mut nodes = Vec::with_capacity(pages.len() + boards.len() + tasks.len());
     let mut kinds: HashMap<Uuid, &'static str> = HashMap::new();
@@ -112,6 +130,10 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     for (id, title, done, _, board, _) in &tasks {
         kinds.insert(*id, "task");
         nodes.push(Node { id: *id, kind: "task", label: title.clone(), icon: None, done: *done, board_id: Some(*board) });
+    }
+    for (id, title, _) in &events {
+        kinds.insert(*id, "event");
+        nodes.push(Node { id: *id, kind: "event", label: title.clone(), icon: None, done: false, board_id: None });
     }
 
     let mut edges = Vec::new();
@@ -160,6 +182,16 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
             push(&mut edges, *task, target, "link", None);
         }
     }
+    for (item, content) in &item_comments {
+        for (_, target) in referenced_ids(content) {
+            push(&mut edges, *item, target, "link", None);
+        }
+    }
+    for (id, _, refs) in &events {
+        for (_, target) in refs {
+            push(&mut edges, *id, *target, "link", None);
+        }
+    }
     Ok(Built { nodes, edges })
 }
 
@@ -203,6 +235,7 @@ async fn check_item(state: &AppState, user: &AuthUser, ws: Uuid, kind: &str, id:
             pws == ws && !matches!(access, PageAccess::None)
         }
         "task" => crate::access::task_ctx(&state.pool, id).await?.workspace_id == ws,
+        "event" => sqlx::query_scalar::<_, i64>("SELECT count(*) FROM workspace_events WHERE id = $1 AND workspace_id = $2").bind(id).bind(ws).fetch_one(&state.pool).await? > 0,
         _ => false,
     };
     if ok { Ok(()) } else { Err(ApiError::bad_request("link_invalid")) }
@@ -259,7 +292,9 @@ pub async fn prune_links(pool: &sqlx::PgPool) {
             (l.source_kind = 'page' AND NOT EXISTS (SELECT 1 FROM pages_all p WHERE p.id = l.source_id))
          OR (l.target_kind = 'page' AND NOT EXISTS (SELECT 1 FROM pages_all p WHERE p.id = l.target_id))
          OR (l.source_kind = 'task' AND NOT EXISTS (SELECT 1 FROM tasks_all t WHERE t.id = l.source_id))
-         OR (l.target_kind = 'task' AND NOT EXISTS (SELECT 1 FROM tasks_all t WHERE t.id = l.target_id))",
+         OR (l.target_kind = 'task' AND NOT EXISTS (SELECT 1 FROM tasks_all t WHERE t.id = l.target_id))
+         OR (l.source_kind = 'event' AND NOT EXISTS (SELECT 1 FROM workspace_events e WHERE e.id = l.source_id))
+         OR (l.target_kind = 'event' AND NOT EXISTS (SELECT 1 FROM workspace_events e WHERE e.id = l.target_id))",
     )
     .execute(pool)
     .await;

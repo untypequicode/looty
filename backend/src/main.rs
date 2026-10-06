@@ -23,6 +23,8 @@ mod notifications;
 mod push;
 mod page;
 mod prefs;
+mod comments;
+mod revisions;
 mod state;
 mod upload;
 mod user_settings;
@@ -105,7 +107,8 @@ async fn main() {
         .route("/boards/tasks/:task_id/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
-        .nest("/pages", page::access_routes())
+        .nest("/pages", page::access_routes().merge(revisions::routes()))
+        .nest("/comments", comments::routes())
         .nest("/workspaces", workspace::routes())
         .nest("/workspaces/:workspace_id/boards", board::workspace_routes())
         .nest("/workspaces/:workspace_id/pages", page::routes())
@@ -116,6 +119,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/events", events::workspace_routes())
         .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
         .nest("/workspaces/:workspace_id/prefs", prefs::workspace_routes())
+        .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());

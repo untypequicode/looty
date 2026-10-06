@@ -20,6 +20,7 @@ pub fn start_archive_cron(pool: PgPool) {
             if let Err(e) = archive_old_activities(&pool).await {
                 eprintln!("Error archiving activities: {}", e);
             }
+            crate::revisions::prune(&pool).await;
         }
     });
 }

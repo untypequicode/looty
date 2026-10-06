@@ -1396,7 +1396,7 @@ pub struct CommentBody {
 pub fn sanitize_rich_text(html: &str) -> String {
     ammonia::Builder::default()
         .add_tags(&["mark", "s", "u"])
-        .add_generic_attributes(&["data-type", "data-id", "data-label", "class"])
+        .add_generic_attributes(&["data-type", "data-id", "data-label", "data-page-id", "class"])
         .add_tag_attributes("span", &["latex"])
         .add_tag_attributes("div", &["latex"])
         .url_schemes(["http", "https", "mailto"].into_iter().collect())
@@ -1418,7 +1418,7 @@ fn comment_content(raw: &str) -> ApiResult<String> {
 }
 
 /// Extrait les identifiants des mentions (`<span data-type="mention" data-id="...">`).
-fn extract_mentions(html: &str) -> Vec<Uuid> {
+pub fn extract_mentions(html: &str) -> Vec<Uuid> {
     let mut out = Vec::new();
     for part in html.split("data-id=\"").skip(1) {
         if let Some(end) = part.find('"') {

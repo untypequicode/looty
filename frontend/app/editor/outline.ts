@@ -169,7 +169,7 @@ async function rewriteHtmlUrls(html: string, fn: (url: string) => Promise<string
 // Export
 // ---------------------------------------------------------------------------
 
-export type ExportFormat = 'json' | 'markdown'
+export type ExportFormat = 'json' | 'markdown' | 'html'
 export interface ExportOptions {
   wsId: string
   /** Nom de la collection Outline (nom de l'espace ou titre de la page racine). */
@@ -185,7 +185,7 @@ export interface ExportOptions {
 
 interface NavNode { id: string; url: string; title: string; icon?: string | null; children: NavNode[] }
 
-/** Construit l'archive (JSON ou Markdown) au format Outline. */
+/** Construit l'archive : JSON au format Outline, Markdown ou HTML (arborescence de fichiers). */
 export async function buildExport(o: ExportOptions): Promise<Blob> {
   const zip = new JSZip()
   const ids = new Set(o.pages.map((p) => p.id))
@@ -274,15 +274,23 @@ export async function buildExport(o: ExportOptions): Promise<Blob> {
       while (i < from.length && from[i] === target[i]) i++
       return encodeURI([...from.slice(i).map(() => '..'), ...target.slice(i)].join('/'))
     }
+    const ext = o.format === 'html' ? 'html' : 'md'
+    const { renderForExport, htmlDocument } = o.format === 'html' ? await import('./exportDoc') : ({} as typeof import('./exportDoc'))
     for (const p of o.pages) {
-      const file = `${paths.get(p.id)}.md`
+      const file = `${paths.get(p.id)}.${ext}`
       const prepared = await rewriteHtmlUrls(html.get(p.id)!, async (u) => {
         const m = u.match(internal)
-        if (m) return paths.has(m[1]!) ? rel(file, `${paths.get(m[1]!)}.md`) + (m[2] ?? '') : new URL(u, location.origin).href
+        if (m) return paths.has(m[1]!) ? rel(file, `${paths.get(m[1]!)}.${ext}`) + (m[2] ?? '') : new URL(u, location.origin).href
         const att = await attach(u, p.id)
         return att ? rel(file, att.key) : u
       })
-      zip.file(file, `# ${p.title || 'Untitled'}\n\n${htmlToMarkdown(prepared)}\n`)
+      if (o.format === 'html') {
+        const title = p.title || 'Untitled'
+        const body = await renderForExport(prepared, { link: (h) => h })
+        zip.file(file, htmlDocument(title, `<h1 class="doc-title">${title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!)}</h1>\n${body}`))
+      } else {
+        zip.file(file, `# ${p.title || 'Untitled'}\n\n${htmlToMarkdown(prepared)}\n`)
+      }
       o.onProgress?.(++done, o.pages.length * 2)
     }
   }

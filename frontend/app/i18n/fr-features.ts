@@ -8,7 +8,7 @@ export default {
   graph: {
     title: 'Graphe', search: 'Trouver un élément…', filters: 'Filtres', fit: 'Tout afficher', graphView: 'Graphe', listView: 'Liste',
     opt: { tasks: 'Tâches', done: 'Tâches terminées', boards: 'Tableaux', hierarchy: 'Hiérarchie (sous-pages, tableaux)', orphans: 'Éléments sans lien', local: 'Seulement autour de la sélection' },
-    kinds: { page: 'Document', task: 'Tâche', board: 'Tableau' }, done: 'Terminée', relation: 'Relation',
+    kinds: { page: 'Document', task: 'Tâche', board: 'Tableau', event: 'Événement' }, done: 'Terminée', relation: 'Relation',
     hint: 'Double-clic pour ouvrir · Maj+glisser d’un élément à un autre pour les relier', hintRead: 'Double-clic pour ouvrir',
     count: '{nodes} éléments, {edges} liens', aria: 'Graphe de l’espace : {nodes} éléments et {edges} liens (la vue liste montre les mêmes données)',
     col: { name: 'Nom', type: 'Type', links: 'Liens' }, open: 'Ouvrir', related: 'Liés', noRelated: 'Aucun lien pour l’instant.',

@@ -1,3 +1,8 @@
+<script lang="ts">
+import { ref } from 'vue'
+const openDialogs = ref(0)
+</script>
+
 <script setup lang="ts">
 import { X } from 'lucide-vue-next'
 import { motion } from '~/composables/useMotion'
@@ -23,17 +28,25 @@ useLayer(open, close, { modal: true })
 const { isMobile } = useBreakpoint()
 const panelMotion = computed(() => (isMobile.value && !props.top ? motion.sheet : motion.dialog))
 
-// Bloque le défilement de la page derrière la modale.
-watch(open, (v) => { document.body.style.overflow = v ? 'hidden' : '' })
-onBeforeUnmount(() => { document.body.style.overflow = '' })
+// Modales imbriquées (ex. confirmation depuis un dialogue) : la dernière ouverte passe
+// au-dessus ; le défilement de la page reste bloqué tant qu'une modale est ouverte.
+const z = ref(900)
+let counted = false
+function track(v: boolean) {
+  if (v && !counted) { counted = true; openDialogs.value++; z.value = 900 + openDialogs.value * 2 }
+  else if (!v && counted) { counted = false; openDialogs.value-- }
+  document.body.style.overflow = openDialogs.value > 0 ? 'hidden' : ''
+}
+watch(open, track, { immediate: true })
+onBeforeUnmount(() => track(false))
 </script>
 
 <template>
   <Teleport to="body">
     <Transition :css="false" @enter="motion.overlay.onEnter" @leave="motion.overlay.onLeave">
-      <div v-if="open" class="dialog-overlay" @mousedown.self="closable && close()" />
+      <div v-if="open" class="dialog-overlay" :style="{ zIndex: z }" @mousedown.self="closable && close()" />
     </Transition>
-    <div v-if="open" class="dialog-wrap" :class="{ top, mobile: isMobile && !top }" @mousedown.self="closable && close()">
+    <div v-if="open" class="dialog-wrap" :style="{ zIndex: z + 1 }" :class="{ top, mobile: isMobile && !top }" @mousedown.self="closable && close()">
       <Transition appear :css="false" @enter="panelMotion.onEnter" @leave="panelMotion.onLeave">
         <div class="dialog" :style="{ width: `${width}px` }" role="dialog" aria-modal="true">
           <header v-if="title || closable" class="dialog-header">

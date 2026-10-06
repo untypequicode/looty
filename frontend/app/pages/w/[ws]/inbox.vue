@@ -20,7 +20,8 @@ function targetLink(n: Notification): string {
   const [kind, id] = n.target.split(':')
   if (kind === 'task' && n.data?.board_id) return links.task(wsId.value, n.data.board_id, id)
   if (kind === 'task') return links.taskById(wsId.value, id)
-  if (kind === 'page') return links.doc(wsId.value, id)
+  if (kind === 'page') return links.doc(wsId.value, id) + (n.data?.comment_id ? `?comment=${n.data.comment_id}` : '')
+  if (kind === 'event') return `${links.calendar(wsId.value)}?event=${id}`
   if (kind === 'board') return links.board(wsId.value, id)
   if (kind === 'mail') return links.mail(wsId.value, id)
   return links.home(wsId.value)

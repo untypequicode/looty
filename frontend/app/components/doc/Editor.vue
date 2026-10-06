@@ -26,6 +26,7 @@ const props = defineProps<{
   pageId: string
   initialHtml?: string | null
   canEdit: boolean
+  canComment?: boolean
   user: { name: string; color: string }
 }>()
 const emit = defineEmits<{
@@ -77,6 +78,7 @@ const editor = useEditor({
     provider,
     user: props.user,
     getMembers: () => members.data.value ?? [],
+    pages: { wsId: () => wsId.value, pages: () => (pages.data.value ?? []).filter((p) => p.id !== props.pageId) },
     onMention: (id) => sendMention(id, `page:${props.pageId}`),
     slash: {
       pickDoc: (e) => {
@@ -268,7 +270,7 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
     <EditorContent v-show="synced && !offlineReadonly" :editor="editor" />
     <template v-if="editor && synced">
       <DocBlockHandle :editor="editor" :container="wrapper" />
-      <DocBubble :editor="editor" />
+      <DocBubble :editor="editor" :can-comment="canComment" />
     </template>
     <UiPopover v-model:open="embedOpen" :virtual-rect="embedPos" :width="360">
       <form class="embed-ask" @submit.prevent="submitEmbed">

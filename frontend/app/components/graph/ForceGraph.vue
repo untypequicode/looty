@@ -23,8 +23,8 @@ let colors: Record<string, string> = {}
 
 /** Palette catégorielle validée (3 types, toutes paires), une déclinaison par thème. */
 const PALETTE = {
-  light: { page: '#2a78d6', task: '#eb6834', board: '#1baf7a', edge: '#a5a7ad', text: '#0b0b0b', muted: '#52514e' },
-  dark: { page: '#3987e5', task: '#d95926', board: '#199e70', edge: '#55575e', text: '#ffffff', muted: '#c3c2b7' },
+  light: { page: '#2a78d6', task: '#eb6834', board: '#1baf7a', event: '#8a5cd8', edge: '#a5a7ad', text: '#0b0b0b', muted: '#52514e' },
+  dark: { page: '#3987e5', task: '#d95926', board: '#199e70', event: '#9d74e6', edge: '#55575e', text: '#ffffff', muted: '#c3c2b7' },
 }
 function readColors() {
   const dark = document.documentElement.classList.contains('dark')

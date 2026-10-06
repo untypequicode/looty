@@ -4,7 +4,7 @@ import { api } from './api'
 
 export interface GraphNode {
   id: string
-  kind: 'page' | 'task' | 'board'
+  kind: 'page' | 'task' | 'board' | 'event'
   label: string
   icon?: string
   done?: boolean
@@ -59,5 +59,6 @@ export function useGraphActions(ws: Ref<string>) {
 export function nodeLink(ws: string, n: GraphNode): string {
   if (n.kind === 'page') return `/w/${ws}/doc/${n.id}`
   if (n.kind === 'board') return `/w/${ws}/board/${n.id}`
+  if (n.kind === 'event') return `/w/${ws}/calendar?event=${n.id}`
   return n.board_id ? `/w/${ws}/board/${n.board_id}?task=${n.id}` : `/w/${ws}/task/${n.id}`
 }

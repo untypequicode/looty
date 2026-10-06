@@ -115,6 +115,7 @@ pub(crate) async fn save_from_dav(state: &AppState, workspace_id: Uuid, user: Uu
 
 pub(crate) async fn delete_row(state: &AppState, e: &EventRow) -> ApiResult<()> {
     sqlx::query("DELETE FROM workspace_events WHERE id = $1").bind(e.id).execute(&state.pool).await?;
+    crate::graph::prune_links(&state.pool).await;
     changed(state, e.workspace_id).await;
     Ok(())
 }
