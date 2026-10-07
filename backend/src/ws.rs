@@ -185,6 +185,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
     let mut rx = hub.room(workspace_id).await.subscribe();
 
     hub.connected(workspace_id, user_id).await;
+    crate::analytics::track(&state.pool, workspace_id, user_id, "session", None).await;
     let snapshot = serde_json::json!({ "type": "PRESENCE_SYNC", "presence": hub.presence_list(workspace_id).await });
     let _ = sender.send(Message::Text(snapshot.to_string())).await;
 

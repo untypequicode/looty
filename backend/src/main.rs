@@ -27,6 +27,8 @@ mod comments;
 mod revisions;
 mod roles;
 mod planning;
+mod analytics;
+mod backup;
 mod state;
 mod upload;
 mod user_settings;
@@ -63,6 +65,7 @@ async fn main() {
     }
     let pool = db::init_db().await.expect("Failed to initialize database");
     archive::start_archive_cron(pool.clone());
+    backup::start_scheduler(pool.clone());
     seed_default_provider(&pool).await;
 
     let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
@@ -107,6 +110,8 @@ async fn main() {
         .nest("/user/push", push::routes())
         .nest("/admin/mail", mail::admin_routes())
         .nest("/admin/storage", storage::routes())
+        .nest("/admin/insights", analytics::admin_routes())
+        .nest("/admin/backups", backup::routes())
         .route("/boards/tasks/:task_id/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
@@ -125,6 +130,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
         .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
         .nest("/workspaces/:workspace_id/planning", planning::workspace_routes())
+        .nest("/workspaces/:workspace_id/admin", analytics::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());

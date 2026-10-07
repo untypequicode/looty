@@ -21,6 +21,7 @@ pub fn start_archive_cron(pool: PgPool) {
                 eprintln!("Error archiving activities: {}", e);
             }
             crate::revisions::prune(&pool).await;
+            crate::analytics::prune(&pool).await;
         }
     });
 }

@@ -23,6 +23,7 @@ target/
 
 # Ignore uploads, backups, and large archives
 backend/uploads/
+backend/backups/
 backups/
 *.tar
 *.tar.gz

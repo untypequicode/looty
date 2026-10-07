@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive } from 'lucide-vue-next'
+import { ChevronLeft, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -30,6 +30,7 @@ const groups = computed(() => [
       { key: 'my-space', label: t('access.mySpace'), icon: UserCog },
       { key: 'members', label: t('settings.nav.members'), icon: Users },
       { key: 'roles', label: t('rolesUi.title'), icon: ShieldCheck },
+      ...(isAdmin.value ? [{ key: 'space-overview', label: t('insights.spaceOverview'), icon: ChartLine }] : []),
     ],
   },
   ...(user.value?.is_super_admin
@@ -41,6 +42,9 @@ const groups = computed(() => [
           { key: 'admin-workspaces', label: t('settings.nav.workspaces'), icon: Building },
           { key: 'admin-auth', label: t('settings.nav.auth'), icon: ShieldCheck },
           { key: 'admin-email', label: t('settings.nav.email'), icon: Mail },
+          { key: 'admin-analytics', label: t('insights.title'), icon: ChartLine },
+          { key: 'admin-links', label: t('links.title'), icon: Globe },
+          { key: 'admin-backups', label: t('backups.title'), icon: Archive },
           { key: 'admin-storage', label: t('storage.title'), icon: HardDrive },
           { key: 'admin-instance', label: t('settings.nav.instance'), icon: Server },
         ],

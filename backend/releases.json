@@ -3,6 +3,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.7.0",
+      "date": "2026-10-07",
+      "title": {
+        "en": "Analytics, backups and public links",
+        "fr": "Statistiques, sauvegardes et liens publics"
+      },
+      "notes": {
+        "en": [
+          "**Analytics** (Administration → Analytics): active members, page views, edits, task actions and comments over 7, 30 or 90 days, activity over time, when people are active (day × hour), most viewed pages, most active people and a per-workspace table.",
+          "**Workspace overview** for workspace admins (Settings → Overview): the same analytics for the workspace, plus its public links.",
+          "**Public links** dashboard: every published document and active invitation link, with unpublish / revoke.",
+          "**Backups** (Administration → Backups): back up the whole instance (database and files) in one click, download, import and **restore** — a safety backup of the current state is always taken first. **Scheduled backups** daily or weekly, keeping the number you choose.",
+          "For Docker installs: backups are stored in `backend/backups` (new volume in docker-compose)."
+        ],
+        "fr": [
+          "**Statistiques** (Administration → Statistiques) : membres actifs, consultations, modifications, actions sur les tâches et commentaires sur 7, 30 ou 90 jours, activité dans le temps, heures d’activité (jour × heure), pages les plus consultées, personnes les plus actives et tableau par espace.",
+          "**Vue d’ensemble de l’espace** pour ses administrateurs (Réglages → Vue d’ensemble) : les mêmes statistiques pour l’espace, et ses liens publics.",
+          "Tableau des **liens publics** : tous les documents publiés et les liens d’invitation actifs, avec dépublication / révocation.",
+          "**Sauvegardes** (Administration → Sauvegardes) : sauvegarde de toute l’instance (base de données et fichiers) en un clic, téléchargement, import et **restauration** — une sauvegarde de sécurité de l’état actuel est toujours faite avant. **Sauvegardes programmées** quotidiennes ou hebdomadaires, avec le nombre conservé de votre choix.",
+          "Installations Docker : les sauvegardes sont rangées dans `backend/backups` (nouveau volume dans docker-compose)."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.6.0",
       "date": "2026-10-07",
       "title": {
