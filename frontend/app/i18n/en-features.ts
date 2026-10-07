@@ -26,7 +26,7 @@ export default {
     currently: 'Currently on', join: 'Join', follow: 'Follow', stopFollowing: 'Stop following', activity: 'Activity',
     recent: 'Recent activity', noActivity: 'No recent activity.', hidden: 'Location hidden', privateDoc: 'A private document',
     followingName: 'Following {name}', followEnded: '{name} went offline: follow mode stopped',
-    screens: { graph: 'Graph', home: 'Home', calendar: 'Calendar', mail: 'Mail', inbox: 'Inbox', 'my-tasks': 'My tasks', docs: 'All documents', trash: 'Trash', settings: 'Settings', activity: 'Activity' },
+    screens: { graph: 'Graph', home: 'Home', calendar: 'Calendar', mail: 'Mail', moodle: 'Moodle', inbox: 'Inbox', 'my-tasks': 'My tasks', docs: 'All documents', trash: 'Trash', settings: 'Settings', activity: 'Activity' },
     share: 'Show where I am', shareHint: 'Other members see which document, board or task you have open.',
   },
   feed: {

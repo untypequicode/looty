@@ -3,6 +3,43 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.8.0",
+      "date": "2026-10-07",
+      "title": {
+        "en": "A real mail client, and Moodle",
+        "fr": "Un vrai client mail, et Moodle"
+      },
+      "notes": {
+        "en": [
+          "**Send email from Looty**: write, reply, reply all and forward, with Cc/Bcc, recipient suggestions (workspace members and known senders), attachments, images, your display name and a **signature**. Ctrl+Enter sends. Replies keep the conversation thread and quote the original message; forwarding keeps its attachments. A copy goes to your Sent folder.",
+          "**Folders and subfolders**: every folder of the mailbox with its unread count (Inbox, Sent, Drafts, Archive, Junk, Trash recognized automatically), create, rename and delete folders, empty the trash.",
+          "**Organize**: flag messages, mark read / unread, move to a folder (menu or drag and drop), delete to the trash (permanently from the trash), select several messages (Shift+click for a range).",
+          "**Search** the current folder on the server, filters All / Unread / Flagged, and attachments you can download. Images embedded in messages are shown.",
+          "**Several mailboxes**: switch from the folder panel. Keyboard shortcuts: J/K next/previous, R reply, A reply all, F forward, S flag, U unread, # delete, C write, / search.",
+          "**Moodle** (for example moodle.u-bordeaux.fr): workspace admins choose the Moodle site in the workspace settings, then each member connects their own account — university login (SSO/CAS, by pasting the link Moodle gives back), username and password, or a security key.",
+          "New **Moodle** page: upcoming and overdue **deadlines** (turn one into a Looty task in one click), **courses** with progress, **Moodle messages** (read and reply) and **notifications**.",
+          "Your **Moodle calendar** is imported automatically into the Looty calendar (and the Android app); disconnecting removes it.",
+          "New Moodle messages and notifications arrive in the Looty inbox (can be turned off, and set per channel in notification settings).",
+          "Light on resources: nothing is stored besides the inbox summary already used for notifications, and connections to the mail server are reused for a minute.",
+          "Set up sending in the mailbox settings (SMTP server, by default the same username and password as for receiving)."
+        ],
+        "fr": [
+          "**Envoyer des e-mails depuis Looty** : écrire, répondre, répondre à tous et transférer, avec Cc/Cci, suggestions de destinataires (membres des espaces et expéditeurs connus), pièces jointes, images, votre nom affiché et une **signature**. Ctrl+Entrée pour envoyer. Les réponses gardent le fil de la conversation et citent le message d’origine ; un transfert reprend ses pièces jointes. Une copie est rangée dans « Envoyés ».",
+          "**Dossiers et sous-dossiers** : tous les dossiers de la boîte avec leurs non lus (Réception, Envoyés, Brouillons, Archives, Indésirables, Corbeille reconnus automatiquement), créer, renommer et supprimer des dossiers, vider la corbeille.",
+          "**Ranger** : suivre (étoile), marquer lu / non lu, déplacer vers un dossier (menu ou glisser-déposer), supprimer vers la corbeille (définitivement depuis la corbeille), sélectionner plusieurs messages (Maj+clic pour une plage).",
+          "**Recherche** dans le dossier sur le serveur, filtres Tous / Non lus / Suivis, et pièces jointes téléchargeables. Les images intégrées aux messages s’affichent.",
+          "**Plusieurs boîtes** : changez depuis le panneau des dossiers. Raccourcis : J/K suivant/précédent, R répondre, A répondre à tous, F transférer, S suivre, U non lu, # supprimer, C écrire, / rechercher.",
+          "**Moodle** (par ex. moodle.u-bordeaux.fr) : les administrateurs choisissent la plateforme dans les réglages de l’espace, puis chaque membre connecte son propre compte — connexion université (SSO/CAS, en collant le lien renvoyé par Moodle), identifiant et mot de passe, ou clé de sécurité.",
+          "Nouvelle page **Moodle** : **échéances** à venir et en retard (à transformer en tâche Looty en un clic), **cours** avec progression, **messages Moodle** (lecture et réponse) et **notifications**.",
+          "Votre **calendrier Moodle** est importé automatiquement dans le calendrier Looty (et l’application Android) ; la déconnexion le retire.",
+          "Les nouveaux messages et notifications Moodle arrivent dans la boîte de réception Looty (désactivable, et réglable par canal dans les notifications).",
+          "Léger : rien n’est stocké en plus du résumé de la boîte de réception déjà utilisé pour les notifications, et les connexions au serveur de messagerie sont réutilisées pendant une minute.",
+          "Activez l’envoi dans les réglages de la boîte (serveur SMTP ; par défaut le même identifiant et mot de passe que pour la réception)."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.7.0",
       "date": "2026-10-07",
       "title": {

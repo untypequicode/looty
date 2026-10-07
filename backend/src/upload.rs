@@ -84,7 +84,7 @@ pub async fn remove_upload(path: &str) {
     }
 }
 
-fn is_safe_name(name: &str) -> bool {
+pub(crate) fn is_safe_name(name: &str) -> bool {
     !name.is_empty()
         && !name.starts_with('.')
         && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '_')

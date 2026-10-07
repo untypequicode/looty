@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart } from 'lucide-vue-next'
+import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart, GraduationCap } from 'lucide-vue-next'
 import type { Notification } from '~/types'
 import { useNotifications } from '~/composables/useNotifications'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -14,7 +14,7 @@ const { t, relativeTime } = useI18n()
 const filter = ref<'all' | 'unread'>('all')
 
 const list = computed(() => (notifications.value ?? []).filter((n) => filter.value === 'all' || !n.read_at))
-const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, event_tag: CalendarHeart }
+const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, moodle: GraduationCap, event_tag: CalendarHeart }
 
 function targetLink(n: Notification): string {
   const [kind, id] = n.target.split(':')
@@ -24,10 +24,12 @@ function targetLink(n: Notification): string {
   if (kind === 'event') return `${links.calendar(wsId.value)}?event=${id}`
   if (kind === 'board') return links.board(wsId.value, id)
   if (kind === 'mail') return links.mail(wsId.value, id)
+  if (kind === 'moodle') return links.moodle(wsId.value)
   return links.home(wsId.value)
 }
 function targetLabel(n: Notification): string {
   const [kind, id] = n.target.split(':')
+  if (kind === 'moodle' && n.data?.from) return `${n.data.from} — ${n.data.title ?? ''}`
   if (n.data?.title) return n.data.title
   if (kind === 'mail' && n.data?.count) return t('mail.newCount', { count: n.data.count })
   if (kind === 'page') return pages.data.value?.find((p) => p.id === id)?.title || t('docs.untitled')

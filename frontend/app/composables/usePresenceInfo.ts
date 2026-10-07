@@ -1,6 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints } from 'lucide-vue-next'
+import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { api } from './api'
 import { links, useWorkspace } from './useWorkspace'
@@ -10,6 +10,7 @@ const SCREENS: Record<string, { icon: any; path: (ws: string) => string }> = {
   home: { icon: Home, path: (ws) => links.home(ws) },
   calendar: { icon: CalendarDays, path: (ws) => links.calendar(ws) },
   mail: { icon: Mail, path: (ws) => links.mail(ws) },
+  moodle: { icon: GraduationCap, path: (ws) => links.moodle(ws) },
   inbox: { icon: Inbox, path: (ws) => links.inbox(ws) },
   'my-tasks': { icon: CircleUserRound, path: (ws) => links.myTasks(ws) },
   docs: { icon: Files, path: (ws) => links.docs(ws) },
@@ -68,7 +69,7 @@ export function locationPath(ws: string, location: string | undefined): string |
 
 /** Emplacement correspondant à une route (même règle que la présence envoyée). */
 export function locationOfRoute(route: { path: string; params: Record<string, any>; query: Record<string, any> }): string {
-  const screens = ['calendar', 'mail', 'inbox', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph']
+  const screens = ['calendar', 'mail', 'moodle', 'inbox', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph']
   const screen = route.path.split('/')[3] ?? ''
   const task = (route.query.task as string) || (route.params.task as string)
   return task ? `task:${task}` : route.params.page ? `page:${route.params.page}` : route.params.board ? `board:${route.params.board}` : screens.includes(screen) ? screen : 'home'

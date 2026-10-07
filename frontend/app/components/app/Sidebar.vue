@@ -2,6 +2,7 @@
 import {
   NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
+  GraduationCap,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -12,6 +13,7 @@ import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
 import { readMode, toggleReadMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
+import { useMoodle } from '~/composables/useMoodle'
 import { useUi, notepadOpen } from '~/composables/useUi'
 import { presence } from '~/composables/useRealtime'
 import { following } from '~/composables/usePresenceInfo'
@@ -33,6 +35,7 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   myTasks: { icon: CircleUserRound, label: () => t('nav.myTasks'), to: () => links.myTasks(wsId.value), when: () => can.value.seeBoards },
   calendar: { icon: CalendarDays, label: () => t('calendar.title'), to: () => links.calendar(wsId.value) },
   mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined },
+  moodle: { icon: GraduationCap, label: () => t('nav.moodle'), to: () => links.moodle(wsId.value), when: () => !!moodleInfo.value?.url },
   docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => can.value.seeDocs },
   graph: { icon: Waypoints, label: () => t('graph.title'), to: () => `/w/${wsId.value}/graph` },
   activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true },
@@ -44,6 +47,7 @@ const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
 const { data: mailAccounts } = useMailAccounts()
+const { data: moodleInfo } = useMoodle(wsId)
 const cardFor = ref<string | null>(null)
 const moreOpen = ref(false)
 const { commandOpen, createBoardOpen, sectionsCollapsed, sidebarCollapsed, sidebarOpen, shortcutsOpen, openCreateTask } = useUi()

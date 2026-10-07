@@ -1,6 +1,6 @@
-//! Messagerie en lecture seule (IMAP) : consulter sa boîte (par ex. celle de
-//! l'université) et être notifié des nouveaux messages. Pas d'envoi : un bouton ouvre
-//! le webmail pour répondre.
+//! Comptes de messagerie (IMAP, + SMTP facultatif pour l'envoi) et cache de la boîte de
+//! réception : consulter sa boîte (par ex. celle de l'université) et être notifié des
+//! nouveaux messages. Dossiers, envoi, déplacement et corbeille : voir `mailclient`.
 //!
 //! - Comptes par utilisateur, mot de passe chiffré, serveur IMAP en TLS (993) ou
 //!   STARTTLS (143), adresses privées refusées (sauf CALDAV_ALLOW_PRIVATE).
@@ -30,26 +30,34 @@ use crate::access::{require_member, AuthUser};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
-type Imap = Session<TlsStream<TcpStream>>;
+pub(crate) type Imap = Session<TlsStream<TcpStream>>;
 
 #[derive(sqlx::FromRow, Clone)]
-struct Account {
-    id: Uuid,
-    user_id: Uuid,
-    workspace_id: Uuid,
-    imap_host: String,
-    imap_port: i32,
-    security: String,
-    username: String,
-    password_enc: String,
-    notify: bool,
-    uid_validity: Option<i64>,
-    last_uid: i64,
+pub(crate) struct Account {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub workspace_id: Uuid,
+    pub imap_host: String,
+    pub imap_port: i32,
+    pub security: String,
+    pub username: String,
+    pub password_enc: String,
+    pub notify: bool,
+    pub uid_validity: Option<i64>,
+    pub last_uid: i64,
+    pub email: String,
+    pub display_name: Option<String>,
+    pub smtp_host: Option<String>,
+    pub smtp_port: Option<i32>,
+    pub smtp_security: Option<String>,
+    pub smtp_username: Option<String>,
+    pub smtp_password_enc: Option<String>,
 }
 
-const ACCOUNT_COLS: &str = "id, user_id, workspace_id, imap_host, imap_port, security, username, password_enc, notify, uid_validity, last_uid";
+const ACCOUNT_COLS: &str = "id, user_id, workspace_id, imap_host, imap_port, security, username, password_enc, notify, uid_validity, last_uid,
+    email, display_name, smtp_host, smtp_port, smtp_security, smtp_username, smtp_password_enc";
 
-fn imap_err(e: impl std::fmt::Display) -> ApiError {
+pub(crate) fn imap_err(e: impl std::fmt::Display) -> ApiError {
     ApiError::BadRequest(format!("mail_imap_error: {e}"))
 }
 
@@ -82,21 +90,21 @@ async fn connect(host: &str, port: u16, security: &str, user: &str, pass: &str) 
     tokio::time::timeout(Duration::from_secs(20), work).await.map_err(|_| ApiError::bad_request("mail_timeout"))?
 }
 
-async fn connect_account(a: &Account) -> ApiResult<Imap> {
+pub(crate) async fn connect_account(a: &Account) -> ApiResult<Imap> {
     let pass = crate::crypto::decrypt(&a.password_enc).ok_or_else(|| ApiError::bad_request("mail_secret_unreadable"))?;
     connect(&a.imap_host, a.imap_port as u16, &a.security, &a.username, &pass).await
 }
 
-struct Parsed {
-    from_name: String,
-    from_addr: String,
-    subject: String,
-    snippet: String,
-    sent_at: Option<DateTime<Utc>>,
-    has_attachments: bool,
+pub(crate) struct Parsed {
+    pub from_name: String,
+    pub from_addr: String,
+    pub subject: String,
+    pub snippet: String,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub has_attachments: bool,
 }
 
-fn parse_summary(raw: &[u8]) -> Parsed {
+pub(crate) fn parse_summary(raw: &[u8]) -> Parsed {
     let msg = MessageParser::default().parse(raw);
     let (from_name, from_addr) = msg
         .as_ref()
@@ -120,7 +128,7 @@ fn parse_summary(raw: &[u8]) -> Parsed {
 }
 
 /// Synchronise la boîte de réception ; renvoie les nouveaux messages (pour notifier).
-async fn sync_account(state: &AppState, a: &Account) -> ApiResult<Vec<Parsed>> {
+pub(crate) async fn sync_account(state: &AppState, a: &Account) -> ApiResult<Vec<Parsed>> {
     let pool = &state.pool;
     let mut s = connect_account(a).await?;
     let mailbox = s.select("INBOX").await.map_err(imap_err)?;
@@ -289,10 +297,19 @@ struct AccountDto {
     last_check_at: Option<DateTime<Utc>>,
     last_error: Option<String>,
     unread: i64,
+    display_name: Option<String>,
+    signature: Option<String>,
+    smtp_host: Option<String>,
+    smtp_port: Option<i32>,
+    smtp_security: Option<String>,
+    smtp_username: Option<String>,
+    /// Envoi configuré (SMTP).
+    can_send: bool,
 }
 
 const DTO: &str = "SELECT a.id, a.workspace_id, a.label, a.email, a.imap_host, a.imap_port, a.security, a.username, a.webmail_url, a.notify,
-        a.last_check_at, a.last_error,
+        a.last_check_at, a.last_error, a.display_name, a.signature, a.smtp_host, a.smtp_port, a.smtp_security, a.smtp_username,
+        (a.smtp_host IS NOT NULL) AS can_send,
         (SELECT count(*) FROM mail_messages m WHERE m.account_id = a.id AND NOT m.seen) AS unread
      FROM mail_accounts a";
 
@@ -312,6 +329,9 @@ struct CreateReq {
     password: String,
     webmail_url: Option<String>,
     notify: Option<bool>,
+    display_name: Option<String>,
+    signature: Option<String>,
+    smtp: Option<crate::mailclient::SmtpReq>,
 }
 
 fn clean_webmail(u: Option<&str>) -> ApiResult<Option<String>> {
@@ -345,9 +365,14 @@ async fn create_account(State(state): State<AppState>, user: AuthUser, Json(p): 
     let mut s = connect(&host, port, security, p.username.trim(), &p.password).await?;
     s.select("INBOX").await.map_err(imap_err)?;
     let _ = s.logout().await;
+    let smtp = match &p.smtp {
+        Some(r) => Some(r.validate(p.username.trim(), &p.password, None).await?),
+        None => None,
+    };
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO mail_accounts (user_id, workspace_id, label, email, imap_host, imap_port, security, username, password_enc, webmail_url, notify)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
+        "INSERT INTO mail_accounts (user_id, workspace_id, label, email, imap_host, imap_port, security, username, password_enc, webmail_url, notify,
+            display_name, signature, smtp_host, smtp_port, smtp_security, smtp_username, smtp_password_enc)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id",
     )
     .bind(user.id)
     .bind(p.workspace_id)
@@ -360,6 +385,13 @@ async fn create_account(State(state): State<AppState>, user: AuthUser, Json(p): 
     .bind(crate::crypto::encrypt(&p.password))
     .bind(clean_webmail(p.webmail_url.as_deref())?)
     .bind(p.notify.unwrap_or(true))
+    .bind(clean_text(p.display_name.as_deref(), 120))
+    .bind(clean_text(p.signature.as_deref(), 4000))
+    .bind(smtp.as_ref().map(|s| s.host.clone()))
+    .bind(smtp.as_ref().map(|s| s.port as i32))
+    .bind(smtp.as_ref().map(|s| s.security.clone()))
+    .bind(smtp.as_ref().and_then(|s| s.username.clone()))
+    .bind(smtp.as_ref().and_then(|s| s.password_enc.clone()))
     .fetch_one(&state.pool)
     .await?;
     let a: Account = sqlx::query_as(&format!("SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE id = $1")).bind(id).fetch_one(&state.pool).await?;
@@ -367,7 +399,7 @@ async fn create_account(State(state): State<AppState>, user: AuthUser, Json(p): 
     Ok(Json(sqlx::query_as(&format!("{DTO} WHERE a.id = $1")).bind(id).fetch_one(&state.pool).await?))
 }
 
-async fn own_account(state: &AppState, user: &AuthUser, id: Uuid) -> ApiResult<Account> {
+pub(crate) async fn own_account(state: &AppState, user: &AuthUser, id: Uuid) -> ApiResult<Account> {
     sqlx::query_as(&format!("SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE id = $1 AND user_id = $2"))
         .bind(id)
         .bind(user.id)
@@ -382,15 +414,62 @@ struct UpdateReq {
     webmail_url: Option<String>,
     notify: Option<bool>,
     password: Option<String>,
+    display_name: Option<String>,
+    signature: Option<String>,
+    smtp: Option<crate::mailclient::SmtpReq>,
+    /// Supprime la configuration d'envoi.
+    smtp_remove: Option<bool>,
+}
+
+/// Texte libre facultatif : vide → NULL.
+fn clean_text(v: Option<&str>, max: usize) -> Option<String> {
+    v.map(str::trim).filter(|v| !v.is_empty()).map(|v| v.chars().take(max).collect())
 }
 
 async fn update_account(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(p): Json<UpdateReq>) -> ApiResult<StatusCode> {
     let a = own_account(&state, &user, id).await?;
+    crate::mailclient::forget(id);
     if let Some(pw) = p.password.as_deref().filter(|x| !x.is_empty()) {
         let mut s = connect(&a.imap_host, a.imap_port as u16, &a.security, &a.username, pw).await?;
         let _ = s.logout().await;
     }
     let label = p.label.as_deref().map(str::trim).filter(|l| !l.is_empty() && l.chars().count() <= 120);
+    if p.display_name.is_some() || p.signature.is_some() {
+        sqlx::query(
+            "UPDATE mail_accounts SET display_name = CASE WHEN $2 THEN $3 ELSE display_name END,
+                signature = CASE WHEN $4 THEN $5 ELSE signature END WHERE id = $1",
+        )
+        .bind(id)
+        .bind(p.display_name.is_some())
+        .bind(clean_text(p.display_name.as_deref(), 120))
+        .bind(p.signature.is_some())
+        .bind(clean_text(p.signature.as_deref(), 4000))
+        .execute(&state.pool)
+        .await?;
+    }
+    if p.smtp_remove == Some(true) {
+        sqlx::query("UPDATE mail_accounts SET smtp_host = NULL, smtp_port = NULL, smtp_security = NULL, smtp_username = NULL, smtp_password_enc = NULL WHERE id = $1")
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    } else if let Some(r) = &p.smtp {
+        let imap_pass = match p.password.as_deref().filter(|x| !x.is_empty()) {
+            Some(pw) => pw.to_string(),
+            None => crate::crypto::decrypt(&a.password_enc).unwrap_or_default(),
+        };
+        // Mot de passe SMTP laissé vide : on garde l'actuel (sinon celui de l'IMAP).
+        let keep = a.smtp_password_enc.as_deref().and_then(crate::crypto::decrypt);
+        let v = r.validate(&a.username, &imap_pass, keep.as_deref()).await?;
+        sqlx::query("UPDATE mail_accounts SET smtp_host = $2, smtp_port = $3, smtp_security = $4, smtp_username = $5, smtp_password_enc = $6 WHERE id = $1")
+            .bind(id)
+            .bind(&v.host)
+            .bind(v.port as i32)
+            .bind(&v.security)
+            .bind(&v.username)
+            .bind(&v.password_enc)
+            .execute(&state.pool)
+            .await?;
+    }
     sqlx::query(
         "UPDATE mail_accounts SET label = COALESCE($2, label), notify = COALESCE($3, notify),
             webmail_url = CASE WHEN $4 THEN $5 ELSE webmail_url END,
@@ -410,6 +489,7 @@ async fn update_account(State(state): State<AppState>, user: AuthUser, Path(id):
 
 async fn delete_account(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
     own_account(&state, &user, id).await?;
+    crate::mailclient::forget(id);
     sqlx::query("DELETE FROM mail_accounts WHERE id = $1").bind(id).execute(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -515,7 +595,7 @@ async fn read_all(State(state): State<AppState>, user: AuthUser, Path(id): Path<
 
 /// HTML d'un message, nettoyé : ni scripts, ni formulaires, ni cadres ; liens ouverts à
 /// part. Affiché dans un cadre isolé (sandbox) qui bloque aussi les images distantes.
-fn clean_html(html: &str) -> String {
+pub(crate) fn clean_html(html: &str) -> String {
     ammonia::Builder::default()
         .add_generic_attributes(["style", "align", "valign", "bgcolor", "width", "height", "border", "cellpadding", "cellspacing", "color"])
         .add_tags(["font", "center"])

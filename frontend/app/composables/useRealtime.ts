@@ -289,12 +289,13 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.setQueryData<Notification[]>(wsKeys.notifications(wsId), (old) => (old ? [n, ...old] : old))
       qc.invalidateQueries({ queryKey: wsKeys.notifications(wsId) })
       // Nouvel e-mail : « Expéditeur — Objet », ouvre la page Mail.
-      const isMail = n.kind === 'mail'
-      if (isMail) qc.invalidateQueries({ queryKey: ['mail'], predicate: (q) => q.queryKey[1] !== 'message' })
+      const isMail = n.kind === 'mail' || n.kind === 'moodle'
+      if (n.kind === 'mail') qc.invalidateQueries({ queryKey: ['mail'], predicate: (q) => q.queryKey[1] !== 'message' })
+      if (n.kind === 'moodle') qc.invalidateQueries({ queryKey: ['moodle', wsId] })
       const text = isMail
-        ? (n.data?.count ? translate('mail.newCount', { count: n.data.count }) : [n.data?.from, n.data?.title].filter(Boolean).join(' — ') || translate('inbox.kinds.mail'))
+        ? (n.data?.count ? translate('mail.newCount', { count: n.data.count }) : [n.data?.from, n.data?.title].filter(Boolean).join(' — ') || translate(`inbox.kinds.${n.kind}`))
         : translate(`inbox.kinds.${n.kind}`, { name: n.actor_name || '?', title: n.data?.title || '' })
-      const target = isMail ? `/w/${wsId}/mail?account=${n.target.split(':')[1]}` : `/w/${wsId}/inbox`
+      const target = n.kind === 'moodle' ? `/w/${wsId}/moodle` : isMail ? `/w/${wsId}/mail?account=${n.target.split(':')[1]}` : `/w/${wsId}/inbox`
       toast(text, { action: { label: translate('common.open'), run: () => navigateTo(target) } })
       // Avec le push actif sur cet appareil, le service worker affiche déjà la notification.
       if (document.hidden && !pushActiveHere() && 'Notification' in window && window.Notification.permission === 'granted') {
