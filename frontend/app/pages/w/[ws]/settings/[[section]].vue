@@ -15,6 +15,10 @@ import Workspace from '~/components/settings/Workspace.vue'
 import Members from '~/components/settings/Members.vue'
 import Roles from '~/components/settings/Roles.vue'
 import MySpace from '~/components/settings/MySpace.vue'
+import SpaceOverview from '~/components/settings/SpaceOverview.vue'
+import AdminInsightsPage from '~/components/settings/AdminInsights.vue'
+import AdminBackups from '~/components/settings/AdminBackups.vue'
+import PublicLinks from '~/components/settings/PublicLinks.vue'
 import AdminOverview from '~/components/settings/AdminOverview.vue'
 import AdminUsers from '~/components/settings/AdminUsers.vue'
 import AdminWorkspaces from '~/components/settings/AdminWorkspaces.vue'
@@ -36,6 +40,10 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   members: { comp: Members, title: 'settings.nav.members' },
   roles: { comp: Roles, title: 'rolesUi.title' },
   'my-space': { comp: MySpace, title: 'access.mySpace' },
+  'space-overview': { comp: SpaceOverview, title: 'insights.spaceOverview' },
+  'admin-analytics': { comp: AdminInsightsPage, title: 'insights.title', admin: true },
+  'admin-links': { comp: PublicLinks, title: 'links.title', admin: true },
+  'admin-backups': { comp: AdminBackups, title: 'backups.title', admin: true },
   admin: { comp: AdminOverview, title: 'settings.nav.overview', admin: true },
   'admin-users': { comp: AdminUsers, title: 'settings.nav.users', admin: true },
   'admin-workspaces': { comp: AdminWorkspaces, title: 'settings.nav.workspaces', admin: true },
@@ -62,7 +70,7 @@ useHead({ title: () => `${t(section.value.title)} · ${t('nav.settings')}` })
 </template>
 
 <style scoped>
-.settings-page { max-width: 760px; margin: 0 auto; padding: 48px 32px 96px; }
+.settings-page { max-width: 920px; margin: 0 auto; padding: 48px 32px 96px; }
 h1 { margin: 0 0 28px; font-family: var(--font-display); font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
 @media (max-width: 639px) { .settings-page { padding: 24px 14px 64px; } h1 { font-size: 20px; } }
 </style>

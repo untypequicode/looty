@@ -262,6 +262,17 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'comment-counts', ev.kind] })
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'graph'] })
       break
+    case 'INSTANCE_RESTORED':
+      // Données restaurées depuis une sauvegarde : caches locaux des documents (application
+      // de bureau, hors ligne) effacés, puis rechargement complet.
+      void (async () => {
+        try {
+          const dbs = (await (indexedDB as any).databases?.()) ?? []
+          await Promise.all(dbs.filter((d: { name?: string }) => d.name?.startsWith('looty-page:')).map((d: { name: string }) => new Promise((r) => { const q = indexedDB.deleteDatabase(d.name); q.onsuccess = q.onerror = q.onblocked = () => r(null) })))
+        } catch { /* navigateur sans indexedDB.databases */ }
+        window.location.reload()
+      })()
+      break
     case 'NOTEPAD_UPDATED':
       window.dispatchEvent(new CustomEvent('looty:notepad'))
       break

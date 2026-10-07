@@ -41,6 +41,14 @@ async function recordRevision(pageId, state, userId) {
   }
 }
 
+/**
+ * Restauration d'une sauvegarde (backend : NOTIFY looty_restore) : les documents en mémoire
+ * sont périmés. On ferme les connexions, on oublie les documents sans les enregistrer, et on
+ * refuse brièvement les connexions pour laisser les pages ouvertes se recharger.
+ */
+let restoredAt = 0
+const loadedAt = new Map()
+
 const server = new Server({
   port: Number(process.env.PORT || 8082),
   // Ferme les connexions non authentifiées rapidement
@@ -52,6 +60,9 @@ const server = new Server({
    * connexion est refusée ; sans droit d'écriture elle passe en lecture seule.
    */
   async onAuthenticate({ documentName, requestHeaders, connectionConfig, token }) {
+    if (Date.now() - restoredAt < 8000) {
+      throw new Error('restoring')
+    }
     if (!UUID_RE.test(documentName)) {
       throw new Error('invalid-document')
     }
@@ -81,6 +92,7 @@ const server = new Server({
   extensions: [
     new Database({
       fetch: async ({ documentName }) => {
+        loadedAt.set(documentName, Date.now())
         try {
           const res = await pool.query('SELECT yjs_state FROM pages WHERE id = $1', [documentName])
           const state = res.rows[0]?.yjs_state
@@ -93,6 +105,8 @@ const server = new Server({
       store: async ({ documentName, state, context, lastContext }) => {
         // Hocuspocus 4 : contexte de la dernière connexion ayant modifié le document.
         const userId = lastContext?.user?.id || context?.user?.id || null
+        // Document chargé avant une restauration : ne jamais écraser les données restaurées.
+        if ((loadedAt.get(documentName) ?? 0) < restoredAt) return
         try {
           await pool.query(
             'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
@@ -109,4 +123,24 @@ const server = new Server({
 })
 
 server.listen()
+
+;(async () => {
+  try {
+    const client = await pool.connect()
+    await client.query('LISTEN looty_restore')
+    client.on('notification', () => {
+      restoredAt = Date.now()
+      const hp = server.hocuspocus
+      hp.closeConnections()
+      for (const [name, doc] of hp.documents) {
+        hp.documents.delete(name)
+        try { doc.destroy() } catch {}
+      }
+      loadedAt.clear()
+      console.log('Backup restored: documents unloaded')
+    })
+  } catch (e) {
+    console.error('LISTEN looty_restore failed', e.message)
+  }
+})()
 console.log('Hocuspocus is listening on port', server.configuration?.port || 8082)

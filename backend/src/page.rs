@@ -543,6 +543,7 @@ async fn record_view(
     .bind(user.id)
     .execute(&pool)
     .await?;
+    crate::analytics::track(&pool, workspace_id, user.id, "view", Some(page_id)).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
