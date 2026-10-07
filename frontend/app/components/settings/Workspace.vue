@@ -7,6 +7,7 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useTrash } from '~/composables/useTrash'
+import { useMoodle, moodleKeys } from '~/composables/useMoodle'
 
 const { wsId, workspace, role, isAdmin, canWriteRole: canWrite } = useWorkspace()
 const importOpen = ref(false)
@@ -28,6 +29,20 @@ async function saveRetention(days: number) {
   await api(`/api/workspaces/${wsId.value}/trash/settings`, { method: 'PUT', body: { retention_days: days } })
   trash.refetch()
   toast.success(t('common.saved'))
+}
+
+// Moodle : plateforme de l'espace (administrateurs)
+const moodle = useMoodle(wsId)
+const moodleUrl = ref('')
+watch(() => moodle.data.value, (d) => { if (d) moodleUrl.value = d.url ?? '' }, { immediate: true })
+const savingMoodle = ref(false)
+async function saveMoodle() {
+  savingMoodle.value = true
+  try {
+    await api(`/api/workspaces/${wsId.value}/moodle/settings`, { method: 'PUT', body: { url: moodleUrl.value.trim() || null } })
+    qc.invalidateQueries({ queryKey: moodleKeys.overview(wsId.value) })
+    toast.success(t('common.saved'))
+  } finally { savingMoodle.value = false }
 }
 
 async function save() {
@@ -68,6 +83,13 @@ async function remove() {
         <button class="ws-select">{{ retentionItems.find((i) => i.value === String(retention))?.label }}</button>
       </UiCombobox>
     </SettingsRow>
+    <SettingsRow v-if="isAdmin" :label="t('moodle.settingLabel')" :hint="t('moodle.settingHint')">
+      <div class="moodle-row">
+        <UiInput v-model="moodleUrl" :placeholder="moodle.data.value?.default_url ?? 'https://moodle.u-bordeaux.fr'" style="width: 260px" @keydown.enter="saveMoodle" />
+        <UiButton v-if="!moodleUrl && moodle.data.value" size="sm" variant="ghost" @click="moodleUrl = moodle.data.value.default_url">{{ t('moodle.useDefault') }}</UiButton>
+        <UiButton size="sm" :loading="savingMoodle" :disabled="(moodle.data.value?.url ?? '') === moodleUrl.trim()" @click="saveMoodle">{{ t('common.save') }}</UiButton>
+      </div>
+    </SettingsRow>
   </SettingsSection>
   <SettingsLatexPreamble />
   <SettingsSection :title="t('transfer.sectionTitle')" :description="t('transfer.sectionHint')">
@@ -91,5 +113,6 @@ async function remove() {
 </template>
 
 <style scoped>
+.moodle-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .ws-select { height: 28px; min-width: 200px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); background: var(--bg-input); text-align: left; }
 </style>

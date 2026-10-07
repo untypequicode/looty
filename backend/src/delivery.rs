@@ -29,6 +29,7 @@ pub const EVENTS: &[(&str, bool, bool)] = &[
     ("task_due", true, true),
     ("task_completed", false, false),
     ("mail_received", false, true),
+    ("moodle_received", false, true),
 ];
 
 pub fn event_of(kind: &str, target: &str) -> &'static str {
@@ -40,6 +41,7 @@ pub fn event_of(kind: &str, target: &str) -> &'static str {
         "due_soon" => "task_due",
         "completed" => "task_completed",
         "mail" => "mail_received",
+        "moodle" => "moodle_received",
         _ => "other",
     }
 }
@@ -320,6 +322,7 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
         }
         "board" => format!("/w/{}/board/{}", p.workspace_id, id),
         "mail" => format!("/w/{}/mail?account={}", p.workspace_id, id),
+        "moodle" => format!("/w/{}/moodle", p.workspace_id),
         _ => format!("/w/{}/inbox", p.workspace_id),
     };
     if title.trim().is_empty() {
@@ -346,6 +349,14 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
             (_, Some(n)) => format!("{n} nouveaux messages"),
             (Some(from), _) => format!("Nouveau message de {from} : {title}"),
             _ => "Nouveau message".into(),
+        },
+        ("moodle_received", false) => match p.data["from"].as_str() {
+            Some(from) => format!("Moodle — {from}: {title}"),
+            None => format!("Moodle: {title}"),
+        },
+        ("moodle_received", true) => match p.data["from"].as_str() {
+            Some(from) => format!("Moodle — {from} : {title}"),
+            None => format!("Moodle : {title}"),
         },
         ("task_completed", false) => format!("{actor} completed {}", q(&title)),
         ("task_completed", true) => format!("{actor} a terminé {}", q(&title)),

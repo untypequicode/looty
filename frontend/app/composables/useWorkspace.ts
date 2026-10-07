@@ -101,6 +101,7 @@ export const links = {
   docs: (ws: string) => `/w/${ws}/docs`,
   calendar: (ws: string) => `/w/${ws}/calendar`,
   mail: (ws: string, account?: string) => `/w/${ws}/mail${account ? `?account=${account}` : ''}`,
+  moodle: (ws: string) => `/w/${ws}/moodle`,
   board: (ws: string, board: string) => `/w/${ws}/board/${board}`,
   task: (ws: string, board: string, task: string) => `/w/${ws}/board/${board}?task=${task}`,
   taskById: (ws: string, task: string) => `/w/${ws}/task/${task}`,

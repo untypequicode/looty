@@ -6,14 +6,19 @@ export interface ApiError {
   code: string
 }
 
+const DETAILED = new Set(['mail_invalid_address', 'mail_smtp_error', 'mail_imap_error'])
+
 /** Message lisible pour un code d'erreur renvoyé par le backend (`{ error: "code" }`). */
 export function errorMessage(e: unknown): string {
   const err = e as any
   // Les erreurs détaillées ont la forme « code: détail »
-  const code: string = String(err?.data?.error || err?.code || '').split(':')[0].trim()
+  const raw = String(err?.data?.error || err?.code || '')
+  const code: string = raw.split(':')[0].trim()
   const key = `errors.${code}`
   const msg = translate(key)
-  if (msg !== key) return msg
+  // Détail utile à l'utilisateur (adresse refusée, réponse du serveur de messagerie).
+  const detail = raw.includes(':') ? raw.slice(raw.indexOf(':') + 1).trim() : ''
+  if (msg !== key) return detail && DETAILED.has(code) ? `${msg} (${detail})` : msg
   if (err?.status === 403 || err?.statusCode === 403) return translate('errors.forbidden')
   if (err?.status === 404 || err?.statusCode === 404) return translate('errors.not_found')
   return translate('errors.generic')

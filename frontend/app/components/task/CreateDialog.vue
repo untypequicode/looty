@@ -46,12 +46,12 @@ async function loadBoard(id: string | null) {
 
 watch(createTaskOpen, (v) => {
   if (!v) return
-  title.value = ''
-  description.value = ''
+  title.value = createTaskDefaults.value.title ?? ''
+  description.value = createTaskDefaults.value.description ?? ''
   priority.value = 0
   assignees.value = []
   labelIds.value = []
-  dueDate.value = null
+  dueDate.value = createTaskDefaults.value.dueDate ?? null
   columnId.value = createTaskDefaults.value.columnId ?? ''
   const fromRoute = route.params.board as string | undefined
   boardId.value = createTaskDefaults.value.boardId ?? fromRoute ?? boards.data.value?.[0]?.id ?? null

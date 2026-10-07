@@ -13,6 +13,8 @@ mod delivery;
 mod error;
 mod mail;
 mod mailbox;
+mod mailclient;
+mod moodle;
 mod trash;
 mod storage;
 mod events;
@@ -91,6 +93,7 @@ async fn main() {
     delivery::start_worker(state.clone());
     calendar::start_sync_loop(state.clone());
     mailbox::start_poll_loop(state.clone());
+    moodle::start_poll_loop(state.clone());
     trash::start_purge_loop(state.clone());
 
     let api = Router::new()
@@ -122,7 +125,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/pages", page::routes())
         .nest("/workspaces/:workspace_id/calendars", calendar::workspace_routes())
         .nest("/calendars", calendar::routes())
-        .nest("/mail", mailbox::routes())
+        .nest("/mail", mailbox::routes().merge(mailclient::routes()))
         .nest("/workspaces/:workspace_id/trash", trash::workspace_routes())
         .nest("/workspaces/:workspace_id/events", events::workspace_routes())
         .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
@@ -130,6 +133,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
         .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
         .nest("/workspaces/:workspace_id/planning", planning::workspace_routes())
+        .nest("/workspaces/:workspace_id/moodle", moodle::workspace_routes())
         .nest("/workspaces/:workspace_id/admin", analytics::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
