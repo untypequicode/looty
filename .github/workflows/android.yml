@@ -37,15 +37,25 @@ jobs:
       - name: Keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         if: env.KEYSTORE_B64 != ''
         run: |
-          echo "$KEYSTORE_B64" | base64 -d > release.jks
-          cat > keystore.properties <<PROPS
-          storeFile=release.jks
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          PROPS
+          # Seuls les caractères base64 sont gardés : un « % » final (zsh), des espaces ou
+          # des retours à la ligne copiés avec la valeur ne cassent pas le décodage.
+          printf '%s' "$KEYSTORE_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > release.jks \
+            || { echo "::error title=Android signing::ANDROID_KEYSTORE_B64 is not valid base64 (set it with: base64 -w0 looty-release.jks | gh secret set ANDROID_KEYSTORE_B64)"; exit 1; }
+          # Mot de passe et alias vérifiés tout de suite, avec un message clair.
+          keytool -list -keystore release.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error title=Android signing::the keystore does not open with ANDROID_KEYSTORE_PASSWORD, or has no key named ANDROID_KEY_ALIAS"; exit 1; }
+          # Valeurs écrites telles quelles (pas d'interprétation de $, ` ou \ par le shell).
+          {
+            echo "storeFile=release.jks"
+            printf 'storePassword=%s\n' "${STORE_PASSWORD//\\/\\\\}"
+            printf 'keyAlias=%s\n' "${KEY_ALIAS//\\/\\\\}"
+            printf 'keyPassword=%s\n' "${KEY_PASSWORD//\\/\\\\}"
+          } > keystore.properties
       - run: ./gradlew --no-daemon assembleDebug assembleRelease
       - name: Collect
         run: |
