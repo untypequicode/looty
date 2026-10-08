@@ -284,6 +284,15 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       navigateTo('/')
       break
 
+    case 'PROJECT_FILES_CHANGED':
+      qc.invalidateQueries({ queryKey: ['project', ev.project_id] })
+      qc.invalidateQueries({ queryKey: ['projects', wsId] })
+      break
+
+    case 'DRIVE_CHANGED':
+      qc.invalidateQueries({ queryKey: ['drive', wsId] })
+      break
+
     case 'NOTIFICATION': {
       const n: Notification = ev.notification
       qc.setQueryData<Notification[]>(wsKeys.notifications(wsId), (old) => (old ? [n, ...old] : old))

@@ -10,7 +10,7 @@ const PAIRS: Record<string, string> = { '{': '}', '[': ']', '(': ')' }
 const CLOSERS = new Set(Object.values(PAIRS))
 
 /** Commandes proposées ; « {} » marque les arguments (le curseur va dans le premier). */
-const COMMANDS: string[] = [
+export const COMMANDS: string[] = [
   // Structures
   '\\frac{}{}', '\\dfrac{}{}', '\\tfrac{}{}', '\\sqrt{}', '\\sqrt[]{}', '\\binom{}{}', '\\sum_{}^{}', '\\prod_{}^{}', '\\int_{}^{}', '\\iint', '\\iiint', '\\oint',
   '\\lim_{}', '\\limsup', '\\liminf', '\\sup', '\\inf', '\\max', '\\min', '\\arg', '\\det', '\\dim', '\\ker', '\\deg', '\\gcd',

@@ -23,6 +23,8 @@ import frMail from '~/i18n/fr-mail'
 import enMail from '~/i18n/en-mail'
 import frMoodle from '~/i18n/fr-moodle'
 import enMoodle from '~/i18n/en-moodle'
+import frProjects from '~/i18n/fr-projects'
+import enProjects from '~/i18n/en-projects'
 import frFeatures from '~/i18n/fr-features'
 import enFeatures from '~/i18n/en-features'
 import frTools from '~/i18n/fr-tools'
@@ -40,7 +42,7 @@ function merge(...parts: Messages[]): Messages {
   return out
 }
 
-const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard, frDocs, frSettings, frEmbeds, frCaldav, frTransfer, frNotify, frOffline, frCalendar, frMail, frMoodle, frFeatures, frTools), en: merge(enCore, enBoard, enDocs, enSettings, enEmbeds, enCaldav, enTransfer, enNotify, enOffline, enCalendar, enMail, enMoodle, enFeatures, enTools) }
+const dictionaries: Record<Locale, Messages> = { fr: merge(frCore, frBoard, frDocs, frSettings, frEmbeds, frCaldav, frTransfer, frNotify, frOffline, frCalendar, frMail, frMoodle, frProjects, frFeatures, frTools), en: merge(enCore, enBoard, enDocs, enSettings, enEmbeds, enCaldav, enTransfer, enNotify, enOffline, enCalendar, enMail, enMoodle, enProjects, enFeatures, enTools) }
 export const LOCALES: { code: Locale; label: string }[] = [
   { code: 'fr', label: 'Français' },
   { code: 'en', label: 'English' },

@@ -3,6 +3,48 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.10.0",
+      "date": "2026-10-08",
+      "title": {
+        "en": "Mini-sites, LaTeX projects and a temporary drive",
+        "fr": "Mini-sites, projets LaTeX et drive temporaire"
+      },
+      "notes": {
+        "en": [
+          "**Projects** (new sidebar item): files and folders edited together, live — everyone’s cursor is visible — with a code editor (syntax highlighting, autocompletion, search), file upload by drag and drop, rename / move, zip download.",
+          "**Mini-sites**: HTML, CSS and JavaScript with a live preview (desktop, tablet, phone) that refreshes as you type. **Publish** in one click at an address of your choice, `/pages/your-site/`. Published code runs isolated: it can’t reach Looty or visitors’ sessions.",
+          "**LaTeX projects** (like Overleaf): article, report, slides (Beamer) and letter templates, several files and folders, images and bibliography (BibTeX/biber). **Compile** with Ctrl+S (pdfLaTeX, XeLaTeX or LuaLaTeX), PDF preview next to the code, errors and warnings with their line — click to jump there — full log, optional automatic compilation, LaTeX command and environment completion.",
+          "**Temporary drive** (new sidebar item): share files with the workspace; each file deletes itself after the chosen duration (at most the workspace maximum, 7 days by default), with folders, folder upload, search, public download links valid until expiry, extending a file’s lifetime and a storage quota. Admins set the maximum duration and quota in the workspace settings.",
+          "For self-hosted installs: the Docker image now includes TeX Live for server-side compilation (build argument `WITH_LATEX=0` to leave it out), and published sites are served at `/pages/` (route added to the Traefik configuration). `SITES_BASE_URL` can point published sites to a dedicated domain."
+        ],
+        "fr": [
+          "**Projets** (nouvelle entrée de la barre latérale) : fichiers et dossiers édités à plusieurs, en direct — le curseur de chacun est visible — avec un éditeur de code (coloration, complétion, recherche), envoi de fichiers par glisser-déposer, renommage / déplacement, téléchargement en zip.",
+          "**Mini-sites** : HTML, CSS et JavaScript avec un aperçu en direct (ordinateur, tablette, téléphone) qui se met à jour pendant la frappe. **Publication** en un clic à l’adresse de votre choix, `/pages/votre-site/`. Le code publié s’exécute isolé : il n’a accès ni à Looty ni aux sessions des visiteurs.",
+          "**Projets LaTeX** (façon Overleaf) : modèles article, rapport, présentation (Beamer) et lettre, plusieurs fichiers et dossiers, images et bibliographie (BibTeX/biber). **Compilation** avec Ctrl+S (pdfLaTeX, XeLaTeX ou LuaLaTeX), PDF à côté du code, erreurs et avertissements avec leur ligne — un clic pour s’y rendre —, journal complet, compilation automatique au choix, complétion des commandes et environnements LaTeX.",
+          "**Drive temporaire** (nouvelle entrée de la barre latérale) : partagez des fichiers avec l’espace ; chacun s’efface tout seul après la durée choisie (au plus le maximum de l’espace, 7 jours par défaut), avec dossiers, envoi de dossiers, recherche, liens publics de téléchargement valables jusqu’à l’expiration, prolongation et quota d’espace. Les administrateurs règlent la durée maximale et le quota dans les réglages de l’espace.",
+          "Installations auto-hébergées : l’image Docker inclut maintenant TeX Live pour la compilation sur le serveur (argument `WITH_LATEX=0` pour l’exclure), et les sites publiés sont servis sous `/pages/` (route ajoutée à la configuration Traefik). `SITES_BASE_URL` permet de servir les sites publiés depuis un domaine dédié."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.4.0",
+      "date": "2026-10-08",
+      "title": {
+        "en": "Compile LaTeX on your computer",
+        "fr": "Compiler le LaTeX sur votre ordinateur"
+      },
+      "notes": {
+        "en": [
+          "LaTeX projects can be **compiled on this computer** with the TeX distribution you have installed (TeX Live, MiKTeX…): switch between server and computer next to the Compile button. Same safeguards as on the server (no shell escape, files limited to the project)."
+        ],
+        "fr": [
+          "Les projets LaTeX peuvent être **compilés sur cet ordinateur** avec la distribution TeX installée (TeX Live, MiKTeX…) : basculez entre serveur et ordinateur à côté du bouton Compiler. Mêmes garde-fous que sur le serveur (pas de shell-escape, fichiers limités au projet)."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.9.0",
       "date": "2026-10-08",
       "title": {

@@ -1,6 +1,7 @@
 const { Server } = require('@hocuspocus/server')
 const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
+const Y = require('yjs')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/looty_db',
@@ -10,6 +11,26 @@ const pool = new Pool({
 const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:8080').replace(/\/$/, '')
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Fichier texte d'un projet (mini-site, LaTeX) : document « file:<id> », texte dans Y.Text('content').
+const FILE_PREFIX = 'file:'
+const fileId = (name) => (name.startsWith(FILE_PREFIX) && UUID_RE.test(name.slice(FILE_PREFIX.length)) ? name.slice(FILE_PREFIX.length) : null)
+
+/** État Yjs initial d'un fichier jamais ouvert en direct : son texte. */
+function textState(text) {
+  const doc = new Y.Doc()
+  doc.getText('content').insert(0, text || '')
+  const state = Buffer.from(Y.encodeStateAsUpdate(doc))
+  doc.destroy()
+  return state
+}
+
+function stateText(state) {
+  const doc = new Y.Doc()
+  Y.applyUpdate(doc, state)
+  const text = doc.getText('content').toString()
+  doc.destroy()
+  return text
+}
 
 // Document Yjs vide contenant un paragraphe (évite un crash TipTap sur document vide)
 const EMPTY_DOC = Buffer.from('0101ecc4b5ab070007010764656661756c74030970617261677261706800', 'hex')
@@ -48,6 +69,8 @@ async function recordRevision(pageId, state, userId) {
  */
 let restoredAt = 0
 const loadedAt = new Map()
+/** Fichiers de projet dont le contenu a été remplacé par le backend (NOTIFY looty_file_reset). */
+const resetAt = new Map()
 
 const server = new Server({
   port: Number(process.env.PORT || 8082),
@@ -63,7 +86,8 @@ const server = new Server({
     if (Date.now() - restoredAt < 8000) {
       throw new Error('restoring')
     }
-    if (!UUID_RE.test(documentName)) {
+    const fid = fileId(documentName)
+    if (!fid && !UUID_RE.test(documentName)) {
       throw new Error('invalid-document')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
@@ -74,7 +98,8 @@ const server = new Server({
     else throw new Error('unauthenticated')
     let res
     try {
-      res = await fetch(`${BACKEND_URL}/api/pages/${documentName}/access`, {
+      const url = fid ? `${BACKEND_URL}/api/projects/files/${fid}/access` : `${BACKEND_URL}/api/pages/${documentName}/access`
+      res = await fetch(url, {
         headers,
       })
     } catch (e) {
@@ -93,6 +118,18 @@ const server = new Server({
     new Database({
       fetch: async ({ documentName }) => {
         loadedAt.set(documentName, Date.now())
+        const fid = fileId(documentName)
+        if (fid) {
+          try {
+            const res = await pool.query('SELECT yjs_state, content FROM project_files WHERE id = $1', [fid])
+            const row = res.rows[0]
+            if (row?.yjs_state && row.yjs_state.length > 0) return row.yjs_state
+            return textState(row?.content ?? '')
+          } catch (e) {
+            console.error('Error fetching file', fid, e.message)
+            return textState('')
+          }
+        }
         try {
           const res = await pool.query('SELECT yjs_state FROM pages WHERE id = $1', [documentName])
           const state = res.rows[0]?.yjs_state
@@ -107,6 +144,22 @@ const server = new Server({
         const userId = lastContext?.user?.id || context?.user?.id || null
         // Document chargé avant une restauration : ne jamais écraser les données restaurées.
         if ((loadedAt.get(documentName) ?? 0) < restoredAt) return
+        const fid = fileId(documentName)
+        if (fid) {
+          // Contenu remplacé ailleurs (envoi, autre client) depuis le chargement : on n'écrase pas.
+          if ((loadedAt.get(documentName) ?? 0) < (resetAt.get(documentName) ?? 0)) return
+          try {
+            const text = stateText(state)
+            const r = await pool.query(
+              'UPDATE project_files SET yjs_state = $1, content = $2, size = octet_length($2), updated_at = NOW(), updated_by = COALESCE($4::uuid, updated_by) WHERE id = $3 RETURNING project_id',
+              [state, text, fid, userId],
+            )
+            if (r.rows[0]) await pool.query('UPDATE projects SET updated_at = NOW() WHERE id = $1', [r.rows[0].project_id])
+          } catch (e) {
+            console.error('Error saving file', fid, e.message)
+          }
+          return
+        }
         try {
           await pool.query(
             'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
@@ -128,7 +181,20 @@ server.listen()
   try {
     const client = await pool.connect()
     await client.query('LISTEN looty_restore')
-    client.on('notification', () => {
+    await client.query('LISTEN looty_file_reset')
+    client.on('notification', (msg) => {
+      if (msg.channel === 'looty_file_reset') {
+        const name = FILE_PREFIX + msg.payload
+        resetAt.set(name, Date.now())
+        const hp = server.hocuspocus
+        hp.closeConnections(name)
+        const doc = hp.documents.get(name)
+        if (doc) {
+          hp.documents.delete(name)
+          try { doc.destroy() } catch {}
+        }
+        return
+      }
       restoredAt = Date.now()
       const hp = server.hocuspocus
       hp.closeConnections()

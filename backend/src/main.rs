@@ -15,6 +15,9 @@ mod mail;
 mod mailbox;
 mod mailclient;
 mod moodle;
+mod projects;
+mod latex;
+mod drive;
 mod trash;
 mod storage;
 mod events;
@@ -95,6 +98,7 @@ async fn main() {
     mailbox::start_poll_loop(state.clone());
     moodle::start_poll_loop(state.clone());
     trash::start_purge_loop(state.clone());
+    drive::start_purge_loop(state.clone());
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -134,6 +138,10 @@ async fn main() {
         .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
         .nest("/workspaces/:workspace_id/planning", planning::workspace_routes())
         .nest("/workspaces/:workspace_id/moodle", moodle::workspace_routes())
+        .nest("/workspaces/:workspace_id/projects", projects::workspace_routes())
+        .nest("/workspaces/:workspace_id/drive", drive::workspace_routes())
+        .nest("/projects", projects::routes())
+        .nest("/drive/public", drive::public_routes())
         .nest("/workspaces/:workspace_id/admin", analytics::workspace_routes())
         .nest("/workspaces/:workspace_id", graph::workspace_routes())
         .nest("/trash", trash::routes())
@@ -141,6 +149,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/uploads/:name", get(upload::serve_upload))
+        .merge(projects::public_routes())
         .nest("/api", api)
         .merge(dav::routes())
         .with_state(state)
