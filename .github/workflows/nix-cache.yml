@@ -21,20 +21,27 @@ jobs:
   build:
     name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - system: x86_64-linux
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      # Cache pas encore configuré (secret absent) : les builds sont vérifiés sans cache.
+      - name: Cachix not configured
+        if: env.CACHIX_AUTH_TOKEN == ''
+        run: echo "::notice title=Nix cache::CACHIX_AUTH_TOKEN is not set — builds run without pushing to Cachix (see RELEASING.md)."
       - uses: cachix/cachix-action@v15
+        if: env.CACHIX_AUTH_TOKEN != ''
         with:
           name: ${{ vars.CACHIX_CACHE || 'looty' }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}

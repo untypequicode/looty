@@ -30,14 +30,14 @@ concurrency:
 jobs:
   plan:
     name: What to release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       web: ${{ steps.plan.outputs.web }}
       desktop: ${{ steps.plan.outputs.desktop }}
       android: ${{ steps.plan.outputs.android }}
       any: ${{ steps.plan.outputs.any }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - id: plan
@@ -47,9 +47,9 @@ jobs:
     name: Backend tests
     needs: plan
     if: needs.plan.outputs.any == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -91,10 +91,10 @@ jobs:
     needs: [plan, docker, desktop, android]
     # Publie ce qui a été construit, même si une autre plateforme a été sautée.
     if: always() && needs.plan.outputs.any == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v6
         with:
           path: artifacts
       - name: Notes and files
