@@ -1,0 +1,150 @@
+# Publication automatique : à chaque push sur main, chaque plateforme dont la dernière
+# version de backend/releases.json n'a pas encore de tag (<plateforme>-v<version>) est
+# construite puis publiée sur GitHub :
+#   web      → images Docker (amd64 + arm64) sur ghcr.io, docker-compose.yml épinglé
+#   desktop  → paquet .deb (et paquet Nix poussé dans le cache binaire)
+#   android  → APK
+# Les notes viennent de releases.json (anglais, français dépliable).
+# Lancement manuel : republier une plateforme avec « force ».
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/releases.json']
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Plateformes à republier même si le tag existe (web,desktop,android)
+        type: string
+        required: false
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: What to release
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.plan.outputs.web }}
+      desktop: ${{ steps.plan.outputs.desktop }}
+      android: ${{ steps.plan.outputs.android }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: plan
+        run: node scripts/release-plan.mjs --force "${{ inputs.force }}" >> "$GITHUB_OUTPUT"
+
+  tests:
+    name: Backend tests
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - run: cargo test --manifest-path backend/Cargo.toml
+
+  docker:
+    name: Docker images
+    needs: [plan, tests]
+    if: needs.plan.outputs.web != ''
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      version: ${{ needs.plan.outputs.web }}
+    secrets: inherit
+
+  desktop:
+    name: Desktop
+    needs: [plan, tests]
+    if: needs.plan.outputs.desktop != ''
+    uses: ./.github/workflows/desktop.yml
+    secrets: inherit
+
+  android:
+    name: Android
+    needs: [plan, tests]
+    if: needs.plan.outputs.android != ''
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+
+  nix-cache:
+    name: Nix cache
+    needs: [plan, tests]
+    if: needs.plan.outputs.desktop != ''
+    uses: ./.github/workflows/nix-cache.yml
+    secrets: inherit
+
+  publish:
+    name: GitHub releases
+    needs: [plan, docker, desktop, android]
+    # Publie ce qui a été construit, même si une autre plateforme a été sautée.
+    if: always() && needs.plan.outputs.any == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Notes and files
+        env:
+          WEB: ${{ needs.plan.outputs.web }}
+          DESKTOP: ${{ needs.plan.outputs.desktop }}
+          ANDROID: ${{ needs.plan.outputs.android }}
+        run: |
+          mkdir -p out/web out/desktop out/android
+          if [ -n "$WEB" ]; then
+            node scripts/release-notes.mjs web "$WEB" > out/web/notes.md
+            # Compose de production avec les images de cette version.
+            sed "s/\${LOOTY_VERSION:-latest}/\${LOOTY_VERSION:-$WEB}/" docker-compose.prod.yml > out/web/docker-compose.yml
+          fi
+          if [ -n "$DESKTOP" ]; then
+            node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md
+            cp artifacts/looty-deb/*.deb out/desktop/
+          fi
+          if [ -n "$ANDROID" ]; then
+            node scripts/release-notes.mjs android "$ANDROID" > out/android/notes.md
+            cp artifacts/looty-android/*.apk out/android/
+          fi
+          find out -type f | sort
+      - name: Web release
+        if: needs.plan.outputs.web != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: web-v${{ needs.plan.outputs.web }}
+          target_commitish: ${{ github.sha }}
+          name: Looty ${{ needs.plan.outputs.web }}
+          body_path: out/web/notes.md
+          files: out/web/docker-compose.yml
+          make_latest: true
+      - name: Desktop release
+        if: needs.plan.outputs.desktop != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-v${{ needs.plan.outputs.desktop }}
+          target_commitish: ${{ github.sha }}
+          name: Looty for Linux ${{ needs.plan.outputs.desktop }}
+          body_path: out/desktop/notes.md
+          files: out/desktop/*.deb
+          make_latest: false
+      - name: Android release
+        if: needs.plan.outputs.android != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ needs.plan.outputs.android }}
+          target_commitish: ${{ github.sha }}
+          name: Looty for Android ${{ needs.plan.outputs.android }}
+          body_path: out/android/notes.md
+          files: out/android/*.apk
+          make_latest: false

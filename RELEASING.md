@@ -3,34 +3,73 @@
 Looty has three things to release: the **web app** (server + interface, deployed
 together), the **Linux desktop app** and the **Android app**. All release notes live in
 [`backend/releases.json`](backend/releases.json), in English and French. They are shown in
-the app ("What's new" window after an update, *What's new* page in the workspace menu), and
-they are used to tell desktop and Android users that a newer version of their app exists.
+the app ("What's new" window after an update, *What's new* page in the workspace menu), they
+tell desktop and Android users that a newer version of their app exists, and they become the
+text of the GitHub releases.
 
-## Web
+## The short version
 
-1. Add an entry at the top of `backend/releases.json` with `"platform": "web"`, the new
-   version, today's date, a title and the notes (`**bold**` and `` `code` `` are allowed;
-   the English and French lists must have the same number of items).
-2. Set the same version in `backend/Cargo.toml`.
-3. `cargo test` (in `backend/`) checks that both match.
-4. Deploy. Users see the "What's new" window once, and open tabs show a *Reload* banner
-   within 10 minutes.
+1. Bump the version of what you release (see the table below).
+2. Add the matching entry at the top of `backend/releases.json`.
+3. `cargo test` in `backend/` (checks that versions and notes match).
+4. Merge into `main`.
 
-## Desktop (Linux)
+The **Release** workflow then does everything else: for each platform whose latest version in
+`releases.json` has no tag yet, it runs the tests, builds, creates the tag
+`<platform>-v<version>` and publishes the GitHub release with the notes and the files.
 
-1. Bump `version` in `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json`.
-2. Add a `"platform": "desktop"` entry to `backend/releases.json` (same version).
-3. Push the tag `desktop-v<version>`: the *Desktop* workflow builds the Nix package and the
-   `.deb` and publishes them on the GitHub release page.
-4. Deploy the server: desktop apps that are older get a banner and a system notification
-   (once per version) pointing to the release page.
+| Platform | Version to bump | Built and published |
+|---|---|---|
+| web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has a `docker-compose.yml` with images pinned to that version |
+| desktop | `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` | `.deb` (Debian 12 / Ubuntu 22.04+, install-tested on a clean Debian); Nix package pushed to the binary cache for x86_64 and aarch64 |
+| android | `versionName` and `versionCode` in `android/app/build.gradle.kts` | APK, signed when the keystore secrets are set (otherwise a debug APK) |
 
-## Android
+Releasing only one platform is fine: the others are skipped because their tag already exists.
+To rebuild a release (for example after fixing CI), run **Release** by hand with
+`force` = `web`, `desktop` and/or `android`.
 
-1. Bump `versionName` (and `versionCode`) in `android/app/build.gradle.kts`.
-2. Add a `"platform": "android"` entry to `backend/releases.json`.
-3. Push the tag `android-v<version>`: the *Android* workflow builds and publishes the signed APK.
-4. Deploy the server: older apps get the update banner.
+### Writing `releases.json` entries
 
-The backend tests also check that the latest desktop and Android entries match
-`tauri.conf.json` and `build.gradle.kts`, so a forgotten entry fails CI.
+`"platform"`, `"version"`, `"date"` (YYYY-MM-DD), `"title"` and `"notes"` in `en` and `fr`.
+`**bold**` and `` `code` `` are allowed; the English and French lists must have the same number
+of items.
+
+## After a release
+
+- **Server:** pull the new images and restart (`docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`),
+  or pin a version with `LOOTY_VERSION=<version>` in `.env`. Users see the "What's new"
+  window once; open tabs show a *Reload* banner within 10 minutes.
+- **Desktop and Android:** once the server runs the new `releases.json`, older apps get an
+  update banner (and, on the desktop, a system notification once per version) pointing to
+  the release page.
+
+## One-time repository setup
+
+- **Android signing:** secrets `ANDROID_KEYSTORE_B64` (keystore in base64),
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+- **Nix binary cache (Cachix):** create a cache on [cachix.org](https://app.cachix.org)
+  (for example `looty`), then add the repository variable `CACHIX_CACHE` (the cache name)
+  and the secret `CACHIX_AUTH_TOKEN` (a write token). The **Nix cache** workflow pushes
+  every desktop build of `main`. Then add the cache to `flake.nix` so users get it without
+  extra flags:
+
+  ```nix
+  nixConfig = {
+    extra-substituters = [ "https://looty.cachix.org" ];
+    extra-trusted-public-keys = [ "looty.cachix.org-1:<public key shown on the cache page>" ];
+  };
+  ```
+
+- **Docker images** are public packages of the repository on ghcr.io; nothing to set up
+  (the workflow uses `GITHUB_TOKEN`). Make the packages public once in the GitHub package
+  settings if you want to pull them without logging in.
+
+## Building by hand
+
+- Docker images: **Docker** workflow (manual run, tags `latest` and `sha-<commit>`), or
+  `docker build ./backend` (add `--build-arg WITH_LATEX=0` for an image without TeX Live).
+- Desktop: `./desktop/scripts/build-deb.sh`, or `nix build .#looty-desktop`.
+- Android: `cd android && ./gradlew assembleRelease`.
+
+Pushing a tag `desktop-v<version>` or `android-v<version>` by hand still works and runs the
+matching workflow alone.
