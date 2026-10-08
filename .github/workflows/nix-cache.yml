@@ -32,7 +32,7 @@ jobs:
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,7 +40,7 @@ jobs:
       - name: Cachix not configured
         if: env.CACHIX_AUTH_TOKEN == ''
         run: echo "::notice title=Nix cache::CACHIX_AUTH_TOKEN is not set — builds run without pushing to Cachix (see RELEASING.md)."
-      - uses: cachix/cachix-action@v15
+      - uses: cachix/cachix-action@v17
         if: env.CACHIX_AUTH_TOKEN != ''
         with:
           name: ${{ vars.CACHIX_CACHE || 'looty' }}
@@ -48,8 +48,8 @@ jobs:
           # Rien d'autre que nos propres dérivations (nixpkgs est déjà sur cache.nixos.org).
           pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
       - name: Desktop package
-        run: nix build .#packages.${{ matrix.system }}.looty-desktop -L
+        run: nix build .#packages.${{ matrix.system }}.looty-desktop -L --accept-flake-config
       - name: Desktop dev shell
-        run: nix build .#devShells.${{ matrix.system }}.desktop -L --no-link
+        run: nix build .#devShells.${{ matrix.system }}.desktop -L --no-link --accept-flake-config
       - name: Smoke test
         run: test -x result/bin/looty && test -f result/share/applications/looty.desktop

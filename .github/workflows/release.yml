@@ -37,7 +37,7 @@ jobs:
       android: ${{ steps.plan.outputs.android }}
       any: ${{ steps.plan.outputs.any }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: plan
@@ -49,7 +49,7 @@ jobs:
     if: needs.plan.outputs.any == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -93,9 +93,12 @@ jobs:
     if: always() && needs.plan.outputs.any == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v6
+      - uses: actions/checkout@v7
+      # Seulement le .deb et l'APK (pas les empreintes ni les traces de build Docker,
+      # dont les .dockerbuild ne sont pas des archives zip et font échouer le téléchargement).
+      - uses: actions/download-artifact@v8
         with:
+          pattern: looty-*
           path: artifacts
       - name: Notes and files
         env:
@@ -111,16 +114,18 @@ jobs:
           fi
           if [ -n "$DESKTOP" ]; then
             node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md
-            cp artifacts/looty-deb/*.deb out/desktop/
+            find artifacts -name "*.deb" -exec cp -t out/desktop/ {} +
+            ls out/desktop/*.deb > /dev/null
           fi
           if [ -n "$ANDROID" ]; then
             node scripts/release-notes.mjs android "$ANDROID" > out/android/notes.md
-            cp artifacts/looty-android/*.apk out/android/
+            find artifacts -name "*.apk" -exec cp -t out/android/ {} +
+            ls out/android/*.apk > /dev/null
           fi
           find out -type f | sort
       - name: Web release
         if: needs.plan.outputs.web != ''
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: web-v${{ needs.plan.outputs.web }}
           target_commitish: ${{ github.sha }}
@@ -130,7 +135,7 @@ jobs:
           make_latest: true
       - name: Desktop release
         if: needs.plan.outputs.desktop != ''
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: desktop-v${{ needs.plan.outputs.desktop }}
           target_commitish: ${{ github.sha }}
@@ -140,7 +145,7 @@ jobs:
           make_latest: false
       - name: Android release
         if: needs.plan.outputs.android != ''
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: android-v${{ needs.plan.outputs.android }}
           target_commitish: ${{ github.sha }}

@@ -1,11 +1,11 @@
-FROM node:20-slim as builder
+FROM node:24-slim AS builder
 WORKDIR /app
 COPY package.json ./
 RUN npm install --legacy-peer-deps
 COPY . .
 RUN npm run build
 
-FROM node:20-slim
+FROM node:24-slim
 WORKDIR /app
 COPY --from=builder /app/.output /app/.output
 EXPOSE 3000

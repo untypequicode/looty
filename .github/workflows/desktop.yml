@@ -18,7 +18,7 @@ jobs:
     name: Version check
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Tag matches Cargo.toml and tauri.conf.json
         if: startsWith(github.ref, 'refs/tags/desktop-v')
         run: |
@@ -32,12 +32,21 @@ jobs:
     name: Nix package
     needs: version
     runs-on: ubuntu-24.04
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix build .#looty-desktop -L
+      # Cache binaire : paquet déjà construit (workflow « Nix cache ») = téléchargé, pas recompilé.
+      - uses: cachix/cachix-action@v17
+        if: env.CACHIX_AUTH_TOKEN != ''
+        with:
+          name: ${{ vars.CACHIX_CACHE || 'looty' }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
+      - run: nix build .#looty-desktop -L --accept-flake-config
       - run: test -x result/bin/looty && test -f result/share/applications/looty.desktop
 
   deb:
@@ -45,9 +54,33 @@ jobs:
     needs: version
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+      # Image de construction (Rust + WebKitGTK) : couches gardées dans le cache GitHub.
+      - uses: docker/setup-buildx-action@v4
+      - name: Builder image
+        uses: docker/build-push-action@v7
+        with:
+          context: desktop/packaging
+          file: desktop/packaging/Dockerfile.deb
+          tags: looty-deb-builder
+          load: true
+          cache-from: type=gha,scope=deb-builder
+          cache-to: type=gha,mode=max,scope=deb-builder
+      # Dépendances Rust déjà compilées : seul le code de l'application est recompilé.
+      - name: Cargo cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/looty-deb
+          key: deb-${{ hashFiles('desktop/src-tauri/Cargo.lock', 'desktop/packaging/Dockerfile.deb') }}
+          restore-keys: deb-
       - name: Build (Debian 12 container)
-        run: ./desktop/scripts/build-deb.sh
+        env:
+          LOOTY_DEB_SKIP_IMAGE: '1'
+          LOOTY_DEB_CACHE: ${{ runner.temp }}/looty-deb
+        run: |
+          ./desktop/scripts/build-deb.sh
+          # Le conteneur écrit en root : fichiers rendus au runner pour la sauvegarde du cache.
+          sudo chown -R "$(id -u):$(id -g)" "$LOOTY_DEB_CACHE"
       - name: Install test on a clean Debian 12
         run: |
           docker run --rm -v "$PWD/desktop/dist:/dist:ro" debian:bookworm bash -euc '
@@ -55,13 +88,13 @@ jobs:
             DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends /dist/*.deb
             ! ldd /usr/bin/looty | grep "not found"
             grep -q "x-scheme-handler/looty" /usr/share/applications/*.desktop'
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: looty-deb
           path: desktop/dist/*.deb
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/desktop-v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: desktop/dist/*.deb
           generate_release_notes: true

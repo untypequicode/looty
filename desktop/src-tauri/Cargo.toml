@@ -47,7 +47,7 @@ gtk = "0.18"
 webkit2gtk = { version = "2.0", features = ["v2_40"] }
 
 [profile.release]
-lto = true
-codegen-units = 1
+# LTO « thin » : presque le même binaire qu'en LTO complet, construit bien plus vite.
+lto = "thin"
 strip = true
 opt-level = "s"
