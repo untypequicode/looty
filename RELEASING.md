@@ -48,9 +48,9 @@ of items.
 - **Android signing:** secrets `ANDROID_KEYSTORE_B64` (keystore in base64),
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
 - **Nix binary cache (Cachix):** create a cache on [cachix.org](https://app.cachix.org)
-  (for example `looty`), then add the repository variable `CACHIX_CACHE` (the cache name)
+  (for example `looty`; names are global, so pick another one if it is taken), then add the repository variable `CACHIX_CACHE` (the cache name)
   and the secret `CACHIX_AUTH_TOKEN` (a write token). The **Nix cache** workflow pushes
-  every desktop build of `main`. Then add the cache to `flake.nix` so users get it without
+  every desktop build of `main` (until the token is set, it still builds and only skips the push). Then add the cache to `flake.nix` so users get it without
   extra flags:
 
   ```nix

@@ -16,9 +16,9 @@ permissions:
 jobs:
   version:
     name: Version check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Tag matches Cargo.toml and tauri.conf.json
         if: startsWith(github.ref, 'refs/tags/desktop-v')
         run: |
@@ -31,9 +31,9 @@ jobs:
   nix:
     name: Nix package
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
@@ -43,9 +43,9 @@ jobs:
   deb:
     name: Debian package
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build (Debian 12 container)
         run: ./desktop/scripts/build-deb.sh
       - name: Install test on a clean Debian 12
@@ -55,7 +55,7 @@ jobs:
             DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends /dist/*.deb
             ! ldd /usr/bin/looty | grep "not found"
             grep -q "x-scheme-handler/looty" /usr/share/applications/*.desktop'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: looty-deb
           path: desktop/dist/*.deb
