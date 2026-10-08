@@ -15,6 +15,7 @@ if (!r) {
 const image = (c) => `ghcr.io/${repository.replace('https://github.com/', '')}-${c}:${version}`
 const lines = [`## ${r.title.en}`, '', ...r.notes.en.map((n) => `- ${n}`), '']
 if (platform === 'web') {
+  lines.push('### Download the apps', '', '- **Linux** (Debian / Ubuntu): the \`.deb\` file below, then \`sudo apt install ./Looty_<version>_amd64.deb\`.', '- **Android**: the \`.apk\` file below — open it on your phone and allow installing from this source.', '')
   lines.push('### Docker images', '', ...['backend', 'frontend', 'collaboration'].map((c) => `- \`${image(c)}\``), '',
     'Deploy this version with the attached `docker-compose.yml` (images pinned to this version), or set `LOOTY_VERSION=' + version + '` with `docker-compose.prod.yml`.', '')
 }

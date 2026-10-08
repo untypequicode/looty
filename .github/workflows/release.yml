@@ -36,6 +36,9 @@ jobs:
       desktop: ${{ steps.plan.outputs.desktop }}
       android: ${{ steps.plan.outputs.android }}
       any: ${{ steps.plan.outputs.any }}
+      latest_web: ${{ steps.plan.outputs.latest_web }}
+      latest_desktop: ${{ steps.plan.outputs.latest_desktop }}
+      latest_android: ${{ steps.plan.outputs.latest_android }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -153,3 +156,32 @@ jobs:
           body_path: out/android/notes.md
           files: out/android/*.apk
           make_latest: false
+      # La release principale (web, « Latest ») propose aussi les dernières applications :
+      # .deb et .apk de cette exécution, sinon repris de leurs propres releases. Les
+      # anciennes versions des applications y sont retirées.
+      - name: Attach apps to the main release
+        if: needs.plan.outputs.latest_web != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MAIN_TAG: web-v${{ needs.plan.outputs.latest_web }}
+          DESKTOP_TAG: desktop-v${{ needs.plan.outputs.latest_desktop }}
+          ANDROID_TAG: android-v${{ needs.plan.outputs.latest_android }}
+        run: |
+          if ! gh release view "$MAIN_TAG" > /dev/null 2>&1; then
+            echo "::notice::$MAIN_TAG is not published yet: apps not attached"
+            exit 0
+          fi
+          mkdir -p apps
+          cp out/desktop/*.deb out/android/*.apk apps/ 2> /dev/null || true
+          ls apps/*.deb > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern '*.deb' --dir apps || echo "::warning::no .deb found on $DESKTOP_TAG"
+          ls apps/*.apk > /dev/null 2>&1 || gh release download "$ANDROID_TAG" --pattern '*.apk' --dir apps || echo "::warning::no .apk found on $ANDROID_TAG"
+          ls -la apps
+          # Anciennes versions des applications retirées de la release principale.
+          for old in $(gh release view "$MAIN_TAG" --json assets --jq '.assets[].name | select(endswith(".deb") or endswith(".apk"))'); do
+            case "$old" in *.deb|*.apk) ;; *) continue ;; esac
+            [ -e "apps/$old" ] || gh release delete-asset "$MAIN_TAG" "$old" --yes
+          done
+          if compgen -G 'apps/*' > /dev/null; then
+            gh release upload "$MAIN_TAG" apps/* --clobber
+          fi
