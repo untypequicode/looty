@@ -348,7 +348,10 @@ async fn list_boards(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<Board>>> {
-    let (_, perms) = crate::access::member_perms(&pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)?;
+    let Some((_, perms)) = crate::access::member_perms(&pool, user.id, workspace_id).await? else {
+        // Invité : aucun tableau.
+        return if crate::access::is_guest(&pool, user.id, workspace_id).await? { Ok(Json(Vec::new())) } else { Err(ApiError::NotFound) };
+    };
     if perms.boards == crate::access::level::NONE {
         return Ok(Json(Vec::new()));
     }

@@ -15,7 +15,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::access::{require_member, AuthUser};
+use crate::access::AuthUser;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -56,7 +56,10 @@ async fn patch_user(State(state): State<AppState>, user: AuthUser, Json(patch): 
 }
 
 async fn get_member(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
-    require_member(&state.pool, &user, ws).await?;
+    // Invité : pas de préférences d'espace (rien n'est enregistré).
+    if crate::access::require_member_or_guest(&state.pool, &user, ws).await? == crate::access::Role::Guest {
+        return Ok(Json(serde_json::json!({})));
+    }
     let v: serde_json::Value = sqlx::query_scalar("SELECT prefs FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(ws)
         .bind(user.id.to_string())
@@ -66,7 +69,9 @@ async fn get_member(State(state): State<AppState>, user: AuthUser, Path(ws): Pat
 }
 
 async fn patch_member(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(patch): Json<serde_json::Value>) -> ApiResult<Json<serde_json::Value>> {
-    require_member(&state.pool, &user, ws).await?;
+    if crate::access::require_member_or_guest(&state.pool, &user, ws).await? == crate::access::Role::Guest {
+        return Ok(Json(serde_json::json!({})));
+    }
     check(&patch)?;
     if patch.to_string().len() > MAX_PREFS {
         return Err(ApiError::bad_request("too_large"));

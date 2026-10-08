@@ -400,7 +400,7 @@ fn is_inbox(name: &str) -> bool {
 }
 
 /// Encodage pour URL (paramètre de requête, nom de fichier RFC 5987).
-fn pct(s: &str) -> String {
+pub(crate) fn pct(s: &str) -> String {
     s.bytes()
         .map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
         .collect()

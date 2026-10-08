@@ -22,7 +22,7 @@ import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
 
-const { wsId, boards, pages, members, canWriteRole } = useWorkspace()
+const { wsId, boards, pages, members, canWriteRole, isGuest, role } = useWorkspace()
 const { can } = useAccess(wsId)
 const canEditDocs = computed(() => can.value.editDocs)
 const canEditTasks = computed(() => can.value.editTasks)
@@ -33,21 +33,21 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   home: { icon: Home, label: () => t('nav.home'), to: () => links.home(wsId.value), exact: true },
   inbox: { icon: Inbox, label: () => t('nav.inbox'), to: () => links.inbox(wsId.value), badge: () => unread.value || undefined },
   myTasks: { icon: CircleUserRound, label: () => t('nav.myTasks'), to: () => links.myTasks(wsId.value), when: () => can.value.seeBoards },
-  calendar: { icon: CalendarDays, label: () => t('calendar.title'), to: () => links.calendar(wsId.value) },
-  mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined },
-  moodle: { icon: GraduationCap, label: () => t('nav.moodle'), to: () => links.moodle(wsId.value), when: () => !!moodleInfo.value?.url },
-  docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => can.value.seeDocs },
-  graph: { icon: Waypoints, label: () => t('graph.title'), to: () => `/w/${wsId.value}/graph` },
-  activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true },
-  trash: { icon: Trash2, label: () => t('trash.title'), to: () => `/w/${wsId.value}/trash`, hiddenByDefault: true },
-}, { favorites: () => true, boards: () => can.value.seeBoards, docs: () => can.value.seeDocs })
+  calendar: { icon: CalendarDays, label: () => t('calendar.title'), to: () => links.calendar(wsId.value), when: () => !isGuest.value },
+  mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined, when: () => !isGuest.value },
+  moodle: { icon: GraduationCap, label: () => t('nav.moodle'), to: () => links.moodle(wsId.value), when: () => !isGuest.value && !!moodleInfo.value?.url },
+  docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => can.value.seeDocs || isGuest.value },
+  graph: { icon: Waypoints, label: () => t('graph.title'), to: () => `/w/${wsId.value}/graph`, when: () => !isGuest.value },
+  activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true, when: () => !isGuest.value },
+  trash: { icon: Trash2, label: () => t('trash.title'), to: () => `/w/${wsId.value}/trash`, hiddenByDefault: true, when: () => !isGuest.value },
+}, { favorites: () => !isGuest.value, boards: () => can.value.seeBoards, docs: () => can.value.seeDocs || isGuest.value })
 /** Sections visibles, dans l'ordre choisi. */
 const sectionOrder = computed(() => Object.entries(sections.value).filter(([, v]) => v !== undefined).sort((a, b) => a[1]! - b[1]!).map(([k]) => k))
 const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
 const { data: mailAccounts } = useMailAccounts()
-const { data: moodleInfo } = useMoodle(wsId)
+const { data: moodleInfo } = useMoodle(wsId, computed(() => role.value != null && !isGuest.value))
 const cardFor = ref<string | null>(null)
 const moreOpen = ref(false)
 const { commandOpen, createBoardOpen, sectionsCollapsed, sidebarCollapsed, sidebarOpen, shortcutsOpen, openCreateTask } = useUi()

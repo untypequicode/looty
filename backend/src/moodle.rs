@@ -44,6 +44,7 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/conversations", get(conversations))
         .route("/conversations/:id", get(conversation).post(send_message))
         .route("/calendar/sync", post(sync_calendar))
+        .route("/open", get(open_link))
 }
 
 // ---------------------------------------------------------------------------
@@ -117,19 +118,47 @@ fn p(k: &str, v: impl ToString) -> (String, String) {
     (k.to_string(), v.to_string())
 }
 
-/// Jeton à partir de ce que l'utilisateur colle : jeton brut ou lien
+fn valid_token(t: &str) -> bool {
+    t.len() >= 16 && t.len() <= 128 && t.chars().all(|c| c.is_ascii_alphanumeric())
+}
+
+/// Jeton (et jeton privé éventuel) à partir de ce que l'utilisateur colle ou de ce que
+/// renvoie le portail officiel : jeton brut ou lien
 /// `moodlemobile://token=BASE64(signature:::jeton[:::jeton privé])`.
-fn parse_token(raw: &str) -> Option<String> {
+fn parse_token(raw: &str) -> Option<(String, Option<String>)> {
     let t = raw.trim();
-    let encoded = t.split("token=").nth(1).map(|s| s.trim_end_matches(['/', '#', ' ']));
-    let token = match encoded {
+    // Lien éventuellement encodé (gestionnaire de protocole du navigateur).
+    let decoded = if t.contains("%3A") || t.contains("%3D") { pct_decode(t) } else { t.to_string() };
+    let encoded = decoded.split("token=").nth(1).map(|s| s.trim_end_matches(['/', '#', ' ']).to_string());
+    let (token, private) = match encoded {
         Some(e) => {
             let bytes = base64::engine::general_purpose::STANDARD.decode(e).ok()?;
-            String::from_utf8(bytes).ok()?.split(":::").nth(1)?.to_string()
+            let s = String::from_utf8(bytes).ok()?;
+            let mut parts = s.split(":::");
+            let _signature = parts.next();
+            (parts.next()?.to_string(), parts.next().map(str::to_string).filter(|p| valid_token(p)))
         }
-        None => t.to_string(),
+        None => (decoded, None),
     };
-    (token.len() >= 16 && token.len() <= 128 && token.chars().all(|c| c.is_ascii_alphanumeric())).then_some(token)
+    valid_token(&token).then_some((token, private))
+}
+
+fn pct_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 // ---------------------------------------------------------------------------
@@ -235,17 +264,55 @@ async fn site_probe(State(state): State<AppState>, user: AuthUser, Path(ws): Pat
     let v: Value = r.json().await.map_err(|_| ApiError::bad_request("moodle_not_moodle"))?;
     let data = v.get(0).filter(|x| x["error"] != json!(true)).map(|x| x["data"].clone()).ok_or_else(|| ApiError::bad_request("moodle_ws_disabled"))?;
     let typeoflogin = data["typeoflogin"].as_i64().unwrap_or(1);
-    // Lancement SSO : après connexion, Moodle redirige vers moodlemobile://token=…
+    // Portail officiel : la page de connexion habituelle (CAS…), puis Moodle redirige
+    // vers <schéma>://token=… — `moodlemobile` (application de bureau / Android, qui
+    // l'interceptent) ou `web+looty` (gestionnaire de protocole du navigateur, si la
+    // plateforme n'impose pas son schéma).
     let passport: u32 = rand::random();
-    let launch = format!("{base}/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport={passport}&urlscheme=moodlemobile");
+    let launch = |scheme: &str| format!("{base}/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport={passport}&urlscheme={scheme}");
     Ok(Json(json!({
         "base_url": base,
         "site_name": data["sitename"],
         "logo": data["compactlogourl"].as_str().or(data["logourl"].as_str()),
         "sso": typeoflogin != 1,
-        "launch_url": launch,
+        "launch_url": launch("moodlemobile"),
+        "launch_url_web": launch("web%2Blooty"),
         "tokens_url": format!("{base}/user/managetoken.php"),
+        "frameable": frameable(&base).await,
     })))
+}
+
+/// Le site accepte-t-il d'être affiché dans Looty (cadre) ? X-Frame-Options et
+/// frame-ancestors de la page d'accueil.
+async fn frameable(base: &str) -> bool {
+    let Ok(r) = http().get(format!("{base}/")).send().await else { return false };
+    let h = r.headers();
+    let xfo = h.get("x-frame-options").and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
+    let csp = h.get("content-security-policy").and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
+    xfo.is_empty() && !csp.contains("frame-ancestors")
+}
+
+#[derive(Deserialize)]
+struct OpenQuery {
+    /// Page du site à ouvrir (par défaut l'accueil).
+    url: Option<String>,
+}
+
+/// Lien vers le site officiel, connecté automatiquement quand c'est possible (clé
+/// d'auto-connexion de l'application mobile, valable une minute) ; sinon le lien simple.
+async fn open_link(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<OpenQuery>) -> ApiResult<Json<Value>> {
+    let (c, client, uid) = conn_of(&state, &user, ws).await?;
+    let target = q.url.filter(|u| u.starts_with(&format!("{}/", c.base_url)) || *u == c.base_url).unwrap_or_else(|| format!("{}/my/", c.base_url));
+    let private: Option<String> = sqlx::query_scalar("SELECT private_token_enc FROM moodle_connections WHERE id = $1").bind(c.id).fetch_one(&state.pool).await?;
+    let auto = async {
+        let private = crate::crypto::decrypt(private.as_deref()?)?;
+        let v = client.call("tool_mobile_get_autologin_key", &[p("privatetoken", private)]).await.ok()?;
+        let key = v["key"].as_str()?;
+        let base = v["autologinurl"].as_str()?;
+        Some(format!("{base}?userid={uid}&key={key}&urltogo={}", crate::mailclient::pct(&target)))
+    }
+    .await;
+    Ok(Json(json!({ "url": auto.clone().unwrap_or(target), "autologin": auto.is_some() })))
 }
 
 #[derive(Deserialize)]
@@ -263,7 +330,7 @@ async fn connect(State(state): State<AppState>, user: AuthUser, Path(ws): Path<U
         None => sqlx::query_scalar::<_, Option<String>>("SELECT moodle_url FROM workspaces WHERE id = $1").bind(ws).fetch_one(&state.pool).await?.unwrap_or_else(|| DEFAULT_URL.into()),
     };
     let base = clean_base(&raw).await?;
-    let token = match (&p.token, &p.username, &p.password) {
+    let (token, private) = match (&p.token, &p.username, &p.password) {
         (Some(t), _, _) if !t.trim().is_empty() => parse_token(t).ok_or_else(|| ApiError::bad_request("moodle_invalid_token"))?,
         (_, Some(u), Some(pw)) if !u.trim().is_empty() && !pw.is_empty() => {
             let r = http()
@@ -274,7 +341,7 @@ async fn connect(State(state): State<AppState>, user: AuthUser, Path(ws): Path<U
                 .map_err(|_| ApiError::bad_request("moodle_unreachable"))?;
             let v: Value = r.json().await.map_err(|_| ApiError::bad_request("moodle_not_moodle"))?;
             match v["token"].as_str() {
-                Some(t) => t.to_string(),
+                Some(t) => (t.to_string(), v["privatetoken"].as_str().filter(|x| valid_token(x)).map(str::to_string)),
                 None if v["errorcode"] == json!("invalidlogin") => return Err(ApiError::bad_request("moodle_auth_failed")),
                 None if v["errorcode"] == json!("enablewsdescription") => return Err(ApiError::bad_request("moodle_ws_disabled")),
                 None => return Err(ApiError::BadRequest(format!("moodle_error: {}", v["error"].as_str().unwrap_or("login")))),
@@ -294,10 +361,10 @@ async fn connect(State(state): State<AppState>, user: AuthUser, Path(ws): Path<U
         sqlx::query("DELETE FROM calendars WHERE id = $1 AND user_id = $2").bind(cal).bind(user.id).execute(&state.pool).await?;
     }
     sqlx::query(
-        "INSERT INTO moodle_connections (workspace_id, user_id, base_url, token_enc, moodle_user_id, full_name, site_name, last_sync_at, last_error, calendar_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NULL, NULL)
+        "INSERT INTO moodle_connections (workspace_id, user_id, base_url, token_enc, moodle_user_id, full_name, site_name, last_sync_at, last_error, calendar_id, private_token_enc)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NULL, NULL, $8)
          ON CONFLICT (workspace_id, user_id) DO UPDATE SET base_url = $3, token_enc = $4, moodle_user_id = $5, full_name = $6, site_name = $7,
-            last_sync_at = NOW(), last_error = NULL, calendar_id = NULL, last_notification_id = 0, last_message_id = 0",
+            last_sync_at = NOW(), last_error = NULL, calendar_id = NULL, last_notification_id = 0, last_message_id = 0, private_token_enc = $8",
     )
     .bind(ws)
     .bind(user.id)
@@ -306,6 +373,7 @@ async fn connect(State(state): State<AppState>, user: AuthUser, Path(ws): Path<U
     .bind(uid)
     .bind(&full_name)
     .bind(&site_name)
+    .bind(private.as_deref().map(crate::crypto::encrypt))
     .execute(&state.pool)
     .await?;
     let calendar = import_calendar(&state, &client, uid, user.id, ws, &site_name).await;
@@ -629,9 +697,13 @@ mod tests {
     #[test]
     fn tokens() {
         let raw = "abcdef0123456789abcdef0123456789";
-        assert_eq!(parse_token(raw).as_deref(), Some(raw));
-        let link = format!("moodlemobile://token={}", base64::engine::general_purpose::STANDARD.encode(format!("sig:::{raw}:::private")));
-        assert_eq!(parse_token(&link).as_deref(), Some(raw));
+        let private = "fedcba9876543210fedcba9876543210";
+        assert_eq!(parse_token(raw), Some((raw.to_string(), None)));
+        let link = format!("moodlemobile://token={}", base64::engine::general_purpose::STANDARD.encode(format!("sig:::{raw}:::{private}")));
+        assert_eq!(parse_token(&link), Some((raw.to_string(), Some(private.to_string()))));
+        // Lien transmis par le gestionnaire de protocole du navigateur (encodé).
+        let web = format!("web%2Blooty%3A%2F%2Ftoken%3D{}", base64::engine::general_purpose::STANDARD.encode(format!("sig:::{raw}")).replace('=', "%3D"));
+        assert_eq!(parse_token(&web), Some((raw.to_string(), None)));
         assert_eq!(parse_token("nope"), None);
         assert_eq!(parse_token("moodlemobile://token=%%%"), None);
     }

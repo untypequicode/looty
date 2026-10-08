@@ -90,9 +90,18 @@ async fn list_workspaces(State(pool): State<PgPool>, user: AuthUser) -> ApiResul
     let ws: Vec<WorkspaceResponse> = sqlx::query_as(
         "SELECT w.id, w.name, wm.role, w.created_at, w.updated_at, w.calendar_color
          FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id
-         WHERE wm.user_id = $1 ORDER BY w.created_at ASC",
+         WHERE wm.user_id = $1
+         UNION ALL
+         -- Espaces où l'on est seulement invité (pages partagées avec soi).
+         SELECT w.id, w.name, 'guest'::varchar, w.created_at, w.updated_at, w.calendar_color
+         FROM workspaces w
+         WHERE NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = w.id AND m.user_id = $1)
+           AND EXISTS (SELECT 1 FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
+                       WHERE p.workspace_id = w.id AND pp.user_id = $2 AND pp.role IN ('viewer', 'editor'))
+         ORDER BY created_at ASC",
     )
     .bind(user.id.to_string())
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
     Ok(Json(serde_json::json!({ "workspaces": ws })))
@@ -103,7 +112,7 @@ async fn get_workspace(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<WorkspaceResponse>> {
-    let role = require_member(&pool, &user, workspace_id).await?;
+    let role = crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
     let w: Workspace = sqlx::query_as("SELECT id, name, created_at, updated_at FROM workspaces WHERE id = $1")
         .bind(workspace_id)
         .fetch_one(&pool)
@@ -187,7 +196,7 @@ struct LatexPayload {
 
 /// Préambule LaTeX partagé par toutes les pages de l'espace.
 async fn get_latex(State(pool): State<PgPool>, user: AuthUser, Path(workspace_id): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
-    require_member(&pool, &user, workspace_id).await?;
+    crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
     let preamble: String = sqlx::query_scalar("SELECT latex_preamble FROM workspaces WHERE id = $1").bind(workspace_id).fetch_one(&pool).await?;
     Ok(Json(serde_json::json!({ "preamble": preamble })))
 }
@@ -226,7 +235,33 @@ async fn list_members(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    require_member(&pool, &user, workspace_id).await?;
+    // Invité : seulement les personnes liées à ses pages partagées (auteurs, dernière
+    // modification, qui a partagé), avec nom et avatar — ni e-mail ni rôle.
+    if crate::access::require_member_or_guest(&pool, &user, workspace_id).await? == Role::Guest {
+        let visible: Vec<Uuid> = visible_pages(&pool, &user, workspace_id, Role::Guest)
+            .await?
+            .into_iter()
+            .filter(|(_, a)| *a != PageAccess::None)
+            .map(|(id, _)| id)
+            .collect();
+        let people: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
+            "SELECT u.id, u.name, u.avatar_url FROM users u WHERE u.id IN (
+                SELECT created_by FROM pages WHERE id = ANY($1)
+                UNION SELECT updated_by FROM pages WHERE id = ANY($1)
+                UNION SELECT created_by FROM page_permissions WHERE page_id = ANY($1) AND user_id = $2
+                UNION SELECT $2)
+             ORDER BY u.name",
+        )
+        .bind(&visible)
+        .bind(user.id)
+        .fetch_all(&pool)
+        .await?;
+        let members: Vec<serde_json::Value> = people
+            .into_iter()
+            .map(|(id, name, avatar)| serde_json::json!({ "user_id": id.to_string(), "name": name, "email": "", "avatar_url": avatar, "role": if id == user.id { "guest" } else { "member" }, "joined_at": chrono::Utc::now() }))
+            .collect();
+        return Ok(Json(serde_json::json!({ "members": members })));
+    }
     let members: Vec<WorkspaceMemberResponse> = sqlx::query_as(
         "SELECT wm.user_id, u.name, u.email, u.avatar_url, wm.role, wm.joined_at, r.id AS role_id, r.name AS role_name, r.color AS role_color, wm.group_tasks
          FROM workspace_members wm JOIN users u ON wm.user_id = u.id::varchar

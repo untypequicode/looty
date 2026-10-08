@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::access::{require_member, AuthUser};
+use crate::access::AuthUser;
 use crate::error::ApiResult;
 use crate::state::AppState;
 use crate::ws::Hub;
@@ -85,7 +85,7 @@ async fn list(
     user: AuthUser,
     Query(q): Query<ListQuery>,
 ) -> ApiResult<Json<Vec<Notification>>> {
-    require_member(&pool, &user, q.workspace_id).await?;
+    crate::access::require_member_or_guest(&pool, &user, q.workspace_id).await?;
     let rows = sqlx::query_as::<_, Notification>(
         "SELECT n.id, n.workspace_id, n.actor_id, u.name AS actor_name, n.kind, n.target, n.data, n.read_at, n.created_at
          FROM notifications n LEFT JOIN users u ON u.id = n.actor_id

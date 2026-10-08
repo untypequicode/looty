@@ -3,6 +3,48 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.9.0",
+      "date": "2026-10-08",
+      "title": {
+        "en": "Official Moodle portal, guests in the workspace interface",
+        "fr": "Portail Moodle officiel, invités dans l’interface de l’espace"
+      },
+      "notes": {
+        "en": [
+          "**Moodle: official portal.** Connecting now starts from your Moodle’s own login page (CAS for the University of Bordeaux). In the desktop app it is fully automatic; in the browser it works when the site allows it (Looty asks to handle “web+looty” links), and the other methods (key, username) remain available.",
+          "**Official Moodle site in Looty**: courses, deadlines and notifications open the real Moodle site already signed in (automatic login), and a “Moodle site” tab shows it inside Looty when the platform allows embedding.",
+          "**Shared pages: same interface as the workspace.** People a page is shared with (guests) now open it in the normal workspace layout — sidebar, tabs, editor, comments — but only see the pages shared with them and their subpages. Their home lists those pages; boards, calendar, mail and other member areas stay hidden, and old /shared links redirect there.",
+          "Guests see the names of the people who wrote or shared their pages (no e-mail addresses), and can edit right away when the page is shared with editing rights."
+        ],
+        "fr": [
+          "**Moodle : portail officiel.** La connexion part maintenant de la page de connexion de votre Moodle (CAS pour l’université de Bordeaux). Dans l’application de bureau, tout est automatique ; dans le navigateur, cela fonctionne si la plateforme le permet (Looty demande à gérer les liens « web+looty »), et les autres méthodes (clé, identifiant) restent disponibles.",
+          "**Site Moodle officiel dans Looty** : cours, échéances et notifications ouvrent le vrai site Moodle déjà connecté (connexion automatique), et un onglet « Site Moodle » l’affiche dans Looty quand la plateforme l’autorise.",
+          "**Pages partagées : même interface que l’espace.** Les personnes avec qui une page est partagée (invités) l’ouvrent désormais dans l’interface habituelle de l’espace — barre latérale, onglets, éditeur, commentaires — mais ne voient que les pages partagées avec elles et leurs sous-pages. Leur accueil liste ces pages ; tableaux, calendrier, mail et autres espaces des membres restent masqués, et les anciens liens /shared y mènent.",
+          "Les invités voient le nom des personnes qui ont écrit ou partagé leurs pages (sans adresse e-mail), et peuvent modifier tout de suite quand la page leur est partagée en modification."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.3.0",
+      "date": "2026-10-08",
+      "title": {
+        "en": "Moodle in the app",
+        "fr": "Moodle dans l’application"
+      },
+      "notes": {
+        "en": [
+          "**Sign in to Moodle with the official portal**: “Sign in with…” opens your university’s usual Moodle login page (CAS) in a Looty window; once you’re signed in, Looty connects your account by itself — nothing to copy.",
+          "The **official Moodle site** opens in that same window, already signed in: courses, assignments and notifications from the Moodle page open there."
+        ],
+        "fr": [
+          "**Connexion à Moodle par le portail officiel** : « Se connecter avec… » ouvre la page de connexion Moodle habituelle de votre université (CAS) dans une fenêtre de Looty ; une fois connecté, Looty relie votre compte tout seul — rien à copier.",
+          "Le **site Moodle officiel** s’ouvre dans cette même fenêtre, déjà connecté : les cours, devoirs et notifications de la page Moodle s’y ouvrent."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.8.0",
       "date": "2026-10-07",
       "title": {

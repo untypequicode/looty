@@ -233,7 +233,13 @@ pub async fn assign_role(state: &AppState, user: &AuthUser, ws: Uuid, member: Uu
 
 /// Mon rôle et mes permissions dans l'espace (affichage de l'interface).
 async fn me(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
-    let (role, perms) = member_perms(&state.pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
+    let Some((role, perms)) = member_perms(&state.pool, user.id, ws).await? else {
+        // Invité : aucun droit sur l'espace, seulement ses pages partagées.
+        if crate::access::is_guest(&state.pool, user.id, ws).await? {
+            return Ok(Json(serde_json::json!({ "role": "guest", "role_id": null, "role_name": null, "permissions": crate::access::Perms::preset(Role::Guest).to_json(), "group_tasks": false })));
+        }
+        return Err(ApiError::NotFound);
+    };
     let row: (Option<Uuid>, Option<String>, bool) = sqlx::query_as(
         "SELECT r.id, r.name, m.group_tasks FROM workspace_members m
          LEFT JOIN workspace_roles r ON r.workspace_id = m.workspace_id AND (r.id = m.role_id OR (m.role_id IS NULL AND r.preset = m.role))

@@ -248,6 +248,58 @@ fn open_quick_add(app: &AppHandle) {
         .build();
 }
 
+/// Fenêtre du site Moodle officiel (cookies gardés : la session CAS reste ouverte).
+/// En connexion (`login`), la redirection finale de Moodle vers `moodlemobile://token=…`
+/// est interceptée : la clé part vers la fenêtre principale, qui connecte le compte.
+fn open_moodle_window(app: &AppHandle, url: &str, login: bool) {
+    let Ok(target) = Url::parse(url) else { return };
+    if let Some(w) = app.get_webview_window("moodle") {
+        let _ = w.navigate(target);
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let nav = app.clone();
+    let built = WebviewWindowBuilder::new(app, "moodle", WebviewUrl::External(target))
+        .title(if login { tr("Connexion à Moodle — Looty", "Moodle sign-in — Looty") } else { "Moodle — Looty" })
+        .inner_size(1180.0, 820.0)
+        .min_inner_size(380.0, 480.0)
+        .on_navigation(move |u| moodle_navigation(&nav, u))
+        .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
+        .build();
+    if let Ok(w) = built {
+        enable_spellcheck(&w);
+    }
+}
+
+fn moodle_navigation(app: &AppHandle, url: &Url) -> bool {
+    match url.scheme() {
+        "http" | "https" | "about" | "blob" | "data" => true,
+        // Clé de l'application mobile : jamais affichée, transmise à Looty.
+        "moodlemobile" | "web+looty" => {
+            tracing::info!("moodle sign-in finished");
+            let link = serde_json::to_string(url.as_str()).unwrap_or_default();
+            let app = app.clone();
+            let _ = app.clone().run_on_main_thread(move || {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.eval(format!("window.dispatchEvent(new CustomEvent('looty:moodle-token', {{ detail: {link} }}))"));
+                }
+                if let Some(w) = app.get_webview_window("moodle") {
+                    let _ = w.close();
+                }
+                show_main(&app);
+            });
+            false
+        }
+        "mailto" => {
+            let _ = app.opener().open_url(url.as_str(), None::<&str>);
+            false
+        }
+        _ => false,
+    }
+}
+
 /// Correcteur orthographique de WebKitGTK (désactivé par défaut) : langue du système,
 /// plus le français et l'anglais (dictionnaires hunspell installés via enchant).
 fn enable_spellcheck(window: &tauri::WebviewWindow) {
@@ -402,7 +454,7 @@ fn main() {
             let handle = app.handle().clone();
             app.manage(Native { tray: Mutex::new(None), last_state: Mutex::new(TrayState::default()), service: Mutex::new(None) });
 
-            let (open_handle, done_handle, qa_handle) = (handle.clone(), handle.clone(), handle.clone());
+            let (open_handle, done_handle, qa_handle, moodle_handle) = (handle.clone(), handle.clone(), handle.clone(), handle.clone());
             let _ = proxy.hooks.set(proxy::Hooks {
                 open_url: Box::new(move |url| {
                     // Tests automatisés (débogage uniquement) : navigateur imposé.
@@ -441,6 +493,10 @@ fn main() {
                         };
                         tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into() });
                     }
+                }),
+                open_moodle: Box::new(move |url, login| {
+                    let h = moodle_handle.clone();
+                    let _ = moodle_handle.run_on_main_thread(move || open_moodle_window(&h, &url, login));
                 }),
                 quick_add_closed: Box::new(move |created| {
                     let h = qa_handle.clone();
@@ -521,6 +577,17 @@ fn main() {
             *app.state::<Native>().service.lock().unwrap() = Some(svc);
             if matches!(first_action, Action::QuickAdd) {
                 open_quick_add(&handle);
+            }
+            // Tests automatisés (débogage uniquement) : connexion Moodle lancée au démarrage.
+            if cfg!(debug_assertions) {
+                if let Ok(u) = std::env::var("LOOTY_TEST_MOODLE_LOGIN") {
+                    let h = handle.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(12));
+                        let h2 = h.clone();
+                        let _ = h.run_on_main_thread(move || open_moodle_window(&h2, &u, true));
+                    });
+                }
             }
             Ok(())
         })

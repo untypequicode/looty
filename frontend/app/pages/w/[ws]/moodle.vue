@@ -12,6 +12,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useUi } from '~/composables/useUi'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
+import { isDesktop } from '~/composables/useDesktop'
 import {
   useMoodle, useMoodleData, useMoodleInvalidate, moodleKeys,
   type MoodleOverview, type MoodleSite, type MoodleCourse, type MoodleDeadline, type MoodleConversation, type MoodleMessage, type MoodleNotification,
@@ -42,30 +43,84 @@ const siteError = ref('')
 watch(() => [overview.value?.url, connected.value] as const, async ([url]) => {
   site.value = null
   siteError.value = ''
-  if (!url || connected.value) return
-  try { site.value = await api<MoodleSite>(`/api/workspaces/${wsId.value}/moodle/site`, { silent: true }) } catch (e) { siteError.value = errorMessage(e) }
+  if (!url) return
+  try { site.value = await api<MoodleSite>(`/api/workspaces/${wsId.value}/moodle/site`, { silent: true }) } catch (e) { if (!connected.value) siteError.value = errorMessage(e) }
 }, { immediate: true })
-const method = ref<'sso' | 'password' | 'token'>('sso')
-watch(site, (s) => { if (s) method.value = s.sso ? 'sso' : 'password' })
+const method = ref<'password' | 'token'>('token')
+const otherWays = ref(false)
 const form = reactive({ token: '', username: '', password: '' })
 const connecting = ref(false)
 const connectError = ref('')
-async function connect() {
+async function connect(body?: Record<string, string>) {
   connecting.value = true
   connectError.value = ''
   try {
-    const body = method.value === 'password' ? { username: form.username, password: form.password } : { token: form.token }
-    const r = await api<{ full_name: string; calendar: boolean }>(`/api/workspaces/${wsId.value}/moodle/connect`, { method: 'POST', body, silent: true })
+    const payload = body ?? (method.value === 'password' ? { username: form.username, password: form.password } : { token: form.token })
+    const r = await api<{ full_name: string; calendar: boolean }>(`/api/workspaces/${wsId.value}/moodle/connect`, { method: 'POST', body: payload, silent: true })
     toast.success(t('moodle.connected', { name: r.full_name }))
     if (!r.calendar) toast(t('moodle.calendarUnavailable'))
     Object.assign(form, { token: '', username: '', password: '' })
+    waiting.value = false
     tab.value = 'overview'
     invalidate()
     qc.invalidateQueries({ queryKey: ['calendars'] })
   } catch (e) { connectError.value = errorMessage(e) } finally { connecting.value = false }
 }
-function openLaunch() {
-  if (site.value) window.open(site.value.launch_url, '_blank', 'noopener')
+
+// Portail officiel : la page de connexion habituelle de la plateforme (CAS…). Moodle
+// renvoie ensuite une clé à « son application » : l'application de bureau l'intercepte
+// dans sa fenêtre Moodle ; dans le navigateur, le gestionnaire de protocole web+looty
+// la reçoit si la plateforme le permet.
+const waiting = ref(false)
+const waitedLong = ref(false)
+let waitTimer: ReturnType<typeof setTimeout> | undefined
+async function portalLogin() {
+  if (!site.value) return
+  connectError.value = ''
+  waiting.value = true
+  waitedLong.value = false
+  clearTimeout(waitTimer)
+  waitTimer = setTimeout(() => (waitedLong.value = true), 25_000)
+  if (isDesktop) {
+    await fetch('/__looty/moodle/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: site.value.launch_url, login: true }) })
+    return
+  }
+  localStorage.setItem('looty.moodle.pending', wsId.value)
+  try { navigator.registerProtocolHandler('web+looty', `${location.origin}/moodle-callback?link=%s`) } catch { /* navigateur sans gestionnaire */ }
+  window.open(site.value.launch_url_web, 'looty-moodle', 'popup,width=960,height=780')
+}
+function onDesktopToken(e: Event) { const link = (e as CustomEvent<string>).detail; if (link) connect({ token: link }) }
+function onPopupMessage(e: MessageEvent) {
+  if (e.origin === location.origin && e.data?.type === 'looty-moodle-token' && typeof e.data.link === 'string') connect({ token: e.data.link })
+}
+// Connexion terminée dans la fenêtre Moodle (sans lien avec cette page) : simple mise à jour.
+let channel: BroadcastChannel | null = null
+function onChannel(e: MessageEvent) {
+  if (e.data?.type !== 'connected' || e.data.ws !== wsId.value) return
+  waiting.value = false
+  tab.value = 'overview'
+  invalidate()
+  qc.invalidateQueries({ queryKey: ['calendars'] })
+}
+onMounted(() => {
+  window.addEventListener('looty:moodle-token', onDesktopToken)
+  window.addEventListener('message', onPopupMessage)
+  try { channel = new BroadcastChannel('looty-moodle'); channel.onmessage = onChannel } catch { /* ancien navigateur */ }
+})
+onBeforeUnmount(() => { window.removeEventListener('looty:moodle-token', onDesktopToken); window.removeEventListener('message', onPopupMessage); channel?.close(); clearTimeout(waitTimer) })
+
+/** Site officiel (connecté automatiquement si possible) : fenêtre Moodle de l'application de bureau, sinon nouvel onglet. */
+async function openSite(url?: string) {
+  const r = await api<{ url: string }>(`/api/workspaces/${wsId.value}/moodle/open${url ? `?url=${encodeURIComponent(url)}` : ''}`, { silent: true }).catch(() => ({ url: url ?? conn.value?.base_url ?? '' }))
+  if (!r.url) return
+  if (isDesktop) await fetch('/__looty/moodle/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: r.url, login: false }) })
+  else window.open(r.url, '_blank', 'noopener')
+}
+// Onglet « Site Moodle » (si la plateforme accepte d'être affichée dans Looty).
+const frameSrc = ref('')
+async function loadFrame() {
+  const r = await api<{ url: string }>(`/api/workspaces/${wsId.value}/moodle/open`, { silent: true }).catch(() => ({ url: conn.value?.base_url ?? '' }))
+  frameSrc.value = r.url
 }
 
 // --- Réglage de l'adresse (administrateurs) ---
@@ -81,7 +136,7 @@ async function saveUrl() {
 }
 
 // --- Données ---
-const tab = ref<'overview' | 'messages' | 'notifications'>('overview')
+const tab = ref<'overview' | 'messages' | 'notifications' | 'site'>('overview')
 const courses = useMoodleData<MoodleCourse[]>(wsId, 'courses', connected)
 const deadlines = useMoodleData<MoodleDeadline[]>(wsId, 'deadlines', connected)
 const convs = useMoodleData<MoodleConversation[]>(wsId, 'conversations', computed(() => connected.value && tab.value === 'messages'), 60_000)
@@ -160,7 +215,7 @@ const moreItems = computed<MenuItem[]>(() => [
   { label: t('moodle.disconnect'), icon: LogOut, danger: true, onSelect: disconnect },
 ])
 const refreshAll = () => invalidate()
-function openExternal(url: string) { window.open(url, '_blank', 'noopener') }
+watch(tab, (v) => { if (v === 'site' && !frameSrc.value) loadFrame() })
 
 useHead({ title: () => t('moodle.title') })
 </script>
@@ -170,7 +225,7 @@ useHead({ title: () => t('moodle.title') })
     <AppPageHeader :crumbs="[{ label: conn?.site_name || t('moodle.title'), icon: GraduationCap }]">
       <template v-if="connected">
         <UiTooltip :text="t('moodle.refresh')"><UiButton size="sm" variant="ghost" :icon="RefreshCw" :aria-label="t('moodle.refresh')" @click="refreshAll" /></UiTooltip>
-        <UiButton size="sm" :icon="ExternalLink" @click="openExternal(conn!.base_url)">{{ t('moodle.open') }}</UiButton>
+        <UiButton size="sm" :icon="ExternalLink" @click="openSite()">{{ t('moodle.open') }}</UiButton>
         <UiMenu v-model:open="moreOpen" :items="moreItems" placement="bottom-end">
           <UiButton size="sm" variant="ghost" :icon="MoreHorizontal" :aria-label="t('common.more')" />
         </UiMenu>
@@ -200,26 +255,28 @@ useHead({ title: () => t('moodle.title') })
         <h2>{{ t('moodle.connectTitle', { site: site?.site_name || overview.url }) }}</h2>
         <p class="muted">{{ t('moodle.connectHint') }}</p>
         <p v-if="siteError" class="md-err">{{ siteError }}</p>
-        <UiSegmented v-model="method" size="md" :options="[{ value: 'sso', label: t('moodle.methods.sso') }, { value: 'password', label: t('moodle.methods.password') }, { value: 'token', label: t('moodle.methods.token') }]" />
-        <template v-if="method === 'sso'">
-          <ol class="md-steps">
-            <li>{{ t('moodle.sso1') }} <UiButton size="xs" :icon="LogIn" :disabled="!site" @click="openLaunch">{{ t('moodle.ssoOpen') }}</UiButton></li>
-            <li>{{ t('moodle.sso2') }}</li>
-            <li>{{ t('moodle.sso3') }}</li>
-          </ol>
-          <UiInput v-model="form.token" placeholder="moodlemobile://token=…" autocomplete="off" @keydown.enter="connect" />
-        </template>
-        <template v-else-if="method === 'password'">
-          <UiInput v-model="form.username" :placeholder="t('moodle.username')" autocomplete="username" />
-          <UiInput v-model="form.password" type="password" :placeholder="t('moodle.password')" autocomplete="current-password" @keydown.enter="connect" />
-          <p class="md-small">{{ t('moodle.passwordHint') }}</p>
-        </template>
-        <template v-else>
-          <p class="md-small">{{ t('moodle.tokenHint') }} <a v-if="site" :href="site.tokens_url" target="_blank" rel="noopener">{{ t('moodle.tokensPage') }}</a></p>
-          <UiInput v-model="form.token" :placeholder="t('moodle.tokenPlaceholder')" autocomplete="off" @keydown.enter="connect" />
-        </template>
+        <UiButton class="md-portal" variant="primary" :icon="LogIn" :disabled="!site" :loading="connecting" @click="portalLogin">{{ t('moodle.portalLogin', { site: site?.site_name || 'Moodle' }) }}</UiButton>
+        <p class="md-small">{{ isDesktop ? t('moodle.portalHintDesktop') : t('moodle.portalHintWeb') }}</p>
+        <div v-if="waiting" class="md-wait">
+          <UiSpinner :size="14" /> <span>{{ isDesktop ? t('moodle.waitingDesktop') : t('moodle.waitingWeb') }}</span>
+        </div>
+        <p v-if="waiting && waitedLong && !isDesktop" class="md-small">{{ t('moodle.waitedLong') }}</p>
         <p v-if="connectError" class="md-err">{{ connectError }}</p>
-        <UiButton variant="primary" :icon="KeyRound" :loading="connecting" :disabled="method === 'password' ? !form.username || !form.password : !form.token.trim()" @click="connect">{{ t('moodle.connect') }}</UiButton>
+
+        <button class="md-other" :aria-expanded="otherWays" @click="otherWays = !otherWays">{{ t('moodle.otherWays') }}</button>
+        <template v-if="otherWays || (waiting && waitedLong && !isDesktop)">
+          <UiSegmented v-model="method" size="md" :options="[{ value: 'token', label: t('moodle.methods.token') }, { value: 'password', label: t('moodle.methods.password') }]" />
+          <template v-if="method === 'password'">
+            <UiInput v-model="form.username" :placeholder="t('moodle.username')" autocomplete="username" />
+            <UiInput v-model="form.password" type="password" :placeholder="t('moodle.password')" autocomplete="current-password" @keydown.enter="connect()" />
+            <p class="md-small">{{ t('moodle.passwordHint') }}</p>
+          </template>
+          <template v-else>
+            <p class="md-small">{{ t('moodle.tokenHint') }} <a v-if="site" :href="site.tokens_url" target="_blank" rel="noopener">{{ t('moodle.tokensPage') }}</a></p>
+            <UiInput v-model="form.token" :placeholder="t('moodle.tokenPlaceholder')" autocomplete="off" @keydown.enter="connect()" />
+          </template>
+          <UiButton :icon="KeyRound" :loading="connecting" :disabled="method === 'password' ? !form.username || !form.password : !form.token.trim()" @click="connect()">{{ t('moodle.connect') }}</UiButton>
+        </template>
         <p class="md-small">{{ t('moodle.privacy') }}</p>
       </div>
     </div>
@@ -235,6 +292,7 @@ useHead({ title: () => t('moodle.title') })
           { value: 'overview', label: t('moodle.tabs.overview') },
           { value: 'messages', label: unreadConvs ? `${t('moodle.tabs.messages')} · ${unreadConvs}` : t('moodle.tabs.messages') },
           { value: 'notifications', label: notifs.data.value?.unread ? `${t('moodle.tabs.notifications')} · ${notifs.data.value.unread}` : t('moodle.tabs.notifications') },
+          ...(site?.frameable && !isDesktop ? [{ value: 'site' as const, label: t('moodle.tabs.site') }] : []),
         ]" />
         <span class="md-who muted">{{ conn!.full_name }}</span>
       </div>
@@ -248,7 +306,7 @@ useHead({ title: () => t('moodle.title') })
           <div v-for="d in deadlines.data.value" :key="d.id" class="dl" :class="{ overdue: d.overdue, soon: !d.overdue && soon(d.due) }">
             <div class="dl-date"><b>{{ dayFmt(d.due) }}</b><span>{{ timeFmt(d.due) }}</span></div>
             <div class="dl-body">
-              <a :href="d.url" target="_blank" rel="noopener" class="dl-name">{{ d.name }}</a>
+              <a :href="d.url" target="_blank" rel="noopener" class="dl-name" @click.prevent="openSite(d.url)">{{ d.name }}</a>
               <div class="dl-meta">{{ d.course }} · <span :class="{ 'dl-late': d.overdue }">{{ d.overdue ? t('moodle.overdue') : relativeTime(d.due) }}</span></div>
             </div>
             <UiTooltip :text="t('moodle.addTask')"><UiButton size="xs" variant="ghost" :icon="ListPlus" :aria-label="t('moodle.addTask')" @click="addTask(d)" /></UiTooltip>
@@ -260,7 +318,7 @@ useHead({ title: () => t('moodle.title') })
           <div v-if="courses.isLoading.value" class="md-skel"><div v-for="i in 4" :key="i" class="skeleton" style="height: 44px; margin: 4px 0" /></div>
           <p v-else-if="courses.error.value" class="md-err">{{ errorMessage(courses.error.value) }}</p>
           <p v-else-if="!courses.data.value?.length" class="muted md-empty">{{ t('moodle.noCourses') }}</p>
-          <a v-for="c in courses.data.value" :key="c.id" :href="c.url" target="_blank" rel="noopener" class="crs">
+          <a v-for="c in courses.data.value" :key="c.id" :href="c.url" target="_blank" rel="noopener" class="crs" @click.prevent="openSite(c.url)">
             <span class="crs-badge" :style="{ background: `hsl(${(c.id * 67) % 360} 55% 92%)`, color: `hsl(${(c.id * 67) % 360} 45% 32%)` }">{{ (c.shortname || c.fullname).slice(0, 3).toUpperCase() }}</span>
             <span class="crs-body">
               <span class="crs-name truncate">{{ c.fullname }} <Star v-if="c.favourite" :size="11" class="crs-fav" /></span>
@@ -311,9 +369,14 @@ useHead({ title: () => t('moodle.title') })
         </div>
       </div>
 
+      <div v-else-if="tab === 'site'" class="md-site">
+        <iframe v-if="frameSrc" :src="frameSrc" :title="conn!.site_name || 'Moodle'" referrerpolicy="no-referrer" />
+        <div v-else class="md-center"><UiSpinner /></div>
+      </div>
+
       <div v-else class="md-notifs">
         <p v-if="!notifs.data.value?.notifications.length" class="muted md-empty">{{ t('moodle.noNotifications') }}</p>
-        <component :is="n.url ? 'a' : 'div'" v-for="n in notifs.data.value?.notifications" :key="n.id" class="nt" :class="{ unread: !n.read }" :href="n.url || undefined" target="_blank" rel="noopener">
+        <component :is="n.url ? 'a' : 'div'" v-for="n in notifs.data.value?.notifications" :key="n.id" class="nt" :class="{ unread: !n.read }" :href="n.url || undefined" target="_blank" rel="noopener" @click="n.url && ($event.preventDefault(), openSite(n.url))">
           <Bell :size="14" class="nt-ic" />
           <span class="nt-body"><b>{{ n.subject }}</b><span v-if="n.text && n.text !== n.subject" class="nt-text">{{ n.text }}</span></span>
           <time>{{ relativeTime(n.time) }}</time>
@@ -332,6 +395,12 @@ useHead({ title: () => t('moodle.title') })
 .md-card p { margin: 0; }
 .md-hero { color: #f98012; align-self: center; }
 .md-card.wide .md-hero, .md-logo { align-self: flex-start; }
+.md-portal { align-self: stretch; justify-content: center; height: 38px; }
+.md-wait { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-md); background: var(--bg-hover); font-size: var(--fs-sm); color: var(--text-2); }
+.md-other { align-self: flex-start; font-size: var(--fs-sm); color: var(--text-3); text-decoration: underline; }
+.md-other:hover { color: var(--text); }
+.md-site { flex: 1; min-height: 520px; display: flex; border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-card); background: #fff; }
+.md-site iframe { flex: 1; border: 0; width: 100%; }
 .md-logo { max-height: 36px; max-width: 180px; object-fit: contain; }
 .muted { color: var(--text-3); }
 .md-small { font-size: var(--fs-sm); color: var(--text-3); margin: 0; }

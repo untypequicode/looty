@@ -9,7 +9,7 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use crate::access::{
-    is_member, require_member, require_page_read, require_page_write, visible_pages, AuthUser,
+    is_member, require_page_read, require_page_write, visible_pages, AuthUser,
     PageAccess,
 };
 use crate::error::{ApiError, ApiResult};
@@ -129,7 +129,7 @@ async fn list_pages(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<Page>>> {
-    let role = require_member(&pool, &user, workspace_id).await?;
+    let role = crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
     let visible = visible_pages(&pool, &user, workspace_id, role).await?;
     let sql = format!(
         "SELECT {PAGE_LIST_COLUMNS},
