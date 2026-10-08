@@ -26,7 +26,7 @@ definePageMeta({ layout: 'workspace' })
 const route = useRoute()
 const qc = useQueryClient()
 const { t, relativeTime } = useI18n()
-const { wsId, pages, member } = useWorkspace()
+const { wsId, pages, member, isGuest } = useWorkspace()
 const { editing, allows } = useAccess(wsId)
 const { user } = useAuth()
 const { updatePage, toggleFavorite, deletePage, duplicatePage, createPage } = usePages()
@@ -44,7 +44,10 @@ const live = computed<Page | undefined>(() => {
   return page.value ? { ...page.value, ...(fromList ?? {}), content: page.value.content } : undefined
 })
 // Droit sur la page (rôle, permissions de page) + mode d'édition personnel des documents.
-const canEdit = computed(() => live.value?.can_edit !== false && !readMode.value && editing('docs'))
+// Invité : seul le partage de la page compte (pas de mode d'édition d'espace).
+const canEdit = computed(() => live.value?.can_edit !== false && !readMode.value && (isGuest.value || editing('docs')))
+/** Créer, dupliquer, importer, supprimer : réservé aux membres (un invité modifie seulement). */
+const canManage = computed(() => canEdit.value && !isGuest.value)
 const path = computed(() => pagePath(pages.data.value ?? [], pageId.value))
 const children = computed(() => (pages.data.value ?? []).filter((p) => p.parent_id === pageId.value).sort((a, b) => a.position - b.position))
 
@@ -173,12 +176,12 @@ const menu = computed<MenuItem[]>(() => {
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },
     { label: fullWidth.value ? t('editor.normalWidth') : t('editor.fullWidthPage'), icon: fullWidth.value ? Minimize2 : Maximize2, onSelect: () => (fullWidth.value = !fullWidth.value) },
     { divider: true },
-    ...(canEdit.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
+    ...(canManage.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },
     { label: t('exportFormats.printPdf'), icon: Printer, onSelect: async () => { const { printToPdf } = await import('~/editor/exportDoc'); printToPdf(title.value, [{ title: title.value || t('docs.untitled'), html: editorInst.value?.getHTML() ?? p.content ?? '' }]) } },
     { label: t('transfer.exportMenu'), icon: FileArchive, onSelect: () => (exportOpen.value = true) },
-    ...(canEdit.value ? [{ label: t('transfer.importHere'), icon: Upload, onSelect: () => (importOpen.value = true) }] : []),
-    ...(canEdit.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await deletePage(p)) navigateTo(p.parent_id ? links.doc(wsId.value, p.parent_id) : links.docs(wsId.value)) } }] : []),
+    ...(canManage.value ? [{ label: t('transfer.importHere'), icon: Upload, onSelect: () => (importOpen.value = true) }] : []),
+    ...(canManage.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await deletePage(p)) navigateTo(p.parent_id ? links.doc(wsId.value, p.parent_id) : links.docs(wsId.value)) } }] : []),
   ]
 })
 
@@ -215,17 +218,17 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         </UiTooltip>
       </span>
       <template v-if="live">
-        <UiTooltip :text="live.is_favorite ? t('docs.unfavorite') : t('docs.favorite')">
+        <UiTooltip v-if="!isGuest" :text="live.is_favorite ? t('docs.unfavorite') : t('docs.favorite')">
           <UiButton size="sm" variant="ghost" :icon="Star" :class="{ fav: live.is_favorite }" @click="toggleFavorite(live)" />
         </UiTooltip>
-        <AppEditToggle v-if="live.can_edit !== false" area="docs" />
+        <AppEditToggle v-if="live.can_edit !== false && !isGuest" area="docs" />
         <UiTooltip :text="t('reader.open')" :shortcut="['mod', 'alt', 'R']">
           <UiButton size="sm" variant="ghost" :icon="BookOpenText" :to="links.read(wsId, live.id)" :aria-label="t('reader.open')" />
         </UiTooltip>
         <UiTooltip :text="t('itemComments.title')">
           <UiButton size="sm" variant="ghost" :icon="MessageSquare" :class="{ 'cm-on': commentsOpen }" :aria-pressed="commentsOpen" @click="commentsOpen = !commentsOpen">{{ openComments || '' }}</UiButton>
         </UiTooltip>
-        <UiButton size="sm" :icon="Share2" @click="shareOpen = true">{{ t('share.share') }}</UiButton>
+        <UiButton v-if="!isGuest" size="sm" :icon="Share2" @click="shareOpen = true">{{ t('share.share') }}</UiButton>
         <UiMenu v-model:open="menuOpen" :items="menu" placement="bottom-end" :width="250"><UiButton size="sm" variant="ghost" :icon="MoreHorizontal" /></UiMenu>
       </template>
     </AppPageHeader>
@@ -278,7 +281,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
               @status="(s) => (status = s)"
             />
 
-            <section v-if="children.length || canEdit" class="children">
+            <section v-if="children.length || canManage" class="children">
               <h3>{{ t('editor.subDocuments') }}</h3>
               <div class="child-grid">
                 <NuxtLink v-for="c in children" :key="c.id" :to="links.doc(wsId, c.id)" class="child">
@@ -288,10 +291,10 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
                     <span class="child-meta">{{ relativeTime(c.updated_at) }}</span>
                   </span>
                 </NuxtLink>
-                <button v-if="canEdit" class="child new" @click="newChild"><Plus :size="16" /> {{ t('docs.newChild') }}</button>
+                <button v-if="canManage" class="child new" @click="newChild"><Plus :size="16" /> {{ t('docs.newChild') }}</button>
               </div>
             </section>
-            <GraphRelatedPanel kind="page" :id="pageId" class="doc-related" />
+            <GraphRelatedPanel v-if="!isGuest" kind="page" :id="pageId" class="doc-related" />
           </template>
         </article>
         <aside class="toc-col"><DocToc :headings="headings" :scroller="scroller" /></aside>

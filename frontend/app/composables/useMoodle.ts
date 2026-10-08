@@ -13,7 +13,19 @@ export interface MoodleConnection {
   notify: boolean
 }
 export interface MoodleOverview { url: string | null; default_url: string; can_configure: boolean; connection: MoodleConnection | null }
-export interface MoodleSite { base_url: string; site_name: string | null; logo: string | null; sso: boolean; launch_url: string; tokens_url: string }
+export interface MoodleSite {
+  base_url: string
+  site_name: string | null
+  logo: string | null
+  sso: boolean
+  /** Portail officiel, clé renvoyée en moodlemobile:// (application de bureau). */
+  launch_url: string
+  /** Portail officiel, clé renvoyée en web+looty:// (navigateur, si la plateforme le permet). */
+  launch_url_web: string
+  tokens_url: string
+  /** Le site accepte d'être affiché dans Looty. */
+  frameable: boolean
+}
 export interface MoodleCourse { id: number; fullname: string; shortname: string; category: string | null; progress: number | null; favourite: boolean; url: string }
 export interface MoodleDeadline { id: number; name: string; event_name: string; course: string; course_id: number; module: string; due: string; overdue: boolean; url: string; action: string | null }
 export interface MoodleConversation { id: number; name: string; group: boolean; unread: number; last_text: string | null; last_from_me: boolean | null; last_time: string | null }
@@ -25,11 +37,11 @@ export const moodleKeys = {
   data: (ws: string, kind: string) => ['moodle', ws, kind] as const,
 }
 
-export function useMoodle(ws: Ref<string>) {
+export function useMoodle(ws: Ref<string>, active?: Ref<boolean>) {
   return useQuery({
     queryKey: computed(() => moodleKeys.overview(ws.value)),
     queryFn: () => api<MoodleOverview>(`/api/workspaces/${ws.value}/moodle`, { silent: true }),
-    enabled: computed(() => !!ws.value),
+    enabled: computed(() => !!ws.value && (active?.value ?? true)),
     staleTime: 60_000,
   })
 }

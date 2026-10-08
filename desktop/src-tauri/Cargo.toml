@@ -1,6 +1,6 @@
 [package]
 name = "looty-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Looty desktop app"
 edition = "2021"
 license = "MIT"

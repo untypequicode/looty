@@ -23,7 +23,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useI18n } from '~/composables/useI18n'
 
 const route = useRoute()
-const { wsId, workspace, canWriteRole, member } = useWorkspace()
+const { wsId, workspace, canWriteRole, member, isGuest } = useWorkspace()
 const { can } = useAccess(wsId)
 const canWrite = computed(() => can.value.editTasks)
 const { user } = useAuth()
@@ -33,7 +33,8 @@ const { createAndOpen } = usePages()
 const { isTablet } = useBreakpoint()
 const { t } = useI18n()
 
-useRealtime(wsId, computed(() => user.value?.id))
+// Temps réel réservé aux membres : un invité ne reçoit pas les événements de l'espace.
+useRealtime(computed(() => (workspace.data.value && !isGuest.value ? wsId.value : '')), computed(() => user.value?.id))
 
 // Préambule LaTeX de l'espace : appliqué à toutes les formules des pages.
 const latex = useQuery({ queryKey: computed(() => wsKeys.latex(wsId.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${wsId.value}/latex`, { silent: true }), enabled: computed(() => !!wsId.value) })

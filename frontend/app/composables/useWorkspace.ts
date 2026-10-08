@@ -63,6 +63,8 @@ export function useWorkspace() {
   const canWriteRole = computed(() => role.value === 'owner' || role.value === 'admin' || role.value === 'member')
   const canWrite = computed(() => canWriteRole.value && !readMode.value)
   const isAdmin = computed(() => role.value === 'owner' || role.value === 'admin')
+  /** Invité : personne extérieure à qui des pages de l'espace sont partagées. */
+  const isGuest = computed(() => role.value === 'guest')
 
   const memberById = computed(() => {
     const m = new Map<string, WorkspaceMember>()
@@ -79,7 +81,7 @@ export function useWorkspace() {
     return qc.invalidateQueries({ queryKey: k })
   }
 
-  return { wsId, workspace, members, boards, pages, role, canWrite, canWriteRole, isAdmin, member, memberById, invalidate }
+  return { wsId, workspace, members, boards, pages, role, canWrite, canWriteRole, isAdmin, isGuest, member, memberById, invalidate }
 }
 
 /** `mine` : ce qu'il me reste à faire ; `all` : toutes les tâches en cours de l'espace. */

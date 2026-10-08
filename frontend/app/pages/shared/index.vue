@@ -29,7 +29,7 @@ useHead({ title: () => t('shared.title') })
     <UiEmpty v-else-if="!groups.length" :icon="Share2" :title="t('shared.empty')" />
     <section v-for="g in groups" :key="g.name" class="sh-group">
       <h2>{{ g.name }}</h2>
-      <NuxtLink v-for="p in g.pages" :key="p.id" :to="`/shared/${p.id}`" class="sh-item">
+      <NuxtLink v-for="p in g.pages" :key="p.id" :to="`/w/${p.workspace_id}/doc/${p.id}`" class="sh-item">
         <span class="sh-icon">{{ p.icon || '' }}<FileText v-if="!p.icon" :size="15" /></span>
         <span class="sh-title truncate">{{ p.title || t('docs.untitled') }}</span>
         <span class="sh-role">{{ p.role === 'editor' ? t('share.editor') : t('share.viewer') }}</span>

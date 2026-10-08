@@ -59,6 +59,9 @@ pub struct Hooks {
     pub quick_add_closed: Box<dyn Fn(Option<String>) + Send + Sync>,
     /// Fin de synchronisation des modifications hors ligne (envoyées, refusées).
     pub synced: Box<dyn Fn(usize, usize) + Send + Sync>,
+    /// Fenêtre Moodle (site officiel) ; `login` : connexion du compte, la clé renvoyée
+    /// par Moodle (moodlemobile://token=…) est transmise à la fenêtre principale.
+    pub open_moodle: Box<dyn Fn(String, bool) + Send + Sync>,
 }
 
 struct PendingSso {
@@ -526,6 +529,18 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
                 (h.quick_add_closed)(if done { Some(title.unwrap_or_default()) } else { None });
             }
             StatusCode::NO_CONTENT.into_response()
+        }
+        (Method::POST, "moodle/open") => {
+            let body = axum::body::to_bytes(req.into_body(), 16 * 1024).await.unwrap_or_default();
+            let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap_or_default();
+            let url = v["url"].as_str().and_then(|u| Url::parse(u).ok()).filter(|u| matches!(u.scheme(), "https" | "http"));
+            match (url, p.hooks.get()) {
+                (Some(url), Some(h)) => {
+                    (h.open_moodle)(url.to_string(), v["login"] == true);
+                    StatusCode::NO_CONTENT.into_response()
+                }
+                _ => StatusCode::BAD_REQUEST.into_response(),
+            }
         }
         (Method::GET, "sso-status") => {
             let g = p.sso.lock().unwrap();

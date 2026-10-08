@@ -61,6 +61,7 @@ export default {
     inherited: 'From a parent page', from: 'From “{title}”', none: 'No special access: everyone follows their role.', badge: 'Special permissions',
   },
   shared: { title: 'Shared with me', hint: 'Documents from other workspaces that people shared with you.', empty: 'Nothing has been shared with you yet.', noAccess: 'This document is not shared with you (anymore).', link: 'Documents shared with you ({n})' },
+  guest: { homeTitle: 'Shared with me', homeHint: 'You only see the pages of this workspace that were shared with you.', sharedWithYou: 'Shared with you', recent: 'Recently edited', canEdit: 'Can edit', canView: 'Can view', subpages: { one: '1 subpage', other: '{count} subpages' }, noneTitle: 'Nothing is shared with you here anymore', noneHint: 'The pages of this workspace are no longer shared with you.', workspace: 'Guest' },
   sidebarLayout: { title: 'Sidebar', customize: 'Customize the sidebar', hint: 'Order and visibility of the sidebar in this workspace (only for you).', links: 'Links', sections: 'Sections', up: 'Move up', down: 'Move down', hide: 'Hide', show: 'Show', reset: 'Reset' },
   settings: { members: {
     addPeople: 'Add people', inviteLink: 'Invitation link', addHint: 'Pick someone who already has a Looty account, or type an email address to send an invitation.',

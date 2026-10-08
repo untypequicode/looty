@@ -262,6 +262,31 @@ pub async fn require_member(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) 
     workspace_role(pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)
 }
 
+/// Invité d'un espace : personne extérieure avec au moins une page partagée dans l'espace.
+pub async fn is_guest(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
+          WHERE p.workspace_id = $1 AND pp.user_id = $2 AND pp.role IN ('viewer', 'editor'))",
+    )
+    .bind(workspace_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?)
+}
+
+/// Membre, ou invité (`Role::Guest`) pour les quelques lectures dont l'interface de
+/// l'espace a besoin (espace, pages visibles, droits). Les autres routes gardent
+/// `require_member` : un invité n'y voit rien.
+pub async fn require_member_or_guest(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) -> ApiResult<Role> {
+    if let Some(role) = workspace_role(pool, user.id, workspace_id).await? {
+        return Ok(role);
+    }
+    if is_guest(pool, user.id, workspace_id).await? {
+        return Ok(Role::Guest);
+    }
+    Err(ApiError::NotFound)
+}
+
 pub async fn require_writer(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) -> ApiResult<Role> {
     let role = require_member(pool, user, workspace_id).await?;
     if !role.can_write() {

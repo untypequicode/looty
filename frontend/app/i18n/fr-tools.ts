@@ -61,6 +61,7 @@ export default {
     inherited: 'Depuis une page parente', from: 'Depuis « {title} »', none: 'Aucun accès particulier : chacun suit son rôle.', badge: 'Permissions particulières',
   },
   shared: { title: 'Partagé avec moi', hint: 'Documents d’autres espaces que l’on a partagés avec vous.', empty: 'Rien n’a encore été partagé avec vous.', noAccess: 'Ce document n’est pas (ou plus) partagé avec vous.', link: 'Documents partagés avec vous ({n})' },
+  guest: { homeTitle: 'Partagé avec moi', homeHint: 'Vous voyez uniquement les pages de cet espace partagées avec vous.', sharedWithYou: 'Partagées avec vous', recent: 'Modifiées récemment', canEdit: 'Modification', canView: 'Lecture', subpages: { one: '1 sous-page', other: '{count} sous-pages' }, noneTitle: 'Plus rien n’est partagé avec vous ici', noneHint: 'Les pages de cet espace ne vous sont plus partagées.', workspace: 'Invité' },
   sidebarLayout: { title: 'Barre latérale', customize: 'Personnaliser la barre latérale', hint: 'Ordre et affichage de la barre latérale dans cet espace (pour vous seul).', links: 'Liens', sections: 'Sections', up: 'Monter', down: 'Descendre', hide: 'Masquer', show: 'Afficher', reset: 'Réinitialiser' },
   settings: { members: {
     addPeople: 'Ajouter des personnes', inviteLink: 'Lien d’invitation', addHint: 'Choisissez une personne ayant déjà un compte Looty, ou saisissez une adresse e-mail pour envoyer une invitation.',

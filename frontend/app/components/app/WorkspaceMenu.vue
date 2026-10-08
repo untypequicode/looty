@@ -78,6 +78,7 @@ async function createWorkspace() {
       <button v-for="w in workspaces" :key="w.id" class="ws-row" @click="go(links.home(w.id))">
         <span class="ws-logo sm">{{ w.name[0]?.toUpperCase() }}</span>
         <span class="truncate" style="flex: 1">{{ w.name }}</span>
+        <span v-if="w.role === 'guest'" class="ws-badge">{{ t('guest.workspace') }}</span>
         <Check v-if="w.id === wsId" :size="14" class="accent" />
       </button>
       <button class="ws-row" @click="open = false; createOpen = true"><Plus :size="15" class="faint" />{{ t('workspace.create') }}</button>
