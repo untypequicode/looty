@@ -3,6 +3,13 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+  # Cache binaire : application de bureau et environnement de développement précompilés
+  # (poussés par le workflow « Nix cache »). Nix demande une fois de faire confiance au cache.
+  nixConfig = {
+    extra-substituters = [ "https://looty.cachix.org" ];
+    extra-trusted-public-keys = [ "looty.cachix.org-1:xEEH96rXQvBMpS4Flzu1yAfe1Wt4Pz2nKssc1ga5eYc=" ];
+  };
+
   outputs =
     { self, nixpkgs }:
     let
