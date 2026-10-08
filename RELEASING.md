@@ -50,15 +50,9 @@ of items.
 - **Nix binary cache (Cachix):** create a cache on [cachix.org](https://app.cachix.org)
   (for example `looty`; names are global, so pick another one if it is taken), then add the repository variable `CACHIX_CACHE` (the cache name)
   and the secret `CACHIX_AUTH_TOKEN` (a write token). The **Nix cache** workflow pushes
-  every desktop build of `main` (until the token is set, it still builds and only skips the push). Then add the cache to `flake.nix` so users get it without
-  extra flags:
-
-  ```nix
-  nixConfig = {
-    extra-substituters = [ "https://looty.cachix.org" ];
-    extra-trusted-public-keys = [ "looty.cachix.org-1:<public key shown on the cache page>" ];
-  };
-  ```
+  every desktop build of `main` (until the token is set, it still builds and only skips the push). The cache `looty.cachix.org` and its public key
+  are already declared in `flake.nix` (`nixConfig`): Nix offers to trust it the first time,
+  or pass `--accept-flake-config`.
 
 - **Docker images** are public packages of the repository on ghcr.io; nothing to set up
   (the workflow uses `GITHUB_TOKEN`). Make the packages public once in the GitHub package

@@ -32,3 +32,8 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/
 result
 desktop/dist/
+
+# Clés de signature (Android) : jamais dans le dépôt
+*.jks
+*.keystore
+keystore.properties
