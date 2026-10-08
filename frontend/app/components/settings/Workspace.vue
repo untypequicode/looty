@@ -45,6 +45,23 @@ async function saveMoodle() {
   } finally { savingMoodle.value = false }
 }
 
+// Drive temporaire : durée maximale de conservation et quota (administrateurs)
+const DRIVE_DAYS = [1, 3, 7, 14, 30, 60, 90, 180, 365]
+const driveDays = ref<string>('7')
+const driveQuota = ref('2048')
+const driveDaysItems = computed(() => DRIVE_DAYS.map((d) => ({ value: String(d), label: t('drive.days', { count: d }) })))
+const driveDaysOpen = ref(false)
+onMounted(async () => {
+  if (!isAdmin.value) return
+  const d = await api<{ max_days: number; quota_bytes: number }>(`/api/workspaces/${wsId.value}/drive`, { silent: true }).catch(() => null)
+  if (d) { driveDays.value = String(d.max_days); driveQuota.value = String(Math.round(d.quota_bytes / 1048576)) }
+})
+async function saveDrive(days = driveDays.value) {
+  driveDays.value = days
+  await api(`/api/workspaces/${wsId.value}/drive/settings`, { method: 'PUT', body: { max_days: Number(days), quota_mb: Number(driveQuota.value) } })
+  toast.success(t('common.saved'))
+}
+
 async function save() {
   saving.value = true
   try {
@@ -89,6 +106,16 @@ async function remove() {
         <UiButton v-if="!moodleUrl && moodle.data.value" size="sm" variant="ghost" @click="moodleUrl = moodle.data.value.default_url">{{ t('moodle.useDefault') }}</UiButton>
         <UiButton size="sm" :loading="savingMoodle" :disabled="(moodle.data.value?.url ?? '') === moodleUrl.trim()" @click="saveMoodle">{{ t('common.save') }}</UiButton>
       </div>
+    </SettingsRow>
+  </SettingsSection>
+  <SettingsSection v-if="isAdmin" :title="t('drive.title')" :description="t('drive.settingsHint')">
+    <SettingsRow :label="t('drive.maxDuration')" :hint="t('drive.maxDurationHint')">
+      <UiCombobox :model-value="driveDays" v-model:open="driveDaysOpen" :items="driveDaysItems" :width="200" @update:model-value="(v: string) => saveDrive(v)">
+        <button class="ws-select">{{ driveDaysItems.find((i) => i.value === driveDays)?.label }}</button>
+      </UiCombobox>
+    </SettingsRow>
+    <SettingsRow :label="t('drive.quotaLabel')" :hint="t('drive.quotaHint')">
+      <div class="moodle-row"><UiInput v-model="driveQuota" type="number" min="50" style="width: 110px" @keydown.enter="saveDrive()" /><span class="muted">Mo</span><UiButton size="sm" @click="saveDrive()">{{ t('common.save') }}</UiButton></div>
     </SettingsRow>
   </SettingsSection>
   <SettingsLatexPreamble />

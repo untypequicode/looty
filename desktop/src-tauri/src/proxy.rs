@@ -530,6 +530,17 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
             }
             StatusCode::NO_CONTENT.into_response()
         }
+        // Projet LaTeX compilé sur cet ordinateur (fichiers envoyés par la page).
+        (Method::POST, "latex/compile") => {
+            let body = match axum::body::to_bytes(req.into_body(), 300 * 1024 * 1024).await {
+                Ok(b) => b,
+                Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+            };
+            match serde_json::from_slice::<crate::latex::Bundle>(&body) {
+                Ok(bundle) => axum::Json(crate::latex::compile(bundle).await).into_response(),
+                Err(_) => StatusCode::BAD_REQUEST.into_response(),
+            }
+        }
         (Method::POST, "moodle/open") => {
             let body = axum::body::to_bytes(req.into_body(), 16 * 1024).await.unwrap_or_default();
             let v = serde_json::from_slice::<serde_json::Value>(&body).unwrap_or_default();
