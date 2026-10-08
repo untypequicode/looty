@@ -48,8 +48,8 @@ jobs:
           # Rien d'autre que nos propres dérivations (nixpkgs est déjà sur cache.nixos.org).
           pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
       - name: Desktop package
-        run: nix build .#packages.${{ matrix.system }}.looty-desktop -L
+        run: nix build .#packages.${{ matrix.system }}.looty-desktop -L --accept-flake-config
       - name: Desktop dev shell
-        run: nix build .#devShells.${{ matrix.system }}.desktop -L --no-link
+        run: nix build .#devShells.${{ matrix.system }}.desktop -L --no-link --accept-flake-config
       - name: Smoke test
         run: test -x result/bin/looty && test -f result/share/applications/looty.desktop

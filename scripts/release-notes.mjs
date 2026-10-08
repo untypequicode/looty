@@ -19,7 +19,7 @@ if (platform === 'web') {
     'Deploy this version with the attached `docker-compose.yml` (images pinned to this version), or set `LOOTY_VERSION=' + version + '` with `docker-compose.prod.yml`.', '')
 }
 if (platform === 'desktop') {
-  lines.push('### Install', '', '- Debian / Ubuntu: download the `.deb` below, then `sudo apt install ./looty_' + version + '_amd64.deb`.',
+  lines.push('### Install', '', '- Debian / Ubuntu: download the `.deb` below, then `sudo apt install ./Looty_' + version + '_amd64.deb`.',
     '- Nix: `nix profile install github:' + repository.replace('https://github.com/', '') + '/desktop-v' + version + '#looty-desktop` (prebuilt in the binary cache).', '')
 }
 if (platform === 'android') lines.push('### Install', '', '- Download the `.apk` below and open it on your phone (allow installing from this source).', '')

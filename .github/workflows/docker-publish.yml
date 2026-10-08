@@ -54,6 +54,9 @@ jobs:
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v7
+        env:
+          # Pas de trace de build en artefact (inutile ici, et non téléchargeable en zip).
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: ./${{ matrix.component }}
           platforms: linux/${{ matrix.arch }}
