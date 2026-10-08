@@ -9,6 +9,8 @@ on:
   pull_request:
     paths: ['android/**', '.github/workflows/android.yml']
   workflow_dispatch:
+  # Appelé par « Release » (publication automatique depuis backend/releases.json).
+  workflow_call:
 
 permissions:
   contents: write
@@ -48,10 +50,13 @@ jobs:
       - name: Collect
         run: |
           mkdir -p ../dist
-          cp app/build/outputs/apk/debug/app-debug.apk ../dist/looty-debug.apk
+          v=$(grep -m1 'versionName =' app/build.gradle.kts | cut -d'"' -f2)
+          # APK signé si le keystore est configuré, sinon APK de debug (installable, mais pas
+          # en mise à jour d'une version signée).
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            v=$(grep -m1 'versionName =' app/build.gradle.kts | cut -d'"' -f2)
             cp app/build/outputs/apk/release/app-release.apk "../dist/looty-$v.apk"
+          else
+            cp app/build/outputs/apk/debug/app-debug.apk "../dist/looty-$v-debug.apk"
           fi
           ls -la ../dist
       - uses: actions/upload-artifact@v4

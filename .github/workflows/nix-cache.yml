@@ -1,0 +1,48 @@
+# Cache binaire Nix (Cachix) : l'application de bureau et son environnement de
+# développement sont construits pour x86_64 et aarch64 puis poussés dans le cache, pour
+# que `nix run` / `nix profile install` / `nix develop` téléchargent au lieu de compiler.
+#
+# Réglages du dépôt : variable CACHIX_CACHE (nom du cache, « looty » par défaut) et secret
+# CACHIX_AUTH_TOKEN. Sans jeton, les builds sont vérifiés mais rien n'est poussé.
+# (L'environnement Android n'est pas poussé : le SDK n'est pas redistribuable.)
+name: Nix cache
+
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/nix-cache.yml']
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ${{ vars.CACHIX_CACHE || 'looty' }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          # Rien d'autre que nos propres dérivations (nixpkgs est déjà sur cache.nixos.org).
+          pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
+      - name: Desktop package
+        run: nix build .#packages.${{ matrix.system }}.looty-desktop -L
+      - name: Desktop dev shell
+        run: nix build .#devShells.${{ matrix.system }}.desktop -L --no-link
+      - name: Smoke test
+        run: test -x result/bin/looty && test -f result/share/applications/looty.desktop

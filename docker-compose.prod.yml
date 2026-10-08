@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/untypequicode/looty-backend:latest
+    image: ghcr.io/untypequicode/looty-backend:${LOOTY_VERSION:-latest}
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
       # Clé de chiffrement des mots de passe CalDAV (recommandé ; sinon générée dans uploads/.secret.key)
@@ -52,7 +52,7 @@ services:
     restart: unless-stopped
 
   collaboration:
-    image: ghcr.io/untypequicode/looty-collaboration:latest
+    image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
       BACKEND_URL: http://backend:8080
@@ -68,7 +68,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/untypequicode/looty-frontend:latest
+    image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
     environment:
       NUXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}/api
     labels:

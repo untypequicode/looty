@@ -3,6 +3,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.10.1",
+      "date": "2026-10-08",
+      "title": {
+        "en": "Releases published automatically",
+        "fr": "Versions publiées automatiquement"
+      },
+      "notes": {
+        "en": [
+          "New versions are now built and published automatically on the GitHub releases page: Docker images for the server (amd64 and arm64), the Linux `.deb` and the Android APK, each with its notes.",
+          "Self-hosted installs can stay on a given version: set `LOOTY_VERSION` (for example `0.10.1`) in `.env`, or use the `docker-compose.yml` attached to each release, whose images are pinned.",
+          "The Nix package of the desktop app is prebuilt in a binary cache, so installing it with Nix no longer compiles it."
+        ],
+        "fr": [
+          "Les nouvelles versions sont désormais construites et publiées automatiquement sur la page des releases GitHub : images Docker du serveur (amd64 et arm64), `.deb` Linux et APK Android, chacune avec ses notes.",
+          "Les installations auto-hébergées peuvent rester sur une version précise : `LOOTY_VERSION` (par exemple `0.10.1`) dans `.env`, ou le `docker-compose.yml` joint à chaque release, dont les images sont épinglées.",
+          "Le paquet Nix de l’application de bureau est précompilé dans un cache binaire : l’installer avec Nix ne demande plus de le compiler."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.10.0",
       "date": "2026-10-08",
       "title": {

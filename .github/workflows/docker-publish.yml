@@ -1,93 +1,104 @@
-name: Docker Build and Publish
+# Images Docker (backend, frontend, collaboration) pour amd64 et arm64, publiées sur
+# ghcr.io. Appelé par « Release » (tag de version + latest) ; lancement manuel possible
+# (tags latest + sha du commit).
+name: Docker
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version web (tag d'image)
+        type: string
+        required: true
   workflow_dispatch:
-
+    inputs:
+      version:
+        description: Version (vide = latest + sha)
+        type: string
+        required: false
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      components: ${{ steps.set-changes.outputs.components }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Detect file changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            frontend:
-              - 'frontend/**'
-              - 'docker-compose*'
-              - '.github/workflows/**'
-              - '.env*'
-            backend:
-              - 'backend/**'
-              - 'docker-compose*'
-              - '.github/workflows/**'
-              - '.env*'
-            collaboration:
-              - 'collaboration/**'
-              - 'docker-compose*'
-              - '.github/workflows/**'
-              - '.env*'
-
-      - name: Set components to build
-        id: set-changes
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo 'components=["frontend", "backend", "collaboration"]' >> $GITHUB_OUTPUT
-          else
-            echo "components=${{ steps.filter.outputs.changes }}" >> $GITHUB_OUTPUT
-          fi
-
-  build-and-push:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.components != '[]' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+  build:
+    name: ${{ matrix.component }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        component: ${{ fromJSON(needs.detect-changes.outputs.components) }}
+        component: [backend, frontend, collaboration]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.component }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Image name (lowercase)
+        id: name
+        run: echo "image=$(echo '${{ env.IMAGE_PREFIX }}-${{ matrix.component }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      # Image poussée par empreinte seulement ; le manifeste multi-arch est créé ensuite.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.component }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.version }}
+          outputs: type=image,name=${{ steps.name.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}-${{ matrix.arch }}
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          echo "${{ steps.build.outputs.digest }}" > "/tmp/digests/${{ matrix.component }}-${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.component }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
 
+  manifest:
+    name: Multi-arch tags
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend, collaboration]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-${{ matrix.component }}-*
+          merge-multiple: true
+          path: /tmp/digests
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create tags
+        run: |
+          image=$(echo '${{ env.IMAGE_PREFIX }}-${{ matrix.component }}' | tr '[:upper:]' '[:lower:]')
+          version='${{ inputs.version }}'
+          tags=(-t "$image:latest")
+          if [ -n "$version" ]; then tags+=(-t "$image:$version"); else tags+=(-t "$image:sha-${GITHUB_SHA::7}"); fi
+          refs=()
+          for f in /tmp/digests/*; do refs+=("$image@$(cat "$f")"); done
+          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools inspect "$image:latest"
