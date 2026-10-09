@@ -16,6 +16,7 @@ import { motion } from '~/composables/useMotion'
 import { resolveEmbed } from '~/editor/embeds'
 import { toast } from '~/composables/useToast'
 import { translate } from '~/composables/useI18n'
+import { DOC_SCHEMA } from '~/editor/source'
 
 /**
  * Éditeur de document collaboratif (Yjs + Hocuspocus).
@@ -43,7 +44,7 @@ const router = useRouter()
 
 const ydoc = new Y.Doc()
 const collabUrl = (config.public.collabUrl as string) || `${socketBase()}/collab`
-const provider = new HocuspocusProvider({ url: collabUrl, name: props.pageId, document: ydoc })
+const provider = new HocuspocusProvider({ url: `${collabUrl}${collabUrl.includes('?') ? '&' : '?'}schema=${DOC_SCHEMA}`, name: props.pageId, document: ydoc })
 // Application de bureau : copie locale du document (édition hors ligne, fusion au retour).
 const local = isDesktop ? new IndexeddbPersistence(`looty-page:${props.pageId}`, ydoc) : null
 const synced = ref(false)

@@ -24,6 +24,7 @@ import { PageMention, pageMentionSuggest, type PageSource } from './pageMention'
 import { CommentMark } from './commentMark'
 import { embedExtensions, EmbedPaste } from './embeds'
 import { CollaborativeUndo } from './undo'
+import { StablePluginState } from './pluginState'
 import { SOURCE_NODES } from './source'
 import { translate as t } from '~/composables/useI18n'
 
@@ -106,7 +107,7 @@ export function docExtensions(o: DocEditorOptions): Extensions {
     TrailingNode.configure({ node: 'paragraph', notAfter: ['paragraph'] }),
   ]
   if (o.ydoc) {
-    exts.push(Collaboration.configure({ document: o.ydoc }), CollaborativeUndo)
+    exts.push(Collaboration.configure({ document: o.ydoc }), CollaborativeUndo, StablePluginState)
     if (o.provider) exts.push(CollaborationCaret.configure({ provider: o.provider, user: o.user ?? { name: '?', color: '#7170ff' } }))
   }
   return exts
@@ -119,5 +120,5 @@ export function readonlyExtensions(): Extensions {
 
 /** Aperçu d'une version enregistrée (état Yjs) : lecture seule, sans fournisseur réseau. */
 export function revisionExtensions(ydoc: Y.Doc): Extensions {
-  return [...schemaExtensions({ collaborative: true }), Mention.configure({ HTMLAttributes: { class: 'mention' } }), Collaboration.configure({ document: ydoc })]
+  return [...schemaExtensions({ collaborative: true }), Mention.configure({ HTMLAttributes: { class: 'mention' } }), Collaboration.configure({ document: ydoc }), StablePluginState]
 }

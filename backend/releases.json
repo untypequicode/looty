@@ -3,6 +3,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.11.1",
+      "date": "2026-10-09",
+      "title": {
+        "en": "Fix: diagrams and formulas disappearing",
+        "fr": "Correction : diagrammes et formules qui disparaissaient"
+      },
+      "notes": {
+        "en": [
+          "**Fixed: Mermaid diagrams (and sometimes formulas) disappeared from documents** after the update. A Looty window or tab opened before the update could not read the new format and removed them for everyone. The collaboration server now refuses windows older than the document format: they show a read-only copy until they are reloaded.",
+          "**To get a lost diagram back**: open the document menu (…) → Version history, pick a version from before the update and restore it. Diagrams and formulas from older versions are converted automatically. The current content is kept as a version first.",
+          "Fixed: restoring a version from the history, or the first change right after opening a document, could be cancelled without any message."
+        ],
+        "fr": [
+          "**Corrigé : les diagrammes Mermaid (et parfois les formules) disparaissaient des documents** après la mise à jour. Une fenêtre ou un onglet Looty ouvert avant la mise à jour ne savait pas lire le nouveau format et les supprimait pour tout le monde. Le serveur de collaboration refuse désormais les fenêtres plus anciennes que le format des documents : elles affichent une copie en lecture seule jusqu’à leur rechargement.",
+          "**Pour retrouver un diagramme perdu** : menu du document (…) → Historique des versions, choisissez une version d’avant la mise à jour et restaurez-la. Les diagrammes et formules des anciennes versions sont convertis automatiquement. Le contenu actuel est d’abord gardé comme version.",
+          "Corrigé : restaurer une version de l’historique, ou la première modification juste après l’ouverture d’un document, pouvait être annulé sans message."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.11.0",
       "date": "2026-10-09",
       "title": {
