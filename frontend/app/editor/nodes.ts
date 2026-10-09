@@ -1,8 +1,10 @@
-import { Node, mergeAttributes, InputRule, nodePasteRule } from '@tiptap/core'
+import { Node, mergeAttributes, InputRule, PasteRule } from '@tiptap/core'
+import { Fragment, type Schema } from '@tiptap/pm/model'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
-import Image from '@tiptap/extension-image'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { Image } from '@tiptap/extension-image'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import { createLowlight, common } from 'lowlight'
+import { nodeSource, sourceJSON, sourceNodeView, sourceSpec, sourceText } from './source'
 import MathBlockView from '~/components/editor/MathBlockView.vue'
 import MathInlineView from '~/components/editor/MathInlineView.vue'
 import ImageView from '~/components/editor/ImageView.vue'
@@ -26,27 +28,36 @@ export const CodeBlock = CodeBlockLowlight.extend({
   },
 }).configure({ lowlight, defaultLanguage: null })
 
-/** Formule mathématique en bloc ($$...$$). Compatible avec le contenu existant. */
+/**
+ * Ancien attribut de source : seulement lu (documents Yjs pas encore convertis), jamais écrit
+ * dans le HTML ; le HTML garde son format (attribut `latex` calculé depuis le texte).
+ */
+const legacySource = (name: string) => ({ [name]: { default: '', parseHTML: () => '', rendered: false } })
+/** Analyse du HTML (ancien comme nouveau) : la source est dans l'attribut `latex`. */
+const latexContent = (el: HTMLElement | string, schema: Schema) =>
+  Fragment.from(sourceText(schema, typeof el === 'string' ? '' : el.getAttribute('latex') ?? ''))
+
+/** Formule mathématique en bloc ($$...$$). La source LaTeX est le texte du nœud (collaboratif). */
 export const MathBlock = Node.create({
   name: 'mathBlock',
   group: 'block',
-  atom: true,
+  ...sourceSpec,
   draggable: true,
   addAttributes() {
-    return { latex: { default: '', parseHTML: (el) => el.getAttribute('latex') ?? '' } }
+    return legacySource('latex')
   },
   parseHTML() {
-    return [{ tag: 'div[data-type="math-block"]' }]
+    return [{ tag: 'div[data-type="math-block"]', getContent: latexContent }]
   },
-  renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'math-block' })]
+  renderHTML({ HTMLAttributes, node }) {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'math-block', latex: nodeSource(node) })]
   },
   addNodeView() {
-    return VueNodeViewRenderer(MathBlockView)
+    return sourceNodeView(MathBlockView)
   },
   addCommands() {
     return {
-      insertMathBlock: (latex = '') => ({ commands }) => commands.insertContent({ type: this.name, attrs: { latex } }),
+      insertMathBlock: (latex = '') => ({ commands }) => commands.insertContent({ type: this.name, content: sourceJSON(latex) }),
     }
   },
   addInputRules() {
@@ -54,13 +65,18 @@ export const MathBlock = Node.create({
       new InputRule({
         find: /^\$\$\s$/,
         handler: ({ state, range }) => {
-          state.tr.replaceRangeWith(range.from - 1, range.to, this.type.create({ latex: '' }))
+          state.tr.replaceRangeWith(range.from - 1, range.to, this.type.create())
         },
       }),
     ]
   },
   addPasteRules() {
-    return [nodePasteRule({ find: /\$\$([^$]+)\$\$/g, type: this.type, getAttributes: (m) => ({ latex: m[1].trim() }) })]
+    return [new PasteRule({
+      find: /\$\$([^$]+)\$\$/g,
+      handler: ({ state, range, match }) => {
+        state.tr.replaceWith(range.from, range.to, this.type.create(null, sourceText(state.schema, match[1].trim())))
+      },
+    })]
   },
 })
 
@@ -69,22 +85,22 @@ export const MathInline = Node.create({
   name: 'mathInline',
   group: 'inline',
   inline: true,
-  atom: true,
+  ...sourceSpec,
   addAttributes() {
-    return { latex: { default: '', parseHTML: (el) => el.getAttribute('latex') ?? '' } }
+    return legacySource('latex')
   },
   parseHTML() {
-    return [{ tag: 'span[data-type="math-inline"]' }]
+    return [{ tag: 'span[data-type="math-inline"]', getContent: latexContent }]
   },
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'math-inline' })]
+  renderHTML({ HTMLAttributes, node }) {
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'math-inline', latex: nodeSource(node) })]
   },
   addNodeView() {
-    return VueNodeViewRenderer(MathInlineView)
+    return sourceNodeView(MathInlineView)
   },
   addCommands() {
     return {
-      insertMathInline: (latex = '') => ({ commands }) => commands.insertContent({ type: this.name, attrs: { latex } }),
+      insertMathInline: (latex = '') => ({ commands }) => commands.insertContent({ type: this.name, content: sourceJSON(latex) }),
     }
   },
   addInputRules() {
@@ -94,7 +110,7 @@ export const MathInline = Node.create({
         handler: ({ state, range, match }) => {
           // Le « $ » final n'est pas encore dans le document : « $ » ouvrant + formule.
           const start = range.to - match[1].length - 1
-          state.tr.replaceWith(start, range.to, this.type.create({ latex: match[1] }))
+          state.tr.replaceWith(start, range.to, this.type.create(null, sourceText(state.schema, match[1])))
         },
       }),
     ]

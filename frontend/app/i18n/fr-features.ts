@@ -26,6 +26,8 @@ export default {
     currently: 'Actuellement sur', join: 'Rejoindre', follow: 'Suivre', stopFollowing: 'Arrêter de suivre', activity: 'Activité',
     recent: 'Activité récente', noActivity: 'Aucune activité récente.', hidden: 'Position masquée', privateDoc: 'Un document privé',
     followingName: 'Vous suivez {name}', followEnded: '{name} s’est déconnecté : suivi arrêté',
+    followedByOne: '{name} vous suit', followedByTwo: '{a} et {b} vous suivent', followedByMany: '{name} et {count} autres vous suivent',
+    startedFollowing: '{name} suit maintenant votre écran', followsYou: 'Vous suit',
     screens: { graph: 'Graphe', home: 'Accueil', calendar: 'Calendrier', mail: 'Mail', moodle: 'Moodle', inbox: 'Boîte de réception', 'my-tasks': 'Mes tâches', docs: 'Tous les documents', trash: 'Corbeille', settings: 'Paramètres', activity: 'Activité' },
     share: 'Montrer où je suis', shareHint: 'Les autres membres voient le document, le tableau ou la tâche que vous avez ouvert.',
   },

@@ -26,15 +26,17 @@ let socket: WebSocket | null = null
 let currentWs = ''
 let lastLocation = 'home'
 let lastStatus: 'active' | 'idle' = 'active'
+/** Membre suivi : mon écran suit le sien (comme dans Figma) ; la personne suivie le voit. */
+export const following = ref<string | null>(null)
 /** Montrer aux autres membres sur quelle page je suis (réglage de l'appareil). */
 export const shareLocation = useLocalStorage('looty.shareLocation', true)
 
 function pushPresence() {
   if (socket?.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: 'USER_LOCATION', location: shareLocation.value ? lastLocation : 'hidden', status: lastStatus }))
+    socket.send(JSON.stringify({ type: 'USER_LOCATION', location: shareLocation.value ? lastLocation : 'hidden', status: lastStatus, following: following.value }))
   }
 }
-watch(shareLocation, pushPresence)
+watch([shareLocation, following], pushPresence)
 
 export function sendLocation(location: string) {
   lastLocation = location

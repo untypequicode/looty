@@ -2,7 +2,7 @@
 import {
   NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
-  GraduationCap, FolderCode, HardDrive,
+  GraduationCap, FolderCode, HardDrive, Eye,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -210,8 +210,9 @@ async function onRootDrop(e: DragEvent) {
       <div v-if="online.length" class="sb-presence">
         <UiPopover v-for="m in online.slice(0, 6)" :key="m.user_id" :open="cardFor === m.user_id" :width="300" placement="top-start" @update:open="(o: boolean) => (cardFor = o ? m.user_id : null)">
           <template #trigger>
-            <button class="sb-avatar" :class="{ idle: presence[m.user_id]?.status === 'idle', followed: following === m.user_id }" :aria-label="m.name" :title="m.name">
+            <button class="sb-avatar" :class="{ idle: presence[m.user_id]?.status === 'idle', followed: following === m.user_id }" :aria-label="m.name" :title="presence[m.user_id]?.following === user?.id ? `${m.name} · ${t('presence.followsYou')}` : m.name">
               <UiAvatar :name="m.name" :src="m.avatar_url" :size="22" online ring />
+              <span v-if="presence[m.user_id]?.following === user?.id" class="sb-follower"><Eye :size="8" /></span>
             </button>
           </template>
           <AppMemberCard :member="m" :presence="presence[m.user_id]" @close="cardFor = null" />
@@ -334,6 +335,9 @@ async function onRootDrop(e: DragEvent) {
 .sb-avatar:hover { transform: translateY(-2px); position: relative; z-index: 1; }
 .sb-avatar.idle { opacity: .55; }
 .sb-avatar.followed { box-shadow: 0 0 0 2px var(--accent); }
+.sb-avatar { position: relative; }
+/* Cette personne me suit */
+.sb-follower { position: absolute; right: -3px; top: -3px; width: 13px; height: 13px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; box-shadow: 0 0 0 1.5px var(--bg-sidebar, var(--bg)); }
 .sb-online { padding: 6px; max-height: 360px; overflow-y: auto; }
 .sb-presence > * + * { margin-left: -4px; }
 .sb-more { font-size: var(--fs-sm); margin-left: 6px; }

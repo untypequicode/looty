@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { computed, shallowRef, watch, type ShallowRef } from 'vue'
 import { scopeBuilder, ensureMhchem, type Scope } from './latex'
+import { nodeSource } from './source'
 
 /**
  * Préambule LaTeX de l'espace de travail courant (réglages de l'espace) :
@@ -50,7 +51,7 @@ export const MathScope = Extension.create<object, MathScopeStorage>({
       let mhchem = false
       doc.descendants((node, pos) => {
         if (!MATH.has(node.type.name)) return
-        const s = builder.next(String(node.attrs.latex ?? ''))
+        const s = builder.next(nodeSource(node))
         scopes.set(pos, s)
         // Signature : déclarations de chaque formule et nombre de déclarations qui la précèdent.
         parts.push(`${seen}:${s.parsed.statements.map((x) => x.source).join('\u0001')}`)

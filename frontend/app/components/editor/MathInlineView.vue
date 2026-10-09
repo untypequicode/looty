@@ -5,12 +5,14 @@ import 'katex/dist/katex.min.css'
 import { renderMath } from '~/editor/latex'
 import { useNodeScope } from '~/editor/mathScope'
 import { useLatexField } from '~/editor/latexInput'
+import { useSourceField } from '~/editor/source'
 
 const props = defineProps(nodeViewProps)
 const editing = ref(false)
-const draft = ref(props.node.attrs.latex as string)
 const input = ref<HTMLInputElement | null>(null)
-watch(() => props.node.attrs.latex, (v) => { if (!editing.value) draft.value = v })
+// Chaque frappe modifie directement la source (texte du nœud) : saisie collaborative.
+const field = useSourceField(input, props as any)
+const draft = field.draft
 watch(() => props.selected, (s) => { if (s && props.editor.isEditable) start() })
 
 // Macros du document (\newcommand… déclarées dans les formules précédentes).
@@ -29,11 +31,8 @@ function start() {
 function commit() {
   if (!editing.value) return
   editing.value = false
-  if (!draft.value.trim()) {
-    props.deleteNode()
-    return
-  }
-  if (draft.value !== props.node.attrs.latex) props.updateAttributes({ latex: draft.value })
+  // Formule vidée : elle disparaît (sauf si quelqu'un d'autre est en train de la remplir).
+  if (!field.source.value.trim()) props.deleteNode()
 }
 const latex = useLatexField(input, () => Object.keys(result.value.scope.macros ?? {}))
 
@@ -51,6 +50,7 @@ function leave(side: 'before' | 'after') {
   commit()
 }
 function onKey(e: KeyboardEvent) {
+  if (field.onHistoryKey(e)) return
   if (latex.onKeydown(e)) return
   const f = input.value
   if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Tab') {
@@ -69,7 +69,7 @@ function onKey(e: KeyboardEvent) {
 <template>
   <NodeViewWrapper as="span" class="math-inline" :class="{ selected }">
     <span v-if="editing" class="mi-edit" contenteditable="false">
-      <span class="mi-dollar">$</span><input ref="input" v-model="draft" spellcheck="false" :size="Math.max(4, draft.length)" @keydown.stop="onKey" @input="latex.refresh()" @click="latex.refresh()" @blur="latex.close(); commit()" /><span class="mi-dollar">$</span>
+      <span class="mi-dollar">$</span><input ref="input" v-model="draft" spellcheck="false" :size="Math.max(4, draft.length)" @keydown.stop="onKey" @beforeinput="field.onBeforeInput" @input="latex.refresh()" @click="latex.refresh()" @blur="latex.close(); commit()" /><span class="mi-dollar">$</span>
       <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="latex.pick" />
     </span>
     <span v-else-if="preambleOnly" class="mi-render mi-preamble" :title="definesTitle" @click="start">ƒ</span>

@@ -14,7 +14,7 @@ const editor = useEditor({
   extensions: readonlyExtensions(),
 })
 watch(() => props.html, (h) => {
-  if (editor.value && h !== editor.value.getHTML()) editor.value.commands.setContent(h || '', false)
+  if (editor.value && h !== editor.value.getHTML()) editor.value.commands.setContent(h || '', { emitUpdate: false })
 })
 onBeforeUnmount(() => editor.value?.destroy())
 </script>

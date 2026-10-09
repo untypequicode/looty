@@ -1,18 +1,13 @@
 import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
 import Highlight from '@tiptap/extension-highlight'
 import Typography from '@tiptap/extension-typography'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
-import Placeholder from '@tiptap/extension-placeholder'
+import { TaskList } from '@tiptap/extension-task-list'
+import { TaskItem } from '@tiptap/extension-task-item'
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
+import { Placeholder, TrailingNode } from '@tiptap/extensions'
 import Mention from '@tiptap/extension-mention'
 import { Collaboration } from '@tiptap/extension-collaboration'
-import { CollaborationCursor } from '@tiptap/extension-collaboration-cursor'
+import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
 import type { Extensions } from '@tiptap/core'
 import type * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
@@ -27,8 +22,9 @@ import { slashCommands, type SlashContext } from './slash'
 import { mentionExtension } from './mention'
 import { PageMention, pageMentionSuggest, type PageSource } from './pageMention'
 import { CommentMark } from './commentMark'
-import { TrailingNode } from './TrailingNode'
 import { embedExtensions, EmbedPaste } from './embeds'
+import { CollaborativeUndo } from './undo'
+import { SOURCE_NODES } from './source'
 import { translate as t } from '~/composables/useI18n'
 
 /** Schéma commun : identique en édition et en lecture pour un rendu fidèle. */
@@ -36,19 +32,20 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
   return [
     StarterKit.configure({
       codeBlock: false,
-      history: opts.collaborative ? false : undefined,
+      undoRedo: opts.collaborative ? false : undefined,
       dropcursor: { color: 'var(--accent)', width: 2 },
       heading: { levels: [1, 2, 3, 4] },
+      // La fin de document est gérée par l'éditeur (pas en lecture seule).
+      trailingNode: false,
+      link: {
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: { rel: 'noopener noreferrer nofollow' },
+        shouldAutoLink: (href) => /^(https?:\/\/|mailto:|\/|#)/i.test(href),
+      },
     }),
     CodeBlock,
-    Link.configure({
-      openOnClick: false,
-      autolink: true,
-      linkOnPaste: true,
-      HTMLAttributes: { rel: 'noopener noreferrer nofollow' },
-      validate: (href) => /^(https?:\/\/|mailto:|\/|#)/i.test(href),
-    }),
-    Underline,
     Highlight,
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -92,7 +89,7 @@ export function docExtensions(o: DocEditorOptions): Extensions {
       placeholder: ({ node, editor }) => {
         // Seuls les blocs de texte affichent une invite : un encadré, une liste ou une cellule
         // vides contiennent eux-mêmes un paragraphe vide (sinon deux textes superposés).
-        if (!node.isTextblock) return ''
+        if (!node.isTextblock || SOURCE_NODES[node.type.name]) return ''
         if (node.type.name === 'heading') return t('editor.headingPlaceholder', { level: node.attrs.level })
         if (node.type.name === 'toggleSummary') return t('editor.togglePlaceholder')
         if (editor.isEmpty) return t('editor.placeholder')
@@ -106,11 +103,11 @@ export function docExtensions(o: DocEditorOptions): Extensions {
     FindInPage,
     BlockKeymap,
     EmbedPaste,
-    TrailingNode,
+    TrailingNode.configure({ node: 'paragraph', notAfter: ['paragraph'] }),
   ]
   if (o.ydoc) {
-    exts.push(Collaboration.configure({ document: o.ydoc }))
-    if (o.provider) exts.push(CollaborationCursor.configure({ provider: o.provider, user: o.user ?? { name: '?', color: '#7170ff' } }))
+    exts.push(Collaboration.configure({ document: o.ydoc }), CollaborativeUndo)
+    if (o.provider) exts.push(CollaborationCaret.configure({ provider: o.provider, user: o.user ?? { name: '?', color: '#7170ff' } }))
   }
   return exts
 }

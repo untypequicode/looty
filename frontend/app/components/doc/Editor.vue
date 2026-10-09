@@ -308,8 +308,8 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
 
 <style>
 /* Curseurs des collaborateurs */
-.collaboration-cursor__caret { position: relative; margin: 0 -1px; border-left: 1.5px solid; border-right: none; pointer-events: none; word-break: normal; }
-.collaboration-cursor__label {
+.collaboration-carets__caret { position: relative; margin: 0 -1px; border-left: 1.5px solid; border-right: none; pointer-events: none; word-break: normal; }
+.collaboration-carets__label {
   position: absolute; top: -1.45em; left: -1.5px; padding: 1px 6px; border-radius: 4px 4px 4px 0;
   font-size: 11px; font-weight: 600; line-height: 1.4; color: #fff; white-space: nowrap; user-select: none; font-style: normal;
 }

@@ -199,4 +199,6 @@ export interface Presence {
   status?: 'active' | 'idle'
   /** Depuis quand (ms) la personne est à cet endroit. */
   since?: number
+  /** Membre que la personne suit (mode suivi). */
+  following?: string | null
 }

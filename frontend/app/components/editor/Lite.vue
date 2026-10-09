@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { useEditorSpellcheck } from '~/composables/usePrefs'
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/vue-3'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import Image from '@tiptap/extension-image'
+import { Placeholder } from '@tiptap/extensions'
+import { TaskList } from '@tiptap/extension-task-list'
+import { TaskItem } from '@tiptap/extension-task-item'
+import { Image } from '@tiptap/extension-image'
 import { Bold, Italic, Strikethrough, Code, Link2, List, ListChecks } from 'lucide-vue-next'
 import { mentionExtension } from '~/editor/mention'
 import { PageMention, pageMentionSuggest, type PageSource } from '~/editor/pageMention'
@@ -46,10 +45,11 @@ const editor = useEditor({
   editable: props.editable,
   autofocus: props.autofocus ? 'end' : false,
   extensions: [
-    StarterKit.configure({ heading: { levels: [2, 3] } }),
+    StarterKit.configure({
+      heading: { levels: [2, 3] },
+      link: { openOnClick: !props.editable, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' } },
+    }),
     Placeholder.configure({ placeholder: props.placeholder ?? '' }),
-    Link.configure({ openOnClick: !props.editable, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' } }),
-    Underline,
     TaskList,
     TaskItem.configure({ nested: true }),
     Image.configure({ HTMLAttributes: { loading: 'lazy' } }),
@@ -90,7 +90,7 @@ useEditorSpellcheck(editor)
 watch(model, (v) => {
   if (!editor.value) return
   const cur = editor.value.isEmpty ? '' : editor.value.getHTML()
-  if (v !== cur) editor.value.commands.setContent(v || '', false)
+  if (v !== cur) editor.value.commands.setContent(v || '', { emitUpdate: false })
 })
 watch(() => props.editable, (v) => editor.value?.setEditable(v))
 onBeforeUnmount(() => editor.value?.destroy())
@@ -108,7 +108,7 @@ defineExpose({ focus: () => editor.value?.commands.focus('end'), clear: () => ed
 
 <template>
   <div class="lite" :class="{ editable }">
-    <BubbleMenu v-if="editor && editable && !minimal" :editor="editor" :tippy-options="{ duration: 120, zIndex: 1400 }" class="bubble">
+    <BubbleMenu v-if="editor && editable && !minimal" :editor="editor" :options="{ placement: 'top', offset: 8 }" style="z-index: 1400" class="bubble">
       <button :class="{ on: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><Bold :size="14" /></button>
       <button :class="{ on: editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><Italic :size="14" /></button>
       <button :class="{ on: editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><Strikethrough :size="14" /></button>

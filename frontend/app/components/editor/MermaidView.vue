@@ -3,14 +3,18 @@ import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import { Code2, Eye, Columns2 } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import { useTheme } from '~/composables/useTheme'
+import { nodeSource, useSourceField } from '~/editor/source'
 
 /** Diagramme Mermaid : aperçu SVG + éditeur côte à côte (mode strict, sans HTML arbitraire). */
 const props = defineProps(nodeViewProps)
 const { mode } = useTheme()
-const code = ref<string>(props.node.attrs.code)
+const area = ref<HTMLTextAreaElement | null>(null)
+// Le code est le texte du nœud : chaque frappe est fusionnée avec celles des autres.
+const field = useSourceField(area, props as any)
+const code = field.draft
 const svg = ref('')
 const error = ref('')
-const view = ref<'preview' | 'split' | 'code'>(props.node.attrs.code ? 'preview' : 'split')
+const view = ref<'preview' | 'split' | 'code'>(nodeSource(toRaw(props.node)) ? 'preview' : 'split')
 let seq = 0
 
 const isDark = () => document.documentElement.classList.contains('dark') || !document.documentElement.classList.contains('light')
@@ -31,12 +35,13 @@ async function render() {
 }
 const debounced = useDebounceFn(render, 350)
 watch(code, () => debounced())
-watch(() => props.node.attrs.code, (v) => { if (v !== code.value) { code.value = v; render() } })
 watch(mode, () => render())
 onMounted(render)
 
-const save = useDebounceFn(() => { if (code.value !== props.node.attrs.code) props.updateAttributes({ code: code.value }) }, 600)
-function onInput() { save() }
+function onKey(e: KeyboardEvent) {
+  e.stopPropagation()
+  field.onHistoryKey(e)
+}
 </script>
 
 <template>
@@ -51,7 +56,7 @@ function onInput() { save() }
       />
     </div>
     <div class="mmd-body" :class="view" contenteditable="false">
-      <textarea v-if="editor.isEditable && view !== 'preview'" v-model="code" class="mmd-code" spellcheck="false" placeholder="graph TD&#10;  A[Début] --> B{Choix}" @input="onInput" @keydown.stop />
+      <textarea v-if="editor.isEditable && view !== 'preview'" ref="area" v-model="code" class="mmd-code" spellcheck="false" placeholder="graph TD&#10;  A[Début] --> B{Choix}" @keydown="onKey" @beforeinput="field.onBeforeInput" />
       <div v-if="view !== 'code'" class="mmd-preview">
         <div v-if="svg" class="mmd-svg" v-html="svg" />
         <pre v-else-if="error" class="mmd-error">{{ error }}</pre>
