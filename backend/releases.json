@@ -3,6 +3,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.11.0",
+      "date": "2026-10-09",
+      "title": {
+        "en": "Collaborative formulas, undo and follow indicator",
+        "fr": "Formules collaboratives, annuler et indicateur de suivi"
+      },
+      "notes": {
+        "en": [
+          "**Formulas and diagrams edited together**: two people can now type in the same LaTeX formula (inline or block) or Mermaid diagram at the same time. Their changes merge letter by letter instead of the last saved version replacing the other, and each cursor stays in place while the other person types. Existing documents are converted automatically the first time they are opened.",
+          "**Undo and redo that really work in collaboration**: Ctrl+Z undoes only your own changes, never those of the people editing with you, and Ctrl+Y / Ctrl+Shift+Z now brings them back (redo used to do nothing after an undo). This also works inside formula and diagram fields.",
+          "**See who is following you**: when someone follows your screen, a “… is following you” badge appears at the top of the page as long as they follow you, their avatar gets an eye marker in the sidebar, and a notification tells you when it starts.",
+          "Editor updated to Tiptap 3 (the editing engine): menus, suggestions, links, tables and collaborative cursors move to the new version.",
+          "Excalidraw drawings still keep the latest saved version when two people change the same drawing at the same time."
+        ],
+        "fr": [
+          "**Formules et diagrammes modifiés à plusieurs** : deux personnes peuvent désormais taper en même temps dans la même formule LaTeX (en ligne ou en bloc) ou le même diagramme Mermaid. Leurs modifications se fusionnent lettre par lettre au lieu que la dernière version enregistrée remplace l’autre, et le curseur de chacun reste en place pendant que l’autre tape. Les documents existants sont convertis automatiquement à leur première ouverture.",
+          "**Annuler et rétablir qui marchent vraiment en collaboration** : Ctrl+Z n’annule que vos propres modifications, jamais celles des personnes qui écrivent avec vous, et Ctrl+Y / Ctrl+Maj+Z les rétablit (rétablir ne faisait rien après une annulation). Cela marche aussi dans les champs des formules et des diagrammes.",
+          "**Voir qui vous suit** : quand quelqu’un suit votre écran, un badge « … vous suit » s’affiche en haut de la page tant que dure le suivi, son avatar porte un œil dans la barre latérale, et une notification vous prévient au début.",
+          "Éditeur mis à jour vers Tiptap 3 (le moteur d’édition) : menus, suggestions, liens, tableaux et curseurs collaboratifs passent à la nouvelle version.",
+          "Les dessins Excalidraw gardent toujours la dernière version enregistrée quand deux personnes modifient le même dessin en même temps."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.10.2",
       "date": "2026-10-09",
       "title": {

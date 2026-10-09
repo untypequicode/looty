@@ -31,6 +31,9 @@ pub struct UserPresence {
     /// Depuis quand la personne est à cet endroit (ms).
     #[serde(default)]
     pub since: i64,
+    /// Membre que la personne suit (son écran suit le sien) : affiché chez la personne suivie.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub following: Option<String>,
 }
 
 fn active() -> String {
@@ -107,7 +110,7 @@ impl Hub {
                 .entry(user_id)
                 .or_insert_with(|| {
                     let now = chrono::Utc::now().timestamp_millis();
-                    UserPresence { user_id: user_id.to_string(), location: "home".into(), updated_at: now, status: active(), since: now }
+                    UserPresence { user_id: user_id.to_string(), location: "home".into(), updated_at: now, status: active(), since: now, following: None }
                 })
                 .clone()
         };
@@ -139,14 +142,16 @@ impl Hub {
         }
     }
 
-    async fn set_location(&self, workspace_id: Uuid, user_id: Uuid, location: String, status: String) {
+    async fn set_location(&self, workspace_id: Uuid, user_id: Uuid, location: String, status: String, following: Option<Uuid>) {
         let now = chrono::Utc::now().timestamp_millis();
         let presence = {
             let mut all = self.presence.write().await;
             let room = all.entry(workspace_id).or_default();
             // « Depuis » ne change que si l'endroit change (pas pour actif / inactif).
             let since = room.get(&user_id).filter(|p| p.location == location).map(|p| p.since).unwrap_or(now);
-            let p = UserPresence { user_id: user_id.to_string(), location, updated_at: now, status, since };
+            // On ne suit que quelqu'un de connecté à cet espace (et jamais soi-même).
+            let following = following.filter(|f| *f != user_id && room.contains_key(f)).map(|f| f.to_string());
+            let p = UserPresence { user_id: user_id.to_string(), location, updated_at: now, status, since, following };
             room.insert(user_id, p.clone());
             p
         };
@@ -223,7 +228,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                 Some("USER_LOCATION") => {
                     let loc = sanitize_location(json["location"].as_str().unwrap_or("home"));
                     let status = if json["status"].as_str() == Some("idle") { "idle" } else { "active" };
-                    hub_rx.set_location(workspace_id, user_id, loc, status.into()).await;
+                    let following = json["following"].as_str().and_then(|s| Uuid::parse_str(s).ok());
+                    hub_rx.set_location(workspace_id, user_id, loc, status.into(), following).await;
                 }
                 Some("USER_MENTIONED") => {
                     // L'auteur est imposé par le serveur ; la cible doit être membre.

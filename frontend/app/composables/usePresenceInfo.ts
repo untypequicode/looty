@@ -77,5 +77,4 @@ export function locationOfRoute(route: { path: string; params: Record<string, an
   return task ? `task:${task}` : route.params.page ? `page:${route.params.page}` : route.params.board ? `board:${route.params.board}` : screens.includes(screen) ? screen : 'home'
 }
 
-/** Membre suivi : mon écran suit le sien (comme dans Figma). */
-export const following = ref<string | null>(null)
+export { following } from './useRealtime'

@@ -6,13 +6,16 @@ import { Sigma, Package, AlertTriangle } from 'lucide-vue-next'
 import { renderMath } from '~/editor/latex'
 import { useNodeScope } from '~/editor/mathScope'
 import { useLatexField } from '~/editor/latexInput'
+import { nodeSource, useSourceField } from '~/editor/source'
 
 const props = defineProps(nodeViewProps)
-const editing = ref(!props.node.attrs.latex)
-const draft = ref(props.node.attrs.latex as string)
+const editing = ref(!nodeSource(toRaw(props.node)) && props.editor.isEditable)
 const area = ref<HTMLTextAreaElement | null>(null)
-
-watch(() => props.node.attrs.latex, (v) => { if (!editing.value) draft.value = v })
+// Chaque frappe modifie directement la source (texte du nœud) : saisie collaborative.
+const field = useSourceField(area, props as any)
+const draft = field.draft
+// Source changée par quelqu'un d'autre : le champ grandit avec elle.
+watch(draft, () => nextTick(autosize))
 watch(() => props.selected, (s) => { if (s && props.editor.isEditable) start() })
 
 // Macros du document : \newcommand, \usepackage… des formules précédentes et de celle-ci.
@@ -33,10 +36,10 @@ function start() {
 }
 function commit() {
   editing.value = false
-  if (draft.value !== props.node.attrs.latex) props.updateAttributes({ latex: draft.value })
 }
 const latex = useLatexField(area, () => Object.keys(result.value.scope.macros ?? {}))
 function onKey(e: KeyboardEvent) {
+  if (field.onHistoryKey(e)) return
   if (latex.onKeydown(e)) { autosize(); return }
   if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
     e.preventDefault()
@@ -67,7 +70,7 @@ function autosize() {
     </div>
     <div v-if="editing" class="math-edit" contenteditable="false">
       <div class="math-field">
-        <textarea ref="area" v-model="draft" spellcheck="false" placeholder="\int_0^1 x^2\,dx" @input="autosize(); latex.refresh()" @click="latex.refresh()" @keydown.stop="onKey" @blur="latex.close(); commit()" />
+        <textarea ref="area" v-model="draft" spellcheck="false" placeholder="\int_0^1 x^2\,dx" @input="autosize(); latex.refresh()" @click="latex.refresh()" @keydown.stop="onKey" @beforeinput="field.onBeforeInput" @blur="latex.close(); commit()" />
         <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="(c) => { latex.pick(c); autosize() }" />
       </div>
       <div v-if="unknownPackages.length" class="math-note warn"><AlertTriangle :size="12" /> {{ $t('editor.mathPackageUnknown', { name: unknownPackages.join(', ') }) }}</div>

@@ -93,6 +93,21 @@ router.afterEach((to) => {
 })
 watch(wsId, () => (following.value = null))
 
+// Personnes qui me suivent : affichées tant que dure le suivi, annoncées quand il commence.
+const followers = computed(() => Object.values(presence.value)
+  .filter((p) => p.following && p.following === user.value?.id && p.user_id !== user.value?.id)
+  .map((p) => member(p.user_id))
+  .filter((m): m is NonNullable<typeof m> => !!m))
+const followersLabel = computed(() => {
+  const f = followers.value
+  if (f.length === 1) return t('presence.followedByOne', { name: f[0]!.name })
+  if (f.length === 2) return t('presence.followedByTwo', { a: f[0]!.name, b: f[1]!.name })
+  return f.length ? t('presence.followedByMany', { name: f[0]!.name, count: f.length - 1 }) : ''
+})
+watch(() => followers.value.map((m) => m.user_id), (now, before) => {
+  for (const id of now) if (before && !before.includes(id)) toast(t('presence.startedFollowing', { name: member(id)?.name ?? '' }))
+})
+
 // Onglets : la navigation met à jour l'onglet actif ; Ctrl/⌘+clic ou clic du milieu sur
 // un lien de l'espace l'ouvre dans un nouvel onglet (Maj+Ctrl+clic : onglet du navigateur).
 const tabs = useTabs(wsId)
@@ -232,6 +247,12 @@ function onEdgeStart(e: TouchEvent) {
         </div>
       </Transition>
       <Transition name="rm">
+        <div v-if="followers.length" class="followers-badge" :class="{ below: !!followed }" role="status">
+          <span class="fb-avatars"><UiAvatar v-for="m in followers.slice(0, 3)" :key="m.user_id" :name="m.name" :src="m.avatar_url" :size="18" /></span>
+          <Eye :size="13" /> {{ followersLabel }}
+        </div>
+      </Transition>
+      <Transition name="rm">
         <button v-if="readMode && canWriteRole" class="rm-badge" :title="t('readMode.toEdit')" @click="toggleReadMode">
           <BookOpen :size="13" /> {{ t('readMode.badge') }} <span class="rm-edit">{{ t('readMode.edit') }}</span>
         </button>
@@ -276,6 +297,15 @@ function onEdgeStart(e: TouchEvent) {
   display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px 4px 6px; border-radius: var(--r-full);
   background: var(--accent); color: #fff; font-size: var(--fs-sm); font-weight: 500; box-shadow: var(--shadow-lg, 0 6px 24px rgba(0,0,0,.18));
 }
+.followers-badge {
+  position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 61;
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px 4px 6px; border-radius: var(--r-full);
+  background: var(--bg-elevated); color: var(--text-2); font-size: var(--fs-sm); font-weight: 500;
+  box-shadow: var(--shadow-lg, 0 6px 24px rgba(0,0,0,.18)), 0 0 0 1px var(--accent);
+}
+.followers-badge.below { top: 44px; }
+.fb-avatars { display: inline-flex; }
+.fb-avatars > * + * { margin-left: -6px; }
 .follow-stop { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #fff; }
 .follow-stop:hover { background: rgba(255,255,255,.2); }
 .rm-edit { padding: 2px 9px; border-radius: var(--r-full); background: var(--accent); color: #fff; font-weight: 500; }

@@ -17,6 +17,7 @@ import { api, uploadFile } from '~/composables/api'
 import { links } from '~/composables/useWorkspace'
 import { readonlyExtensions } from './extensions'
 import { htmlToMarkdown } from './export'
+import { sourceJSON } from './source'
 
 type PM = JSONContent
 type UrlMap = (url: string) => string
@@ -73,7 +74,7 @@ export function toOutline(node: PM, url: UrlMap = (u) => u): PM {
     case 'taskList': return { type: 'checkbox_list', content: kids() }
     case 'taskItem': return { type: 'checkbox_item', attrs: { checked: !!a.checked }, content: kids() }
     case 'codeBlock': return { type: 'code_block', attrs: { language: a.language || 'none' }, content: textOf(node) ? [text(textOf(node))] : [] }
-    case 'mermaid': return { type: 'code_block', attrs: { language: 'mermaidjs' }, content: a.code ? [text(a.code)] : [] }
+    case 'mermaid': { const code = textOf(node) || a.code; return { type: 'code_block', attrs: { language: 'mermaidjs' }, content: code ? [text(code)] : [] } }
     case 'excalidraw': return { type: 'code_block', attrs: { language: 'excalidraw' }, content: a.scene ? [text(a.scene)] : [] }
     case 'horizontalRule': return { type: 'horizontal_rule' }
     case 'hardBreak': return { type: 'br' }
@@ -86,8 +87,10 @@ export function toOutline(node: PM, url: UrlMap = (u) => u): PM {
       const [summary, body] = node.content ?? []
       return { type: 'container_toggle', attrs: { id: uuid() }, content: [para((summary?.content ?? []).map((c) => toOutline(c, url))), ...(body?.content ?? []).map((c) => toOutline(c, url))] }
     }
-    case 'mathBlock': return { type: 'math_block', content: a.latex ? [text(a.latex)] : [] }
-    case 'mathInline': return { type: 'math_inline', content: a.latex ? [text(a.latex)] : [] }
+    case 'mathBlock': case 'mathInline': {
+      const latex = textOf(node) || a.latex
+      return { type: node.type === 'mathBlock' ? 'math_block' : 'math_inline', content: latex ? [text(latex)] : [] }
+    }
     case 'mention': return text(`@${a.label ?? ''}`)
     case 'embed': return { type: 'embed', attrs: { href: a.src } }
     case 'pdfEmbed': return { type: 'attachment', attrs: { id: uuid(), href: url(a.src ?? ''), title: a.name || 'PDF', size: 0, contentType: 'application/pdf' } }
@@ -114,9 +117,9 @@ export function fromOutline(node: PM, url: UrlMap = (u) => u): PM[] {
     case 'code_block': case 'code_fence': case 'codeBlock': {
       const lang = String(a.language ?? '').toLowerCase()
       const code = textOf(node)
-      if (MERMAID.includes(lang)) return [{ type: 'mermaid', attrs: { code } }]
+      if (MERMAID.includes(lang)) return [{ type: 'mermaid', content: sourceJSON(code) }]
       if (lang === 'excalidraw') return [{ type: 'excalidraw', attrs: { scene: code } }]
-      if (lang === 'math' || lang === 'latex') return [{ type: 'mathBlock', attrs: { latex: code } }]
+      if (lang === 'math' || lang === 'latex') return [{ type: 'mathBlock', content: sourceJSON(code) }]
       return [{ type: 'codeBlock', attrs: { language: lang && lang !== 'none' ? lang : null }, content: code ? [text(code)] : [] }]
     }
     case 'horizontal_rule': case 'hr': return [{ type: 'horizontalRule' }]
@@ -138,8 +141,8 @@ export function fromOutline(node: PM, url: UrlMap = (u) => u): PM[] {
       const body = (head && summary.length ? rest : node.content ?? []).flatMap((c) => fromOutline(c, url))
       return [{ type: 'toggle', attrs: { open: true }, content: [{ type: 'toggleSummary', ...(summary.length ? { content: summary } : {}) }, { type: 'toggleContent', content: body.length ? body : [para()] }] }]
     }
-    case 'math_block': return [{ type: 'mathBlock', attrs: { latex: textOf(node) } }]
-    case 'math_inline': return [{ type: 'mathInline', attrs: { latex: textOf(node) } }]
+    case 'math_block': return [{ type: 'mathBlock', content: sourceJSON(textOf(node)) }]
+    case 'math_inline': return [{ type: 'mathInline', content: sourceJSON(textOf(node)) }]
     case 'mention': return [text(`@${a.label ?? ''}`)]
     case 'emoji': return [text(a['data-name'] ? `:${a['data-name']}:` : textOf(node))]
     case 'embed': return a.href ? [{ type: 'embed', attrs: { src: a.href } }] : []

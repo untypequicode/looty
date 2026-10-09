@@ -9,6 +9,7 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { revisionExtensions } from '~/editor/extensions'
+import { upgradeSources } from '~/editor/source'
 
 /**
  * Historique des versions d'une page : liste des sessions d'édition et versions nommées,
@@ -68,7 +69,7 @@ async function restore() {
     // Filet de sécurité : l'état actuel devient une version « avant restauration ».
     await api(`/api/pages/${props.pageId}/revisions`, { method: 'POST', body: { kind: 'restore' } })
     // Remplacement dans l'éditeur collaboratif : propagé à tous les participants.
-    props.editor.commands.setContent(preview.value.getJSON(), true)
+    props.editor.commands.setContent(upgradeSources(preview.value.getJSON()), { emitUpdate: true })
     if (r.title && r.title !== props.currentTitle) emit('restoreTitle', r.title)
     toast.success(t('history.restored'))
     qc.invalidateQueries({ queryKey: key.value })

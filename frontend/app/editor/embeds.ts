@@ -1,6 +1,8 @@
 import { Node, Extension, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Fragment } from '@tiptap/pm/model'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
+import { nodeSource, sourceJSON, sourceNodeView, sourceSpec, sourceText } from './source'
 import MermaidView from '~/components/editor/MermaidView.vue'
 import ExcalidrawView from '~/components/editor/ExcalidrawView.vue'
 import EmbedView from '~/components/editor/EmbedView.vue'
@@ -68,7 +70,7 @@ export const Embed = Node.create({
   addCommands() {
     return {
       insertEmbed: (src) => ({ commands }) => (resolveEmbed(src) ? commands.insertContent({ type: this.name, attrs: { src } }) : false),
-      insertMermaid: (code = '') => ({ commands }) => commands.insertContent({ type: 'mermaid', attrs: { code } }),
+      insertMermaid: (code = '') => ({ commands }) => commands.insertContent({ type: 'mermaid', content: sourceJSON(code) }),
       insertExcalidraw: () => ({ commands }) => commands.insertContent({ type: 'excalidraw', attrs: { scene: '' } }),
       insertPdf: (src, name) => ({ commands }) => commands.insertContent({ type: 'pdfEmbed', attrs: { src, name: name ?? '' } }),
     }
@@ -78,19 +80,21 @@ export const Embed = Node.create({
 export const Mermaid = Node.create({
   name: 'mermaid',
   group: 'block',
-  atom: true,
+  // Le code du diagramme est le texte du nœud : modifications fusionnées en collaboration.
+  ...sourceSpec,
   draggable: true,
   addAttributes() {
-    return { code: { default: '' } }
+    // Ancien attribut (documents pas encore convertis) : lu, jamais écrit dans le HTML.
+    return { code: { default: '', parseHTML: () => '', rendered: false } }
   },
   parseHTML() {
-    return [{ tag: 'div[data-type="mermaid"]', getAttrs: (el) => ({ code: (el as HTMLElement).textContent ?? '' }) }]
+    return [{ tag: 'div[data-type="mermaid"]', getContent: (el, schema) => Fragment.from(sourceText(schema, typeof el === 'string' ? '' : el.textContent ?? '')) }]
   },
   renderHTML({ HTMLAttributes, node }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'mermaid' }), ['pre', {}, node.attrs.code]]
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'mermaid' }), ['pre', {}, nodeSource(node)]]
   },
   addNodeView() {
-    return VueNodeViewRenderer(MermaidView)
+    return sourceNodeView(MermaidView)
   },
 })
 

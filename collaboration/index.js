@@ -32,6 +32,38 @@ function stateText(state) {
   return text
 }
 
+/**
+ * Formules LaTeX et diagrammes Mermaid : leur source était un attribut (la dernière version
+ * enregistrée écrasait les autres), c'est désormais le texte du nœud, fusionné caractère par
+ * caractère. Conversion unique des anciens documents ; renvoie null s'il n'y a rien à faire.
+ */
+const SOURCE_NODES = { mathBlock: 'latex', mathInline: 'latex', mermaid: 'code' }
+function convertSources(state) {
+  const doc = new Y.Doc()
+  try {
+    Y.applyUpdate(doc, state)
+    const legacy = []
+    const walk = (node) => {
+      if (node instanceof Y.XmlElement) {
+        const key = SOURCE_NODES[node.nodeName]
+        if (key && node.getAttribute(key) && node.length === 0) legacy.push([node, key])
+      }
+      if (node instanceof Y.XmlElement || node instanceof Y.XmlFragment) node.toArray().forEach(walk)
+    }
+    walk(doc.getXmlFragment('default'))
+    if (!legacy.length) return null
+    doc.transact(() => {
+      for (const [node, key] of legacy) {
+        node.insert(0, [new Y.XmlText(String(node.getAttribute(key)))])
+        node.removeAttribute(key)
+      }
+    })
+    return Buffer.from(Y.encodeStateAsUpdate(doc))
+  } finally {
+    doc.destroy()
+  }
+}
+
 // Document Yjs vide contenant un paragraphe (évite un crash TipTap sur document vide)
 const EMPTY_DOC = Buffer.from('0101ecc4b5ab070007010764656661756c74030970617261677261706800', 'hex')
 
@@ -133,7 +165,19 @@ const server = new Server({
         try {
           const res = await pool.query('SELECT yjs_state FROM pages WHERE id = $1', [documentName])
           const state = res.rows[0]?.yjs_state
-          if (state && state.length > 0) return state
+          if (state && state.length > 0) {
+            const converted = convertSources(state)
+            if (!converted) return state
+            // Enregistrée tout de suite (et seulement si personne n'a écrit entre-temps) : la
+            // conversion n'a lieu qu'une fois, sinon deux conversions se fusionneraient en double.
+            const saved = await pool.query('UPDATE pages SET yjs_state = $1 WHERE id = $2 AND yjs_state = $3', [converted, documentName, state])
+            if (saved.rowCount === 1) {
+              console.log('Converted LaTeX/Mermaid sources of', documentName)
+              return converted
+            }
+            const again = await pool.query('SELECT yjs_state FROM pages WHERE id = $1', [documentName])
+            return again.rows[0]?.yjs_state ?? state
+          }
         } catch (e) {
           console.error('Error fetching document', documentName, e.message)
         }

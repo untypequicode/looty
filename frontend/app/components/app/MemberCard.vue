@@ -4,6 +4,7 @@ import type { WorkspaceMember, Presence } from '~/types'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { useLocationInfo, following } from '~/composables/usePresenceInfo'
+import { useAuth } from '~/composables/useAuth'
 import { useActivityFeed, feedVerb } from '~/composables/useActivityFeed'
 
 const props = defineProps<{ member: WorkspaceMember; presence?: Presence | null }>()
@@ -17,6 +18,8 @@ const since = computed(() => (props.presence?.since ? relativeTime(new Date(prop
 const feed = useActivityFeed(wsId, computed(() => props.member.user_id), 5)
 const recent = computed(() => feed.data.value?.pages[0]?.items ?? [])
 const isFollowing = computed(() => following.value === props.member.user_id)
+const { user } = useAuth()
+const followsMe = computed(() => !!props.presence?.following && props.presence.following === user.value?.id)
 
 function join() {
   if (loc.value?.path) navigateTo(loc.value.path)
@@ -37,7 +40,7 @@ function itemLink(i: { source: string; target_id: string; board_id?: string | nu
       <UiAvatar :name="member.name" :src="member.avatar_url" :size="40" />
       <div class="mc-id">
         <div class="mc-name truncate">{{ member.name }}</div>
-        <div class="mc-status" :class="status"><span class="mc-dot" />{{ t(`presence.status.${status}`) }}</div>
+        <div class="mc-status" :class="status"><span class="mc-dot" />{{ t(`presence.status.${status}`) }}<span v-if="followsMe" class="mc-follows"><Eye :size="11" /> {{ t('presence.followsYou') }}</span></div>
       </div>
     </div>
     <div v-if="presence && loc" class="mc-where">
@@ -73,6 +76,7 @@ function itemLink(i: { source: string; target_id: string; board_id?: string | nu
 .mc-head { display: flex; align-items: center; gap: 12px; }
 .mc-id { min-width: 0; }
 .mc-name { font-weight: 600; font-size: 15px; }
+.mc-follows { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 0 6px; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-xs); }
 .mc-status { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--text-3); }
 .mc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
 .mc-status.active .mc-dot { background: var(--green, #4cb782); }

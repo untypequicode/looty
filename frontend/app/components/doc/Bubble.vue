@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BubbleMenu, type Editor } from '@tiptap/vue-3'
+import type { Editor } from '@tiptap/vue-3'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2, Highlighter, Heading1, Heading2, Pilcrow, Quote, ChevronDown, Check, X,
   FileText, ExternalLink, MessageSquarePlus, Rows3, Columns3, Trash2, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, TableCellsMerge,
@@ -95,7 +96,7 @@ const isInternal = computed(() => (props.editor.getAttributes('link').href ?? ''
 </script>
 
 <template>
-  <BubbleMenu :editor="editor" :should-show="shouldShowText" :tippy-options="{ duration: 120, maxWidth: 'none', zIndex: 1400, onHidden: () => (linkMode = false) }" plugin-key="textBubble">
+  <BubbleMenu :editor="editor" :should-show="shouldShowText" :options="{ placement: 'top', offset: 8, flip: true, shift: { padding: 8 }, onHide: () => (linkMode = false) }" style="z-index: 1400" plugin-key="textBubble">
     <div class="bubble">
       <template v-if="!linkMode">
         <UiMenu v-model:open="typeOpen" :items="typeItems" :width="190">
@@ -133,13 +134,13 @@ const isInternal = computed(() => (props.editor.getAttributes('link').href ?? ''
     </div>
   </BubbleMenu>
 
-  <BubbleMenu :editor="editor" :should-show="shouldShowComment" :tippy-options="{ duration: 120, zIndex: 1400 }" plugin-key="commentBubble">
+  <BubbleMenu :editor="editor" :should-show="shouldShowComment" :options="{ placement: 'top', offset: 8 }" style="z-index: 1400" plugin-key="commentBubble">
     <div class="bubble">
       <button class="b-comment" @click="comment"><MessageSquarePlus :size="15" /> {{ t('itemComments.commentSelection') }}</button>
     </div>
   </BubbleMenu>
 
-  <BubbleMenu :editor="editor" :should-show="shouldShowTable" :tippy-options="{ duration: 120, placement: 'top-start', zIndex: 1300, maxWidth: 'none' }" plugin-key="tableBubble">
+  <BubbleMenu :editor="editor" :should-show="shouldShowTable" :options="{ placement: 'top-start', offset: 8, flip: true }" style="z-index: 1300" plugin-key="tableBubble">
     <div class="bubble">
       <button :title="t('editor.table.rowAbove')" @click="editor.chain().focus().addRowBefore().run()"><ArrowUpToLine :size="15" /></button>
       <button :title="t('editor.table.rowBelow')" @click="editor.chain().focus().addRowAfter().run()"><ArrowDownToLine :size="15" /></button>
