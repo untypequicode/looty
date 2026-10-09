@@ -179,6 +179,7 @@ export interface MyTask {
   /** Tâche individuelle : ma part est faite, d'autres n'ont pas fini. */
   done_by_me: boolean
   assignees: string[]
+  labels: { id: string; name: string; color: string }[]
 }
 
 export interface SearchResult {

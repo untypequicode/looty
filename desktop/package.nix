@@ -10,8 +10,20 @@
 , librsvg
 , libayatana-appindicator
 , hunspellDicts
+, runCommand
 }:
 
+let
+  # Dictionnaires sous leur nom de langue : WebKitGTK demande « fr_FR » et « en_US », or le
+  # dictionnaire français de nixpkgs s'appelle « fr-toutesvariantes » (introuvable sinon).
+  dicts = runCommand "looty-hunspell-dicts" { } ''
+    mkdir -p $out/share/hunspell
+    for ext in aff dic; do
+      ln -s ${hunspellDicts.fr-any}/share/hunspell/fr-toutesvariantes.$ext $out/share/hunspell/fr_FR.$ext
+      ln -s ${hunspellDicts.en_US}/share/hunspell/en_US.$ext $out/share/hunspell/en_US.$ext
+    done
+  '';
+in
 rustPlatform.buildRustPackage {
   pname = "looty-desktop";
   version = (lib.importTOML ./src-tauri/Cargo.toml).package.version;
@@ -28,10 +40,12 @@ rustPlatform.buildRustPackage {
   buildInputs = [ webkitgtk_4_1 libsoup_3 gtk3 glib-networking openssl librsvg ];
 
   # L'icône de la barre système charge libayatana-appindicator à l'exécution ;
-  # le correcteur orthographique (enchant / hunspell) cherche ses dictionnaires dans DICPATH.
+  # le correcteur orthographique (enchant) trouve les dictionnaires par DICPATH (nuspell)
+  # et XDG_DATA_DIRS/hunspell (hunspell).
   preFixup = ''
     gappsWrapperArgs+=(--prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libayatana-appindicator ]}")
-    gappsWrapperArgs+=(--prefix DICPATH : "${hunspellDicts.fr-any}/share/hunspell:${hunspellDicts.en_US}/share/hunspell")
+    gappsWrapperArgs+=(--prefix DICPATH : "${dicts}/share/hunspell")
+    gappsWrapperArgs+=(--prefix XDG_DATA_DIRS : "${dicts}/share")
   '';
 
   postInstall = ''

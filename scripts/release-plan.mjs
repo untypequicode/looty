@@ -39,6 +39,8 @@ for (const platform of Object.keys(builds)) {
   const tag = r ? `${platform}-v${r.version}` : ''
   const todo = r && (force.includes(platform) || !tags.has(tag))
   out.push(`${platform}=${todo ? r.version : ''}`)
+  // Dernière version (publiée ou non) : apps jointes à la release principale.
+  out.push(`latest_${platform}=${r ? r.version : ''}`)
   console.error(`${platform}: ${r ? r.version : '—'} ${todo ? '→ release ' + tag : '(already released)'}`)
 }
 out.push(`any=${out.some((l) => !l.endsWith('=')) ? 'true' : 'false'}`)

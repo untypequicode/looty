@@ -96,7 +96,7 @@ const editor = useEditor({
     },
   }),
   editorProps: {
-    attributes: { class: 'prose doc-prose', spellcheck: 'true' },
+    attributes: { class: 'prose doc-prose' },
     handlePaste(view, event) {
       const files = [...(event.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'))
       if (!files.length) return false

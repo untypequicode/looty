@@ -42,6 +42,8 @@ const taskId = computed(() => (route.query.task as string) || null)
 function openTask(tk: Task | string) {
   const id = typeof tk === 'string' ? tk : tk.id
   focusedId.value = id
+  // Clic sur la tâche déjà ouverte : elle se referme.
+  if (taskId.value === id) return closeTask()
   router.push({ query: { ...route.query, task: id } })
 }
 function closeTask() {

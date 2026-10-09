@@ -83,6 +83,10 @@ useHead({ title: () => t('nav.myTasks') })
             <span v-else class="mt-check" />
             <TaskPriorityIcon :priority="tk.priority" :size="14" />
             <span class="mt-title truncate">{{ tk.title }}</span>
+            <span v-if="tk.labels?.length" class="mt-labels">
+              <span v-for="l in tk.labels.slice(0, 3)" :key="l.id" class="mt-label"><span class="mt-dot" :style="{ background: l.color }" />{{ l.name }}</span>
+              <span v-if="tk.labels.length > 3" class="mt-label">+{{ tk.labels.length - 3 }}</span>
+            </span>
             <span v-if="tk.done_by_me" class="mt-mine">{{ t('myTasks.doneByMe') }}</span>
             <span v-if="scope === 'all'" class="mt-people">
               <UiAvatar v-for="a in tk.assignees.slice(0, 3)" :key="a" :name="member(a)?.name || '?'" :src="member(a)?.avatar_url" :size="18" />
@@ -98,6 +102,10 @@ useHead({ title: () => t('nav.myTasks') })
 </template>
 
 <style scoped>
+.mt-labels { display: inline-flex; gap: 4px; flex: none; }
+.mt-label { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: var(--r-full); border: 1px solid var(--border); font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap; }
+.mt-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+@media (max-width: 767px) { .mt-labels { display: none; } }
 .mt { flex: 1; overflow-y: auto; padding: 8px 16px 48px; }
 .mt-inner { max-width: 960px; margin: 0 auto; }
 .mt-group { margin-top: 16px; }

@@ -72,15 +72,10 @@ async function connect(body?: Record<string, string>) {
 // dans sa fenêtre Moodle ; dans le navigateur, le gestionnaire de protocole web+looty
 // la reçoit si la plateforme le permet.
 const waiting = ref(false)
-const waitedLong = ref(false)
-let waitTimer: ReturnType<typeof setTimeout> | undefined
 async function portalLogin() {
   if (!site.value) return
   connectError.value = ''
   waiting.value = true
-  waitedLong.value = false
-  clearTimeout(waitTimer)
-  waitTimer = setTimeout(() => (waitedLong.value = true), 25_000)
   if (isDesktop) {
     await fetch('/__looty/moodle/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: site.value.launch_url, login: true }) })
     return
@@ -88,6 +83,14 @@ async function portalLogin() {
   localStorage.setItem('looty.moodle.pending', wsId.value)
   try { navigator.registerProtocolHandler('web+looty', `${location.origin}/moodle-callback?link=%s`) } catch { /* navigateur sans gestionnaire */ }
   window.open(site.value.launch_url_web, 'looty-moodle', 'popup,width=960,height=780')
+}
+/** « Autres façons » : identifiant (comptes locaux), ou clé dans l'application de bureau. */
+const usesPassword = computed(() => !isDesktop || method.value === 'password')
+function connectOther() {
+  connect(usesPassword.value ? { username: form.username, password: form.password } : { token: form.token })
+}
+function openTokens() {
+  if (site.value) window.open(site.value.tokens_url, 'looty-moodle', 'popup,width=960,height=780')
 }
 function onDesktopToken(e: Event) { const link = (e as CustomEvent<string>).detail; if (link) connect({ token: link }) }
 function onPopupMessage(e: MessageEvent) {
@@ -107,7 +110,7 @@ onMounted(() => {
   window.addEventListener('message', onPopupMessage)
   try { channel = new BroadcastChannel('looty-moodle'); channel.onmessage = onChannel } catch { /* ancien navigateur */ }
 })
-onBeforeUnmount(() => { window.removeEventListener('looty:moodle-token', onDesktopToken); window.removeEventListener('message', onPopupMessage); channel?.close(); clearTimeout(waitTimer) })
+onBeforeUnmount(() => { window.removeEventListener('looty:moodle-token', onDesktopToken); window.removeEventListener('message', onPopupMessage); channel?.close() })
 
 /** Site officiel (connecté automatiquement si possible) : fenêtre Moodle de l'application de bureau, sinon nouvel onglet. */
 async function openSite(url?: string) {
@@ -255,27 +258,46 @@ useHead({ title: () => t('moodle.title') })
         <h2>{{ t('moodle.connectTitle', { site: site?.site_name || overview.url }) }}</h2>
         <p class="muted">{{ t('moodle.connectHint') }}</p>
         <p v-if="siteError" class="md-err">{{ siteError }}</p>
-        <UiButton class="md-portal" variant="primary" :icon="LogIn" :disabled="!site" :loading="connecting" @click="portalLogin">{{ t('moodle.portalLogin', { site: site?.site_name || 'Moodle' }) }}</UiButton>
-        <p class="md-small">{{ isDesktop ? t('moodle.portalHintDesktop') : t('moodle.portalHintWeb') }}</p>
-        <div v-if="waiting" class="md-wait">
-          <UiSpinner :size="14" /> <span>{{ isDesktop ? t('moodle.waitingDesktop') : t('moodle.waitingWeb') }}</span>
-        </div>
-        <p v-if="waiting && waitedLong && !isDesktop" class="md-small">{{ t('moodle.waitedLong') }}</p>
+        <!-- Application de bureau : portail officiel dans une fenêtre, connexion automatique. -->
+        <template v-if="isDesktop">
+          <UiButton class="md-portal" variant="primary" :icon="LogIn" :disabled="!site" :loading="connecting" @click="portalLogin">{{ t('moodle.portalLogin', { site: site?.site_name || 'Moodle' }) }}</UiButton>
+          <p class="md-small">{{ t('moodle.portalHintDesktop') }}</p>
+          <div v-if="waiting" class="md-wait"><UiSpinner :size="14" /> <span>{{ t('moodle.waitingDesktop') }}</span></div>
+        </template>
+        <!-- Navigateur : Moodle renvoie sa clé à « moodlemobile:// », qu'un navigateur ne
+             transmet pas ; on la récupère sur la page « Clés de sécurité » de Moodle. -->
+        <ol v-else class="md-steps">
+          <li>
+            <div class="md-step-text"><b>{{ t('moodle.webStep1') }}</b><span>{{ t('moodle.webStep1Hint') }}</span></div>
+            <UiButton size="sm" variant="primary" :icon="LogIn" :disabled="!site" @click="portalLogin">{{ t('moodle.portalLogin', { site: site?.site_name || 'Moodle' }) }}</UiButton>
+          </li>
+          <li>
+            <div class="md-step-text"><b>{{ t('moodle.webStep2') }}</b><span>{{ t('moodle.webStep2Hint') }}</span></div>
+            <UiButton size="sm" :icon="KeyRound" :disabled="!site" @click="openTokens">{{ t('moodle.tokensPage') }}</UiButton>
+          </li>
+          <li>
+            <div class="md-step-text"><b>{{ t('moodle.webStep3') }}</b><span>{{ t('moodle.webStep3Hint') }}</span></div>
+            <div class="md-paste">
+              <UiInput v-model="form.token" :placeholder="t('moodle.tokenPlaceholder')" autocomplete="off" @keydown.enter="connect({ token: form.token })" />
+              <UiButton variant="primary" :loading="connecting" :disabled="!form.token.trim()" @click="connect({ token: form.token })">{{ t('moodle.connect') }}</UiButton>
+            </div>
+          </li>
+        </ol>
         <p v-if="connectError" class="md-err">{{ connectError }}</p>
 
         <button class="md-other" :aria-expanded="otherWays" @click="otherWays = !otherWays">{{ t('moodle.otherWays') }}</button>
-        <template v-if="otherWays || (waiting && waitedLong && !isDesktop)">
-          <UiSegmented v-model="method" size="md" :options="[{ value: 'token', label: t('moodle.methods.token') }, { value: 'password', label: t('moodle.methods.password') }]" />
-          <template v-if="method === 'password'">
+        <template v-if="otherWays">
+          <UiSegmented v-if="isDesktop" v-model="method" size="md" :options="[{ value: 'token', label: t('moodle.methods.token') }, { value: 'password', label: t('moodle.methods.password') }]" />
+          <template v-if="method === 'password' || !isDesktop">
             <UiInput v-model="form.username" :placeholder="t('moodle.username')" autocomplete="username" />
-            <UiInput v-model="form.password" type="password" :placeholder="t('moodle.password')" autocomplete="current-password" @keydown.enter="connect()" />
+            <UiInput v-model="form.password" type="password" :placeholder="t('moodle.password')" autocomplete="current-password" @keydown.enter="connectOther" />
             <p class="md-small">{{ t('moodle.passwordHint') }}</p>
           </template>
           <template v-else>
             <p class="md-small">{{ t('moodle.tokenHint') }} <a v-if="site" :href="site.tokens_url" target="_blank" rel="noopener">{{ t('moodle.tokensPage') }}</a></p>
-            <UiInput v-model="form.token" :placeholder="t('moodle.tokenPlaceholder')" autocomplete="off" @keydown.enter="connect()" />
+            <UiInput v-model="form.token" :placeholder="t('moodle.tokenPlaceholder')" autocomplete="off" @keydown.enter="connectOther" />
           </template>
-          <UiButton :icon="KeyRound" :loading="connecting" :disabled="method === 'password' ? !form.username || !form.password : !form.token.trim()" @click="connect()">{{ t('moodle.connect') }}</UiButton>
+          <UiButton :icon="KeyRound" :loading="connecting" :disabled="usesPassword ? !form.username || !form.password : !form.token.trim()" @click="connectOther">{{ t('moodle.connect') }}</UiButton>
         </template>
         <p class="md-small">{{ t('moodle.privacy') }}</p>
       </div>
@@ -405,7 +427,13 @@ useHead({ title: () => t('moodle.title') })
 .muted { color: var(--text-3); }
 .md-small { font-size: var(--fs-sm); color: var(--text-3); margin: 0; }
 .md-err { color: var(--red); font-size: var(--fs-sm); margin: 0; }
-.md-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); color: var(--text-2); }
+.md-steps { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; font-size: var(--fs-sm); color: var(--text-2); }
+.md-steps li { padding-left: 4px; }
+.md-steps li::marker { color: var(--accent-text); font-weight: 600; }
+.md-step-text { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.md-step-text b { color: var(--text); font-weight: 600; }
+.md-paste { display: flex; gap: 6px; }
+.md-paste > :first-child { flex: 1; }
 .md-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 20px 20px; gap: 12px; overflow-y: auto; }
 .md-banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); font-size: var(--fs-sm); }
 .md-banner span { flex: 1; }
