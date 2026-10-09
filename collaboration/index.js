@@ -38,6 +38,8 @@ function stateText(state) {
  * caractère. Conversion unique des anciens documents ; renvoie null s'il n'y a rien à faire.
  */
 const SOURCE_NODES = { mathBlock: 'latex', mathInline: 'latex', mermaid: 'code' }
+/** Version du format des documents : les interfaces plus anciennes sont refusées. */
+const DOC_SCHEMA = 2
 function convertSources(state) {
   const doc = new Y.Doc()
   try {
@@ -114,13 +116,18 @@ const server = new Server({
    * cookie de session transmis par le navigateur. Sans droit de lecture la
    * connexion est refusée ; sans droit d'écriture elle passe en lecture seule.
    */
-  async onAuthenticate({ documentName, requestHeaders, connectionConfig, token }) {
+  async onAuthenticate({ documentName, requestHeaders, requestParameters, connectionConfig, token }) {
     if (Date.now() - restoredAt < 8000) {
       throw new Error('restoring')
     }
     const fid = fileId(documentName)
     if (!fid && !UUID_RE.test(documentName)) {
       throw new Error('invalid-document')
+    }
+    // Interface d'avant la version du format (onglet ouvert avant une mise à jour…) : elle ne
+    // sait pas lire les formules et diagrammes convertis et les supprimerait du document.
+    if (!fid && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
+      throw new Error('outdated-client')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
     // Jeton API optionnel (clients non navigateur), sinon cookie de session.

@@ -11,6 +11,12 @@ import { computed, nextTick, ref, toRaw, watch, type Component, type Ref } from 
  */
 export const SOURCE_NODES: Record<string, string> = { mathBlock: 'latex', mathInline: 'latex', mermaid: 'code' }
 
+/**
+ * Version du format des documents, annoncée au serveur de collaboration : il refuse les
+ * interfaces plus anciennes, qui supprimeraient les nœuds qu'elles ne savent pas lire.
+ */
+export const DOC_SCHEMA = 2
+
 /** Spécification commune : texte brut, sans marques, affiché par la vue du nœud. */
 export const sourceSpec = { content: 'text*', marks: '', code: true, atom: true } as const
 
