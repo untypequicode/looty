@@ -575,6 +575,8 @@ pub struct MyTaskResponse {
     /// Ma part est faite (tâche individuelle que j'ai validée), d'autres n'ont pas fini.
     pub done_by_me: bool,
     pub assignees: Vec<String>,
+    /// Étiquettes du tableau posées sur la tâche : [{ id, name, color }].
+    pub labels: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -597,7 +599,9 @@ async fn get_my_tasks(
                 c.name AS column_name, t.updated_at, COALESCE(t.is_per_person, FALSE) AS is_per_person,
                 EXISTS(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1) AS assigned_to_me,
                 (COALESCE(t.is_per_person, FALSE) AND EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $1)) AS done_by_me,
-                ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id ORDER BY ta.user_id) AS assignees
+                ARRAY(SELECT ta.user_id FROM task_assignees ta WHERE ta.task_id = t.id ORDER BY ta.user_id) AS assignees,
+                COALESCE((SELECT json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) ORDER BY l.name)
+                          FROM task_labels tl JOIN labels l ON l.id = tl.label_id WHERE tl.task_id = t.id), '[]'::json) AS labels
             FROM tasks t
             JOIN board_columns c ON c.id = t.column_id
             JOIN boards b ON b.id = c.board_id

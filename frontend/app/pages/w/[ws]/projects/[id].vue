@@ -255,6 +255,8 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); clearTimeo
 const showTree = useLocalStorage('looty.project.tree', true)
 const showPreview = useLocalStorage('looty.project.preview', true)
 const mobilePane = ref<'files' | 'code' | 'preview'>('code')
+/** Colonnes des seuls panneaux affichés (un panneau masqué ne laisse pas de colonne vide). */
+const columns = computed(() => [showTree.value ? '220px' : '', 'minmax(0, 1fr)', showPreview.value ? 'minmax(0, 1fr)' : ''].filter(Boolean).join(' '))
 const moreOpen = ref(false)
 const moreItems = computed<MenuItem[]>(() => [
   { label: t('projects.downloadZip'), icon: Download, onSelect: () => (window.location.href = `/api/projects/${id.value}/download`) },
@@ -303,7 +305,7 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
       <div v-if="isMobile" class="pj-mobile-tabs">
         <UiSegmented v-model="mobilePane" size="md" :options="[{ value: 'files', label: t('projects.files') }, { value: 'code', label: t('projects.code') }, { value: 'preview', label: isSite ? t('projects.preview') : 'PDF' }]" />
       </div>
-      <div class="pj-body" :class="[`m-${mobilePane}`, { 'no-tree': !showTree, 'no-preview': !showPreview }]">
+      <div class="pj-body" :class="`m-${mobilePane}`" :style="isMobile ? undefined : { gridTemplateColumns: columns }">
         <!-- Fichiers -->
         <aside v-show="showTree || isMobile" class="pj-tree">
           <div class="pj-tree-head">
@@ -433,9 +435,6 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
 .pj-compile :deep(.kbd-group) { margin-left: 4px; opacity: .8; }
 .pj-mobile-tabs { padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .pj-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr); }
-.pj-body.no-tree { grid-template-columns: 0 minmax(0, 1fr) minmax(0, 1fr); }
-.pj-body.no-preview { grid-template-columns: 220px minmax(0, 1fr) 0; }
-.pj-body.no-tree.no-preview { grid-template-columns: 0 minmax(0, 1fr) 0; }
 .pj-tree { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--bg-panel); overflow: hidden; }
 .pj-tree-head { display: flex; align-items: center; gap: 2px; padding: 8px 8px 6px 12px; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
 .pj-tree-head span { flex: 1; }
@@ -490,7 +489,7 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
 .pub-live a { flex: 1; min-width: 0; color: var(--text); }
 .pj-dropzone { position: absolute; inset: 8px; z-index: 30; border: 2px dashed var(--accent); border-radius: var(--r-lg); background: color-mix(in srgb, var(--accent) 8%, var(--bg) 80%); display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 500; color: var(--accent-text); pointer-events: none; }
 @media (max-width: 767px) {
-  .pj-body, .pj-body.no-tree, .pj-body.no-preview { grid-template-columns: 1fr; }
+  .pj-body { grid-template-columns: 1fr; }
   .pj-body > * { display: none !important; }
   .pj-body.m-files .pj-tree, .pj-body.m-code .pj-code, .pj-body.m-preview .pj-preview { display: flex !important; }
 }

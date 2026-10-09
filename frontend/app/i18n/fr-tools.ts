@@ -1,7 +1,7 @@
 export default {
   spell: {
     title: 'Écriture', check: 'Correcteur orthographique', checkHint: 'Souligne les fautes dans les documents, les descriptions et les commentaires.',
-    lang: 'Langue de vérification', langHint: 'Dictionnaire utilisé par le navigateur ou l’application de bureau.', auto: 'Langue de l’interface',
+    lang: 'Langue de vérification', langHint: 'Dans un navigateur, les dictionnaires sont ceux du navigateur (Chrome : Paramètres → Langues → Correcteur orthographique ; Firefox : clic droit → Langues). L’application de bureau vérifie toujours le français et l’anglais.', auto: 'Langue de l’interface',
   },
   notepad: {
     title: 'Bloc-notes', open: 'Bloc-notes', hint: 'Vos notes personnelles, les mêmes sur toutes les pages et tous vos appareils. Vous seul les voyez.',

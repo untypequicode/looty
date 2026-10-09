@@ -35,6 +35,7 @@ export default {
     deleteProjectTitle: 'Supprimer « {name} » ?', deleteProjectHint: 'Tous les fichiers sont supprimés et le site éventuel est retiré du web. Cette action est irréversible.',
   },
   drive: {
+    preview: 'Aperçu', previous: 'Précédent', next: 'Suivant', noPreview: 'Pas d’aperçu pour ce type de fichier.',
     title: 'Drive', root: 'Drive', search: 'Rechercher dans le drive', upload: 'Envoyer', uploadFolder: 'Envoyer un dossier', newFolder: 'Nouveau dossier', folderName: 'Nom du dossier',
     days: { one: '1 jour', other: '{count} jours' }, keepFor: 'Conserver pendant', nFiles: { one: '1 fichier', other: '{count} fichiers' },
     uploaded: { one: 'Fichier envoyé, conservé {days}', other: '{count} fichiers envoyés, conservés {days}' },

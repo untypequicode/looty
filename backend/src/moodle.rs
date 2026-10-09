@@ -289,7 +289,13 @@ async fn frameable(base: &str) -> bool {
     let h = r.headers();
     let xfo = h.get("x-frame-options").and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
     let csp = h.get("content-security-policy").and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
-    xfo.is_empty() && !csp.contains("frame-ancestors")
+    // Cadre dans un autre site : le cookie de session n'est envoyé que s'il est
+    // « SameSite=None » ; sinon Moodle s'y affiche toujours déconnecté (cas de Bordeaux).
+    let session_ok = h.get_all("set-cookie").iter().filter_map(|v| v.to_str().ok()).filter(|c| c.starts_with("MoodleSession")).all(|c| {
+        let c = c.to_ascii_lowercase();
+        c.contains("samesite=none") && c.contains("secure")
+    });
+    xfo.is_empty() && !csp.contains("frame-ancestors") && session_ok
 }
 
 #[derive(Deserialize)]

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   HardDrive, Upload, FolderPlus, Folder, File, FileImage, FileText, FileArchive, FileVideo, FileAudio, Download, Link2, Clock, Pencil,
-  FolderInput, Trash2, MoreHorizontal, Search, X, ChevronRight, Settings, Timer,
+  FolderInput, Trash2, MoreHorizontal, Search, X, ChevronRight, Settings, Timer, Eye,
 } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -89,9 +89,11 @@ async function newFolder() {
   refresh()
 }
 const fileUrl = (i: DriveItem, inline = false) => `/api/workspaces/${wsId.value}/drive/files/${i.id}/download${inline ? '?inline=1' : ''}`
+/** Fichier affiché dans l'aperçu (images, PDF, vidéo, audio, texte). */
+const preview = ref<DriveItem | null>(null)
 function openItem(i: DriveItem) {
   if (i.is_dir) go(fullPath(i))
-  else window.open(fileUrl(i, true), '_blank', 'noopener')
+  else preview.value = i
 }
 async function rename(i: DriveItem) {
   const name = await promptDialog({ title: t('drive.rename'), initial: i.name, confirmLabel: t('common.save') })
@@ -132,7 +134,7 @@ const canEdit = (i: DriveItem) => !!data.value?.can_upload && (i.uploaded_by ===
 const menuFor = ref<string | null>(null)
 function items(i: DriveItem): MenuItem[] {
   const out: MenuItem[] = []
-  if (!i.is_dir) out.push({ label: t('drive.download'), icon: Download, onSelect: () => (window.location.href = fileUrl(i)) })
+  if (!i.is_dir) out.push({ label: t('drive.preview'), icon: Eye, onSelect: () => (preview.value = i) }, { label: t('drive.download'), icon: Download, onSelect: () => (window.location.href = fileUrl(i)) })
   if (!i.is_dir) out.push({ label: i.shared ? t('drive.copyLinkAgain') : t('drive.shareLink'), icon: Link2, onSelect: () => shareLink(i) })
   if (!i.is_dir && i.shared) out.push({ label: t('drive.removeLink'), icon: X, onSelect: () => unshare(i) })
   if (canEdit(i)) {
@@ -241,6 +243,7 @@ useHead({ title: () => t('drive.title') })
         </tbody>
       </table>
     </div>
+    <DrivePreview v-model="preview" :items="data?.items ?? []" :ws="wsId" />
     <div v-if="dragging" class="dv-drop"><Upload :size="22" /> {{ t('drive.dropHere', { days: dayLabel(days) }) }}</div>
   </div>
 </template>

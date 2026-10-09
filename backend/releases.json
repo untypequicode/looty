@@ -3,6 +3,50 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.10.2",
+      "date": "2026-10-09",
+      "title": {
+        "en": "Drive preview and fixes",
+        "fr": "Aperçu dans le drive et corrections"
+      },
+      "notes": {
+        "en": [
+          "**Drive preview**: images, PDF, videos, audio and text files open in a preview; arrow keys move between the files of the folder.",
+          "Clicking a task that is already open closes its panel.",
+          "**My tasks** shows the labels of each task.",
+          "Project editor: hiding the file list no longer hides the code with no way back.",
+          "Spell checker: turning it off in the settings now applies to documents too; the settings explain where browser dictionaries come from.",
+          "**Moodle, university login (CAS) in the browser**: a guided three-step sign-in (portal, “Security keys” page, paste) replaces the developer-tools workaround. The desktop app still signs in automatically. The embedded “Moodle site” tab is only offered when the platform allows staying signed in inside Looty (not the case for Bordeaux, whose session cookie is limited to its own site): Moodle then opens in its own tab or in the desktop app window."
+        ],
+        "fr": [
+          "**Aperçu dans le drive** : images, PDF, vidéos, audio et fichiers texte s’ouvrent dans un aperçu ; les flèches du clavier passent d’un fichier du dossier à l’autre.",
+          "Cliquer sur une tâche déjà ouverte referme son panneau.",
+          "**Mes tâches** affiche les étiquettes de chaque tâche.",
+          "Éditeur de projets : masquer la liste des fichiers ne fait plus disparaître le code sans retour possible.",
+          "Correcteur orthographique : le désactiver dans les réglages s’applique désormais aussi aux documents ; les réglages expliquent d’où viennent les dictionnaires du navigateur.",
+          "**Moodle, connexion université (CAS) dans le navigateur** : une connexion guidée en trois étapes (portail, page « Clés de sécurité », coller) remplace la manipulation dans les outils de développement. L’application de bureau se connecte toujours automatiquement. L’onglet « Site Moodle » intégré n’est proposé que si la plateforme permet de rester connecté dans Looty (pas le cas de Bordeaux, dont le cookie de session est limité à son propre site) : Moodle s’ouvre alors dans un onglet à part ou dans la fenêtre de l’application de bureau."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.4.1",
+      "date": "2026-10-09",
+      "title": {
+        "en": "French spell checking fixed (Nix package)",
+        "fr": "Correcteur français réparé (paquet Nix)"
+      },
+      "notes": {
+        "en": [
+          "With the Nix package, French spelling mistakes are underlined again and right-click suggests corrections: the French dictionary was installed under a name the app could not find. The `.deb` was not affected."
+        ],
+        "fr": [
+          "Avec le paquet Nix, les fautes en français sont de nouveau soulignées et le clic droit propose des corrections : le dictionnaire français était installé sous un nom introuvable par l’application. Le `.deb` n’était pas concerné."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.10.1",
       "date": "2026-10-08",
       "title": {

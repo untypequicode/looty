@@ -35,6 +35,7 @@ export default {
     deleteProjectTitle: 'Delete “{name}”?', deleteProjectHint: 'All files are deleted and the site, if any, is taken offline. This can’t be undone.',
   },
   drive: {
+    preview: 'Preview', previous: 'Previous', next: 'Next', noPreview: 'No preview for this file type.',
     title: 'Drive', root: 'Drive', search: 'Search the drive', upload: 'Upload', uploadFolder: 'Upload a folder', newFolder: 'New folder', folderName: 'Folder name',
     days: { one: '1 day', other: '{count} days' }, keepFor: 'Keep for', nFiles: { one: '1 file', other: '{count} files' },
     uploaded: { one: 'File uploaded, kept {days}', other: '{count} files uploaded, kept {days}' },
