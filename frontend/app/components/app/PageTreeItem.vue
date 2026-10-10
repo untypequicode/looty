@@ -14,6 +14,8 @@ const { expandedPages } = useUi()
 const { wsId } = useWorkspace()
 const { can } = useAccess(wsId)
 const canWrite = computed(() => can.value.editDocs)
+// Sous-page : rôle qui crée des documents, ou partage « peut créer des sous-pages ».
+const canAddChild = computed(() => (canWrite.value && props.node.can_edit !== false) || !!props.node.can_add_child)
 const { createPage, movePage, deletePage, toggleFavorite, duplicatePage, updatePage } = usePages()
 const route = useRoute()
 
@@ -67,7 +69,7 @@ const menuItems = computed<MenuItem[]>(() => [
         { divider: true },
         { label: translate('common.delete'), icon: Trash2, danger: true, onSelect: () => deletePage(props.node) },
       ]
-    : []),
+    : canAddChild.value ? [{ label: translate('docs.newChild'), icon: Plus, onSelect: addChild }] : []),
 ])
 
 // --- Glisser-déposer (avant / dedans / après) ---
@@ -130,7 +132,7 @@ async function onDrop(e: DragEvent) {
         <UiMenu v-model:open="menuOpen" :items="menuItems">
           <button class="tree-act" :aria-label="$t('common.more')"><MoreHorizontal :size="14" /></button>
         </UiMenu>
-        <button v-if="canWrite" class="tree-act" :aria-label="$t('docs.newChild')" @click="addChild"><Plus :size="14" /></button>
+        <button v-if="canAddChild" class="tree-act" :aria-label="$t('docs.newChild')" @click="addChild"><Plus :size="14" /></button>
       </span>
     </NuxtLink>
     <div v-if="expanded && node.children.length" class="tree-children">

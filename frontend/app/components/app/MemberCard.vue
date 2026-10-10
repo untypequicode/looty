@@ -39,7 +39,7 @@ function itemLink(i: { source: string; target_id: string; board_id?: string | nu
     <div class="mc-head">
       <UiAvatar :name="member.name" :src="member.avatar_url" :size="40" />
       <div class="mc-id">
-        <div class="mc-name truncate">{{ member.name }}</div>
+        <div class="mc-name truncate">{{ member.name }} <span v-if="member.role === 'guest'" class="mc-guest">{{ t('pagePerms.guest') }}</span></div>
         <div class="mc-status" :class="status"><span class="mc-dot" />{{ t(`presence.status.${status}`) }}<span v-if="followsMe" class="mc-follows"><Eye :size="11" /> {{ t('presence.followsYou') }}</span></div>
       </div>
     </div>
@@ -76,6 +76,7 @@ function itemLink(i: { source: string; target_id: string; board_id?: string | nu
 .mc-head { display: flex; align-items: center; gap: 12px; }
 .mc-id { min-width: 0; }
 .mc-name { font-weight: 600; font-size: 15px; }
+.mc-guest { margin-left: 4px; padding: 0 6px; border-radius: var(--r-full); background: var(--bg-hover); color: var(--text-3); font-size: var(--fs-xs); font-weight: 500; vertical-align: middle; }
 .mc-follows { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 0 6px; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-xs); }
 .mc-status { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--text-3); }
 .mc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }

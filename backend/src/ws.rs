@@ -11,7 +11,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
-use crate::access::{require_member, AuthUser};
+use crate::access::{require_member_or_guest, visible_pages, AuthUser, PageAccess, Role};
 use crate::error::ApiResult;
 use crate::state::AppState;
 
@@ -167,8 +167,14 @@ pub async fn ws_handler(
     Query(query): Query<WsQuery>,
 ) -> ApiResult<impl IntoResponse> {
     // Vérifie l'appartenance AVANT l'upgrade : impossible d'écouter un workspace étranger.
-    require_member(&state.pool, &user, query.workspace_id).await?;
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, query.workspace_id, user.id)))
+    // Invité (pages partagées) : seulement la présence, limitée à ses pages.
+    let guest_pages = if require_member_or_guest(&state.pool, &user, query.workspace_id).await? == Role::Guest {
+        let pages = visible_pages(&state.pool, &user, query.workspace_id, Role::Guest).await?;
+        Some(std::sync::Arc::new(pages.into_iter().filter(|(_, a)| *a != PageAccess::None).map(|(id, _)| id).collect::<std::collections::HashSet<_>>()))
+    } else {
+        None
+    };
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, query.workspace_id, user.id, guest_pages)))
 }
 
 fn sanitize_location(raw: &str) -> String {
@@ -184,15 +190,52 @@ fn sanitize_location(raw: &str) -> String {
     if valid { raw.to_string() } else { "home".into() }
 }
 
-async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, user_id: Uuid) {
+/// Ce qu'un invité reçoit d'un message de l'espace : la présence seulement, sans montrer où
+/// sont les membres hors de ses pages partagées. `None` : message non transmis.
+fn guest_view(payload: &str, pages: &std::collections::HashSet<Uuid>, guest: Uuid) -> Option<String> {
+    let mut v: serde_json::Value = serde_json::from_str(payload).ok()?;
+    let clean = |p: &mut serde_json::Value| {
+        let loc = p["location"].as_str().unwrap_or("home").to_string();
+        let visible = match loc.split_once(':') {
+            Some(("page", id)) => Uuid::parse_str(id).is_ok_and(|id| pages.contains(&id)),
+            Some(_) => false,
+            None => matches!(loc.as_str(), "home" | "docs" | "hidden"),
+        };
+        if !visible {
+            p["location"] = "hidden".into();
+        }
+        if p["following"].as_str() != Some(guest.to_string().as_str()) {
+            if let Some(o) = p.as_object_mut() {
+                o.remove("following");
+            }
+        }
+    };
+    match v["type"].as_str()? {
+        "USER_PRESENCE_UPDATE" => clean(&mut v["presence"]),
+        "PRESENCE_SYNC" => {
+            for p in v["presence"].as_array_mut()? {
+                clean(p);
+            }
+        }
+        "USER_OFFLINE" => {}
+        _ => return None,
+    }
+    Some(v.to_string())
+}
+
+async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, user_id: Uuid, guest_pages: Option<std::sync::Arc<std::collections::HashSet<Uuid>>>) {
     let hub = state.hub.clone();
     let (mut sender, mut receiver) = socket.split();
     let mut rx = hub.room(workspace_id).await.subscribe();
 
     hub.connected(workspace_id, user_id).await;
     crate::analytics::track(&state.pool, workspace_id, user_id, "session", None).await;
-    let snapshot = serde_json::json!({ "type": "PRESENCE_SYNC", "presence": hub.presence_list(workspace_id).await });
-    let _ = sender.send(Message::Text(snapshot.to_string())).await;
+    let snapshot = serde_json::json!({ "type": "PRESENCE_SYNC", "presence": hub.presence_list(workspace_id).await }).to_string();
+    let snapshot = match &guest_pages {
+        Some(pages) => guest_view(&snapshot, pages, user_id).unwrap_or_default(),
+        None => snapshot,
+    };
+    let _ = sender.send(Message::Text(snapshot)).await;
 
     let mut send_task = tokio::spawn(async move {
         loop {
@@ -201,7 +244,15 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                     if env.to.is_some_and(|to| to != user_id) {
                         continue;
                     }
-                    if sender.send(Message::Text(env.payload.to_string())).await.is_err() {
+                    let text = match &guest_pages {
+                        // Invité : messages qui lui sont adressés, et la présence filtrée.
+                        Some(pages) if env.to.is_none() => match guest_view(&env.payload, pages, user_id) {
+                            Some(t) => t,
+                            None => continue,
+                        },
+                        _ => env.payload.to_string(),
+                    };
+                    if sender.send(Message::Text(text)).await.is_err() {
                         break;
                     }
                 }

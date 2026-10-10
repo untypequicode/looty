@@ -29,7 +29,7 @@ export default {
   },
   access: {
     edit: 'Edit', stopEditing: 'Stop editing', unlock: 'Unlock', lockAgain: 'Lock again',
-    readHint: 'Read-only by default for you here. Click to edit.', editingHint: 'You are editing. Click to go back to reading.',
+    readHint: 'You are reading. Click to edit (the reading mode in the sidebar switches every part at once).', editingHint: 'You are editing. Click to go back to reading.',
     restrictedHint: 'You chose not to edit this here. Unlocking lasts until you close the window.', unlockedHint: 'Unlocked until you close the window.',
     mySpace: 'My participation', modesTitle: 'How I work in this space', modesHint: 'Choose, for each part of “{name}”, whether you edit by default. Restricted is stricter than read-only: unlocking only lasts until the window is closed.',
     modes: { write: 'Always edit', read: 'Read-only', restricted: 'Restricted' },
@@ -59,6 +59,7 @@ export default {
     editorHint: 'Can edit this page', viewerHint: 'Can read this page', blockedHint: 'Cannot see this page', remove: 'Remove special access',
     scopeTree: 'This page and its sub-pages', scopePage: 'This page only', onlyThis: 'only this page', includeSub: 'include sub-pages',
     inherited: 'From a parent page', from: 'From “{title}”', none: 'No special access: everyone follows their role.', badge: 'Special permissions',
+    createSub: 'Can create sub-pages', createSubHint: 'This person can add pages inside this one, even if their role (or being a guest) doesn’t allow creating documents.',
   },
   shared: { title: 'Shared with me', hint: 'Documents from other workspaces that people shared with you.', empty: 'Nothing has been shared with you yet.', noAccess: 'This document is not shared with you (anymore).', link: 'Documents shared with you ({n})' },
   guest: { homeTitle: 'Shared with me', homeHint: 'You only see the pages of this workspace that were shared with you.', sharedWithYou: 'Shared with you', recent: 'Recently edited', canEdit: 'Can edit', canView: 'Can view', subpages: { one: '1 subpage', other: '{count} subpages' }, noneTitle: 'Nothing is shared with you here anymore', noneHint: 'The pages of this workspace are no longer shared with you.', workspace: 'Guest' },
@@ -96,7 +97,7 @@ export default {
   date: { time: 'Time', allDay: 'All day' },
   inbox: { kinds: { event_tag: '{name} tagged you on {title}' } },
   insights: {
-    title: 'Analytics', spaceOverview: 'Overview', usage: 'Usage', days: '{n} days', ofMembers: 'of {n} members',
+    title: 'Analytics', spaceOverview: 'Overview', usage: 'Usage', days: '{n} days', ofMembers: 'of {n} members', ofMembersGuests: 'of {n} members and {g} guests ({a} active)',
     tiles: { active: 'Active members', views: 'Page views', edits: 'Document edits', tasks: 'Task actions', comments: 'Comments', newUsers: 'New members' },
     metrics: { active: 'Active members', views: 'Views', actions: 'Actions' }, overTime: 'Activity over time', day: 'Day', showTable: 'Show as a table', showChart: 'Show as a chart',
     whenActive: 'When people are active', heatmapLabel: 'Activity by day of the week and hour', actionsUnit: 'actions', topPages: 'Most viewed pages', viewers: '{n} different people',

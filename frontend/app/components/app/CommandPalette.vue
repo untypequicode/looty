@@ -5,7 +5,7 @@ import {
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
   BookOpen, PencilLine, Activity, Waypoints, Sparkles,
 } from 'lucide-vue-next'
-import { readMode, toggleReadMode } from '~/composables/useReadMode'
+import { useReadingMode } from '~/composables/useReadMode'
 import { refDebounced } from '@vueuse/core'
 import { useUi } from '~/composables/useUi'
 import { useAccess } from '~/composables/useAccess'
@@ -33,6 +33,7 @@ interface Cmd {
 const { commandOpen, createBoardOpen, openCreateTask, shortcutsOpen } = useUi()
 const { wsId, boards, pages, canWriteRole } = useWorkspace()
 const { can } = useAccess(wsId)
+const { reading, toggleReading, canToggle } = useReadingMode(wsId)
 const { createAndOpen } = usePages()
 const { mode, setTheme } = useTheme()
 const { t, locale, setLocale } = useI18n()
@@ -78,7 +79,7 @@ const staticCommands = computed<Cmd[]>(() => {
     ...(can.value.manageBoards ? [{ id: 'new-board', group: act, label: t('board.new'), icon: Plus, run: () => { commandOpen.value = false; createBoardOpen.value = true } }] : []),
     { id: 'theme', group: pref, label: mode.value === 'light' ? t('command.darkTheme') : t('command.lightTheme'), icon: mode.value === 'light' ? Moon : Sun, run: () => { setTheme(mode.value === 'light' ? 'dark' : 'light'); commandOpen.value = false } },
     { id: 'lang', group: pref, label: locale.value === 'fr' ? 'Switch to English' : 'Passer en français', icon: Languages, keywords: 'language langue', run: () => { setLocale(locale.value === 'fr' ? 'en' : 'fr'); commandOpen.value = false } },
-    ...(canWriteRole.value ? [{ id: 'readmode', group: pref, label: readMode.value ? t('readMode.toEdit') : t('readMode.toRead'), icon: readMode.value ? PencilLine : BookOpen, shortcut: ['mod', 'shift', 'E'], keywords: 'read only lecture seule edit', run: () => { toggleReadMode(); commandOpen.value = false } }] : []),
+    ...(canToggle.value ? [{ id: 'readmode', group: pref, label: reading.value ? t('readMode.toEdit') : t('readMode.toRead'), icon: reading.value ? PencilLine : BookOpen, shortcut: ['mod', 'shift', 'E'], keywords: 'read only lecture seule edit', run: () => { toggleReading(); commandOpen.value = false } }] : []),
     { id: 'whats-new', group: pref, label: t('releases.whatsNew'), icon: Sparkles, keywords: 'nouveautés release notes version mise à jour update', run: () => go(`/w/${wsId.value}/whats-new`) },
     { id: 'shortcuts', group: pref, label: t('nav.shortcuts'), icon: Keyboard, shortcut: '?', run: () => { commandOpen.value = false; shortcutsOpen.value = true } },
     { id: 'logout', group: pref, label: t('auth.logout'), icon: LogOut, run: logout },

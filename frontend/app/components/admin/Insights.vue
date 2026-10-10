@@ -12,12 +12,12 @@ const props = defineProps<{ endpoint: string; instance?: boolean }>()
 const { t, relativeTime, dateLocale } = useI18n()
 interface Data {
   days: number
-  totals: { members: number; active_users: number; views: number; edits: number; task_actions: number; comments: number; sessions: number; new_users: number }
+  totals: { members: number; guests?: number; active_guests?: number; active_users: number; views: number; edits: number; task_actions: number; comments: number; sessions: number; new_users: number }
   daily: { day: string; active: number; views: number; actions: number }[]
   heatmap: number[][]
   timezone: string
   top_pages: { id: string; title: string; icon: string | null; workspace_id: string; workspace_name: string; views: number; viewers: number }[]
-  top_users: { id: string; name: string; avatar_url: string | null; views: number; actions: number; active_days: number; last_active: string | null }[]
+  top_users: { id: string; name: string; avatar_url: string | null; views: number; actions: number; active_days: number; last_active: string | null; guest?: boolean }[]
   workspaces: { id: string; name: string; members: number; active: number; views: number; actions: number }[]
 }
 const days = ref<'7' | '30' | '90'>('30')
@@ -32,7 +32,7 @@ const metricLabel = computed(() => t(`insights.metrics.${metric.value}`))
 const tiles = computed(() => {
   const s = data.value?.totals
   return [
-    { key: 'active', icon: Users, value: s?.active_users, sub: s ? t('insights.ofMembers', { n: s.members }) : '' },
+    { key: 'active', icon: Users, value: s?.active_users, sub: s ? (s.guests ? t('insights.ofMembersGuests', { n: s.members, g: s.guests, a: s.active_guests ?? 0 }) : t('insights.ofMembers', { n: s.members })) : '' },
     { key: 'views', icon: Eye, value: s?.views },
     { key: 'edits', icon: PencilLine, value: s?.edits },
     { key: 'tasks', icon: ListChecks, value: s?.task_actions },
@@ -102,7 +102,7 @@ const showTable = ref(false)
             <thead><tr><th>{{ t('insights.person') }}</th><th>{{ t('insights.metrics.actions') }}</th><th>{{ t('insights.metrics.views') }}</th><th>{{ t('insights.activeDays') }}</th><th>{{ t('insights.lastActive') }}</th></tr></thead>
             <tbody>
               <tr v-for="u in data.top_users" :key="u.id">
-                <td><span class="who"><UiAvatar :name="u.name" :src="u.avatar_url" :size="20" /><span class="truncate">{{ u.name }}</span></span></td>
+                <td><span class="who"><UiAvatar :name="u.name" :src="u.avatar_url" :size="20" /><span class="truncate">{{ u.name }}</span><span v-if="u.guest" class="guest">{{ t('pagePerms.guest') }}</span></span></td>
                 <td class="tabular">{{ u.actions }}</td><td class="tabular">{{ u.views }}</td><td class="tabular">{{ u.active_days }}</td>
                 <td class="faint">{{ relativeTime(u.last_active) }}</td>
               </tr>
@@ -123,6 +123,7 @@ const showTable = ref(false)
 </template>
 
 <style scoped>
+.guest { flex: none; padding: 0 6px; border-radius: var(--r-full); background: var(--bg-hover); color: var(--text-3); font-size: var(--fs-xs); }
 .ins { display: flex; flex-direction: column; gap: 14px; }
 .ins-bar { display: flex; justify-content: flex-end; }
 .ins-loading { display: grid; place-items: center; padding: 48px; }

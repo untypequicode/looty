@@ -17,7 +17,6 @@ import { toast } from '~/composables/useToast'
 import { motion } from '~/composables/useMotion'
 import { exportMarkdown } from '~/editor/export'
 import { isDesktop, openInDesktop } from '~/composables/useDesktop'
-import { readMode } from '~/composables/useReadMode'
 import { useComments, type ItemComment } from '~/composables/useComments'
 import { replaceCommentMark, findCommentMark } from '~/editor/commentMark'
 
@@ -45,9 +44,11 @@ const live = computed<Page | undefined>(() => {
 })
 // Droit sur la page (rôle, permissions de page) + mode d'édition personnel des documents.
 // Invité : seul le partage de la page compte (pas de mode d'édition d'espace).
-const canEdit = computed(() => live.value?.can_edit !== false && !readMode.value && (isGuest.value || editing('docs')))
+const canEdit = computed(() => live.value?.can_edit !== false && editing('docs'))
 /** Créer, dupliquer, importer, supprimer : réservé aux membres (un invité modifie seulement). */
 const canManage = computed(() => canEdit.value && !isGuest.value)
+// Sous-document : rôle qui crée des documents, ou partage « peut créer des sous-pages ».
+const canAddChild = computed(() => (canManage.value && allows('docs', 'edit')) || (!!live.value?.can_add_child && editing('docs')))
 const path = computed(() => pagePath(pages.data.value ?? [], pageId.value))
 const children = computed(() => (pages.data.value ?? []).filter((p) => p.parent_id === pageId.value).sort((a, b) => a.position - b.position))
 
@@ -221,7 +222,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <UiTooltip v-if="!isGuest" :text="live.is_favorite ? t('docs.unfavorite') : t('docs.favorite')">
           <UiButton size="sm" variant="ghost" :icon="Star" :class="{ fav: live.is_favorite }" @click="toggleFavorite(live)" />
         </UiTooltip>
-        <AppEditToggle v-if="live.can_edit !== false && !isGuest" area="docs" />
+        <AppEditToggle v-if="live.can_edit !== false" area="docs" />
         <UiTooltip :text="t('reader.open')" :shortcut="['mod', 'alt', 'R']">
           <UiButton size="sm" variant="ghost" :icon="BookOpenText" :to="links.read(wsId, live.id)" :aria-label="t('reader.open')" />
         </UiTooltip>
@@ -272,6 +273,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
               :page-id="pageId"
               :initial-html="page?.content"
               :can-edit="canEdit"
+              :can-migrate="live.can_edit !== false"
               :can-comment="canComment"
               :user="cursorUser"
               @ready="(e) => (editorInst = e)"
@@ -281,7 +283,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
               @status="(s) => (status = s)"
             />
 
-            <section v-if="children.length || canManage" class="children">
+            <section v-if="children.length || canAddChild" class="children">
               <h3>{{ t('editor.subDocuments') }}</h3>
               <div class="child-grid">
                 <NuxtLink v-for="c in children" :key="c.id" :to="links.doc(wsId, c.id)" class="child">
@@ -291,7 +293,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
                     <span class="child-meta">{{ relativeTime(c.updated_at) }}</span>
                   </span>
                 </NuxtLink>
-                <button v-if="canManage" class="child new" @click="newChild"><Plus :size="16" /> {{ t('docs.newChild') }}</button>
+                <button v-if="canAddChild" class="child new" @click="newChild"><Plus :size="16" /> {{ t('docs.newChild') }}</button>
               </div>
             </section>
             <GraphRelatedPanel v-if="!isGuest" kind="page" :id="pageId" class="doc-related" />

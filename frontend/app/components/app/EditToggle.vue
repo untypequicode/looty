@@ -5,17 +5,17 @@ import { useAccess, type Area } from '~/composables/useAccess'
 import { useI18n } from '~/composables/useI18n'
 
 /**
- * État d'édition d'un domaine dans l'en-tête des pages : rien en mode « écriture » ;
- * « Lecture · Modifier » en mode lecture ; « Verrouillé · Déverrouiller » en mode restreint
- * (déverrouillage valable jusqu'à la fermeture de la fenêtre).
+ * État d'édition du domaine affiché, dans l'en-tête des pages : « Modifier » / « Terminer »,
+ * ou « Déverrouiller » / « Verrouiller » en mode restreint (jusqu'à la fermeture de la
+ * fenêtre). Même état que le mode lecture de la barre latérale.
  */
 const props = defineProps<{ area: Area }>()
 const { wsId } = useWorkspace()
 const { t } = useI18n()
-const { mode, editing, toggleEditing, allows } = useAccess(wsId)
+const { mode, editing, toggleEditing, editableAreas } = useAccess(wsId)
 const m = computed(() => mode(props.area))
 const on = computed(() => editing(props.area))
-const visible = computed(() => allows(props.area, 'edit') && m.value !== 'write')
+const visible = computed(() => editableAreas.value.includes(props.area))
 const label = computed(() => {
   if (m.value === 'restricted') return on.value ? t('access.lockAgain') : t('access.unlock')
   return on.value ? t('access.stopEditing') : t('access.edit')

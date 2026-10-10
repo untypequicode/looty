@@ -176,6 +176,28 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
         Some(w) => sqlx::query_scalar("SELECT count(*) FROM workspace_members WHERE workspace_id = $1").bind(w).fetch_one(pool).await?,
         None => sqlx::query_scalar("SELECT count(*) FROM users WHERE NOT COALESCE(is_suspended, FALSE)").fetch_one(pool).await?,
     };
+    // Invités (pages partagées à des personnes extérieures à l'espace).
+    let guest_ids: Vec<Uuid> = match ws {
+        Some(w) => sqlx::query_scalar(
+            "SELECT DISTINCT pp.user_id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
+             WHERE p.workspace_id = $1 AND pp.role IN ('viewer', 'editor')
+               AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $1 AND m.user_id = pp.user_id::varchar)",
+        )
+        .bind(w)
+        .fetch_all(pool)
+        .await?,
+        None => Vec::new(),
+    };
+    let active_guests: i64 = if guest_ids.is_empty() {
+        0
+    } else {
+        sqlx::query_scalar(&format!("{EVENTS} SELECT count(DISTINCT user_id) FROM e WHERE user_id = ANY($3)"))
+            .bind(since)
+            .bind(ws)
+            .bind(&guest_ids)
+            .fetch_one(pool)
+            .await?
+    };
     let new_users: i64 = if instance {
         sqlx::query_scalar("SELECT count(*) FROM users WHERE created_at > $1").bind(since).fetch_one(pool).await?
     } else {
@@ -185,7 +207,7 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
     Ok(serde_json::json!({
         "days": days,
         "totals": {
-            "members": members, "active_users": totals.0, "views": totals.1, "edits": totals.2,
+            "members": members, "guests": guest_ids.len(), "active_guests": active_guests, "active_users": totals.0, "views": totals.1, "edits": totals.2,
             "task_actions": totals.3, "comments": totals.4, "sessions": totals.5, "new_users": new_users,
         },
         "daily": daily.into_iter().map(|(d, a, v, x)| serde_json::json!({ "day": d, "active": a, "views": v, "actions": x })).collect::<Vec<_>>(),
@@ -195,7 +217,7 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
             "id": id, "title": title, "icon": icon, "workspace_id": wid, "workspace_name": wname, "views": views, "viewers": viewers,
         })).collect::<Vec<_>>(),
         "top_users": top_users.into_iter().map(|(id, name, avatar, views, actions, days, last)| serde_json::json!({
-            "id": id, "name": name, "avatar_url": avatar, "views": views, "actions": actions, "active_days": days, "last_active": last,
+            "id": id, "name": name, "avatar_url": avatar, "views": views, "actions": actions, "active_days": days, "last_active": last, "guest": guest_ids.contains(&id),
         })).collect::<Vec<_>>(),
         "workspaces": workspaces.into_iter().map(|(id, name, m, active, views, actions)| serde_json::json!({
             "id": id, "name": name, "members": m, "active": active, "views": views, "actions": actions,

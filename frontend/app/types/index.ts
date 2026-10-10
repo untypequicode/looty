@@ -120,6 +120,8 @@ export interface Page {
   last_viewed_at?: string | null
   total_view_count?: number | null
   can_edit?: boolean
+  /** Sous-pages permises par un partage (invités, rôles sans création de documents). */
+  can_add_child?: boolean
 }
 
 export interface TaskActivity {

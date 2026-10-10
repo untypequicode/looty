@@ -38,7 +38,7 @@ async function setPublic(on: boolean) {
 }
 
 // --- Accès particuliers (membres et invités extérieurs à l'espace) ---
-interface PagePerm { user_id: string; name: string; email: string; avatar_url?: string | null; role: 'viewer' | 'editor' | 'blocked'; inherit: boolean; is_member: boolean; inherited_from?: { id: string; title: string } | null }
+interface PagePerm { user_id: string; name: string; email: string; avatar_url?: string | null; role: 'viewer' | 'editor' | 'blocked'; inherit: boolean; allow_subpages?: boolean; is_member: boolean; inherited_from?: { id: string; title: string } | null }
 const perms = ref<PagePerm[]>([])
 async function loadPerms() {
   perms.value = await api<PagePerm[]>(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`)
@@ -53,8 +53,8 @@ const roleItems = computed(() => [
   { value: 'none', label: t('pagePerms.remove') },
 ])
 const roleLabel = (r: string) => roleItems.value.find((x) => x.value === r)?.label ?? r
-async function setPerm(userId: string, role: string, inherit = true) {
-  await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`, { method: 'PUT', body: { user_id: userId, role, inherit } })
+async function setPerm(userId: string, role: string, inherit = true, allowSubpages = false) {
+  await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`, { method: 'PUT', body: { user_id: userId, role, inherit, allow_subpages: allowSubpages } })
   await loadPerms()
   toast.success(t('common.saved'))
 }
@@ -137,9 +137,13 @@ async function add(userId: string, isMember: boolean) {
         <div class="m-body">
           <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('pagePerms.guest') }}</span></div>
           <div class="m-role">{{ p.inherit ? t('pagePerms.scopeTree') : t('pagePerms.scopePage') }}
-            · <button class="link" @click="setPerm(p.user_id, p.role, !p.inherit)">{{ p.inherit ? t('pagePerms.onlyThis') : t('pagePerms.includeSub') }}</button></div>
+            · <button class="link" @click="setPerm(p.user_id, p.role, !p.inherit, !!p.allow_subpages)">{{ p.inherit ? t('pagePerms.onlyThis') : t('pagePerms.includeSub') }}</button></div>
+          <label v-if="p.role === 'editor'" class="m-sub" :title="t('pagePerms.createSubHint')">
+            <input type="checkbox" :checked="!!p.allow_subpages" @change="setPerm(p.user_id, p.role, p.inherit, ($event.target as HTMLInputElement).checked)" />
+            {{ t('pagePerms.createSub') }}
+          </label>
         </div>
-        <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.role" :items="p.is_member ? roleItems : roleItems.filter((r) => r.value !== 'blocked')" :width="260" placement="bottom-end" @update:model-value="(v) => setPerm(p.user_id, v as string, p.inherit)">
+        <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.role" :items="p.is_member ? roleItems : roleItems.filter((r) => r.value !== 'blocked')" :width="260" placement="bottom-end" @update:model-value="(v) => setPerm(p.user_id, v as string, p.inherit, !!p.allow_subpages)">
           <button class="m-select" :class="p.role">{{ roleLabel(p.role) }}</button>
         </UiCombobox>
       </div>
@@ -160,6 +164,8 @@ async function add(userId: string, isMember: boolean) {
 </template>
 
 <style scoped>
+.m-sub { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: var(--fs-xs); color: var(--text-2); cursor: pointer; }
+.m-sub input { accent-color: var(--accent); margin: 0; }
 .pane { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
 .row-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-md); background: var(--bg-hover); }
 .rc-icon { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--bg-elevated); color: var(--text-2); box-shadow: var(--shadow-card); }

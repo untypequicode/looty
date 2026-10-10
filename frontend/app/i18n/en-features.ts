@@ -64,7 +64,7 @@ export default {
     off: 'Off (delete immediately)', days: { one: '1 day', other: '{count} days' },
   },
   readMode: {
-    on: 'Reading mode: changes are disabled', off: 'Editing mode', badge: 'Reading mode', edit: 'Edit',
-    toRead: 'Switch to reading mode', toEdit: 'Switch to editing mode',
+    on: 'Reading mode: documents, tasks and calendar are read-only', off: 'Editing mode: documents, tasks and calendar can be edited', badge: 'Reading mode', edit: 'Edit',
+    toRead: 'Reading mode (everything)', toEdit: 'Editing mode (everything)',
   },
 }

@@ -29,7 +29,7 @@ export default {
   },
   access: {
     edit: 'Modifier', stopEditing: 'Arrêter de modifier', unlock: 'Déverrouiller', lockAgain: 'Reverrouiller',
-    readHint: 'Lecture seule par défaut pour vous ici. Cliquez pour modifier.', editingHint: 'Vous modifiez. Cliquez pour revenir à la lecture.',
+    readHint: 'Vous êtes en lecture. Cliquez pour modifier (le mode lecture de la barre latérale bascule toutes les parties à la fois).', editingHint: 'Vous modifiez. Cliquez pour revenir à la lecture.',
     restrictedHint: 'Vous avez choisi de ne pas modifier ici. Le déverrouillage dure jusqu’à la fermeture de la fenêtre.', unlockedHint: 'Déverrouillé jusqu’à la fermeture de la fenêtre.',
     mySpace: 'Ma participation', modesTitle: 'Ma façon de travailler dans cet espace', modesHint: 'Choisissez, pour chaque partie de « {name} », si vous modifiez par défaut. Le mode restreint est plus strict que la lecture : le déverrouillage ne dure que jusqu’à la fermeture de la fenêtre.',
     modes: { write: 'Toujours modifier', read: 'Lecture seule', restricted: 'Restreint' },
@@ -59,6 +59,7 @@ export default {
     editorHint: 'Peut modifier cette page', viewerHint: 'Peut lire cette page', blockedHint: 'Ne voit pas cette page', remove: 'Retirer l’accès particulier',
     scopeTree: 'Cette page et ses sous-pages', scopePage: 'Cette page seulement', onlyThis: 'cette page seulement', includeSub: 'inclure les sous-pages',
     inherited: 'Depuis une page parente', from: 'Depuis « {title} »', none: 'Aucun accès particulier : chacun suit son rôle.', badge: 'Permissions particulières',
+    createSub: 'Peut créer des sous-pages', createSubHint: 'Cette personne peut ajouter des pages dans celle-ci, même si son rôle (ou son statut d’invité) ne permet pas de créer des documents.',
   },
   shared: { title: 'Partagé avec moi', hint: 'Documents d’autres espaces que l’on a partagés avec vous.', empty: 'Rien n’a encore été partagé avec vous.', noAccess: 'Ce document n’est pas (ou plus) partagé avec vous.', link: 'Documents partagés avec vous ({n})' },
   guest: { homeTitle: 'Partagé avec moi', homeHint: 'Vous voyez uniquement les pages de cet espace partagées avec vous.', sharedWithYou: 'Partagées avec vous', recent: 'Modifiées récemment', canEdit: 'Modification', canView: 'Lecture', subpages: { one: '1 sous-page', other: '{count} sous-pages' }, noneTitle: 'Plus rien n’est partagé avec vous ici', noneHint: 'Les pages de cet espace ne vous sont plus partagées.', workspace: 'Invité' },
@@ -96,7 +97,7 @@ export default {
   date: { time: 'Heure', allDay: 'Journée' },
   inbox: { kinds: { event_tag: '{name} vous a mentionné sur {title}' } },
   insights: {
-    title: 'Statistiques', spaceOverview: 'Vue d’ensemble', usage: 'Usage', days: '{n} jours', ofMembers: 'sur {n} membres',
+    title: 'Statistiques', spaceOverview: 'Vue d’ensemble', usage: 'Usage', days: '{n} jours', ofMembers: 'sur {n} membres', ofMembersGuests: 'sur {n} membres et {g} invités ({a} actifs)',
     tiles: { active: 'Membres actifs', views: 'Pages consultées', edits: 'Modifications de documents', tasks: 'Actions sur les tâches', comments: 'Commentaires', newUsers: 'Nouveaux membres' },
     metrics: { active: 'Membres actifs', views: 'Consultations', actions: 'Actions' }, overTime: 'Activité dans le temps', day: 'Jour', showTable: 'Afficher en tableau', showChart: 'Afficher en graphique',
     whenActive: 'Quand les membres sont actifs', heatmapLabel: 'Activité par jour de la semaine et par heure', actionsUnit: 'actions', topPages: 'Pages les plus consultées', viewers: '{n} personnes différentes',
