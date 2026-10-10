@@ -46,6 +46,10 @@ pub struct Page {
     #[sqlx(skip)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub can_edit: Option<bool>,
+    /// Sous-pages permises par un partage (invités, rôles sans création de documents).
+    #[sqlx(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub can_add_child: Option<bool>,
     /// Permissions particulières sur la page (icône dans la barre latérale).
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -131,6 +135,7 @@ async fn list_pages(
 ) -> ApiResult<Json<Vec<Page>>> {
     let role = crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
     let visible = visible_pages(&pool, &user, workspace_id, role).await?;
+    let grants = crate::access::subpage_grants(&pool, user.id, workspace_id).await?;
     let sql = format!(
         "SELECT {PAGE_LIST_COLUMNS},
             (pf.page_id IS NOT NULL) AS is_favorite,
@@ -150,6 +155,9 @@ async fn list_pages(
                 Some(PageAccess::None) | None => None,
                 Some(a) => {
                     p.can_edit = Some(*a == PageAccess::Write);
+                    if grants.contains(&p.id) {
+                        p.can_add_child = Some(true);
+                    }
                     Some(p)
                 }
             })
@@ -181,6 +189,9 @@ async fn get_page(
     .fetch_one(&pool)
     .await?;
     page.can_edit = Some(access == PageAccess::Write);
+    if crate::access::subpage_grants(&pool, user.id, workspace_id).await?.contains(&page_id) {
+        page.can_add_child = Some(true);
+    }
     Ok(Json(page))
 }
 
@@ -191,12 +202,26 @@ async fn create_page(
     Json(payload): Json<CreatePage>,
 ) -> ApiResult<(StatusCode, Json<Page>)> {
     let pool = &state.pool;
-    crate::access::require_perm(pool, &user, workspace_id, |p| p.docs >= crate::access::level::EDIT).await?;
-    if let Some(parent) = payload.parent_id {
-        let (ws, _) = require_page_write(pool, &user, parent).await?;
-        if ws != workspace_id {
-            return Err(ApiError::NotFound);
+    // Rôle qui crée des documents, ou partage « sous-pages permises » sur la page parente.
+    let role_edit = crate::access::member_perms(pool, user.id, workspace_id)
+        .await?
+        .is_some_and(|(_, p)| p.docs >= crate::access::level::EDIT);
+    let mut via_share = false;
+    match payload.parent_id {
+        Some(parent) if role_edit => {
+            let (ws, _) = require_page_write(pool, &user, parent).await?;
+            if ws != workspace_id {
+                return Err(ApiError::NotFound);
+            }
         }
+        Some(parent) => {
+            if !crate::access::subpage_grants(pool, user.id, workspace_id).await?.contains(&parent) {
+                return Err(ApiError::Forbidden);
+            }
+            via_share = true;
+        }
+        None if role_edit => {}
+        None => return Err(ApiError::Forbidden),
     }
     // Rejeu d'une création faite hors ligne : la page existe déjà ?
     if let Some(id) = payload.id {
@@ -232,6 +257,18 @@ async fn create_page(
     .fetch_one(pool)
     .await?;
 
+    if via_share {
+        // La nouvelle page reste accessible à son auteur, même si le partage parent ne couvre
+        // pas les sous-pages.
+        sqlx::query(
+            "INSERT INTO page_permissions (page_id, user_id, role, inherit, allow_subpages, created_by) VALUES ($1, $2, 'editor', true, true, $2)
+             ON CONFLICT (page_id, user_id) DO NOTHING",
+        )
+        .bind(page.id)
+        .bind(user.id)
+        .execute(pool)
+        .await?;
+    }
     crate::activity::log_page(pool, page.id, workspace_id, user.id, "create").await;
     let mut lite = page.clone();
     lite.content = None;
@@ -403,6 +440,8 @@ pub struct SetPagePermissionReq {
     pub role: String,
     /// Sous-pages comprises (par défaut) ou page seule.
     pub inherit: Option<bool>,
+    /// La personne peut créer des sous-pages (avec le rôle `editor`).
+    pub allow_subpages: Option<bool>,
 }
 
 async fn get_page_permissions(
@@ -416,12 +455,12 @@ async fn get_page_permissions(
     }
     crate::access::require_perm(&pool, &user, workspace_id, |p| p.admin).await?;
     // Permissions de la page et celles héritées d'un ancêtre (« sous-pages comprises »).
-    let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Uuid, String, i32, bool)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Uuid, String, i32, bool, bool)> = sqlx::query_as(
         "WITH RECURSIVE anc AS (
             SELECT id, parent_id, title, 0 AS depth FROM pages WHERE id = $1
             UNION ALL SELECT p.id, p.parent_id, p.title, anc.depth + 1 FROM pages p JOIN anc ON p.id = anc.parent_id WHERE anc.depth < 64
          )
-         SELECT pp.user_id, u.name, u.email, u.avatar_url, pp.role, pp.inherit, anc.id, anc.title, anc.depth,
+         SELECT pp.user_id, u.name, u.email, u.avatar_url, pp.role, pp.inherit, anc.id, anc.title, anc.depth, pp.allow_subpages,
                 EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = pp.user_id::varchar) AS is_member
          FROM anc JOIN page_permissions pp ON pp.page_id = anc.id JOIN users u ON u.id = pp.user_id
          WHERE anc.depth = 0 OR pp.inherit
@@ -433,13 +472,13 @@ async fn get_page_permissions(
     .await?;
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for (uid, name, email, avatar, role, inherit, from, from_title, depth, is_member) in rows {
+    for (uid, name, email, avatar, role, inherit, from, from_title, depth, allow_subpages, is_member) in rows {
         // La permission la plus proche s'applique ; les plus lointaines sont masquées.
         if !seen.insert(uid) {
             continue;
         }
         out.push(serde_json::json!({
-            "user_id": uid, "name": name, "email": email, "avatar_url": avatar, "role": role, "inherit": inherit,
+            "user_id": uid, "name": name, "email": email, "avatar_url": avatar, "role": role, "inherit": inherit, "allow_subpages": allow_subpages,
             "is_member": is_member, "inherited_from": if depth > 0 { Some(serde_json::json!({ "id": from, "title": from_title })) } else { None },
         }));
     }
@@ -457,6 +496,7 @@ async fn set_page_permission(
     crate::access::require_perm(pool, &user, workspace_id, |p| p.admin).await?;
     let member = is_member(pool, workspace_id, &payload.user_id.to_string()).await?;
     let inherit = payload.inherit.unwrap_or(true);
+    let allow_subpages = payload.role == "editor" && payload.allow_subpages.unwrap_or(false);
     match payload.role.as_str() {
         "none" => {
             sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
@@ -473,8 +513,8 @@ async fn set_page_permission(
             let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE id = $1").bind(payload.user_id).fetch_optional(pool).await?;
             exists.ok_or(ApiError::NotFound)?;
             let created: bool = sqlx::query_scalar(
-                "INSERT INTO page_permissions (page_id, user_id, role, inherit, created_by) VALUES ($1, $2, $3, $4, $5)
-                 ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3, inherit = $4
+                "INSERT INTO page_permissions (page_id, user_id, role, inherit, created_by, allow_subpages) VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3, inherit = $4, allow_subpages = $6
                  RETURNING (xmax = 0)",
             )
             .bind(page_id)
@@ -482,6 +522,7 @@ async fn set_page_permission(
             .bind(&payload.role)
             .bind(inherit)
             .bind(user.id)
+            .bind(allow_subpages)
             .fetch_one(pool)
             .await?;
             if created && !member {

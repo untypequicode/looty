@@ -2,7 +2,7 @@ import { computed, ref, type Ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { BoardSummary, Page, Workspace, WorkspaceMember, MyTask } from '~/types'
 import { api } from './api'
-import { readMode } from './useReadMode'
+import { useAccess } from './useAccess'
 
 export const wsKeys = {
   list: ['workspaces'] as const,
@@ -13,6 +13,7 @@ export const wsKeys = {
   myTasks: (id: string) => ['ws', id, 'my-tasks'] as const,
   notifications: (id: string) => ['ws', id, 'notifications'] as const,
   latex: (id: string) => ['ws', id, 'latex'] as const,
+  guests: (id: string) => ['ws', id, 'guests'] as const,
 }
 
 export function useWorkspaces() {
@@ -61,13 +62,24 @@ export function useWorkspace() {
   const role = computed(() => workspace.data.value?.role ?? null)
   /** Droit d'écriture du rôle, indépendamment du mode lecture (réglages). */
   const canWriteRole = computed(() => role.value === 'owner' || role.value === 'admin' || role.value === 'member')
-  const canWrite = computed(() => canWriteRole.value && !readMode.value)
+  // Mode lecture (aucun domaine en édition) : rien ne se modifie, même hors des domaines.
+  const { reading } = useAccess(wsId)
+  const canWrite = computed(() => canWriteRole.value && !reading.value)
   const isAdmin = computed(() => role.value === 'owner' || role.value === 'admin')
   /** Invité : personne extérieure à qui des pages de l'espace sont partagées. */
   const isGuest = computed(() => role.value === 'guest')
+  /** Invités de l'espace (pour les membres) : en ligne, auteurs, activité. */
+  const guests = useQuery({
+    queryKey: computed(() => wsKeys.guests(wsId.value)),
+    queryFn: async () => (await api<{ guests: (WorkspaceMember & { pages: number })[] }>(`/api/workspaces/${wsId.value}/guests`, { silent: true })).guests,
+    enabled: computed(() => !!wsId.value && !!role.value && role.value !== 'guest'),
+    staleTime: 60_000,
+  })
 
+  // Noms et avatars : membres, puis invités (jamais dans les listes d'affectation).
   const memberById = computed(() => {
     const m = new Map<string, WorkspaceMember>()
+    for (const x of guests.data.value ?? []) m.set(x.user_id, x)
     for (const x of members.data.value ?? []) m.set(x.user_id, x)
     return m
   })
@@ -81,7 +93,7 @@ export function useWorkspace() {
     return qc.invalidateQueries({ queryKey: k })
   }
 
-  return { wsId, workspace, members, boards, pages, role, canWrite, canWriteRole, isAdmin, isGuest, member, memberById, invalidate }
+  return { wsId, workspace, members, guests, boards, pages, role, canWrite, canWriteRole, isAdmin, isGuest, member, memberById, invalidate }
 }
 
 /** `mine` : ce qu'il me reste à faire ; `all` : toutes les tâches en cours de l'espace. */

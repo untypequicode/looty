@@ -512,3 +512,48 @@ pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _
     }
     Ok(out)
 }
+
+/// Pages où la personne peut créer des sous-pages grâce à un partage « sous-pages permises »
+/// (invités, rôles sans création de documents) : la permission la plus proche (la page ou un
+/// ancêtre « sous-pages comprises ») est `editor` avec l'option.
+pub async fn subpage_grants(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<std::collections::HashSet<Uuid>> {
+    let grants: Vec<(Uuid, String, bool, bool)> = sqlx::query_as(
+        "SELECT pp.page_id, pp.role, pp.inherit, pp.allow_subpages FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
+         WHERE p.workspace_id = $1 AND pp.user_id = $2",
+    )
+    .bind(workspace_id)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    let mut out = std::collections::HashSet::new();
+    if !grants.iter().any(|g| g.3) {
+        return Ok(out);
+    }
+    let overrides: HashMap<Uuid, (String, bool, bool)> = grants.into_iter().map(|(id, r, i, s)| (id, (r, i, s))).collect();
+    let parents: HashMap<Uuid, Option<Uuid>> = sqlx::query_as::<_, (Uuid, Option<Uuid>)>("SELECT id, parent_id FROM pages WHERE workspace_id = $1")
+        .bind(workspace_id)
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .collect();
+    for &id in parents.keys() {
+        let mut cur = Some(id);
+        let mut guard = 0;
+        while let Some(c) = cur {
+            if let Some((role, inherit, subpages)) = overrides.get(&c) {
+                if c == id || *inherit {
+                    if role == "editor" && *subpages {
+                        out.insert(id);
+                    }
+                    break;
+                }
+            }
+            cur = parents.get(&c).copied().flatten();
+            guard += 1;
+            if guard > 64 {
+                break;
+            }
+        }
+    }
+    Ok(out)
+}

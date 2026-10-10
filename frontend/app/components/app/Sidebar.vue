@@ -11,7 +11,7 @@ import { useSidebarLayout } from '~/composables/useSidebarLayout'
 import { usePages } from '~/composables/usePages'
 import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
-import { readMode, toggleReadMode } from '~/composables/useReadMode'
+import { useReadingMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useMoodle } from '~/composables/useMoodle'
 import { useUi, notepadOpen } from '~/composables/useUi'
@@ -22,8 +22,11 @@ import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
 
-const { wsId, boards, pages, members, canWriteRole, isGuest, role } = useWorkspace()
+const { wsId, boards, pages, members, guests, canWriteRole, isGuest, role } = useWorkspace()
 const { can } = useAccess(wsId)
+// Documents : le rôle les montre, ou des pages sont partagées individuellement (invités, rôles sans documents).
+const seesSomeDocs = computed(() => can.value.seeDocs || isGuest.value || (pages.data.value?.length ?? 0) > 0)
+const { reading, toggleReading, canToggle } = useReadingMode(wsId)
 const canEditDocs = computed(() => can.value.editDocs)
 const canEditTasks = computed(() => can.value.editTasks)
 const canManageBoards = computed(() => can.value.manageBoards)
@@ -38,11 +41,11 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   moodle: { icon: GraduationCap, label: () => t('nav.moodle'), to: () => links.moodle(wsId.value), when: () => !isGuest.value && !!moodleInfo.value?.url },
   projects: { icon: FolderCode, label: () => t('projects.title'), to: () => `/w/${wsId.value}/projects`, when: () => !isGuest.value && can.value.seeDocs },
   drive: { icon: HardDrive, label: () => t('drive.title'), to: () => `/w/${wsId.value}/drive`, when: () => !isGuest.value && can.value.seeDocs },
-  docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => can.value.seeDocs || isGuest.value },
+  docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => seesSomeDocs.value },
   graph: { icon: Waypoints, label: () => t('graph.title'), to: () => `/w/${wsId.value}/graph`, when: () => !isGuest.value },
   activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true, when: () => !isGuest.value },
   trash: { icon: Trash2, label: () => t('trash.title'), to: () => `/w/${wsId.value}/trash`, hiddenByDefault: true, when: () => !isGuest.value },
-}, { favorites: () => !isGuest.value, boards: () => can.value.seeBoards, docs: () => can.value.seeDocs || isGuest.value })
+}, { favorites: () => !isGuest.value, boards: () => can.value.seeBoards, docs: () => seesSomeDocs.value })
 /** Sections visibles, dans l'ordre choisi. */
 const sectionOrder = computed(() => Object.entries(sections.value).filter(([, v]) => v !== undefined).sort((a, b) => a[1]! - b[1]!).map(([k]) => k))
 const { tree, favorites, createAndOpen } = usePages()
@@ -60,7 +63,7 @@ function toggleSection(k: string) {
 }
 
 const online = computed(() =>
-  (members.data.value ?? []).filter((m) => presence.value[m.user_id] && m.user_id !== user.value?.id),
+  [...(members.data.value ?? []), ...(guests.data.value ?? [])].filter((m) => presence.value[m.user_id] && m.user_id !== user.value?.id),
 )
 
 // Renommage en ligne d'un tableau
@@ -210,7 +213,7 @@ async function onRootDrop(e: DragEvent) {
       <div v-if="online.length" class="sb-presence">
         <UiPopover v-for="m in online.slice(0, 6)" :key="m.user_id" :open="cardFor === m.user_id" :width="300" placement="top-start" @update:open="(o: boolean) => (cardFor = o ? m.user_id : null)">
           <template #trigger>
-            <button class="sb-avatar" :class="{ idle: presence[m.user_id]?.status === 'idle', followed: following === m.user_id }" :aria-label="m.name" :title="presence[m.user_id]?.following === user?.id ? `${m.name} · ${t('presence.followsYou')}` : m.name">
+            <button class="sb-avatar" :class="{ idle: presence[m.user_id]?.status === 'idle', followed: following === m.user_id, guest: m.role === 'guest' }" :aria-label="m.name" :title="presence[m.user_id]?.following === user?.id ? `${m.name} · ${t('presence.followsYou')}` : m.name">
               <UiAvatar :name="m.name" :src="m.avatar_url" :size="22" online ring />
               <span v-if="presence[m.user_id]?.following === user?.id" class="sb-follower"><Eye :size="8" /></span>
             </button>
@@ -225,8 +228,8 @@ async function onRootDrop(e: DragEvent) {
         </UiPopover>
       </div>
       <div class="spacer" />
-      <UiTooltip v-if="canWriteRole" :text="readMode ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
-        <UiButton variant="ghost" size="sm" :icon="readMode ? PencilLine : BookOpen" :class="{ 'rm-on': readMode }" :aria-pressed="readMode" @click="toggleReadMode" />
+      <UiTooltip v-if="canToggle" :text="reading ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
+        <UiButton variant="ghost" size="sm" :icon="reading ? PencilLine : BookOpen" :class="{ 'rm-on': reading }" :aria-pressed="reading" :aria-label="reading ? t('readMode.toEdit') : t('readMode.toRead')" @click="toggleReading" />
       </UiTooltip>
       <UiTooltip :text="t('notepad.open')" :shortcut="['mod', 'alt', 'N']" placement="top">
         <UiButton variant="ghost" size="sm" :icon="NotebookPen" :class="{ 'rm-on': notepadOpen }" :aria-pressed="notepadOpen" :aria-label="t('notepad.open')" @click="notepadOpen = !notepadOpen" />
@@ -334,6 +337,8 @@ async function onRootDrop(e: DragEvent) {
 .sb-avatar { display: block; border-radius: 50%; transition: transform var(--dur-fast); }
 .sb-avatar:hover { transform: translateY(-2px); position: relative; z-index: 1; }
 .sb-avatar.idle { opacity: .55; }
+/* Invité (pages partagées) */
+.sb-avatar.guest { box-shadow: 0 0 0 1.5px var(--bg-sidebar, var(--bg)), 0 0 0 2.5px var(--text-4, var(--text-3)); }
 .sb-avatar.followed { box-shadow: 0 0 0 2px var(--accent); }
 .sb-avatar { position: relative; }
 /* Cette personne me suit */

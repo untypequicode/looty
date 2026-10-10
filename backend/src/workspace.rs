@@ -63,6 +63,7 @@ pub fn routes() -> Router<AppState> {
         .route("/:workspace_id/latex", get(get_latex).put(put_latex))
         .route("/:workspace_id/calendar-color", put(put_calendar_color))
         .route("/:workspace_id/members", get(list_members))
+        .route("/:workspace_id/guests", get(list_guests))
         .route("/:workspace_id/members/:member_id", put(update_member_role).delete(remove_member))
         .route("/:workspace_id/leave", post(leave_workspace))
         .route("/:workspace_id/invites", get(list_invites).post(create_invite))
@@ -273,6 +274,34 @@ async fn list_members(
     .fetch_all(&pool)
     .await?;
     Ok(Json(serde_json::json!({ "members": members })))
+}
+
+/// Invités de l'espace (personnes extérieures à qui des pages sont partagées) : pour les
+/// voir en ligne et dans l'activité. E-mail réservé à qui peut partager.
+async fn list_guests(
+    State(pool): State<PgPool>,
+    user: AuthUser,
+    Path(workspace_id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    require_member(&pool, &user, workspace_id).await?;
+    let share = crate::access::member_perms(&pool, user.id, workspace_id).await?.is_some_and(|(_, p)| p.share || p.admin);
+    let rows: Vec<(Uuid, String, String, Option<String>, i64)> = sqlx::query_as(
+        "SELECT u.id, u.name, u.email, u.avatar_url, count(DISTINCT pp.page_id)
+         FROM page_permissions pp JOIN pages p ON p.id = pp.page_id JOIN users u ON u.id = pp.user_id
+         WHERE p.workspace_id = $1 AND pp.role IN ('viewer', 'editor')
+           AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $1 AND m.user_id = u.id::varchar)
+         GROUP BY u.id, u.name, u.email, u.avatar_url ORDER BY u.name",
+    )
+    .bind(workspace_id)
+    .fetch_all(&pool)
+    .await?;
+    let guests: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|(id, name, email, avatar, pages)| serde_json::json!({
+            "user_id": id.to_string(), "name": name, "email": if share { email } else { String::new() }, "avatar_url": avatar, "role": "guest", "pages": pages,
+        }))
+        .collect();
+    Ok(Json(serde_json::json!({ "guests": guests })))
 }
 
 async fn owner_count(pool: &PgPool, workspace_id: Uuid) -> ApiResult<i64> {

@@ -3,6 +3,35 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.12.0",
+      "date": "2026-10-09",
+      "title": {
+        "en": "One reading mode, public reading view, guests",
+        "fr": "Un seul mode lecture, lecture publique, invités"
+      },
+      "notes": {
+        "en": [
+          "**One reading mode**: the “Edit” button at the top of a page and the reading mode at the bottom of the sidebar (Ctrl+Shift+E) are now the same switch. The button changes the part you are in (documents, tasks, calendar); the sidebar switches all of them at once, and each always shows the real state. Parts set to “Always edit” can now be switched to reading too. Comments and task approvals stay available while reading.",
+          "**Public links in the reading view**: a published page opens like the reading view of the app: font, text size, line width, spacing, light / sepia / dark theme, contents and progress. Visitors’ settings are kept in their browser.",
+          "**Guests can create sub-pages** when you allow it: in Share → Access, tick “Can create sub-pages” for a person who can edit. It also works for members whose role does not allow creating documents. Their new pages stay visible to them.",
+          "**Guests appear online** with the members (avatar with a grey ring, “Guest” on their card) and **in the analytics** (active guests, “Guest” in the most active people). Guests only receive presence information, and never see where members are outside the pages shared with them.",
+          "**Pages shared with a member whose role hides documents** now appear in their sidebar, and they can edit them when the share allows it.",
+          "Fixed: a page whose content had never been opened in the editor looked empty when opened in reading mode first, and its saved copy could be overwritten. Readers without edit rights now see its content too.",
+          "Fixed: a server whose database had been created from a development build of 0.8.0 refused to start (“VersionMismatch(20261020120000)”). The missing columns are added automatically at startup; no data is changed."
+        ],
+        "fr": [
+          "**Un seul mode lecture** : le bouton « Modifier » en haut des pages et le mode lecture en bas de la barre latérale (Ctrl+Maj+E) sont désormais le même interrupteur. Le bouton change la partie où vous êtes (documents, tâches, calendrier) ; la barre latérale les change toutes d’un coup, et chacun montre toujours l’état réel. Les parties réglées sur « Toujours modifier » peuvent aussi passer en lecture. Commentaires et validations de tâches restent possibles en lecture.",
+          "**Liens publics dans la vue de lecture** : une page publiée s’ouvre comme la vue de lecture de l’application : police, taille du texte, largeur, interligne, thème clair / sépia / sombre, sommaire et progression. Les réglages des visiteurs sont gardés dans leur navigateur.",
+          "**Les invités peuvent créer des sous-pages** si vous l’autorisez : dans Partager → Accès, cochez « Peut créer des sous-pages » pour une personne qui peut modifier. Cela marche aussi pour les membres dont le rôle ne permet pas de créer des documents. Leurs nouvelles pages leur restent visibles.",
+          "**Les invités apparaissent en ligne** avec les membres (avatar cerclé de gris, « Invité » sur leur fiche) et **dans les statistiques** (invités actifs, « Invité » parmi les personnes les plus actives). Les invités ne reçoivent que la présence, et ne voient jamais où sont les membres en dehors des pages qui leur sont partagées.",
+          "**Les pages partagées à un membre dont le rôle masque les documents** apparaissent maintenant dans sa barre latérale, et il peut les modifier si le partage le permet.",
+          "Corrigé : une page dont le contenu n’avait jamais été ouvert dans l’éditeur paraissait vide quand on l’ouvrait d’abord en lecture, et sa copie enregistrée pouvait être écrasée. Les lecteurs sans droit de modification voient aussi son contenu.",
+          "Corrigé : un serveur dont la base avait été créée avec une version de développement de la 0.8.0 refusait de démarrer (« VersionMismatch(20261020120000) »). Les colonnes manquantes sont ajoutées automatiquement au démarrage ; aucune donnée n’est modifiée."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.11.1",
       "date": "2026-10-09",
       "title": {

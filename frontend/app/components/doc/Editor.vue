@@ -27,6 +27,8 @@ const props = defineProps<{
   pageId: string
   initialHtml?: string | null
   canEdit: boolean
+  /** Droit d'écriture sur la page, même en lecture : migration de l'ancien contenu HTML. */
+  canMigrate?: boolean
   canComment?: boolean
   user: { name: string; color: string }
 }>()
@@ -51,6 +53,8 @@ const synced = ref(false)
 const serverSynced = ref(false)
 /** Hors ligne, page jamais ouverte sur cet appareil : lecture seule du HTML enregistré. */
 const offlineReadonly = ref(false)
+/** Page jamais ouverte en édition, lue par quelqu'un sans droit d'écriture : sa copie HTML. */
+const htmlOnly = ref(false)
 const denied = ref(false)
 const wrapper = ref<HTMLElement | null>(null)
 
@@ -219,9 +223,10 @@ provider.on('synced', () => {
   const e = editor.value
   if (!e) return
   // Migration : document Yjs vide mais contenu HTML existant (anciennes pages, duplication).
-  if (e.isEmpty && props.initialHtml && props.initialHtml !== '<p></p>' && props.canEdit) {
-    e.commands.setContent(props.initialHtml)
-  }
+  // Indépendant du mode lecture : sinon la page reste vide et sa copie HTML serait écrasée.
+  const legacy = e.isEmpty && !!props.initialHtml && props.initialHtml !== '<p></p>'
+  if (legacy && (props.canEdit || props.canMigrate)) e.commands.setContent(props.initialHtml!)
+  htmlOnly.value = legacy && !props.canEdit && !props.canMigrate
   if (synced.value) {
     e.setEditable(props.canEdit && !denied.value)
     emitHeadings(e)
@@ -268,7 +273,8 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
       <div class="skeleton" style="height: 18px; width: 92%" />
       <div class="skeleton" style="height: 18px; width: 54%" />
     </div>
-    <EditorContent v-show="synced && !offlineReadonly" :editor="editor" />
+    <DocViewer v-if="htmlOnly && synced" :html="initialHtml || ''" />
+    <EditorContent v-show="synced && !offlineReadonly && !htmlOnly" :editor="editor" />
     <template v-if="editor && synced">
       <DocBlockHandle :editor="editor" :container="wrapper" />
       <DocBubble :editor="editor" :can-comment="canComment" />

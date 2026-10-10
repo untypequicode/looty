@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Home, Inbox, CircleUserRound, Search, SquarePen, BookOpen, Eye, X } from 'lucide-vue-next'
-import { readMode, toggleReadMode } from '~/composables/useReadMode'
+import { Home, Inbox, CircleUserRound, Search, SquarePen, Eye, X } from 'lucide-vue-next'
+import { useReadingMode } from '~/composables/useReadMode'
 import { isNativeApp } from '~/composables/useNative'
 import gsap from 'gsap'
 import { useQuery } from '@tanstack/vue-query'
@@ -25,6 +25,7 @@ import { useI18n } from '~/composables/useI18n'
 const route = useRoute()
 const { wsId, workspace, canWriteRole, member, isGuest } = useWorkspace()
 const { can } = useAccess(wsId)
+const { toggleReading } = useReadingMode(wsId)
 const canWrite = computed(() => can.value.editTasks)
 const { user } = useAuth()
 const { sidebarOpen, sidebarCollapsed, commandOpen, shortcutsOpen, openCreateTask } = useUi()
@@ -34,7 +35,8 @@ const { isTablet } = useBreakpoint()
 const { t } = useI18n()
 
 // Temps réel réservé aux membres : un invité ne reçoit pas les événements de l'espace.
-useRealtime(computed(() => (workspace.data.value && !isGuest.value ? wsId.value : '')), computed(() => user.value?.id))
+// Invités aussi : ils reçoivent seulement la présence (le serveur filtre le reste).
+useRealtime(computed(() => (workspace.data.value ? wsId.value : '')), computed(() => user.value?.id))
 
 // Préambule LaTeX de l'espace : appliqué à toutes les formules des pages.
 const latex = useQuery({ queryKey: computed(() => wsKeys.latex(wsId.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${wsId.value}/latex`, { silent: true }), enabled: computed(() => !!wsId.value) })
@@ -178,7 +180,7 @@ useShortcuts([
   { keys: '/', handler: () => (commandOpen.value = true) },
   { keys: '?', handler: () => (shortcutsOpen.value = true) },
   ...tabShortcuts(),
-  { keys: 'mod+shift+e', global: true, handler: () => { if (!canWriteRole.value) return false; toggleReadMode() } },
+  { keys: 'mod+shift+e', global: true, handler: () => toggleReading() },
   { keys: '[', handler: () => (sidebarCollapsed.value = !sidebarCollapsed.value) },
   { keys: 'c', handler: () => canWrite.value && openCreateTask() },
   { keys: 'g h', handler: () => navigateTo(links.home(wsId.value)) },
@@ -252,11 +254,6 @@ function onEdgeStart(e: TouchEvent) {
           <Eye :size="13" /> {{ followersLabel }}
         </div>
       </Transition>
-      <Transition name="rm">
-        <button v-if="readMode && canWriteRole" class="rm-badge" :title="t('readMode.toEdit')" @click="toggleReadMode">
-          <BookOpen :size="13" /> {{ t('readMode.badge') }} <span class="rm-edit">{{ t('readMode.edit') }}</span>
-        </button>
-      </Transition>
     </main>
 
     <!-- Barre d'onglets mobile -->
@@ -285,12 +282,6 @@ function onEdgeStart(e: TouchEvent) {
 /* Application Android native : sa propre navigation remplace celle du site. */
 :global(html.native-embed .tabbar) { display: none !important; }
 :global(html.native-embed .app-main) { padding-bottom: 0 !important; }
-.rm-badge {
-  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
-  display: inline-flex; align-items: center; gap: 7px; padding: 6px 8px 6px 12px; border-radius: var(--r-full);
-  background: var(--bg-elevated); box-shadow: var(--shadow-lg, 0 6px 24px rgba(0,0,0,.18)), 0 0 0 1px var(--border);
-  font-size: var(--fs-sm); color: var(--text-2);
-}
 .app-main.following { box-shadow: inset 0 0 0 2px var(--accent); }
 .follow-badge {
   position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 61;
@@ -308,10 +299,8 @@ function onEdgeStart(e: TouchEvent) {
 .fb-avatars > * + * { margin-left: -6px; }
 .follow-stop { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #fff; }
 .follow-stop:hover { background: rgba(255,255,255,.2); }
-.rm-edit { padding: 2px 9px; border-radius: var(--r-full); background: var(--accent); color: #fff; font-weight: 500; }
 .rm-enter-active, .rm-leave-active { transition: opacity var(--dur-fast), transform var(--dur-fast); }
 .rm-enter-from, .rm-leave-to { opacity: 0; transform: translate(-50%, 6px); }
-@media (max-width: 639px) { .rm-badge { bottom: calc(72px + env(safe-area-inset-bottom)); } }
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);

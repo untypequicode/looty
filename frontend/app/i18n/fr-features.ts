@@ -64,7 +64,7 @@ export default {
     off: 'Désactivée (suppression immédiate)', days: { one: '1 jour', other: '{count} jours' },
   },
   readMode: {
-    on: 'Mode lecture : les modifications sont désactivées', off: 'Mode édition', badge: 'Mode lecture', edit: 'Modifier',
-    toRead: 'Passer en mode lecture', toEdit: 'Passer en mode édition',
+    on: 'Mode lecture : documents, tâches et calendrier en lecture seule', off: 'Mode édition : documents, tâches et calendrier modifiables', badge: 'Mode lecture', edit: 'Modifier',
+    toRead: 'Mode lecture (tout)', toEdit: 'Mode édition (tout)',
   },
 }

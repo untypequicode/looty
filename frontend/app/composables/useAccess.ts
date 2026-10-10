@@ -1,20 +1,21 @@
-import { computed, type Ref } from 'vue'
+import { computed, watch, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useLocalStorage, useSessionStorage } from '@vueuse/core'
 import { api } from './api'
-import { readMode } from './useReadMode'
 import { useMemberPrefs } from './usePrefs'
 
 /**
  * Droits effectifs dans l'espace :
  * 1. le **rôle** (préréglage ou rôle créé) fixe ce qui est permis par domaine ;
- * 2. le **mode personnel** de chaque domaine décide si l'édition est active :
- *    - `write` : toujours en édition (sauf mode lecture global) ;
- *    - `read` : lecture par défaut, « Modifier » l'active (mémorisé sur l'appareil) ;
+ * 2. un **seul état d'édition par domaine** (documents, tâches, calendrier), dont la valeur
+ *    par défaut vient du mode personnel :
+ *    - `write` : en édition ;
+ *    - `read` : en lecture, « Modifier » l'active (mémorisé sur l'appareil) ;
  *    - `restricted` : verrouillé ; « Déverrouiller » l'active jusqu'à la fermeture de la
  *      fenêtre (onglet) — plus strict que la lecture.
- * Priorité : restreint > lecture > écriture. Les commentaires et la validation des tâches
- * restent possibles dans tous les modes (selon le rôle).
+ *    Le bouton de l'en-tête change le domaine affiché ; le mode lecture (barre latérale,
+ *    Ctrl+Maj+E) change tous les domaines d'un coup : c'est le même état.
+ * Les commentaires et la validation des tâches restent possibles en lecture (selon le rôle).
  */
 export type Area = 'docs' | 'boards' | 'calendar'
 export type AreaMode = 'write' | 'read' | 'restricted'
@@ -26,9 +27,12 @@ export interface AccessPrefs { modes?: Partial<Record<Area, AreaMode>>; modesCho
 export const LEVELS: Record<LevelName, number> = { none: 0, read: 1, comment: 2, validate: 3, edit: 4, manage: 5 }
 export const AREAS: Area[] = ['docs', 'boards', 'calendar']
 
-// État partagé (tous les composants) : modifications temporaires de l'édition.
+// État partagé (tous les composants) : édition choisie par domaine, en plus du mode par défaut.
 const editOn = useLocalStorage<Record<string, boolean>>('looty.editOn', {})
 const unlocked = useSessionStorage<Record<string, boolean>>('looty.unlocked', {})
+// Ancien mode lecture global (avant la fusion) : appliqué une fois à chaque espace.
+const legacyRead = useLocalStorage('looty.readMode', false)
+const legacyApplied = useLocalStorage<string[]>('looty.readModeApplied', [])
 
 export const accessKey = (ws: string) => ['ws', ws, 'me']
 
@@ -45,24 +49,50 @@ export function useAccess(wsId: Ref<string>) {
   /** Le rôle permet-il ce niveau dans ce domaine ? */
   const allows = (a: Area, l: LevelName) => level(a) >= LEVELS[l]
 
-  const mode = (a: Area): AreaMode => prefs.prefs.value?.modes?.[a] ?? 'read'
+  const isGuest = computed(() => query.data.value?.role === 'guest')
+  // Invités : pas de préférences ; ils modifient selon le partage de chaque page.
+  // Documents partagés page par page (invités, rôles qui ne modifient pas les documents) :
+  // le partage décide, page par page ; pas de mode de lecture propre.
+  const sharedOnly = (a: Area) => a === 'docs' && (isGuest.value || !allows('docs', 'edit'))
+  const mode = (a: Area): AreaMode => (sharedOnly(a) ? 'write' : prefs.prefs.value?.modes?.[a] ?? 'read')
   const key = (a: Area) => `${wsId.value}:${a}`
-  /** L'édition est-elle active (rôle + mode personnel + mode lecture global) ? */
+  /** L'édition de ce domaine est-elle active (état choisi, sinon mode par défaut) ? */
   function editing(a: Area): boolean {
-    if (readMode.value) return false
-    const m = mode(a)
-    if (m === 'write') return true
-    if (m === 'read') return !!editOn.value[key(a)]
-    return !!unlocked.value[key(a)]
-  }
-  /** Bascule l'édition d'un domaine selon son mode (Modifier / Déverrouiller). */
-  function toggleEditing(a: Area) {
     const k = key(a)
-    if (readMode.value) readMode.value = false
-    if (mode(a) === 'restricted') unlocked.value = { ...unlocked.value, [k]: !unlocked.value[k] }
-    else editOn.value = { ...editOn.value, [k]: !editOn.value[k] }
+    const m = mode(a)
+    if (m === 'restricted') return !!unlocked.value[k]
+    const chosen = editOn.value[k]
+    return chosen ?? m === 'write'
   }
+  function setEditing(a: Area, on: boolean) {
+    const k = key(a)
+    if (mode(a) === 'restricted') unlocked.value = { ...unlocked.value, [k]: on }
+    else editOn.value = { ...editOn.value, [k]: on }
+  }
+  /** Bascule l'édition d'un domaine (Modifier / Terminer, Déverrouiller / Verrouiller). */
+  function toggleEditing(a: Area) {
+    setEditing(a, !editing(a))
+  }
+  /** Domaines que le rôle permet de modifier (les invités : documents, selon chaque page). */
+  const editableAreas = computed(() => AREAS.filter((a) => allows(a, 'edit') || (isGuest.value && a === 'docs')))
+  /** Mode lecture : aucun domaine en édition (la barre latérale et Ctrl+Maj+E le basculent). */
+  const reading = computed(() => editableAreas.value.length > 0 && editableAreas.value.every((a) => !editing(a)))
+  function setReading(on: boolean) {
+    for (const a of editableAreas.value) setEditing(a, !on)
+  }
+  // Ancien mode lecture global : cet espace commence en lecture, une seule fois.
+  watch([() => wsId.value, () => query.data.value], ([ws, me]) => {
+    if (!ws || !me || !legacyRead.value || legacyApplied.value.includes(ws)) return
+    legacyApplied.value = [...legacyApplied.value, ws]
+    setReading(true)
+  }, { immediate: true })
   async function setMode(a: Area, m: AreaMode) {
+    // Nouveau mode : on repart de sa valeur par défaut.
+    const k = key(a)
+    const { [k]: _e, ...restOn } = editOn.value
+    const { [k]: _u, ...restUnlocked } = unlocked.value
+    editOn.value = restOn
+    unlocked.value = restUnlocked
     await prefs.update({ modes: { ...(prefs.prefs.value?.modes ?? {}), [a]: m } })
   }
   async function chooseAreas(workOn: Area[]) {
@@ -77,7 +107,7 @@ export function useAccess(wsId: Ref<string>) {
     /** Tâches : créer / modifier. */
     editTasks: allows('boards', 'edit') && editing('boards'),
     /** Tâches : valider / terminer (possible même en mode restreint). */
-    validate: allows('boards', 'validate') && !readMode.value,
+    validate: allows('boards', 'validate'),
     /** Tableaux, colonnes, étiquettes. */
     manageBoards: allows('boards', 'manage') && editing('boards'),
     commentTasks: allows('boards', 'comment'),
@@ -90,7 +120,7 @@ export function useAccess(wsId: Ref<string>) {
     admin: !!perms.value?.admin,
   }))
 
-  return { access: query.data, perms, allows, mode, editing, toggleEditing, setMode, chooseAreas, can, prefsLoaded: prefs.loaded, modesChosen: computed(() => !!prefs.prefs.value?.modesChosen) }
+  return { access: query.data, perms, allows, mode, editing, setEditing, toggleEditing, reading, setReading, editableAreas, setMode, chooseAreas, can, prefsLoaded: prefs.loaded, modesChosen: computed(() => !!prefs.prefs.value?.modesChosen) }
 }
 
 export interface WorkspaceRole { id: string; name: string; color: string; preset: 'owner' | 'admin' | 'member' | 'viewer' | null; permissions: Permissions; position: number; member_count: number }

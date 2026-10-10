@@ -60,6 +60,8 @@ export function usePages() {
       body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon },
     })
     qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => (old && !old.some((p) => p.id === page.id) ? [...old, { ...page, content: null, can_edit: true }] : old))
+    // Droits calculés par le serveur (sous-pages permises par un partage…).
+    qc.invalidateQueries({ queryKey: wsKeys.pages(wsId.value) })
     return page
   }
 
