@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useCalendars, useCalendarEvents, useCalendarPrefs, startOfDay, addDays, sameDay } from '~/composables/useCalendar'
-import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange } from 'lucide-vue-next'
+import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange, GraduationCap, Clock, BookOpenText } from 'lucide-vue-next'
+import { useTodayClasses, useClassLinks } from '~/composables/useClasses'
+import { useMemberPrefs } from '~/composables/usePrefs'
 import { useDashboard } from '~/composables/useDashboard'
 import { useNotifications } from '~/composables/useNotifications'
 import { useMailAccounts } from '~/composables/useMail'
@@ -38,6 +40,20 @@ const customizeOpen = ref(false)
 // Première visite : la personnalisation s'ouvre ; elle doit être enregistrée au moins une fois.
 watch([dashLoaded, dashSaved], ([l, s]) => { if (l && !s) customizeOpen.value = true }, { immediate: true })
 const has = (id: string) => layout.value.some((w) => w.id === id)
+
+// --- Cours (emploi du temps relié aux documents) ---
+const { current: classNow, next: classNext, now: clock } = useTodayClasses(wsId)
+const { links: classLinks } = useClassLinks(wsId)
+const { prefs: dashPrefs } = useMemberPrefs<{ dashboard?: { knowsClasses?: boolean } }>(wsId)
+/** Ajouté volontairement : visible même sans cours (indication pour le configurer). */
+const classesChosen = computed(() => !!dashPrefs.value?.dashboard?.knowsClasses)
+const showClasses = computed(() => classNow.value.length > 0 || classNext.value.length > 0 || classesChosen.value)
+const hm = (iso: string) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+const classProgress = (e: { starts_at: string; ends_at: string }) => {
+  const s = +new Date(e.starts_at), en = +new Date(e.ends_at)
+  return Math.min(1, Math.max(0, (+clock.value - s) / (en - s)))
+}
+const minutesLeft = (e: { ends_at: string }) => Math.max(0, Math.round((+new Date(e.ends_at) - +clock.value) / 60000))
 const { t, relativeTime, formatDate } = useI18n()
 
 const { data: overview, isLoading } = useQuery({
@@ -160,6 +176,46 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
             <div>
               <p class="date">{{ today }}</p>
               <h1>{{ greeting }}</h1>
+            </div>
+          </section>
+
+          <section v-else-if="w.id === 'classes' && showClasses" class="classes full" data-reveal>
+            <article v-for="c in classNow" :key="c.id + c.starts_at" class="class-now" :style="{ '--cc': c.color || 'var(--accent)' }">
+              <div class="cn-head">
+                <span class="cn-badge"><GraduationCap :size="13" /> {{ t('classes.now') }}</span>
+                <span class="cn-time"><Clock :size="12" /> {{ hm(c.starts_at) }} – {{ hm(c.ends_at) }} · {{ t('classes.left', { n: minutesLeft(c) }) }}</span>
+              </div>
+              <h2 class="cn-title">{{ c.summary }}</h2>
+              <p v-if="c.location" class="cn-loc"><MapPin :size="12" /> {{ c.location }}</p>
+              <div class="cn-progress"><span :style="{ transform: `scaleX(${classProgress(c)})` }" /></div>
+              <div class="cn-docs">
+                <div v-for="d in c.documents" :key="d.link_id" class="cn-doc">
+                  <NuxtLink :to="links.doc(wsId, d.id)" class="cn-doc-main"><span class="cn-ic">{{ d.icon || '📄' }}</span><b class="truncate">{{ d.title || t('docs.untitled') }}</b></NuxtLink>
+                  <NuxtLink :to="links.read(wsId, d.id)" class="cn-read" :title="t('reader.open')"><BookOpenText :size="13" /></NuxtLink>
+                  <div v-if="d.children.length" class="cn-sub">
+                    <NuxtLink v-for="s in d.children" :key="s.id" :to="links.doc(wsId, s.id)" class="cn-subpage" :style="{ paddingLeft: `${(s.depth - 1) * 12 + 8}px` }">
+                      <span>{{ s.icon || '·' }}</span><span class="truncate">{{ s.title || t('docs.untitled') }}</span>
+                    </NuxtLink>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <div v-if="classNext.length" class="class-next">
+              <h3>{{ classNow.length ? t('classes.after') : t('classes.today') }}</h3>
+              <div v-for="c in classNext" :key="c.id + c.starts_at" class="cx-row">
+                <span class="cx-bar" :style="{ background: c.color || 'var(--accent)' }" />
+                <span class="cx-time tabular">{{ hm(c.starts_at) }}</span>
+                <span class="cx-title truncate">{{ c.summary }}</span>
+                <span v-if="c.location" class="cx-loc truncate"><MapPin :size="11" /> {{ c.location }}</span>
+                <span class="cx-docs">
+                  <NuxtLink v-for="d in c.documents" :key="d.link_id" :to="links.doc(wsId, d.id)" class="cx-doc">{{ d.icon || '📄' }} <span class="truncate">{{ d.title || t('docs.untitled') }}</span></NuxtLink>
+                </span>
+              </div>
+            </div>
+            <div v-if="!classNow.length && !classNext.length" class="class-empty">
+              <GraduationCap :size="18" />
+              <span v-if="classLinks?.length">{{ t('classes.noneToday') }}</span>
+              <span v-else>{{ t('classes.setupHint') }} <NuxtLink :to="links.calendar(wsId)">{{ t('classes.setupLink') }}</NuxtLink></span>
             </div>
           </section>
 
@@ -366,6 +422,38 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 </template>
 
 <style scoped>
+.classes { display: flex; flex-direction: column; gap: 12px; }
+.class-now { position: relative; padding: 16px 18px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--cc) 9%, var(--bg-elevated)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cc) 55%, transparent), var(--shadow-card); }
+.cn-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cn-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: var(--r-full); background: var(--cc); color: #fff; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.cn-time { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.cn-title { margin: 10px 0 2px; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.cn-loc { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--text-3); font-size: var(--fs-sm); }
+.cn-progress { height: 3px; margin: 12px 0; border-radius: 2px; background: color-mix(in srgb, var(--cc) 18%, transparent); overflow: hidden; }
+.cn-progress span { display: block; height: 100%; background: var(--cc); transform-origin: left; transition: transform 1s linear; }
+.cn-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.cn-doc { position: relative; padding: 8px; border-radius: var(--r-md); background: var(--bg-elevated); box-shadow: 0 0 0 1px var(--border); }
+.cn-doc-main { display: flex; align-items: center; gap: 8px; padding: 4px 26px 4px 4px; border-radius: var(--r-sm); color: var(--text); min-width: 0; }
+.cn-doc-main:hover { background: var(--bg-hover); }
+.cn-ic { font-size: 16px; }
+.cn-read { position: absolute; top: 10px; right: 8px; color: var(--text-3); padding: 3px; border-radius: var(--r-sm); }
+.cn-read:hover { color: var(--text); background: var(--bg-hover); }
+.cn-sub { display: flex; flex-direction: column; margin-top: 4px; max-height: 220px; overflow-y: auto; }
+.cn-subpage { display: flex; align-items: center; gap: 6px; padding-top: 3px; padding-bottom: 3px; padding-right: 6px; border-radius: var(--r-sm); color: var(--text-2); font-size: var(--fs-sm); min-width: 0; }
+.cn-subpage:hover { background: var(--bg-hover); color: var(--text); }
+.class-next { padding: 10px 14px; border-radius: var(--r-lg); background: var(--bg-elevated); box-shadow: var(--shadow-card); }
+.class-next h3 { margin: 0 0 6px; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
+.cx-row { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: var(--fs-sm); }
+.cx-bar { flex: none; width: 3px; height: 18px; border-radius: 2px; }
+.cx-time { flex: none; min-width: 44px; white-space: nowrap; color: var(--text-2); }
+.cx-title { flex: 1; min-width: 0; font-weight: 500; }
+.cx-loc { flex: none; max-width: 160px; display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); }
+.cx-docs { display: flex; gap: 6px; flex: none; max-width: 45%; overflow: hidden; }
+.cx-doc { display: inline-flex; align-items: center; gap: 4px; max-width: 200px; padding: 1px 8px; border-radius: var(--r-full); background: var(--bg-hover); color: var(--text-2); }
+.cx-doc:hover { color: var(--text); }
+.class-empty { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: var(--r-lg); background: var(--bg-elevated); color: var(--text-3); font-size: var(--fs-sm); box-shadow: var(--shadow-card); }
+.class-empty a { color: var(--accent-text); }
+@media (max-width: 639px) { .cx-loc, .cx-docs { display: none; } }
 .ev-bar { width: 3px; height: 16px; border-radius: 2px; flex-shrink: 0; }
 .home { flex: 1; overflow-y: auto; padding: 32px 40px 64px; }
 .home > * { max-width: 1120px; margin-left: auto; margin-right: auto; }

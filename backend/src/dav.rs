@@ -14,7 +14,9 @@
 //!   /dav/                                   racine (découverte)
 //!   /dav/principals/<user>/                 principal
 //!   /dav/calendars/<user>/                  calendar-home-set
-//!   /dav/calendars/<user>/<calendrier>/     calendrier (`assigned`, `board-<id>` ou `events-<espace>`)
+//!   /dav/calendars/<user>/<calendrier>/     calendrier (`assigned`, `board-<id>`, `events-<espace>` : calendrier
+//!                                           par défaut de l'espace, `cal-<id>` : autre calendrier Looty, dont ceux des
+//!                                           tableaux, avec leurs étiquettes en CATEGORIES)
 //!   /dav/calendars/<user>/<calendrier>/<x>.ics
 
 use axum::{
@@ -101,8 +103,10 @@ fn unauthorized() -> Response {
 enum CalKind {
     Assigned,
     Board(Uuid),
-    /// Événements partagés d'un espace.
+    /// Événements du calendrier par défaut d'un espace.
     Events(Uuid),
+    /// Événements d'un autre calendrier Looty (calendrier d'un tableau…).
+    Cal(Uuid),
 }
 
 impl CalKind {
@@ -113,11 +117,14 @@ impl CalKind {
         if let Some(ws) = s.strip_prefix("events-").and_then(|id| Uuid::parse_str(id).ok()) {
             return Some(CalKind::Events(ws));
         }
+        if let Some(c) = s.strip_prefix("cal-").and_then(|id| Uuid::parse_str(id).ok()) {
+            return Some(CalKind::Cal(c));
+        }
         s.strip_prefix("board-").and_then(|id| Uuid::parse_str(id).ok()).map(CalKind::Board)
     }
     fn component(&self) -> &'static str {
         match self {
-            CalKind::Events(_) => "VEVENT",
+            CalKind::Events(_) | CalKind::Cal(_) => "VEVENT",
             _ => "VTODO",
         }
     }
@@ -126,6 +133,7 @@ impl CalKind {
             CalKind::Assigned => "assigned".into(),
             CalKind::Board(id) => format!("board-{id}"),
             CalKind::Events(ws) => format!("events-{ws}"),
+            CalKind::Cal(c) => format!("cal-{c}"),
         }
     }
 }
@@ -195,7 +203,7 @@ impl Obj {
     fn ics(&self, state: &AppState) -> String {
         match self {
             Obj::Task(t) => t.ics(state),
-            Obj::Event(e) => e.ics.clone(),
+            Obj::Event(e) => e.dav_ics(),
         }
     }
 }
@@ -246,14 +254,55 @@ async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, Ap
             order: offset + i,
         });
     }
+    // Autres calendriers Looty (dont un par tableau) : une collection chacun.
+    let cals: Vec<(Uuid, String, String, String, bool)> = sqlx::query_as(
+        "SELECT c.id, c.name, w.name, wm.role, c.board_id IS NOT NULL FROM looty_calendars c
+         JOIN workspaces w ON w.id = c.workspace_id
+         JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $1
+         WHERE NOT c.is_default ORDER BY w.name, c.position, c.created_at",
+    )
+    .bind(user.id.to_string())
+    .fetch_all(&state.pool)
+    .await?;
+    let offset = out.len();
+    for (i, (id, name, ws, role, board)) in cals.into_iter().enumerate() {
+        out.push(Calendar {
+            kind: CalKind::Cal(id),
+            name: format!("{ws} · {name}"),
+            description: match (board, user.french) {
+                (true, true) => format!("Événements du tableau {name} ({ws}), avec ses étiquettes"),
+                (true, false) => format!("Events of the {name} board ({ws}), with its labels"),
+                (false, true) => format!("Calendrier {name} de l'espace {ws}"),
+                (false, false) => format!("{name} calendar of the {ws} workspace"),
+            },
+            writable: Role::parse(&role).map(|r| r.can_write()).unwrap_or(false),
+            order: offset + i,
+        });
+    }
     Ok(out)
+}
+
+/// Collection d'événements : espace et calendrier Looty (`None` : calendrier par défaut).
+async fn event_scope(state: &AppState, user: &DavUser, kind: CalKind) -> Result<Option<(Uuid, Option<Uuid>, Role)>, ApiError> {
+    match kind {
+        CalKind::Events(ws) => Ok(Some((ws, None, events_role(state, user, ws).await?))),
+        CalKind::Cal(c) => {
+            let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM looty_calendars WHERE id = $1 AND NOT is_default")
+                .bind(c)
+                .fetch_optional(&state.pool)
+                .await?
+                .ok_or(ApiError::NotFound)?;
+            Ok(Some((ws, Some(c), events_role(state, user, ws).await?)))
+        }
+        _ => Ok(None),
+    }
 }
 
 async fn items(state: &AppState, user: &DavUser, kind: CalKind, only: Option<Uuid>) -> Result<Vec<Item>, ApiError> {
     let board = match kind {
         CalKind::Assigned => None,
         CalKind::Board(id) => Some(id),
-        CalKind::Events(_) => return Ok(vec![]),
+        CalKind::Events(_) | CalKind::Cal(_) => return Ok(vec![]),
     };
     Ok(sqlx::query_as::<_, Item>(
         "SELECT t.id, t.title, t.description, t.due_date, t.start_date, t.priority, t.is_completed, t.is_per_person,
@@ -284,17 +333,15 @@ async fn events_role(state: &AppState, user: &DavUser, ws: Uuid) -> Result<Role,
 
 /// Ressources d'un calendrier.
 async fn objects(state: &AppState, user: &DavUser, kind: CalKind) -> Result<Vec<Obj>, ApiError> {
-    if let CalKind::Events(ws) = kind {
-        events_role(state, user, ws).await?;
-        return Ok(crate::events::list(&state.pool, ws).await?.into_iter().map(Obj::Event).collect());
+    if let Some((ws, cal, _)) = event_scope(state, user, kind).await? {
+        return Ok(crate::events::list(&state.pool, ws, cal).await?.into_iter().map(Obj::Event).collect());
     }
     Ok(items(state, user, kind, None).await?.into_iter().map(Obj::Task).collect())
 }
 
 async fn find_obj(state: &AppState, user: &DavUser, kind: CalKind, name: &str) -> Result<Option<Obj>, ApiError> {
-    if let CalKind::Events(ws) = kind {
-        events_role(state, user, ws).await?;
-        return Ok(crate::events::find_by_name(&state.pool, ws, name).await?.map(Obj::Event));
+    if let Some((ws, cal, _)) = event_scope(state, user, kind).await? {
+        return Ok(crate::events::find_by_name(&state.pool, ws, name, cal).await?.map(Obj::Event));
     }
     Ok(find_item(state, user, kind, name).await?.map(Obj::Task))
 }
@@ -771,8 +818,8 @@ async fn put(state: &AppState, user: &DavUser, target: Target, headers: &HeaderM
     if name.len() > 255 || name.contains('/') {
         return Ok(status(StatusCode::BAD_REQUEST));
     }
-    if let CalKind::Events(ws) = kind {
-        return put_event(state, user, ws, &name, headers, body).await;
+    if let Some((ws, cal, role)) = event_scope(state, user, kind).await? {
+        return put_event(state, role, user.id, ws, cal, &name, headers, body).await;
     }
     let Some(parsed) = ical::parse_vtodo(body) else {
         // Seuls les VTODO sont acceptés (supported-calendar-component-set).
@@ -814,12 +861,12 @@ async fn delete(state: &AppState, user: &DavUser, target: Target, headers: &Head
     let Target::Object(kind, name) = target else {
         return Ok(status(StatusCode::FORBIDDEN));
     };
-    if let CalKind::Events(ws) = kind {
-        if !events_role(state, user, ws).await?.can_write() {
+    if let Some((ws, cal, role)) = event_scope(state, user, kind).await? {
+        if !role.can_write() {
             return Err(ApiError::Forbidden);
         }
-        let Some(e) = crate::events::find_by_name(&state.pool, ws, &name).await? else { return Ok(status(StatusCode::NOT_FOUND)) };
-        if !precondition(headers, Some(&etag_of(&e.ics))) {
+        let Some(e) = crate::events::find_by_name(&state.pool, ws, &name, cal).await? else { return Ok(status(StatusCode::NOT_FOUND)) };
+        if !precondition(headers, Some(&etag_of(&e.dav_ics()))) {
             return Ok(status(StatusCode::PRECONDITION_FAILED));
         }
         crate::events::delete_row(state, &e).await?;
@@ -830,7 +877,7 @@ async fn delete(state: &AppState, user: &DavUser, target: Target, headers: &Head
         return Ok(status(StatusCode::PRECONDITION_FAILED));
     }
     match kind {
-        CalKind::Events(_) => unreachable!(),
+        CalKind::Events(_) | CalKind::Cal(_) => unreachable!(),
         // Dans « Assignées à moi », supprimer = ne plus être assigné ; la tâche reste.
         CalKind::Assigned => dav_unassign(state, it.id, user.id).await?,
         CalKind::Board(_) => {
@@ -845,8 +892,8 @@ async fn delete(state: &AppState, user: &DavUser, target: Target, headers: &Head
 }
 
 /// Événement envoyé par un client : l'objet complet remplace l'existant.
-async fn put_event(state: &AppState, user: &DavUser, ws: Uuid, name: &str, headers: &HeaderMap, body: &str) -> Result<Response, ApiError> {
-    if !events_role(state, user, ws).await?.can_write() {
+async fn put_event(state: &AppState, role: Role, user_id: Uuid, ws: Uuid, cal: Option<Uuid>, name: &str, headers: &HeaderMap, body: &str) -> Result<Response, ApiError> {
+    if !role.can_write() {
         return Err(ApiError::Forbidden);
     }
     if body.len() > 512 * 1024 || !body.to_ascii_uppercase().contains("BEGIN:VEVENT") || crate::calendar::master_event(body).is_none() {
@@ -856,12 +903,12 @@ async fn put_event(state: &AppState, user: &DavUser, ws: Uuid, name: &str, heade
             .body(Body::from(format!("<?xml version=\"1.0\" encoding=\"utf-8\"?><d:error {NS}><c:supported-calendar-component/></d:error>")))
             .unwrap());
     }
-    let existing = crate::events::find_by_name(&state.pool, ws, name).await?;
-    if !precondition(headers, existing.as_ref().map(|e| etag_of(&e.ics)).as_deref()) {
+    let existing = crate::events::find_by_name(&state.pool, ws, name, cal).await?;
+    if !precondition(headers, existing.as_ref().map(|e| etag_of(&e.dav_ics())).as_deref()) {
         return Ok(status(StatusCode::PRECONDITION_FAILED));
     }
     let created = existing.is_none();
-    match crate::events::save_from_dav(state, ws, user.id, name, body, existing.as_ref()).await {
+    match crate::events::save_from_dav(state, ws, user_id, name, body, existing.as_ref(), cal).await {
         Err(ApiError::Conflict(_)) => return Ok(status(StatusCode::CONFLICT)),
         other => other?,
     }

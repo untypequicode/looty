@@ -1,6 +1,6 @@
 export default {
   event: {
-    new: 'Event', newTitle: 'New event', editTitle: 'Edit event', titlePlaceholder: 'Event title',
+    new: 'Event', newTitle: 'New event', editTitle: 'Edit event', titlePlaceholder: 'Event title', addLabels: 'Board labels…',
     sharedHint: 'Visible to every member of the workspace, and in their calendar apps (CalDAV).', seriesHint: 'Changes apply to every occurrence.',
     starts: 'Starts', ends: 'Ends', noRepeat: 'Does not repeat', daily: 'Every day', weekly: 'Every week', monthly: 'Every month', yearly: 'Every year',
     custom: 'Custom repetition (kept)', customHint: 'This repetition was set in a calendar app (exceptions, specific days…). It is kept as is.',
@@ -35,5 +35,15 @@ export default {
     icsUrl: 'Calendar address', server: 'CalDAV server', username: 'Username', password: 'Password or app password',
     find: 'Find my calendars', noneFound: 'No calendar found on this account.',
     name: 'Name and color', namePlaceholder: 'e.g. University timetable', add: 'Add', added: 'Calendar added ({n} events)',
+  },
+  classes: {
+    now: 'Now', left: '{n} min left', after: 'Next', today: 'Today', noneToday: 'No more linked classes today.',
+    setupHint: 'Link your timetable to your documents:', setupLink: 'filter its events in the calendar',
+    filter: 'Filter events…', filterHint: 'Select every event whose title contains these words (alternatives separated by commas).',
+    selected: { one: '1 event selected', other: '{count} events selected' }, linkDoc: 'Link to a document',
+    linkTitle: 'Link these classes to a document', pattern: 'Filter', patternHint: 'Classes whose title contains these words. Separate alternatives with commas.',
+    calendar: 'Calendar', anyCalendar: 'All calendars', page: 'Document', pickPage: 'Choose a document…', includeSub: 'Include its sub-pages',
+    link: 'Link', linked: 'Classes linked to “{title}”', rules: 'Classes and documents', noRules: 'No class linked to a document yet.',
+    matchCount: { one: '1 event in this view', other: '{count} events in this view' }, remove: 'Remove', manage: 'Classes and documents', subShort: 'sub-pages',
   },
 }

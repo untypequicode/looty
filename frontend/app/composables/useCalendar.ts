@@ -26,6 +26,8 @@ export interface CalEvent {
   looty?: boolean
   members?: string[]
   task_count?: number
+  /** Étiquettes du tableau du calendrier. */
+  labels?: { id: string; name: string; color: string }[]
   event_id?: string
   recurring?: boolean
   can_edit?: boolean
@@ -54,6 +56,9 @@ export interface EventDetail {
   updated_at: string
   calendar_id?: string | null
   members?: string[]
+  /** Étiquettes du tableau (calendrier d'un tableau). */
+  label_ids?: string[]
+  board_id?: string | null
   tasks?: LinkedTask[]
 }
 export interface LinkedTask { id: string; title: string; is_completed: boolean; event_start?: string | null; due_date?: string | null; board_id: string; board_name: string }

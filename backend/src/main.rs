@@ -5,6 +5,7 @@ mod auth;
 mod board;
 mod caldav;
 mod calendar;
+mod classes;
 mod crypto;
 mod ical;
 mod dav;
@@ -137,6 +138,7 @@ async fn main() {
         .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
         .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
         .nest("/workspaces/:workspace_id/planning", planning::workspace_routes())
+        .nest("/workspaces/:workspace_id", classes::workspace_routes())
         .nest("/workspaces/:workspace_id/moodle", moodle::workspace_routes())
         .nest("/workspaces/:workspace_id/projects", projects::workspace_routes())
         .nest("/workspaces/:workspace_id/drive", drive::workspace_routes())

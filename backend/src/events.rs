@@ -36,30 +36,179 @@ pub(crate) struct EventRow {
     pub workspace_id: Uuid,
     pub dav_name: Option<String>,
     pub ics: String,
+    /// Calendrier d'un tableau : noms de ses étiquettes posées sur l'événement (CATEGORIES).
+    #[sqlx(default)]
+    pub board_labels: Option<Vec<String>>,
 }
 
 impl EventRow {
     pub fn name(&self) -> String {
         self.dav_name.clone().unwrap_or_else(|| format!("{}.ics", self.id))
     }
+    /// Objet iCalendar servi aux clients CalDAV : étiquettes du tableau à jour en CATEGORIES.
+    pub fn dav_ics(&self) -> String {
+        match &self.board_labels {
+            Some(names) => with_categories(&self.ics, names),
+            None => self.ics.clone(),
+        }
+    }
 }
 
-const COLS: &str = "id, workspace_id, dav_name, ics";
+const COLS: &str = "e.id, e.workspace_id, e.dav_name, e.ics,
+    CASE WHEN lc.board_id IS NULL THEN NULL ELSE ARRAY(
+        SELECT l.name::text FROM event_labels el JOIN labels l ON l.id = el.label_id WHERE el.event_id = e.id ORDER BY l.name
+    ) END AS board_labels";
+/// Calendrier de l'événement (le calendrier par défaut quand il n'en a pas).
+const FROM: &str = "FROM workspace_events e
+    LEFT JOIN looty_calendars lc ON lc.id = COALESCE(e.calendar_id, (SELECT d.id FROM looty_calendars d WHERE d.workspace_id = e.workspace_id AND d.is_default))";
 
-pub(crate) async fn list(pool: &sqlx::PgPool, workspace_id: Uuid) -> ApiResult<Vec<EventRow>> {
-    Ok(sqlx::query_as(&format!("SELECT {COLS} FROM workspace_events WHERE workspace_id = $1 ORDER BY created_at")).bind(workspace_id).fetch_all(pool).await?)
+/// Événements d'un calendrier Looty de l'espace (`None` : le calendrier par défaut).
+pub(crate) async fn list(pool: &sqlx::PgPool, workspace_id: Uuid, calendar: Option<Uuid>) -> ApiResult<Vec<EventRow>> {
+    Ok(sqlx::query_as(&format!(
+        "SELECT {COLS} {FROM} WHERE e.workspace_id = $1 AND (CASE WHEN $2::uuid IS NULL THEN lc.is_default ELSE lc.id = $2 END) ORDER BY e.created_at"
+    ))
+    .bind(workspace_id)
+    .bind(calendar)
+    .fetch_all(pool)
+    .await?)
 }
 
-pub(crate) async fn find_by_name(pool: &sqlx::PgPool, workspace_id: Uuid, name: &str) -> ApiResult<Option<EventRow>> {
+pub(crate) async fn find_by_name(pool: &sqlx::PgPool, workspace_id: Uuid, name: &str, calendar: Option<Uuid>) -> ApiResult<Option<EventRow>> {
     let by_id = name.strip_suffix(".ics").and_then(|s| Uuid::parse_str(s).ok());
     Ok(sqlx::query_as(&format!(
-        "SELECT {COLS} FROM workspace_events WHERE workspace_id = $1 AND (dav_name = $2 OR (dav_name IS NULL AND id = $3))"
+        "SELECT {COLS} {FROM} WHERE e.workspace_id = $1 AND (e.dav_name = $2 OR (e.dav_name IS NULL AND e.id = $3))
+           AND (CASE WHEN $4::uuid IS NULL THEN lc.is_default ELSE lc.id = $4 END)"
     ))
     .bind(workspace_id)
     .bind(name)
     .bind(by_id)
+    .bind(calendar)
     .fetch_optional(pool)
     .await?)
+}
+
+/// Remplace les CATEGORIES de l'événement principal (étiquettes d'un tableau).
+pub(crate) fn with_categories(ics: &str, names: &[String]) -> String {
+    let mut out = Vec::new();
+    let (mut in_event, mut master, mut done) = (false, false, false);
+    let lines = unfolded_lines(ics);
+    // L'événement principal est le premier VEVENT sans RECURRENCE-ID.
+    let mut block: Vec<String> = Vec::new();
+    for line in lines {
+        let name = prop_name(&line);
+        if name == "BEGIN" && line.to_ascii_uppercase().ends_with(":VEVENT") {
+            in_event = true;
+            block = vec![line];
+            continue;
+        }
+        if in_event {
+            if name == "END" && line.to_ascii_uppercase().ends_with(":VEVENT") {
+                master = !done && !block.iter().any(|l| prop_name(l) == "RECURRENCE-ID");
+                if master {
+                    block.retain(|l| prop_name(l) != "CATEGORIES");
+                    if !names.is_empty() {
+                        block.push(format!("CATEGORIES:{}", names.iter().map(|n| escape_text(n)).collect::<Vec<_>>().join(",")));
+                    }
+                    done = true;
+                }
+                block.push(line);
+                out.append(&mut block);
+                in_event = false;
+                continue;
+            }
+            block.push(line);
+            continue;
+        }
+        out.push(line);
+    }
+    let _ = master;
+    fold(&out)
+}
+
+/// Noms des CATEGORIES de l'événement principal.
+fn categories(ics: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let (mut in_event, mut recurrence, mut cur) = (false, false, Vec::new());
+    for line in unfolded_lines(ics) {
+        let name = prop_name(&line);
+        let upper = line.to_ascii_uppercase();
+        if name == "BEGIN" && upper.ends_with(":VEVENT") {
+            in_event = true;
+            recurrence = false;
+            cur.clear();
+        } else if in_event && name == "RECURRENCE-ID" {
+            recurrence = true;
+        } else if in_event && name == "CATEGORIES" {
+            if let Some((_, value)) = line.split_once(':') {
+                // Virgules non échappées : séparateurs.
+                let mut item = String::new();
+                let mut chars = value.chars().peekable();
+                while let Some(c) = chars.next() {
+                    match c {
+                        '\\' => match chars.next() {
+                            Some('n') | Some('N') => item.push(' '),
+                            Some(x) => item.push(x),
+                            None => {}
+                        },
+                        ',' => cur.push(std::mem::take(&mut item)),
+                        _ => item.push(c),
+                    }
+                }
+                cur.push(item);
+            }
+        } else if in_event && name == "END" && upper.ends_with(":VEVENT") {
+            in_event = false;
+            if !recurrence {
+                out.extend(cur.drain(..).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// Tableau du calendrier de l'événement (calendrier d'un tableau), sinon `None`.
+async fn event_board(pool: &sqlx::PgPool, event: Uuid) -> ApiResult<Option<Uuid>> {
+    Ok(sqlx::query_scalar(
+        "SELECT lc.board_id FROM workspace_events e
+         JOIN looty_calendars lc ON lc.id = COALESCE(e.calendar_id, (SELECT d.id FROM looty_calendars d WHERE d.workspace_id = e.workspace_id AND d.is_default))
+         WHERE e.id = $1",
+    )
+    .bind(event)
+    .fetch_optional(pool)
+    .await?
+    .flatten())
+}
+
+/// Étiquettes de l'événement : seulement celles du tableau de son calendrier.
+async fn set_labels(pool: &sqlx::PgPool, event: Uuid, labels: &[Uuid]) -> ApiResult<()> {
+    let board = event_board(pool, event).await?;
+    sqlx::query("DELETE FROM event_labels WHERE event_id = $1").bind(event).execute(pool).await?;
+    if let Some(board) = board {
+        sqlx::query(
+            "INSERT INTO event_labels (event_id, label_id) SELECT $1, l.id FROM labels l WHERE l.board_id = $2 AND l.id = ANY($3) ON CONFLICT DO NOTHING",
+        )
+        .bind(event)
+        .bind(board)
+        .bind(labels)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+/// Étiquettes choisies dans un client CalDAV (CATEGORIES), par nom, parmi celles du tableau.
+async fn labels_from_categories(pool: &sqlx::PgPool, event: Uuid, ics: &str) -> ApiResult<()> {
+    let Some(board) = event_board(pool, event).await? else { return Ok(()) };
+    let names: Vec<String> = categories(ics).into_iter().map(|n| n.to_lowercase()).collect();
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM labels WHERE board_id = $1 AND lower(name) = ANY($2)").bind(board).bind(&names).fetch_all(pool).await?;
+    set_labels(pool, event, &ids).await
+}
+
+/// Après un changement de calendrier : garde les étiquettes valables pour le nouveau tableau.
+async fn revalidate_labels(pool: &sqlx::PgPool, event: Uuid) -> ApiResult<()> {
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT label_id FROM event_labels WHERE event_id = $1").bind(event).fetch_all(pool).await?;
+    set_labels(pool, event, &ids).await
 }
 
 /// Colonnes de tri/filtrage déduites de l'objet iCalendar.
@@ -70,10 +219,10 @@ fn indexed(ics: &str) -> ApiResult<(MasterEvent, Option<DateTime<Utc>>)> {
 }
 
 /// Enregistrement depuis un client CalDAV (création ou remplacement complet).
-pub(crate) async fn save_from_dav(state: &AppState, workspace_id: Uuid, user: Uuid, name: &str, ics: &str, existing: Option<&EventRow>) -> ApiResult<()> {
+pub(crate) async fn save_from_dav(state: &AppState, workspace_id: Uuid, user: Uuid, name: &str, ics: &str, existing: Option<&EventRow>, calendar: Option<Uuid>) -> ApiResult<()> {
     let (m, end) = indexed(ics)?;
     let ics = normalize_calendar(ics);
-    match existing {
+    let event_id = match existing {
         Some(e) => {
             sqlx::query(
                 "UPDATE workspace_events SET ics = $2, summary = $3, starts_at = $4, series_end = $5, recurring = $6, updated_by = $7, updated_at = NOW() WHERE id = $1",
@@ -87,12 +236,15 @@ pub(crate) async fn save_from_dav(state: &AppState, workspace_id: Uuid, user: Uu
             .bind(user)
             .execute(&state.pool)
             .await?;
+            e.id
         }
         None => {
             let uid = if m.uid.is_empty() || m.uid.len() > 255 { format!("{}@looty", Uuid::new_v4()) } else { m.uid.clone() };
-            sqlx::query(
-                "INSERT INTO workspace_events (workspace_id, uid, dav_name, ics, summary, starts_at, series_end, recurring, created_by, updated_by)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)",
+            // Créé dans la collection d'un calendrier : il y reste (sinon le calendrier par défaut).
+            let calendar = calendar_for(state, workspace_id, calendar).await?;
+            sqlx::query_scalar(
+                "INSERT INTO workspace_events (workspace_id, uid, dav_name, ics, summary, starts_at, series_end, recurring, created_by, updated_by, calendar_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10) RETURNING id",
             )
             .bind(workspace_id)
             .bind(&uid)
@@ -103,14 +255,16 @@ pub(crate) async fn save_from_dav(state: &AppState, workspace_id: Uuid, user: Uu
             .bind(end)
             .bind(m.rrule.is_some())
             .bind(user)
-            .execute(&state.pool)
+            .bind(calendar)
+            .fetch_one(&state.pool)
             .await
             .map_err(|e| match e {
                 sqlx::Error::Database(d) if d.is_unique_violation() => ApiError::Conflict("event_exists".into()),
                 other => other.into(),
-            })?;
+            })?
         }
-    }
+    };
+    labels_from_categories(&state.pool, event_id, &ics).await?;
     changed(state, workspace_id).await;
     Ok(())
 }
@@ -128,11 +282,13 @@ async fn changed(state: &AppState, workspace_id: Uuid) {
 
 /// Occurrences sur une période, pour la vue Calendrier.
 pub(crate) async fn occurrences(pool: &sqlx::PgPool, workspace_id: Uuid, from: DateTime<Utc>, to: DateTime<Utc>, can_edit: bool) -> ApiResult<Vec<serde_json::Value>> {
-    let rows: Vec<(Uuid, String, bool, Option<Uuid>, Vec<Uuid>, i64)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, bool, Option<Uuid>, Vec<Uuid>, i64, serde_json::Value)> = sqlx::query_as(
         "SELECT e.id, e.ics, e.recurring,
                 COALESCE(e.calendar_id, (SELECT c.id FROM looty_calendars c WHERE c.workspace_id = e.workspace_id AND c.is_default)),
                 ARRAY(SELECT m.user_id FROM event_members m WHERE m.event_id = e.id ORDER BY m.created_at),
-                (SELECT count(*) FROM tasks t WHERE t.event_id = e.id)
+                (SELECT count(*) FROM tasks t WHERE t.event_id = e.id),
+                COALESCE((SELECT json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) ORDER BY l.name)
+                          FROM event_labels el JOIN labels l ON l.id = el.label_id WHERE el.event_id = e.id), '[]'::json)
          FROM workspace_events e
          WHERE e.workspace_id = $1 AND e.starts_at < $3 AND (e.series_end IS NULL OR e.series_end >= $2)
          ORDER BY e.starts_at LIMIT 2000",
@@ -143,7 +299,7 @@ pub(crate) async fn occurrences(pool: &sqlx::PgPool, workspace_id: Uuid, from: D
     .fetch_all(pool)
     .await?;
     let mut out = Vec::new();
-    for (id, ics, recurring, cal, members, task_count) in rows {
+    for (id, ics, recurring, cal, members, task_count, labels) in rows {
         for o in expand(&ics, from, to) {
             out.push(serde_json::json!({
                 "id": format!("ws-{id}-{}", o.start.timestamp()),
@@ -152,6 +308,7 @@ pub(crate) async fn occurrences(pool: &sqlx::PgPool, workspace_id: Uuid, from: D
                 "looty": true,
                 "members": members,
                 "task_count": task_count,
+                "labels": labels,
                 "event_id": id,
                 "recurring": recurring,
                 "can_edit": can_edit,
@@ -232,6 +389,8 @@ struct EventReq {
     calendar_id: Option<Uuid>,
     /// Membres mentionnés (notifiés).
     members: Option<Vec<Uuid>>,
+    /// Étiquettes du tableau (calendrier d'un tableau).
+    label_ids: Option<Vec<Uuid>>,
 }
 
 /// Propriétés produites par le formulaire.
@@ -453,6 +612,8 @@ struct EventDetail {
     updated_at: DateTime<Utc>,
     calendar_id: Option<Uuid>,
     members: Vec<Uuid>,
+    label_ids: Vec<Uuid>,
+    board_id: Option<Uuid>,
     /// Tâches liées (toutes occurrences).
     tasks: Vec<serde_json::Value>,
 }
@@ -497,7 +658,7 @@ async fn load(state: &AppState, ws: Uuid, id: Uuid) -> ApiResult<(EventRow, Opti
     .fetch_optional(&state.pool)
     .await?;
     let (id, workspace_id, dav_name, ics, name, updated) = row.ok_or(ApiError::NotFound)?;
-    Ok((EventRow { id, workspace_id, dav_name, ics }, name, updated))
+    Ok((EventRow { id, workspace_id, dav_name, ics, board_labels: None }, name, updated))
 }
 
 async fn get_one(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<Json<EventDetail>> {
@@ -520,6 +681,8 @@ async fn get_one(State(state): State<AppState>, user: AuthUser, Path((ws, id)): 
         updated_at,
         calendar_id: sqlx::query_scalar("SELECT COALESCE(calendar_id, (SELECT c.id FROM looty_calendars c WHERE c.workspace_id = e.workspace_id AND c.is_default)) FROM workspace_events e WHERE e.id = $1").bind(id).fetch_one(&state.pool).await?,
         members: sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1 ORDER BY created_at").bind(id).fetch_all(&state.pool).await?,
+        label_ids: sqlx::query_scalar("SELECT label_id FROM event_labels WHERE event_id = $1").bind(id).fetch_all(&state.pool).await?,
+        board_id: event_board(&state.pool, id).await?,
         tasks: linked_tasks(&state, id).await?,
     }))
 }
@@ -582,6 +745,7 @@ async fn move_to_calendar(State(state): State<AppState>, user: AuthUser, Path((w
     load(&state, ws, id).await?;
     let cal = calendar_for(&state, ws, Some(p.calendar_id)).await?;
     sqlx::query("UPDATE workspace_events SET calendar_id = $2, updated_by = $3, updated_at = NOW() WHERE id = $1").bind(id).bind(cal).bind(user.id).execute(&state.pool).await?;
+    revalidate_labels(&state.pool, id).await?;
     changed(&state, ws).await;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -628,6 +792,9 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     if let Some(members) = &p.members {
         set_members(&state, ws, id, &m.summary, members, user.id).await?;
     }
+    if let Some(labels) = &p.label_ids {
+        set_labels(&state.pool, id, labels).await?;
+    }
     changed(&state, ws).await;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -654,6 +821,10 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     .await?;
     if let Some(members) = &p.members {
         set_members(&state, ws, id, &m.summary, members, user.id).await?;
+    }
+    match &p.label_ids {
+        Some(labels) => set_labels(&state.pool, id, labels).await?,
+        None => revalidate_labels(&state.pool, id).await?,
     }
     changed(&state, ws).await;
     Ok(StatusCode::NO_CONTENT)
