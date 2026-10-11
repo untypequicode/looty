@@ -3,6 +3,29 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.13.0",
+      "date": "2026-10-11",
+      "title": {
+        "en": "Event labels, timetable and documents",
+        "fr": "Étiquettes d’événements, emploi du temps et documents"
+      },
+      "notes": {
+        "en": [
+          "**Board labels on events**: an event in a board’s calendar can carry that board’s labels (chosen in the event form, shown in every calendar view).",
+          "**One CalDAV calendar per Looty calendar**: each board calendar (and each extra calendar) now appears as its own calendar in Thunderbird, DAVx⁵, Apple Calendar… with the board labels as categories, kept in sync both ways. Events created there stay in that board’s calendar. The workspace calendar in your app now only contains the default calendar: add the new ones in your app to see the others.",
+          "**Your timetable linked to your documents**: in the calendar, type words in the new “Filter events” field to select every matching event at once (e.g. all “Algèbre” classes), then “Link to a document”, with or without its sub-pages. Alternatives can be separated by commas.",
+          "**Dynamic home page**: during a class, the home page highlights it (room, time left) with its documents and their sub-pages, then lists the next classes of the day with their documents. It appears by itself and can be placed or removed with “Customize”."
+        ],
+        "fr": [
+          "**Étiquettes de tableau sur les événements** : un événement du calendrier d’un tableau peut porter les étiquettes de ce tableau (choisies dans le formulaire, affichées dans toutes les vues du calendrier).",
+          "**Un calendrier CalDAV par calendrier Looty** : chaque calendrier de tableau (et chaque calendrier supplémentaire) apparaît désormais comme un calendrier à part dans Thunderbird, DAVx⁵, Calendrier d’Apple… avec les étiquettes du tableau en catégories, synchronisées dans les deux sens. Les événements créés là restent dans le calendrier du tableau. Le calendrier de l’espace dans votre application ne contient plus que le calendrier par défaut : ajoutez les nouveaux dans votre application pour voir les autres.",
+          "**Votre emploi du temps relié à vos documents** : dans le calendrier, tapez des mots dans le nouveau champ « Filtrer les événements » pour sélectionner d’un coup tous les événements correspondants (par exemple tous les cours d’« Algèbre »), puis « Relier à un document », avec ou sans ses sous-pages. Les variantes se séparent par des virgules.",
+          "**Accueil dynamique** : pendant un cours, l’accueil le met en avant (salle, temps restant) avec ses documents et leurs sous-pages, puis liste les prochains cours de la journée avec leurs documents. Il apparaît tout seul et se place ou se retire avec « Personnaliser »."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.12.0",
       "date": "2026-10-09",
       "title": {

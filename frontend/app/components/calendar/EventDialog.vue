@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { Repeat, MapPin, AlignLeft, FileText, CalendarDays, Users } from 'lucide-vue-next'
+import { Repeat, MapPin, AlignLeft, FileText, CalendarDays, Users, Tag } from 'lucide-vue-next'
+import { useQuery } from '@tanstack/vue-query'
+import type { Board } from '~/types'
+import { boardKey } from '~/composables/useRealtime'
 import { api, errorMessage } from '~/composables/api'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
@@ -14,6 +17,20 @@ const { wsId, pages, members } = useWorkspace()
 const { data: lootyCals } = useLootyCalendars(wsId)
 const calendarId = ref<string | null>(null)
 const tagged = ref<string[]>([])
+// Étiquettes : celles du tableau dont c'est le calendrier.
+const labelIds = ref<string[]>([])
+const labelOpen = ref(false)
+const boardId = computed(() => lootyCals.value?.find((c) => c.id === calendarId.value)?.board_id ?? null)
+const board = useQuery({
+  queryKey: computed(() => boardKey(boardId.value ?? '')),
+  queryFn: () => api<Board>(`/api/boards/${boardId.value}`, { silent: true }),
+  enabled: computed(() => !!boardId.value && open.value),
+  staleTime: 30_000,
+})
+const boardLabels = computed(() => (boardId.value ? board.data.value?.labels ?? [] : []))
+const labelItems = computed(() => boardLabels.value.map((l) => ({ value: l.id, label: l.name, color: l.color })))
+// Autre tableau : ses étiquettes seulement.
+watch(boardLabels, (ls) => { if (ls.length) labelIds.value = labelIds.value.filter((id) => ls.some((l) => l.id === id)) })
 const calItems = computed(() => (lootyCals.value ?? []).map((c) => ({ value: c.id, label: c.name, hint: c.board_name ?? undefined })))
 const memberItems = computed(() => (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email })))
 const calOpen = ref(false)
@@ -21,6 +38,7 @@ const memberOpen = ref(false)
 watch(() => [props.event, props.defaults, lootyCals.value] as const, () => {
   calendarId.value = props.event?.calendar_id ?? props.defaults?.calendarId ?? lootyCals.value?.find((c) => c.is_default)?.id ?? null
   tagged.value = [...(props.event?.members ?? [])]
+  labelIds.value = [...(props.event?.label_ids ?? [])]
 }, { immediate: true })
 // Lien vers un document : adresse complète (utile aussi dans les agendas externes),
 // affichée dans Looty comme une mention de page et reprise dans le graphe.
@@ -106,6 +124,7 @@ async function save() {
     keep_recurrence: form.freq === 'custom',
     calendar_id: calendarId.value ?? undefined,
     members: tagged.value,
+    label_ids: boardId.value ? labelIds.value : [],
   }
   try {
     if (props.event) await api(`/api/workspaces/${wsId.value}/events/${props.event.id}`, { method: 'PUT', body, silent: true })
@@ -151,6 +170,17 @@ async function save() {
           <button type="button" class="evf-select"><i class="evf-dot" :style="{ background: lootyCals?.find((c) => c.id === calendarId)?.color }" />{{ lootyCals?.find((c) => c.id === calendarId)?.name }}</button>
         </UiCombobox>
       </div>
+      <div v-if="boardId && boardLabels.length" class="evf-row">
+        <Tag :size="15" class="evf-ic" />
+        <UiCombobox v-model:open="labelOpen" v-model="labelIds" multiple :items="labelItems" :width="260">
+          <button type="button" class="evf-select evf-labels">
+            <template v-if="labelIds.length">
+              <span v-for="l in boardLabels.filter((x) => labelIds.includes(x.id))" :key="l.id" class="evf-label" :style="{ '--lc': l.color }">{{ l.name }}</span>
+            </template>
+            <template v-else>{{ t('event.addLabels') }}</template>
+          </button>
+        </UiCombobox>
+      </div>
       <div class="evf-row">
         <Users :size="15" class="evf-ic" />
         <UiCombobox v-model:open="memberOpen" v-model="tagged" multiple :items="memberItems" :width="280">
@@ -175,6 +205,8 @@ async function save() {
 </template>
 
 <style scoped>
+.evf-labels { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.evf-label { padding: 0 7px; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 500; color: var(--lc); background: color-mix(in srgb, var(--lc) 16%, transparent); }
 .evf { display: flex; flex-direction: column; gap: 10px; }
 .evf-title :deep(input) { font-size: 16px; font-weight: 500; }
 .evf-allday { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: var(--fs-md); }

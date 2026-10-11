@@ -1,6 +1,6 @@
 export default {
   event: {
-    new: 'Événement', newTitle: 'Nouvel événement', editTitle: 'Modifier l’événement', titlePlaceholder: 'Titre de l’événement',
+    new: 'Événement', newTitle: 'Nouvel événement', editTitle: 'Modifier l’événement', titlePlaceholder: 'Titre de l’événement', addLabels: 'Étiquettes du tableau…',
     sharedHint: 'Visible par tous les membres de l’espace, et dans leurs applications de calendrier (CalDAV).', seriesHint: 'Les modifications s’appliquent à toutes les occurrences.',
     starts: 'Début', ends: 'Fin', noRepeat: 'Ne se répète pas', daily: 'Tous les jours', weekly: 'Toutes les semaines', monthly: 'Tous les mois', yearly: 'Tous les ans',
     custom: 'Répétition personnalisée (conservée)', customHint: 'Cette répétition a été définie dans une application de calendrier (exceptions, jours précis…). Elle est conservée telle quelle.',
@@ -35,5 +35,15 @@ export default {
     icsUrl: 'Adresse du calendrier', server: 'Serveur CalDAV', username: 'Nom d’utilisateur', password: 'Mot de passe ou mot de passe d’application',
     find: 'Trouver mes calendriers', noneFound: 'Aucun calendrier trouvé sur ce compte.',
     name: 'Nom et couleur', namePlaceholder: 'ex. Emploi du temps', add: 'Ajouter', added: 'Calendrier ajouté ({n} événements)',
+  },
+  classes: {
+    now: 'En cours', left: 'encore {n} min', after: 'Ensuite', today: 'Aujourd’hui', noneToday: 'Plus de cours reliés aujourd’hui.',
+    setupHint: 'Reliez votre emploi du temps à vos documents :', setupLink: 'filtrez ses événements dans le calendrier',
+    filter: 'Filtrer les événements…', filterHint: 'Sélectionne tous les événements dont le titre contient ces mots (variantes séparées par des virgules).',
+    selected: { one: '1 événement sélectionné', other: '{count} événements sélectionnés' }, linkDoc: 'Relier à un document',
+    linkTitle: 'Relier ces cours à un document', pattern: 'Filtre', patternHint: 'Les cours dont le titre contient ces mots. Séparez les variantes par des virgules.',
+    calendar: 'Calendrier', anyCalendar: 'Tous les calendriers', page: 'Document', pickPage: 'Choisir un document…', includeSub: 'Inclure ses sous-pages',
+    link: 'Relier', linked: 'Cours reliés à « {title} »', rules: 'Cours et documents', noRules: 'Aucun cours relié à un document pour l’instant.',
+    matchCount: { one: '1 événement dans cette vue', other: '{count} événements dans cette vue' }, remove: 'Retirer', manage: 'Cours et documents', subShort: 'sous-pages',
   },
 }

@@ -8,14 +8,15 @@ import { useMemberPrefs } from './usePrefs'
  */
 export type WidgetId =
   | 'greeting' | 'stats' | 'agenda' | 'myTasks' | 'docs' | 'boards' | 'activity'
-  | 'overdue' | 'toApprove' | 'favorites' | 'inbox' | 'notepad' | 'online' | 'month' | 'mail' | 'myEvents'
+  | 'overdue' | 'toApprove' | 'favorites' | 'inbox' | 'notepad' | 'online' | 'month' | 'mail' | 'myEvents' | 'classes'
 export type WidgetSize = 'half' | 'full'
 export interface WidgetConf { id: WidgetId; size: WidgetSize }
-export interface DashboardPrefs { widgets: WidgetConf[]; saved: boolean }
+export interface DashboardPrefs { widgets: WidgetConf[]; saved: boolean; /** Disposition choisie en connaissant le widget des cours. */ knowsClasses?: boolean }
 
 export const WIDGETS: { id: WidgetId; size: WidgetSize; fixedSize?: boolean }[] = [
   { id: 'greeting', size: 'full', fixedSize: true },
   { id: 'stats', size: 'full', fixedSize: true },
+  { id: 'classes', size: 'full', fixedSize: true },
   { id: 'agenda', size: 'half' },
   { id: 'myTasks', size: 'half' },
   { id: 'docs', size: 'half' },
@@ -31,7 +32,7 @@ export const WIDGETS: { id: WidgetId; size: WidgetSize; fixedSize?: boolean }[] 
   { id: 'boards', size: 'full' },
   { id: 'activity', size: 'full' },
 ]
-export const DEFAULT_LAYOUT: WidgetConf[] = ['greeting', 'stats', 'agenda', 'myTasks', 'docs', 'toApprove', 'boards', 'activity']
+export const DEFAULT_LAYOUT: WidgetConf[] = ['greeting', 'classes', 'stats', 'agenda', 'myTasks', 'docs', 'toApprove', 'boards', 'activity']
   .map((id) => ({ id: id as WidgetId, size: WIDGETS.find((w) => w.id === id)!.size }))
 
 export function useDashboard(wsId: Ref<string>) {
@@ -39,8 +40,15 @@ export function useDashboard(wsId: Ref<string>) {
   const saved = computed(() => !!prefs.value?.dashboard?.saved)
   const layout = computed<WidgetConf[]>(() => {
     const w = prefs.value?.dashboard?.widgets
-    return (w?.length ? w : DEFAULT_LAYOUT).filter((x) => WIDGETS.some((d) => d.id === x.id))
+    const list = (w?.length ? w : DEFAULT_LAYOUT).filter((x) => WIDGETS.some((d) => d.id === x.id))
+    // Disposition antérieure au widget des cours : il s'ajoute après la salutation (il ne
+    // s'affiche que s'il y a un cours relié aujourd'hui) jusqu'à la prochaine personnalisation.
+    if (w?.length && !prefs.value?.dashboard?.knowsClasses && !list.some((x) => x.id === 'classes')) {
+      const at = list.findIndex((x) => x.id === 'greeting') + 1
+      list.splice(at, 0, { id: 'classes', size: 'full' })
+    }
+    return list
   })
-  async function save(widgets: WidgetConf[]) { await update({ dashboard: { widgets, saved: true } }) }
+  async function save(widgets: WidgetConf[]) { await update({ dashboard: { widgets, saved: true, knowsClasses: true } }) }
   return { layout, saved, loaded, save }
 }

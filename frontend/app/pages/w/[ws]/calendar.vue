@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2, MessageSquare, Kanban } from 'lucide-vue-next'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, MoreHorizontal, AlertTriangle, MapPin, ExternalLink, CheckCircle2, Circle, PanelLeft, Users, Lock, Pencil, CalendarPlus, Repeat, Share2, MessageSquare, Kanban, Filter, Link2, X } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api } from '~/composables/api'
@@ -10,6 +10,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useCommentCounts } from '~/composables/useComments'
+import { matchesPattern } from '~/composables/useClasses'
 import {
   useCalendars, useCalendarEvents, useCalendarPrefs, useCalendarInvalidate,
   useLootyCalendars, type LootyCalendar,
@@ -69,6 +70,18 @@ const tasks = computed(() => (showTasks.value ? data.value?.tasks ?? [] : []))
 // Calendriers Looty de l'espace (par défaut, thématiques, tableaux).
 const { data: lootyCals } = useLootyCalendars(wsId)
 const lootyById = computed(() => new Map((lootyCals.value ?? []).map((c) => [c.id, c])))
+// Filtre : sélectionne d'un coup tous les événements dont le titre correspond (cours…),
+// pour les relier à un document.
+const filterText = ref('')
+const filtering = computed(() => filterText.value.split(/[,;]/).some((v) => v.trim()))
+const isSel = (e: CalEvent) => !filtering.value || matchesPattern(filterText.value, e.summary || '')
+const selection = computed(() => (filtering.value ? events.value.filter(isSel) : []))
+/** Calendrier commun des événements sélectionnés (abonnement), proposé pour le lien. */
+const selectionCal = computed(() => {
+  const ids = new Set(selection.value.filter((e) => !e.looty).map((e) => e.calendar_id))
+  return ids.size === 1 ? [...ids][0]! : null
+})
+const classDialog = ref(false)
 const color = (e: CalEvent) => lootyById.value.get(e.calendar_id)?.color ?? calById.value.get(e.calendar_id)?.color ?? 'var(--accent)'
 const calName = (e: CalEvent) => lootyById.value.get(e.calendar_id)?.name ?? calById.value.get(e.calendar_id)?.name
 async function patchLooty(c: LootyCalendar, body: Record<string, unknown>) {
@@ -276,13 +289,26 @@ useHead({ title: () => t('calendar.title') })
       <span class="cal-title">{{ title }}</span>
       <RefreshCw v-if="isFetching" :size="13" class="spin faint" />
       <span class="grow" />
+      <label class="cal-filter" :class="{ on: filtering }" :title="t('classes.filterHint')">
+        <Filter :size="13" />
+        <input v-model="filterText" :placeholder="t('classes.filter')" :aria-label="t('classes.filter')" @keydown.escape="filterText = ''" />
+      </label>
       <UiSegmented v-model="view" :options="[...(isMobile ? [] : [{ value: 'week' as const, label: t('calendar.week') }]), { value: 'month' as const, label: t('calendar.month') }, { value: 'agenda' as const, label: t('calendar.agenda') }]" />
       <UiTooltip :text="t('calendar.addTitle')"><UiButton size="sm" variant="ghost" :icon="CalendarPlus" :aria-label="t('calendar.addTitle')" @click="addOpen = true" /></UiTooltip>
       <AppEditToggle area="calendar" />
       <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" @click="newEvent()">{{ isMobile ? '' : t('event.new') }}</UiButton>
     </AppPageHeader>
 
-    <div class="cal" :class="{ side: sideOpen }">
+    <div v-if="filtering" class="cal-selbar">
+      <Filter :size="13" />
+      <span>{{ t('classes.selected', { count: selection.length }) }}</span>
+      <span class="grow" />
+      <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Link2" :disabled="!selection.length" @click="classDialog = true">{{ t('classes.linkDoc') }}</UiButton>
+      <UiButton size="sm" variant="ghost" :icon="X" :aria-label="t('common.close')" @click="filterText = ''" />
+    </div>
+    <CalendarClassLinkDialog v-model:open="classDialog" :pattern="filterText" :calendar-id="selectionCal" :count="selection.length" />
+
+    <div class="cal" :class="{ side: sideOpen, filtering }">
       <aside v-if="sideOpen" class="cal-side">
         <template v-for="grp in [{ key: 'shared', icon: Users, list: shared }, { key: 'personal', icon: Lock, list: personal }]" :key="grp.key">
           <div class="cs-head"><component :is="grp.icon" :size="12" /> {{ t(`calendar.group.${grp.key}`) }}</div>
@@ -331,7 +357,7 @@ useHead({ title: () => t('calendar.title') })
         <div class="wk-allday">
           <div class="wk-gutter faint">{{ t('calendar.allDay') }}</div>
           <div v-for="d in weekDays" :key="+d" class="wk-cell" :class="{ add: canWrite }" @click="clickDay(d, $event, true)">
-            <button v-for="e in events.filter((e) => e.all_day && onDay(e, d))" :key="e.id" class="chip filled" :style="{ background: color(e) }" @click="openEvent(e, $event)">{{ e.summary }}</button>
+            <button v-for="e in events.filter((e) => e.all_day && onDay(e, d))" :key="e.id" class="chip filled" :class="{ dim: !isSel(e), sel: filtering && isSel(e) }" :style="{ background: color(e) }" @click="openEvent(e, $event)">{{ e.summary }}</button>
             <NuxtLink v-for="tk in tasks.filter((tk) => sameDay(new Date(tk.due_date), d))" :key="tk.id" :to="taskLink(tk)" class="chip task" :class="{ done: tk.is_completed }">
               <CheckCircle2 v-if="tk.is_completed" :size="12" /><Circle v-else :size="12" />{{ tk.title }}
             </NuxtLink>
@@ -348,10 +374,12 @@ useHead({ title: () => t('calendar.title') })
               v-for="x in timed(d)"
               :key="x.e.id"
               class="wk-ev"
+              :class="{ dim: !isSel(x.e), sel: filtering && isSel(x.e) }"
               :style="{ top: `${x.top}px`, height: `${x.height}px`, left: `calc(${(x.col / x.cols) * 100}% + 1px)`, width: `calc(${100 / x.cols}% - 3px)`, '--c': color(x.e) }"
               @click="openEvent(x.e, $event)"
             >
-              <b class="truncate">{{ x.e.summary }}</b>
+              <b class="wk-title"><span class="truncate">{{ x.e.summary }}</span><template v-if="x.height <= 60"><i v-for="l in x.e.labels ?? []" :key="l.id" class="ev-ldot" :style="{ background: l.color }" :title="l.name" /></template></b>
+              <span v-if="x.e.labels?.length && x.height > 60" class="ev-labels"><i v-for="l in x.e.labels" :key="l.id" class="ev-label" :style="{ '--lc': l.color }">{{ l.name }}</i></span>
               <span v-if="x.height > 30" class="truncate">{{ time(x.s) }}<template v-if="x.e.location"> · {{ x.e.location }}</template></span>
             </button>
           </div>
@@ -366,10 +394,11 @@ useHead({ title: () => t('calendar.title') })
             <button class="mo-num" @click="cursor = d; view = isMobile ? 'agenda' : 'week'">{{ d.getDate() }}</button>
             <template v-for="(it, i) in [...dayItems(d).ev.map((e) => ({ e })), ...dayItems(d).tk.map((tk) => ({ tk }))]" :key="i">
               <template v-if="i < 3">
-                <button v-if="'e' in it" class="chip" :class="{ filled: it.e.all_day }" :style="it.e.all_day ? { background: color(it.e) } : { '--c': color(it.e) }" @click="openEvent(it.e, $event)">
+                <button v-if="'e' in it" class="chip" :class="{ filled: it.e.all_day, dim: !isSel(it.e), sel: filtering && isSel(it.e) }" :style="it.e.all_day ? { background: color(it.e) } : { '--c': color(it.e) }" @click="openEvent(it.e, $event)">
                   <span v-if="!it.e.all_day" class="dot" />
                   <span v-if="!it.e.all_day" class="faint">{{ time(new Date(it.e.starts_at)) }}</span>
                   <span class="truncate">{{ it.e.summary }}</span>
+                  <i v-for="l in it.e.labels ?? []" :key="l.id" class="ev-ldot" :style="{ background: l.color }" :title="l.name" />
                 </button>
                 <NuxtLink v-else :to="taskLink(it.tk)" class="chip task" :class="{ done: it.tk.is_completed }"><Circle :size="11" /><span class="truncate">{{ it.tk.title }}</span></NuxtLink>
               </template>
@@ -386,10 +415,11 @@ useHead({ title: () => t('calendar.title') })
         </UiEmpty>
         <section v-for="g in agenda" :key="+g.day" class="ag-day">
           <h3 :class="{ today: sameDay(g.day, today) }">{{ fmt({ weekday: 'long', day: 'numeric', month: 'long' }, g.day) }}</h3>
-          <button v-for="e in g.ev" :key="e.id" class="ag-item" @click="openEvent(e, $event)">
+          <button v-for="e in g.ev" :key="e.id" class="ag-item" :class="{ dim: !isSel(e), sel: filtering && isSel(e) }" @click="openEvent(e, $event)">
             <span class="ag-bar" :style="{ background: color(e) }" />
             <span class="ag-time">{{ e.all_day ? t('calendar.allDay') : `${time(new Date(e.starts_at))} – ${time(new Date(e.ends_at))}` }}</span>
             <span class="ag-title truncate">{{ e.summary }}</span>
+            <span v-if="e.labels?.length" class="ev-labels"><i v-for="l in e.labels" :key="l.id" class="ev-label" :style="{ '--lc': l.color }">{{ l.name }}</i></span>
             <span v-if="e.location" class="ag-loc truncate"><MapPin :size="12" /> {{ e.location }}</span>
           </button>
           <NuxtLink v-for="tk in g.tk" :key="tk.id" :to="taskLink(tk)" class="ag-item" :class="{ done: tk.is_completed }">
@@ -406,6 +436,7 @@ useHead({ title: () => t('calendar.title') })
       <div v-if="detail" class="ev">
         <div class="ev-head"><span class="ev-dot" :style="{ background: color(detail) }" /><h4>{{ detail.summary || t('calendar.untitled') }}</h4></div>
         <p class="ev-when">{{ eventWhen(detail) }}</p>
+        <p v-if="detail.labels?.length" class="ev-labels"><i v-for="l in detail.labels" :key="l.id" class="ev-label" :style="{ '--lc': l.color }">{{ l.name }}</i></p>
         <p v-if="detail.location" class="ev-line"><MapPin :size="13" /> {{ detail.location }}</p>
         <p class="ev-line faint"><CalendarDays :size="13" /> {{ calName(detail) }}</p>
         <p v-if="detail.recurring" class="ev-line faint"><Repeat :size="13" /> {{ t('event.recurring') }}</p>
@@ -435,6 +466,17 @@ useHead({ title: () => t('calendar.title') })
 </template>
 
 <style scoped>
+.cal-filter { display: inline-flex; align-items: center; gap: 6px; height: 28px; width: 170px; padding: 0 8px; border-radius: var(--r-md); box-shadow: inset 0 0 0 1px var(--border); color: var(--text-3); transition: width var(--dur-fast); }
+.cal-filter:focus-within, .cal-filter.on { width: 230px; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--border-focus); }
+.cal-filter input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: var(--fs-sm); color: var(--text); }
+.cal-selbar { display: flex; align-items: center; gap: 8px; padding: 6px 16px; background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-sm); font-weight: 500; }
+.dim { opacity: .28; }
+.sel { box-shadow: 0 0 0 2px var(--accent) !important; }
+@media (max-width: 639px) { .cal-filter { width: 120px; } .cal-filter:focus-within, .cal-filter.on { width: 160px; } }
+.ev-labels { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
+.ev-label { padding: 0 6px; border-radius: var(--r-full); font-size: 10.5px; font-style: normal; font-weight: 600; line-height: 16px; color: var(--lc); background: color-mix(in srgb, var(--lc) 18%, var(--bg-elevated, transparent)); }
+.wk-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.ev-ldot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
 .cal-title { font-weight: 600; margin-left: 4px; white-space: nowrap; text-transform: capitalize; }
 .grow { flex: 1; }
 .spin { animation: cs-spin 1s linear infinite; }
