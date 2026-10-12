@@ -4,7 +4,7 @@ import type { Tab } from '~/composables/useTabs'
 import { useLocationInfo, locationOfRoute } from '~/composables/usePresenceInfo'
 import { useI18n } from '~/composables/useI18n'
 
-const props = defineProps<{ tab: Tab; active: boolean; closable: boolean }>()
+const props = defineProps<{ tab: Tab; active: boolean; closable: boolean; /** Affiché dans le volet de droite (écran partagé). */ side?: boolean }>()
 const emit = defineEmits<{ activate: []; close: []; menu: [e: MouseEvent] }>()
 const router = useRouter()
 const { t } = useI18n()
@@ -22,7 +22,7 @@ function onAux(e: MouseEvent) {
 
 <template>
   <div
-    class="tab" :class="{ active }" role="tab" :aria-selected="active" :title="label" tabindex="0"
+    class="tab" :class="{ active, side }" role="tab" :aria-selected="active || side" :title="label" tabindex="0"
     @click="emit('activate')" @keydown.enter="emit('activate')" @mousedown.middle.prevent @auxclick="onAux" @contextmenu.prevent="emit('menu', $event)"
   >
     <span v-if="info && 'emoji' in info && info.emoji" class="tab-emoji">{{ info.emoji }}</span>
@@ -39,6 +39,7 @@ function onAux(e: MouseEvent) {
 }
 .tab:hover { background: var(--bg-hover); color: var(--text-2); }
 .tab.active { background: var(--bg-elevated); color: var(--text); box-shadow: 0 0 0 1px var(--border), var(--shadow-sm, 0 1px 2px rgba(0,0,0,.06)); }
+.tab.side { color: var(--text); background: color-mix(in srgb, var(--accent) 9%, var(--bg-elevated)); box-shadow: inset 0 -2px 0 var(--accent), 0 0 0 1px var(--border); }
 .tab-icon { flex: none; }
 .tab-emoji { font-size: 12px; flex: none; }
 .tab-label { flex: 1; min-width: 0; }

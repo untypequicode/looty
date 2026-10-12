@@ -3,8 +3,11 @@ import type { Component } from 'vue'
 import {
   Search, Home, Inbox, CircleUserRound, FileText, Kanban, SquarePen, FilePlus2, Plus, Settings,
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
-  BookOpen, PencilLine, Activity, Waypoints, Sparkles,
+  BookOpen, PencilLine, Activity, Waypoints, Sparkles, Columns2,
 } from 'lucide-vue-next'
+import { useTabs, tabsEnabled } from '~/composables/useTabs'
+import { isPane } from '~/composables/usePane'
+import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useReadingMode } from '~/composables/useReadMode'
 import { refDebounced } from '@vueuse/core'
 import { useUi } from '~/composables/useUi'
@@ -33,6 +36,8 @@ interface Cmd {
 const { commandOpen, createBoardOpen, openCreateTask, shortcutsOpen } = useUi()
 const { wsId, boards, pages, canWriteRole } = useWorkspace()
 const { can } = useAccess(wsId)
+const tabsApi = useTabs(wsId)
+const { isTablet: tabletScreen } = useBreakpoint()
 const { reading, toggleReading, canToggle } = useReadingMode(wsId)
 const { createAndOpen } = usePages()
 const { mode, setTheme } = useTheme()
@@ -77,6 +82,7 @@ const staticCommands = computed<Cmd[]>(() => {
     ...(can.value.editTasks ? [{ id: 'new-task', group: act, label: t('task.new'), icon: SquarePen, shortcut: 'C', run: () => { commandOpen.value = false; openCreateTask() } }] : []),
     ...(can.value.editDocs ? [{ id: 'new-doc', group: act, label: t('docs.new'), icon: FilePlus2, run: () => { commandOpen.value = false; createAndOpen() } }] : []),
     ...(can.value.manageBoards ? [{ id: 'new-board', group: act, label: t('board.new'), icon: Plus, run: () => { commandOpen.value = false; createBoardOpen.value = true } }] : []),
+    ...(!isPane && tabsEnabled.value && !tabletScreen.value ? [{ id: 'split', group: act, label: tabsApi.splitTab.value ? t('tabs.closeSplit') : t('tabs.split'), icon: Columns2, keywords: 'split côte à côte partage écran tabs onglets', run: () => { commandOpen.value = false; if (tabsApi.splitTab.value) tabsApi.closeSplit(); else tabsApi.openSide(tabsApi.activeId.value) } }] : []),
     { id: 'theme', group: pref, label: mode.value === 'light' ? t('command.darkTheme') : t('command.lightTheme'), icon: mode.value === 'light' ? Moon : Sun, run: () => { setTheme(mode.value === 'light' ? 'dark' : 'light'); commandOpen.value = false } },
     { id: 'lang', group: pref, label: locale.value === 'fr' ? 'Switch to English' : 'Passer en français', icon: Languages, keywords: 'language langue', run: () => { setLocale(locale.value === 'fr' ? 'en' : 'fr'); commandOpen.value = false } },
     ...(canToggle.value ? [{ id: 'readmode', group: pref, label: reading.value ? t('readMode.toEdit') : t('readMode.toRead'), icon: reading.value ? PencilLine : BookOpen, shortcut: ['mod', 'shift', 'E'], keywords: 'read only lecture seule edit', run: () => { toggleReading(); commandOpen.value = false } }] : []),

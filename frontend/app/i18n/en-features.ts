@@ -16,6 +16,8 @@ export default {
     showInGraph: 'Show in graph',
   },
   tabs: {
+    split: 'Split screen', closeSplit: 'Close split screen', openSide: 'Open to the side', swap: 'Swap sides', openFull: 'Open full width',
+    sidePane: 'Side pane', resize: 'Resize the panes (double-click to reset)', dropSide: 'Drop here to open side by side',
     title: 'Tabs', new: 'New tab', close: 'Close tab', closeOthers: 'Close other tabs', closeRight: 'Close tabs to the right',
     duplicate: 'Duplicate tab', reopen: 'Reopen closed tab', next: 'Next tab', openInNew: 'Open in new tab', opened: 'Opened in a new tab',
     show: 'Tabs', showHint: 'Open several documents and boards side by side: Ctrl+click or middle-click a link to open it in a new tab.',

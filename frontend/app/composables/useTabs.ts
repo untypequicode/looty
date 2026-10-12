@@ -1,4 +1,4 @@
-import { computed, type Ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import { isDesktop } from './useDesktop'
 
@@ -10,7 +10,16 @@ export interface Tab {
 interface TabState {
   tabs: Tab[]
   active: string
+  /** Écran partagé : onglet affiché dans le volet de droite (à côté de l'onglet actif). */
+  split: string | null
+  /** Part de la largeur du volet principal (0,25 à 0,75). */
+  ratio: number
+  /** Volet qui a la main : les changements d'onglet s'y appliquent. */
+  focus: 'main' | 'side'
 }
+
+/** Onglet en cours de glissement (pour le déposer sur le côté de la page). */
+export const draggingTab = ref<string | null>(null)
 
 const MAX_TABS = 20
 const newId = () => Math.random().toString(36).slice(2, 10)
@@ -45,13 +54,20 @@ export function useTabs(ws: Ref<string>) {
   const state = computed(() => {
     const key = ws.value
     if (!states.has(key)) {
-      states.set(key, useLocalStorage<TabState>(`looty.tabs.${key}`, { tabs: [], active: '' }, { mergeDefaults: true }))
+      states.set(key, useLocalStorage<TabState>(`looty.tabs.${key}`, { tabs: [], active: '', split: null, ratio: 0.5, focus: 'main' }, { mergeDefaults: true }))
     }
     return states.get(key)!.value
   })
   const tabs = computed(() => state.value.tabs)
   const activeId = computed(() => state.value.active)
   const active = computed(() => state.value.tabs.find((t) => t.id === state.value.active) ?? null)
+  /** Onglet du volet de droite (jamais l'onglet actif). */
+  const splitTab = computed(() => {
+    const s = state.value
+    return s.split && s.split !== s.active ? s.tabs.find((t) => t.id === s.split) ?? null : null
+  })
+  const ratio = computed(() => Math.min(0.75, Math.max(0.25, state.value.ratio || 0.5)))
+  const focusSide = computed(() => !!splitTab.value && state.value.focus === 'side')
 
   function ensureOne(path: string) {
     const s = state.value
@@ -82,10 +98,66 @@ export function useTabs(ws: Ref<string>) {
   }
 
   function activate(id: string) {
-    const t = state.value.tabs.find((x) => x.id === id)
+    const s = state.value
+    const t = s.tabs.find((x) => x.id === id)
     if (!t) return
-    state.value.active = id
+    if (splitTab.value) {
+      // Écran partagé : le changement d'onglet s'applique au volet qui a la main ; l'onglet
+      // affiché dans l'autre volet passe de l'autre côté.
+      const side = s.focus === 'side'
+      if (id === (side ? s.split : s.active)) return
+      if (id === (side ? s.active : s.split)) return swapSplit()
+      if (side) { s.split = id; return }
+    }
+    s.active = id
     if (route.fullPath !== t.path) go(t.path)
+  }
+
+  /** Échange les deux volets. */
+  function swapSplit() {
+    const s = state.value
+    const side = splitTab.value
+    if (!side) return
+    const mainId = s.active
+    s.active = side.id
+    s.split = mainId
+    go(side.path)
+  }
+
+  /** Affiche un onglet à côté de l'onglet actif. */
+  function openSide(id: string) {
+    const s = state.value
+    let target = s.tabs.find((t) => t.id === id)
+    if (!target) return
+    if (id === s.active) {
+      // Même page des deux côtés : un nouvel onglet pour le volet de droite.
+      const copy = { id: newId(), path: target.path }
+      s.tabs.splice(s.tabs.indexOf(target) + 1, 0, copy)
+      target = copy
+    }
+    s.split = target.id
+    s.focus = 'side'
+  }
+  /** Ouvre une page (lien) dans le volet de droite. */
+  function openSidePath(path: string) {
+    const s = state.value
+    const same = s.tabs.find((t) => t.path === path && t.id !== s.active)
+    if (same) return openSide(same.id)
+    const t = { id: newId(), path }
+    const at = s.tabs.findIndex((x) => x.id === s.active)
+    s.tabs.splice(at < 0 ? s.tabs.length : at + 1, 0, t)
+    openSide(t.id)
+  }
+  function closeSplit() {
+    state.value.split = null
+    state.value.focus = 'main'
+  }
+  const setFocus = (f: 'main' | 'side') => { if (state.value.split) state.value.focus = f }
+  function setRatio(r: number) { state.value.ratio = Math.min(0.75, Math.max(0.25, r)) }
+  /** Le volet de droite a changé de page : son onglet suit. */
+  function sideNavigated(path: string) {
+    const t = splitTab.value
+    if (t && t.path !== path) t.path = path
   }
 
   /** Ouvre une page dans un nouvel onglet (ou active celui qui l'affiche déjà). */
@@ -116,6 +188,7 @@ export function useTabs(ws: Ref<string>) {
     if (i < 0) return
     remember(ws.value, [s.tabs[i]!.path])
     s.tabs.splice(i, 1)
+    if (s.split === id) closeSplit()
     if (!s.tabs.length) {
       const t = { id: newId(), path: fallback }
       s.tabs.push(t)
@@ -124,7 +197,10 @@ export function useTabs(ws: Ref<string>) {
       return
     }
     if (s.active === id) {
-      const next = s.tabs[Math.min(i, s.tabs.length - 1)]!
+      // Le voisin n'est pas celui du volet de droite, sauf s'il n'y en a pas d'autre.
+      const around = [s.tabs[Math.min(i, s.tabs.length - 1)]!, ...s.tabs]
+      const next = around.find((t) => t.id !== s.split) ?? around[0]!
+      if (next.id === s.split) closeSplit()
       s.active = next.id
       go(next.path)
     }
@@ -134,7 +210,10 @@ export function useTabs(ws: Ref<string>) {
     const s = state.value
     remember(ws.value, s.tabs.filter((t) => t.id !== id).map((t) => t.path))
     s.tabs = s.tabs.filter((t) => t.id === id)
-    activate(id)
+    closeSplit()
+    s.active = id
+    const t = s.tabs[0]
+    if (t && route.fullPath !== t.path) go(t.path)
   }
 
   function closeRight(id: string) {
@@ -145,7 +224,8 @@ export function useTabs(ws: Ref<string>) {
     remember(ws.value, s.tabs.slice(i + 1).map((t) => t.path))
     const activeKept = keep.some((t) => t.id === s.active)
     s.tabs = keep
-    if (!activeKept) activate(id)
+    if (s.split && !keep.some((t) => t.id === s.split)) closeSplit()
+    if (!activeKept) { s.active = id; const t = keep.find((x) => x.id === id); if (t && route.fullPath !== t.path) go(t.path) }
   }
 
   /** Rouvre le dernier onglet fermé. */
@@ -177,7 +257,10 @@ export function useTabs(ws: Ref<string>) {
     if (t) activate(t.id)
   }
 
-  return { tabs, activeId, active, onNavigate, activate, open, close, closeOthers, closeRight, reopen, canReopen, move, cycle, nth }
+  return {
+    tabs, activeId, active, onNavigate, activate, open, close, closeOthers, closeRight, reopen, canReopen, move, cycle, nth,
+    splitTab, ratio, focusSide, openSide, openSidePath, closeSplit, swapSplit, setFocus, setRatio, sideNavigated,
+  }
 }
 
 /** Lien interne de l'espace (pour l'ouverture en onglet). */
