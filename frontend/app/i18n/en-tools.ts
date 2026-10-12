@@ -72,7 +72,7 @@ export default {
   } },
   planning: {
     moved: 'Moved to “{name}”', taskAdded: 'Task added', noMembers: 'Nobody tagged', tag: 'Tag', tagMembers: 'Tag members…', move: 'move',
-    tasks: 'Tasks', noTasks: 'No task linked to this event.', taskPlaceholder: 'Task for this session…', addTask: 'Add a task',
+    tasks: 'Tasks', noTasks: 'No task linked to this event.', taskPlaceholder: 'Task for this session…', addTask: 'Add a task', mentionTask: 'Mention a task…', unmention: 'Unlink this task', mentionedTasks: { one: '1 task mentioned', other: '{count} tasks mentioned' },
     newCalendar: 'New calendar', newCalendarPrompt: 'Name of the new calendar', renamePrompt: 'Calendar name', openBoard: 'Open the board',
     deleteTitle: 'Delete the calendar “{name}”?', deleteHint: 'Its events are kept: they move to the workspace calendar.',
     event: 'Event', linkEvent: 'Link to an event…', openEvent: 'Open the event', searchEvent: 'Search an event…', noEvents: 'No upcoming event.', unlink: 'Unlink the event',
