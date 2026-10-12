@@ -10,11 +10,13 @@ export default {
   nav: { projects: 'Projects', drive: 'Drive' },
   presence: { screens: { projects: 'Projects', drive: 'Drive' } },
   projects: {
-    title: 'Projects', all: 'All', sites: 'Sites', site: 'Mini-site', new: 'New project', newSite: 'New site', newLatex: 'New LaTeX project',
+    title: 'Projects', all: 'All', sites: 'Sites', site: 'Mini-site', new: 'New project', newSite: 'New site', newLatex: 'New LaTeX project', newNotebook: 'New notebook', notebookNamePlaceholder: 'Notebook name',
     emptyTitle: 'Create a mini-site or a LaTeX document', emptyHint: 'HTML/CSS/JS mini-sites published in one click, LaTeX documents compiled to PDF: edited together, live.',
     fileCount: { one: '1 file', other: '{count} files' }, buildOk: 'Compiled', buildFailed: 'Compilation errors',
     siteNamePlaceholder: 'Site name', latexNamePlaceholder: 'Document title', template: 'Template',
     templates: {
+      nbStarter: 'Python basics', nbStarterHint: 'A few cells to start: text, code, a function.',
+      nbData: 'Data and plots', nbDataHint: 'NumPy, pandas and Matplotlib examples.', nbBlankHint: 'One empty code cell.',
       siteStarter: 'Starter page', siteStarterHint: 'index.html, a stylesheet and a script', blank: 'Blank', siteBlankHint: 'An empty index.html',
       article: 'Article', articleHint: 'Sections, formulas and bibliography', report: 'Report', reportHint: 'Chapters in separate files, table of contents, bibliography',
       beamer: 'Slides (Beamer)', beamerHint: 'Presentation', letter: 'Letter', letterHint: 'Formal letter', texBlankHint: 'A minimal main.tex',
@@ -50,4 +52,11 @@ export default {
     settings: 'Drive settings', settingsHint: 'Temporary files shared in the workspace.', maxDuration: 'Maximum duration', maxDurationHint: 'After that, files are deleted. Everyone can pick less when uploading.',
     quotaLabel: 'Available space', quotaHint: 'Total size of the files in this workspace’s drive.',
   },
+  notebook: {
+    run: 'Run', runAll: 'Run all', restart: 'Restart Python', clearAll: 'Clear outputs', clearOutput: 'Clear output', addCode: 'Code', addText: 'Text',
+    addAbove: 'Add a cell above', addBelow: 'Add a cell below', moveUp: 'Move up', moveDown: 'Move down', toText: 'Turn into text', toCode: 'Turn into code',
+    starting: 'Starting Python…', busy: 'Running…', ready: 'Python ready', off: 'Python (starts on first run)', download: 'Download the notebook (.ipynb)',
+    pyodideHint: 'Python runs in your browser (Pyodide), not on the server. Libraries such as NumPy, pandas and Matplotlib load automatically on first import; use %pip install for others. Project files can be read directly. Outputs are shared with everyone editing.',
+    deleteTitle: 'Delete this cell?', deleteHint: 'Its text and output are removed for everyone.', tooBig: 'too large to be saved',
+  }
 }

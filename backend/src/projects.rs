@@ -68,7 +68,7 @@ const MAX_FILES: i64 = 2000;
 
 pub(crate) const TEXT_EXT: &[&str] = &[
     "html", "htm", "css", "js", "mjs", "json", "txt", "md", "svg", "xml", "csv", "tex", "bib", "sty", "cls", "bst", "bbx", "cbx", "ltx", "dtx", "ins", "cfg", "def",
-    "fd", "tikz", "py", "ts", "yaml", "yml", "toml", "ini", "webmanifest", "map", "gitignore", "htaccess", "lua",
+    "fd", "tikz", "py", "ipynb", "ts", "yaml", "yml", "toml", "ini", "webmanifest", "map", "gitignore", "htaccess", "lua",
 ];
 
 pub(crate) fn is_text_path(path: &str) -> bool {
@@ -195,8 +195,34 @@ async fn list_projects(State(state): State<AppState>, user: AuthUser, Path(ws): 
 struct CreateProject {
     kind: String,
     name: String,
-    /// Modèle de départ (site : blank|starter ; latex : article|report|beamer|letter|blank).
+    /// Modèle de départ (site : blank|starter ; latex : article|report|beamer|letter|blank ; notebook : starter|data|blank).
     template: Option<String>,
+}
+
+/// Notebook Jupyter (nbformat 4.5) : cellules (type, source) sans sortie.
+fn notebook_json(cells: &[(&str, &str)]) -> String {
+    let cells: Vec<Value> = cells
+        .iter()
+        .map(|(kind, source)| {
+            let lines: Vec<String> = source.split_inclusive('\n').map(str::to_string).collect();
+            let id = Uuid::new_v4().simple().to_string()[..8].to_string();
+            if *kind == "markdown" {
+                json!({ "cell_type": "markdown", "id": id, "metadata": {}, "source": lines })
+            } else {
+                json!({ "cell_type": "code", "id": id, "metadata": {}, "execution_count": null, "outputs": [], "source": lines })
+            }
+        })
+        .collect();
+    let nb = json!({
+        "cells": cells,
+        "metadata": {
+            "kernelspec": { "name": "python3", "display_name": "Python 3 (Pyodide)", "language": "python" },
+            "language_info": { "name": "python" }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5
+    });
+    serde_json::to_string_pretty(&nb).unwrap_or_default() + "\n"
 }
 
 fn template_files(kind: &str, template: &str, name: &str) -> Vec<(&'static str, String)> {
@@ -215,6 +241,25 @@ fn template_files(kind: &str, template: &str, name: &str) -> Vec<(&'static str, 
             ("css/style.css", "body {\n  font-family: system-ui, sans-serif;\n  margin: 0;\n  color: #1f2023;\n  background: #f7f7f8;\n}\n\nmain {\n  max-width: 720px;\n  margin: 64px auto;\n  padding: 0 24px;\n}\n\nbutton {\n  padding: 8px 16px;\n  border: 0;\n  border-radius: 8px;\n  background: #4c5bd4;\n  color: white;\n  cursor: pointer;\n}\n".into()),
             ("js/script.js", "document.getElementById('hello').addEventListener('click', () => {\n  alert('Bonjour !')\n})\n".into()),
         ],
+        ("notebook", "blank") => vec![("notebook.ipynb", notebook_json(&[("code", "")]))],
+        ("notebook", "data") => vec![(
+            "notebook.ipynb",
+            notebook_json(&[
+                ("markdown", &format!("# {name}\n\nUn notebook avec **NumPy** et **Matplotlib** : les bibliothèques se chargent toutes seules au premier import.")),
+                ("code", "import numpy as np\nimport matplotlib.pyplot as plt\n\nx = np.linspace(0, 2 * np.pi, 200)\nplt.plot(x, np.sin(x), label='sin')\nplt.plot(x, np.cos(x), label='cos')\nplt.legend()\nplt.title('Fonctions trigonométriques')\nplt.show()"),
+                ("code", "import pandas as pd\n\ndf = pd.DataFrame({'jour': ['lun', 'mar', 'mer'], 'valeur': [3, 5, 4]})\ndf"),
+                ("markdown", "Les fichiers du projet (par exemple un `.csv` envoyé avec « Importer ») sont lisibles directement : `pd.read_csv('donnees.csv')`."),
+            ]),
+        )],
+        ("notebook", _) => vec![(
+            "notebook.ipynb",
+            notebook_json(&[
+                ("markdown", &format!("# {name}\n\nCliquez sur une cellule puis **Maj+Entrée** pour l'exécuter. Le code Python s'exécute dans votre navigateur.")),
+                ("code", "print('Bonjour depuis Python !')"),
+                ("code", "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        yield a\n        a, b = b, a + b\n\nlist(fib(12))"),
+                ("markdown", "Une formule : $e^{i\\pi} + 1 = 0$.\n\nAjoutez des cellules avec les boutons **+ Code** et **+ Texte**."),
+            ]),
+        )],
         ("latex", "blank") => vec![("main.tex", "\\documentclass{article}\n\\begin{document}\n\n\\end{document}\n".into())],
         ("latex", "beamer") => vec![(
             "main.tex",
@@ -245,7 +290,7 @@ fn template_files(kind: &str, template: &str, name: &str) -> Vec<(&'static str, 
 
 async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<CreateProject>) -> ApiResult<Json<Project>> {
     require_ws(&state, &user, ws, Need::Write).await?;
-    if !matches!(p.kind.as_str(), "site" | "latex") {
+    if !matches!(p.kind.as_str(), "site" | "latex" | "notebook") {
         return Err(ApiError::bad_request("invalid_value"));
     }
     let name = p.name.trim();
@@ -256,7 +301,11 @@ async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws):
     if count >= 200 {
         return Err(ApiError::bad_request("project_too_many"));
     }
-    let settings = if p.kind == "latex" { json!({ "main": "main.tex", "engine": "pdflatex" }) } else { json!({ "entry": "index.html" }) };
+    let settings = match p.kind.as_str() {
+        "latex" => json!({ "main": "main.tex", "engine": "pdflatex" }),
+        "notebook" => json!({ "main": "notebook.ipynb" }),
+        _ => json!({ "entry": "index.html" }),
+    };
     let mut tx = state.pool.begin().await?;
     let project: Project = sqlx::query_as(&format!(
         "INSERT INTO projects (workspace_id, kind, name, settings, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING {PROJECT_COLS}"

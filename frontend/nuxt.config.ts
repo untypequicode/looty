@@ -1,7 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from 'node:url'
 const backend = process.env.BACKEND_URL || 'http://backend:8080'
 const collab = process.env.COLLAB_URL || 'http://collaboration:8082'
 const isDev = process.env.NODE_ENV !== 'production'
+// Python des notebooks (Pyodide) : le moteur est servi par l'application elle-même ;
+// les bibliothèques (numpy, pandas…) se chargent à la demande depuis le CDN.
+const pyodideDir = fileURLToPath(new URL('./node_modules/pyodide', import.meta.url))
 
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
@@ -51,10 +55,12 @@ export default defineNuxtConfig({
         // fichiers supprimés au redéploiement (« error loading dynamically imported module »).
         '/**': { headers: { 'cache-control': 'no-cache' } },
         '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+        '/pyodide/**': { headers: { 'cache-control': 'public, max-age=86400' } },
         '/sw.js': { headers: { 'cache-control': 'no-cache' } },
       },
 
   nitro: {
+    publicAssets: [{ dir: pyodideDir, baseURL: '/pyodide', maxAge: 86400 }],
     devProxy: {
       '/api': { target: `${backend}/api`, ws: true, changeOrigin: true },
       '/uploads': { target: `${backend}/uploads`, changeOrigin: true },

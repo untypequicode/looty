@@ -10,11 +10,13 @@ export default {
   nav: { projects: 'Projets', drive: 'Drive' },
   presence: { screens: { projects: 'Projets', drive: 'Drive' } },
   projects: {
-    title: 'Projets', all: 'Tous', sites: 'Sites', site: 'Mini-site', new: 'Nouveau projet', newSite: 'Nouveau site', newLatex: 'Nouveau projet LaTeX',
+    title: 'Projets', all: 'Tous', sites: 'Sites', site: 'Mini-site', new: 'Nouveau projet', newSite: 'Nouveau site', newLatex: 'Nouveau projet LaTeX', newNotebook: 'Nouveau notebook', notebookNamePlaceholder: 'Nom du notebook',
     emptyTitle: 'Créez un mini-site ou un document LaTeX', emptyHint: 'Mini-sites HTML/CSS/JS publiables en un clic, documents LaTeX compilés en PDF : édition à plusieurs, en direct.',
     fileCount: { one: '1 fichier', other: '{count} fichiers' }, buildOk: 'Compilé', buildFailed: 'Erreurs de compilation',
     siteNamePlaceholder: 'Nom du site', latexNamePlaceholder: 'Titre du document', template: 'Modèle',
     templates: {
+      nbStarter: 'Bases de Python', nbStarterHint: 'Quelques cellules pour démarrer : texte, code, une fonction.',
+      nbData: 'Données et graphiques', nbDataHint: 'Exemples NumPy, pandas et Matplotlib.', nbBlankHint: 'Une cellule de code vide.',
       siteStarter: 'Page de départ', siteStarterHint: 'index.html, une feuille de style et un script', blank: 'Vide', siteBlankHint: 'Un index.html vide',
       article: 'Article', articleHint: 'Sections, formules et bibliographie', report: 'Rapport', reportHint: 'Chapitres dans des fichiers séparés, table des matières, bibliographie',
       beamer: 'Présentation (Beamer)', beamerHint: 'Diapositives', letter: 'Lettre', letterHint: 'Lettre formelle', texBlankHint: 'Un main.tex minimal',
@@ -50,4 +52,11 @@ export default {
     settings: 'Réglages du drive', settingsHint: 'Fichiers temporaires partagés dans l’espace.', maxDuration: 'Durée maximale', maxDurationHint: 'Au-delà, les fichiers sont supprimés. Chacun peut choisir moins à l’envoi.',
     quotaLabel: 'Espace disponible', quotaHint: 'Taille totale des fichiers du drive de cet espace.',
   },
+  notebook: {
+    run: 'Exécuter', runAll: 'Tout exécuter', restart: 'Redémarrer Python', clearAll: 'Effacer les sorties', clearOutput: 'Effacer la sortie', addCode: 'Code', addText: 'Texte',
+    addAbove: 'Ajouter une cellule au-dessus', addBelow: 'Ajouter une cellule en dessous', moveUp: 'Monter', moveDown: 'Descendre', toText: 'Transformer en texte', toCode: 'Transformer en code',
+    starting: 'Démarrage de Python…', busy: 'Exécution…', ready: 'Python prêt', off: 'Python (démarre à la première exécution)', download: 'Télécharger le notebook (.ipynb)',
+    pyodideHint: 'Python s’exécute dans votre navigateur (Pyodide), pas sur le serveur. Les bibliothèques comme NumPy, pandas et Matplotlib se chargent toutes seules au premier import ; utilisez %pip install pour les autres. Les fichiers du projet se lisent directement. Les sorties sont partagées avec toutes les personnes qui modifient.',
+    deleteTitle: 'Supprimer cette cellule ?', deleteHint: 'Son texte et sa sortie sont supprimés pour tout le monde.', tooBig: 'trop volumineux pour être enregistré',
+  }
 }
