@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Users, CalendarDays, CheckCircle2, Circle, Plus, ListTodo } from 'lucide-vue-next'
+import { Users, CalendarDays, CheckCircle2, Circle, Plus, ListTodo, AtSign, X } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
-import { useWorkspace, links } from '~/composables/useWorkspace'
+import { useWorkspace, useMyTasks, links } from '~/composables/useWorkspace'
 import { useAccess } from '~/composables/useAccess'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
@@ -56,6 +56,24 @@ const tasks = computed(() => {
   return [...all].sort((a, b) => Number(same(b.event_start)) - Number(same(a.event_start)))
 })
 const isThis = (d?: string | null) => !!d && Math.abs(+new Date(d) - +new Date(occurrence.value)) < 60_000
+// Mentionner une tâche existante : celles du tableau du calendrier (sinon de tout l'espace).
+const allTasks = useMyTasks(ref<'mine' | 'all'>('all'))
+const linkedIds = computed(() => new Set((detail.value?.tasks ?? []).filter((x) => isThis(x.event_start)).map((x) => x.id)))
+const mentionItems = computed(() =>
+  (allTasks.data.value ?? [])
+    .filter((x) => !linkedIds.value.has(x.id) && (!currentCal.value?.board_id || x.board_id === currentCal.value.board_id))
+    .slice(0, 300)
+    .map((x) => ({ value: x.id, label: x.title, hint: currentCal.value?.board_id ? x.column_name : x.board_name })),
+)
+const mentionOpen = ref(false)
+async function setTaskEvent(taskId: string, link: boolean) {
+  try {
+    await api(`/api/boards/tasks/${taskId}`, { method: 'PUT', body: link ? { event_id: props.event.event_id, event_start: props.event.starts_at } : { event_id: null } })
+    refresh()
+    qc.invalidateQueries({ queryKey: ['ws', wsId.value, 'my-tasks'] })
+    qc.invalidateQueries({ queryKey: ['board'] })
+  } catch (e) { toast.error(errorMessage(e)) }
+}
 const adding = ref(false)
 const newTitle = ref('')
 // Tableau par défaut : celui du calendrier de l'événement, sinon le premier.
@@ -104,6 +122,7 @@ async function addTask() {
         <component :is="tk.is_completed ? CheckCircle2 : Circle" :size="13" :class="tk.is_completed ? 'ep-done' : 'faint'" />
         <span class="truncate">{{ tk.title }}</span>
         <span class="ep-meta">{{ isThis(tk.event_start) ? tk.board_name : formatDate(tk.event_start ?? tk.due_date ?? '') }}</span>
+        <button v-if="can.editTasks" class="ep-unlink" :title="t('planning.unmention')" :aria-label="t('planning.unmention')" @click.prevent.stop="setTaskEvent(tk.id, false)"><X :size="12" /></button>
       </NuxtLink>
       <p v-if="!tasks.length && !adding" class="faint ep-none">{{ t('planning.noTasks') }}</p>
       <template v-if="can.editTasks">
@@ -114,7 +133,12 @@ async function addTask() {
           </UiCombobox>
           <UiButton size="xs" variant="primary" type="submit" :disabled="!newTitle.trim()">{{ t('common.add') }}</UiButton>
         </form>
-        <button v-else class="ep-link ep-addbtn" @click="adding = true"><Plus :size="12" /> {{ t('planning.addTask') }}</button>
+        <div v-else class="ep-actions">
+          <button class="ep-link ep-addbtn" @click="adding = true"><Plus :size="12" /> {{ t('planning.addTask') }}</button>
+          <UiCombobox v-if="mentionItems.length" v-model:open="mentionOpen" :items="mentionItems" :model-value="null" :width="320" placement="bottom-start" @update:model-value="(v) => v && setTaskEvent(v as string, true)">
+            <button class="ep-link ep-addbtn"><AtSign :size="12" /> {{ t('planning.mentionTask') }}</button>
+          </UiCombobox>
+        </div>
       </template>
     </div>
   </div>
@@ -136,6 +160,10 @@ async function addTask() {
 .ep-task.other { opacity: .65; }
 .ep-meta { margin-left: auto; font-size: 11px; color: var(--text-3); white-space: nowrap; }
 .ep-done { color: var(--green); }
+.ep-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+.ep-unlink { display: grid; place-items: center; width: 18px; height: 18px; border-radius: var(--r-sm); color: var(--text-3); opacity: 0; }
+.ep-task:hover .ep-unlink, .ep-unlink:focus-visible { opacity: 1; }
+.ep-unlink:hover { background: var(--bg-active); color: var(--text); }
 .ep-add { display: flex; gap: 6px; align-items: center; }
 .ep-add input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-input); font-size: var(--fs-sm); outline: none; }
 .ep-addbtn { align-self: flex-start; margin-top: 2px; }

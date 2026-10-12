@@ -14,6 +14,8 @@ const area = ref<HTMLTextAreaElement | null>(null)
 // Chaque frappe modifie directement la source (texte du nœud) : saisie collaborative.
 const field = useSourceField(area, props as any)
 const draft = field.draft
+const carets = field.carets
+const present = field.present
 // Source changée par quelqu'un d'autre : le champ grandit avec elle.
 watch(draft, () => nextTick(autosize))
 watch(() => props.selected, (s) => { if (s && props.editor.isEditable) start() })
@@ -56,7 +58,8 @@ function autosize() {
 </script>
 
 <template>
-  <NodeViewWrapper class="math-block" :class="{ selected, editing }" data-drag-handle>
+  <NodeViewWrapper class="math-block" :class="{ selected, editing, 'has-who': present.length }" :style="present.length ? { '--who': present[0]!.color } : undefined" data-drag-handle>
+    <EditorSourceWho :people="carets.length ? [] : present" />
     <div v-if="preambleOnly" class="math-preamble" @click="start">
       <Sigma :size="13" />
       <span class="mp-label">{{ $t('editor.mathPreamble') }}</span>
@@ -72,6 +75,7 @@ function autosize() {
       <div class="math-field">
         <textarea ref="area" v-model="draft" spellcheck="false" placeholder="\int_0^1 x^2\,dx" @input="autosize(); latex.refresh()" @click="latex.refresh()" @keydown.stop="onKey" @beforeinput="field.onBeforeInput" @blur="latex.close(); commit()" />
         <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="(c) => { latex.pick(c); autosize() }" />
+        <EditorSourceCursors :carets="carets" />
       </div>
       <div v-if="unknownPackages.length" class="math-note warn"><AlertTriangle :size="12" /> {{ $t('editor.mathPackageUnknown', { name: unknownPackages.join(', ') }) }}</div>
       <div v-else-if="!preambleOnly && defines.length" class="math-note">{{ $t('editor.mathDefines', { names: defines.join(', ') }) }}</div>
@@ -81,8 +85,9 @@ function autosize() {
 </template>
 
 <style scoped>
-.math-block { margin: 0.8em 0; border-radius: var(--r-md); transition: background var(--dur-fast), box-shadow var(--dur-fast); }
+.math-block { position: relative; margin: 0.8em 0; border-radius: var(--r-md); transition: background var(--dur-fast), box-shadow var(--dur-fast); }
 .math-block.selected, .math-block.editing { box-shadow: 0 0 0 1.5px var(--border-focus); }
+.math-block.has-who:not(.editing) { box-shadow: 0 0 0 1.5px var(--who); }
 .math-render { padding: 6px 12px; cursor: pointer; overflow-x: auto; min-height: 40px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-md); }
 .math-render:hover { background: var(--bg-hover); }
 .math-placeholder { color: var(--text-3); font-size: var(--fs-md); }

@@ -27,6 +27,7 @@
     "@floating-ui/dom": "^1.8.0",
     "@floating-ui/vue": "^2.0.1",
     "@hocuspocus/provider": "^4.7.0",
+    "@mermaid-js/layout-elk": "^0.2.3",
     "@tanstack/vue-query": "^5.103.2",
     "@tiptap/core": "^3.31.4",
     "@tiptap/extension-bubble-menu": "^3.31.4",

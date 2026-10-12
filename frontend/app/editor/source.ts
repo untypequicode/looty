@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
+import { useSourceCursors } from './sourceCursors'
 import { computed, nextTick, ref, toRaw, watch, type Component, type Ref } from 'vue'
 
 /**
@@ -136,7 +137,9 @@ export function useSourceField(
     if (e.inputType === 'historyRedo') props.editor.commands.redo()
     else props.editor.commands.undo()
   }
-  return { source, draft, sync, onHistoryKey, onBeforeInput }
+  // Curseurs des autres personnes dans ce champ.
+  const { carets, present } = useSourceCursors(field, props, source)
+  return { source, draft, sync, onHistoryKey, onBeforeInput, carets, present }
 }
 
 /** JSON d'un ancien document (source dans l'attribut) → source dans le texte du nœud. */

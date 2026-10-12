@@ -13,6 +13,8 @@ const input = ref<HTMLInputElement | null>(null)
 // Chaque frappe modifie directement la source (texte du nœud) : saisie collaborative.
 const field = useSourceField(input, props as any)
 const draft = field.draft
+const carets = field.carets
+const present = field.present
 watch(() => props.selected, (s) => { if (s && props.editor.isEditable) start() })
 
 // Macros du document (\newcommand… déclarées dans les formules précédentes).
@@ -67,10 +69,12 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <NodeViewWrapper as="span" class="math-inline" :class="{ selected }">
+  <NodeViewWrapper as="span" class="math-inline" :class="{ selected, 'has-who': present.length }" :style="present.length ? { '--who': present[0]!.color } : undefined">
+    <EditorSourceWho :people="carets.length ? [] : present" />
     <span v-if="editing" class="mi-edit" contenteditable="false">
       <span class="mi-dollar">$</span><input ref="input" v-model="draft" spellcheck="false" :size="Math.max(4, draft.length)" @keydown.stop="onKey" @beforeinput="field.onBeforeInput" @input="latex.refresh()" @click="latex.refresh()" @blur="latex.close(); commit()" /><span class="mi-dollar">$</span>
       <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="latex.pick" />
+      <EditorSourceCursors :carets="carets" />
     </span>
     <span v-else-if="preambleOnly" class="mi-render mi-preamble" :title="definesTitle" @click="start">ƒ</span>
     <span v-else-if="html" class="mi-render" @click="start" v-html="html" />
@@ -79,8 +83,9 @@ function onKey(e: KeyboardEvent) {
 </template>
 
 <style scoped>
-.math-inline { display: inline-block; border-radius: 4px; padding: 0 2px; }
+.math-inline { position: relative; display: inline-block; border-radius: 4px; padding: 0 2px; }
 .math-inline.selected { box-shadow: 0 0 0 1.5px var(--border-focus); }
+.math-inline.has-who { box-shadow: 0 0 0 1.5px var(--who); }
 .mi-render { cursor: pointer; }
 .mi-render:hover { background: var(--bg-hover); border-radius: 4px; }
 .mi-error { color: var(--red); font-family: var(--font-mono); font-size: 0.85em; }

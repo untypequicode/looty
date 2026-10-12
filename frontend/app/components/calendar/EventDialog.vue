@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Repeat, MapPin, AlignLeft, FileText, CalendarDays, Users, Tag } from 'lucide-vue-next'
-import { useQuery } from '@tanstack/vue-query'
+import { Repeat, MapPin, AlignLeft, FileText, CalendarDays, Users, Tag, ListTodo } from 'lucide-vue-next'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Board } from '~/types'
 import { boardKey } from '~/composables/useRealtime'
 import { api, errorMessage } from '~/composables/api'
-import { useWorkspace } from '~/composables/useWorkspace'
+import { useWorkspace, useMyTasks } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { useCalendarInvalidate, useLootyCalendars, type EventDetail } from '~/composables/useCalendar'
@@ -17,6 +17,22 @@ const { wsId, pages, members } = useWorkspace()
 const { data: lootyCals } = useLootyCalendars(wsId)
 const calendarId = ref<string | null>(null)
 const tagged = ref<string[]>([])
+// Tâches mentionnées : celles du tableau du calendrier (sinon de tout l'espace).
+const taskIds = ref<string[]>([])
+const taskOpen = ref(false)
+const openTasks = useMyTasks(ref<'mine' | 'all'>('all'))
+const taskItems = computed(() => {
+  const linked = props.event?.tasks ?? []
+  const seen = new Set<string>()
+  const out: { value: string; label: string; hint?: string }[] = []
+  for (const x of linked) { seen.add(x.id); out.push({ value: x.id, label: x.title, hint: x.board_name }) }
+  for (const x of openTasks.data.value ?? []) {
+    if (seen.has(x.id) || (boardId.value && x.board_id !== boardId.value)) continue
+    out.push({ value: x.id, label: x.title, hint: boardId.value ? x.column_name : x.board_name })
+    if (out.length >= 300) break
+  }
+  return out
+})
 // Étiquettes : celles du tableau dont c'est le calendrier.
 const labelIds = ref<string[]>([])
 const labelOpen = ref(false)
@@ -39,6 +55,7 @@ watch(() => [props.event, props.defaults, lootyCals.value] as const, () => {
   calendarId.value = props.event?.calendar_id ?? props.defaults?.calendarId ?? lootyCals.value?.find((c) => c.is_default)?.id ?? null
   tagged.value = [...(props.event?.members ?? [])]
   labelIds.value = [...(props.event?.label_ids ?? [])]
+  taskIds.value = (props.event?.tasks ?? []).map((x) => x.id)
 }, { immediate: true })
 // Lien vers un document : adresse complète (utile aussi dans les agendas externes),
 // affichée dans Looty comme une mention de page et reprise dans le graphe.
@@ -56,6 +73,7 @@ function linkPage(id: string | null) {
 }
 const { t } = useI18n()
 const invalidate = useCalendarInvalidate()
+const qc = useQueryClient()
 
 type Freq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -127,8 +145,15 @@ async function save() {
     label_ids: boardId.value ? labelIds.value : [],
   }
   try {
+    let eventId = props.event?.id
     if (props.event) await api(`/api/workspaces/${wsId.value}/events/${props.event.id}`, { method: 'PUT', body, silent: true })
-    else await api(`/api/workspaces/${wsId.value}/events`, { method: 'POST', body, silent: true })
+    else eventId = (await api<{ id: string }>(`/api/workspaces/${wsId.value}/events`, { method: 'POST', body, silent: true })).id
+    // Tâches mentionnées : liées (ou déliées) à l'événement.
+    const before = new Set((props.event?.tasks ?? []).map((x) => x.id))
+    const start = form.allDay ? `${form.startDate}T00:00:00Z` : new Date(`${form.startDate}T${form.startTime}`).toISOString()
+    for (const id of taskIds.value.filter((i) => !before.has(i))) await api(`/api/boards/tasks/${id}`, { method: 'PUT', body: { event_id: eventId, event_start: start }, silent: true })
+    for (const id of [...before].filter((i) => !taskIds.value.includes(i))) await api(`/api/boards/tasks/${id}`, { method: 'PUT', body: { event_id: null }, silent: true })
+    if (before.size || taskIds.value.length) { qc.invalidateQueries({ queryKey: ['board'] }); qc.invalidateQueries({ queryKey: ['ws', wsId.value, 'my-tasks'] }) }
     invalidate(wsId.value)
     toast.success(props.event ? t('event.saved') : t('event.created'))
     open.value = false
@@ -179,6 +204,12 @@ async function save() {
             </template>
             <template v-else>{{ t('event.addLabels') }}</template>
           </button>
+        </UiCombobox>
+      </div>
+      <div v-if="taskItems.length" class="evf-row">
+        <ListTodo :size="15" class="evf-ic" />
+        <UiCombobox v-model:open="taskOpen" v-model="taskIds" multiple :items="taskItems" :width="320">
+          <button type="button" class="evf-select">{{ taskIds.length ? t('planning.mentionedTasks', { count: taskIds.length }) : t('planning.mentionTask') }}</button>
         </UiCombobox>
       </div>
       <div class="evf-row">

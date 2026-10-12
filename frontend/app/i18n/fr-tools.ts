@@ -72,7 +72,7 @@ export default {
   } },
   planning: {
     moved: 'Déplacé vers « {name} »', taskAdded: 'Tâche ajoutée', noMembers: 'Personne de mentionné', tag: 'Mentionner', tagMembers: 'Mentionner des membres…', move: 'déplacer',
-    tasks: 'Tâches', noTasks: 'Aucune tâche liée à cet événement.', taskPlaceholder: 'Tâche pour cette séance…', addTask: 'Ajouter une tâche',
+    tasks: 'Tâches', noTasks: 'Aucune tâche liée à cet événement.', taskPlaceholder: 'Tâche pour cette séance…', addTask: 'Ajouter une tâche', mentionTask: 'Mentionner une tâche…', unmention: 'Délier cette tâche', mentionedTasks: { one: '1 tâche mentionnée', other: '{count} tâches mentionnées' },
     newCalendar: 'Nouveau calendrier', newCalendarPrompt: 'Nom du nouveau calendrier', renamePrompt: 'Nom du calendrier', openBoard: 'Ouvrir le tableau',
     deleteTitle: 'Supprimer le calendrier « {name} » ?', deleteHint: 'Ses événements sont conservés : ils rejoignent le calendrier de l’espace.',
     event: 'Événement', linkEvent: 'Lier à un événement…', openEvent: 'Ouvrir l’événement', searchEvent: 'Rechercher un événement…', noEvents: 'Aucun événement à venir.', unlink: 'Délier l’événement',

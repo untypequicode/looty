@@ -3,6 +3,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.14.0",
+      "date": "2026-10-12",
+      "title": {
+        "en": "Board calendars, ELK diagrams, cursors in formulas",
+        "fr": "Calendriers de tableau, diagrammes ELK, curseurs dans les formules"
+      },
+      "notes": {
+        "en": [
+          "**A calendar for each board, created automatically** (empty to begin with, named after the board and following its renaming; removed with the board when empty). On it, an event can carry the board’s labels and **mention tasks of the board**: pick them in the event form, or from the event details (“Mention a task…”), and unlink them there too. Existing boards get their calendar when the server updates.",
+          "**Mermaid diagrams use the ELK layout** by default for flowcharts (cleaner, fewer crossing lines), as if every diagram started with %%{init: {\"flowchart\": {\"defaultRenderer\": \"elk\"}}}%%. A directive written in the diagram still takes priority.",
+          "**See other people’s cursors in formulas and diagrams**: when someone edits the same LaTeX formula (inline or block) or Mermaid diagram as you, their caret (with their name) and their selection are drawn in the field, on the right line. If you are not editing that block yourself, a small name tag shows who is in it."
+        ],
+        "fr": [
+          "**Un calendrier par tableau, créé automatiquement** (vide au départ, au nom du tableau et suivant son renommage ; supprimé avec le tableau s’il est vide). Un événement de ce calendrier peut porter les étiquettes du tableau et **mentionner des tâches du tableau** : à choisir dans le formulaire de l’événement, ou depuis son détail (« Mentionner une tâche… »), et à délier au même endroit. Les tableaux existants reçoivent leur calendrier à la mise à jour du serveur.",
+          "**Les diagrammes Mermaid utilisent la mise en page ELK** par défaut pour les organigrammes (plus lisible, moins de lignes qui se croisent), comme si chaque diagramme commençait par %%{init: {\"flowchart\": {\"defaultRenderer\": \"elk\"}}}%%. Une directive écrite dans le diagramme garde la priorité.",
+          "**Voir les curseurs des autres dans les formules et les diagrammes** : quand quelqu’un modifie la même formule LaTeX (en ligne ou en bloc) ou le même diagramme Mermaid que vous, son curseur (avec son nom) et sa sélection sont dessinés dans le champ, à la bonne ligne. Si vous ne modifiez pas ce bloc, une étiquette indique qui s’y trouve."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.13.0",
       "date": "2026-10-11",
       "title": {
