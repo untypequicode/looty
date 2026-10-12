@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FolderCode, Plus, Globe, Sigma, CheckCircle2, AlertCircle } from 'lucide-vue-next'
+import { FolderCode, Plus, Globe, Sigma, CheckCircle2, AlertCircle, NotebookText } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
@@ -21,7 +21,13 @@ const canCreate = computed(() => allows('docs', 'edit'))
 
 const createOpen = ref(false)
 const form = reactive({ kind: 'site' as ProjectKind, name: '', template: 'starter' })
-const templates = computed(() => form.kind === 'site'
+const templates = computed(() => form.kind === 'notebook'
+  ? [
+      { value: 'starter', label: t('projects.templates.nbStarter'), hint: t('projects.templates.nbStarterHint') },
+      { value: 'data', label: t('projects.templates.nbData'), hint: t('projects.templates.nbDataHint') },
+      { value: 'blank', label: t('projects.templates.blank'), hint: t('projects.templates.nbBlankHint') },
+    ]
+  : form.kind === 'site'
   ? [{ value: 'starter', label: t('projects.templates.siteStarter'), hint: t('projects.templates.siteStarterHint') }, { value: 'blank', label: t('projects.templates.blank'), hint: t('projects.templates.siteBlankHint') }]
   : [
       { value: 'article', label: t('projects.templates.article'), hint: t('projects.templates.articleHint') },
@@ -54,8 +60,9 @@ useHead({ title: () => t('projects.title') })
 <template>
   <div class="pl">
     <AppPageHeader :crumbs="[{ label: t('projects.title'), icon: FolderCode }]">
-      <UiSegmented v-model="filter" :options="[{ value: 'all', label: t('projects.all') }, { value: 'site', label: t('projects.sites') }, { value: 'latex', label: 'LaTeX' }]" />
+      <UiSegmented v-model="filter" :options="[{ value: 'all', label: t('projects.all') }, { value: 'site', label: t('projects.sites') }, { value: 'latex', label: 'LaTeX' }, { value: 'notebook', label: 'Notebooks' }]" />
       <template v-if="canCreate">
+        <UiButton size="sm" :icon="NotebookText" @click="startCreate('notebook')">{{ t('projects.newNotebook') }}</UiButton>
         <UiButton size="sm" :icon="Globe" @click="startCreate('site')">{{ t('projects.newSite') }}</UiButton>
         <UiButton size="sm" variant="primary" :icon="Sigma" @click="startCreate('latex')">{{ t('projects.newLatex') }}</UiButton>
       </template>
@@ -64,16 +71,17 @@ useHead({ title: () => t('projects.title') })
       <div v-if="isLoading" class="pl-grid"><div v-for="i in 4" :key="i" class="skeleton" style="height: 120px" /></div>
       <UiEmpty v-else-if="!shown.length" :icon="FolderCode" :title="t('projects.emptyTitle')" :description="t('projects.emptyHint')">
         <div v-if="canCreate" class="pl-empty-actions">
+          <UiButton :icon="NotebookText" @click="startCreate('notebook')">{{ t('projects.newNotebook') }}</UiButton>
           <UiButton :icon="Globe" @click="startCreate('site')">{{ t('projects.newSite') }}</UiButton>
           <UiButton variant="primary" :icon="Sigma" @click="startCreate('latex')">{{ t('projects.newLatex') }}</UiButton>
         </div>
       </UiEmpty>
       <div v-else class="pl-grid">
         <NuxtLink v-for="p in shown" :key="p.id" :to="`/w/${wsId}/projects/${p.id}`" class="pl-card">
-          <span class="pl-icon" :class="p.kind"><component :is="p.kind === 'site' ? Globe : Sigma" :size="18" /></span>
+          <span class="pl-icon" :class="p.kind"><component :is="p.kind === 'site' ? Globe : p.kind === 'notebook' ? NotebookText : Sigma" :size="18" /></span>
           <span class="pl-name truncate">{{ p.name }}</span>
           <span class="pl-meta">
-            {{ p.kind === 'site' ? t('projects.site') : 'LaTeX' }} · {{ t('projects.fileCount', { count: p.files }) }} · {{ relativeTime(p.updated_at) }}
+            {{ p.kind === 'site' ? t('projects.site') : p.kind === 'notebook' ? 'Notebook' : 'LaTeX' }} · {{ t('projects.fileCount', { count: p.files }) }} · {{ relativeTime(p.updated_at) }}
           </span>
           <span class="pl-badges">
             <span v-if="p.kind === 'site' && p.published" class="pl-badge live"><Globe :size="11" /> /pages/{{ p.slug }}</span>
@@ -82,14 +90,14 @@ useHead({ title: () => t('projects.title') })
             </span>
           </span>
         </NuxtLink>
-        <button v-if="canCreate" class="pl-card pl-new" @click="startCreate(filter === 'latex' ? 'latex' : 'site')"><Plus :size="18" /> {{ t('projects.new') }}</button>
+        <button v-if="canCreate" class="pl-card pl-new" @click="startCreate(filter === 'latex' ? 'latex' : filter === 'notebook' ? 'notebook' : 'site')"><Plus :size="18" /> {{ t('projects.new') }}</button>
       </div>
     </div>
 
-    <UiDialog v-model:open="createOpen" :title="form.kind === 'site' ? t('projects.newSite') : t('projects.newLatex')" :width="480">
+    <UiDialog v-model:open="createOpen" :title="form.kind === 'site' ? t('projects.newSite') : form.kind === 'notebook' ? t('projects.newNotebook') : t('projects.newLatex')" :width="480">
       <form class="pc" @submit.prevent="create">
-        <UiSegmented v-model="form.kind" size="md" :options="[{ value: 'site', label: t('projects.site'), icon: Globe }, { value: 'latex', label: 'LaTeX', icon: Sigma }]" />
-        <UiInput v-model="form.name" :placeholder="form.kind === 'site' ? t('projects.siteNamePlaceholder') : t('projects.latexNamePlaceholder')" autofocus maxlength="120" />
+        <UiSegmented v-model="form.kind" size="md" :options="[{ value: 'site', label: t('projects.site'), icon: Globe }, { value: 'latex', label: 'LaTeX', icon: Sigma }, { value: 'notebook', label: 'Notebook', icon: NotebookText }]" />
+        <UiInput v-model="form.name" :placeholder="form.kind === 'site' ? t('projects.siteNamePlaceholder') : form.kind === 'notebook' ? t('projects.notebookNamePlaceholder') : t('projects.latexNamePlaceholder')" autofocus maxlength="120" />
         <div class="pc-label">{{ t('projects.template') }}</div>
         <label v-for="tp in templates" :key="tp.value" class="pc-tpl" :class="{ on: form.template === tp.value }">
           <input v-model="form.template" type="radio" :value="tp.value" />
@@ -112,6 +120,7 @@ useHead({ title: () => t('projects.title') })
 .pl-card:hover { background: var(--bg-hover); }
 .pl-icon { width: 34px; height: 34px; border-radius: var(--r-md); display: grid; place-items: center; }
 .pl-icon.site { background: color-mix(in srgb, #2a78d6 14%, transparent); color: #2a78d6; }
+.pl-icon.notebook { background: color-mix(in srgb, #e2803f 14%, transparent); color: #e2803f; }
 .pl-icon.latex { background: color-mix(in srgb, #3f8f5a 14%, transparent); color: #3f8f5a; }
 .pl-name { font-weight: 600; }
 .pl-meta { font-size: var(--fs-sm); color: var(--text-3); }

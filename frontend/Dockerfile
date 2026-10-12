@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --legacy-peer-deps
 COPY . .
+# Le build (Mermaid, éditeurs, Pyodide…) dépasse les ~2 Go de mémoire par défaut de Node.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 FROM node:24-slim

@@ -77,4 +77,3 @@ export function locationOfRoute(route: { path: string; params: Record<string, an
   return task ? `task:${task}` : route.params.page ? `page:${route.params.page}` : route.params.board ? `board:${route.params.board}` : screens.includes(screen) ? screen : 'home'
 }
 
-export { following } from './useRealtime'

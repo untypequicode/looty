@@ -39,6 +39,7 @@ const files = computed(() => data.value?.files ?? [])
 const tree = computed(() => buildFileTree(files.value))
 const canWrite = computed(() => !!data.value?.can_write)
 const isSite = computed(() => project.value?.kind === 'site')
+const isNotebook = computed(() => project.value?.kind === 'notebook')
 const collapsed = ref<string[]>([])
 
 // --- Fichier ouvert ---
@@ -49,7 +50,7 @@ watch(data, (d) => {
   if (!d) return
   // Premier affichage : fichier principal (LaTeX) ou page d'entrée (site).
   if (!fileId.value) {
-    const want = d.project.kind === 'latex' ? d.project.settings.main ?? 'main.tex' : d.project.settings.entry ?? 'index.html'
+    const want = d.project.kind === 'latex' ? d.project.settings.main ?? 'main.tex' : d.project.kind === 'notebook' ? d.project.settings.main ?? 'notebook.ipynb' : d.project.settings.entry ?? 'index.html'
     const f = d.files.find((x) => x.path === want) ?? d.files.find((x) => !x.is_dir && x.text)
     if (f) open(f.id, true)
   }
@@ -79,6 +80,8 @@ const userColor = computed(() => {
   return palette[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % palette.length]!
 })
 const cursorUser = computed(() => ({ name: user.value?.name ?? '?', color: userColor.value }))
+/** Fichier .ipynb ouvert : éditeur de notebook (cellules, exécution Python). */
+const isIpynb = computed(() => !!current.value?.text && /\.ipynb$/i.test(current.value.path))
 const imagePreview = computed(() => current.value && !current.value.text && /^image\//.test(current.value.mime ?? '') ? `/api/projects/${id.value}/files/${current.value.id}/raw` : null)
 
 // --- Actions sur les fichiers ---
@@ -131,7 +134,7 @@ function nodeMenu(n: TreeNode): MenuItem[] {
     items.push({ label: t('projects.newFile'), icon: FilePlus, onSelect: () => newFile(n.path) }, { label: t('projects.newFolder'), icon: FolderPlus, onSelect: () => newFolder(n.path) }, { label: t('projects.upload'), icon: Upload, onSelect: () => pickUpload(n.path) }, { divider: true })
   }
   if (!n.dir && n.file) {
-    if (canWrite.value && (isSite.value ? /\.html?$/i.test(n.path) : /\.tex$/i.test(n.path))) items.push({ label: isSite.value ? t('projects.setEntry') : t('projects.setMain'), icon: Star, onSelect: () => setMain(n) })
+    if (canWrite.value && !isNotebook.value && (isSite.value ? /\.html?$/i.test(n.path) : /\.tex$/i.test(n.path))) items.push({ label: isSite.value ? t('projects.setEntry') : t('projects.setMain'), icon: Star, onSelect: () => setMain(n) })
     items.push({ label: t('projects.download'), icon: Download, onSelect: () => window.open(`/api/projects/${id.value}/files/${n.file!.id}/raw`, '_blank') })
   }
   if (canWrite.value && n.file) items.push({ label: t('projects.rename'), icon: Pencil, onSelect: () => rename(n) }, { divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: () => remove(n) })
@@ -158,7 +161,7 @@ function onEdit(text: string) {
     clearTimeout(reloadTimer)
     reloadTimer = setTimeout(() => previewNonce.value++, 2600)
   }
-  if (!isSite.value && autoCompile.value) {
+  if (!isSite.value && !isNotebook.value && autoCompile.value) {
     clearTimeout(reloadTimer)
     reloadTimer = setTimeout(() => compile(), 2500)
   }
@@ -193,7 +196,7 @@ const errors = computed(() => (result.value?.issues ?? []).filter((i) => i.level
 const warnings = computed(() => (result.value?.issues ?? []).filter((i) => i.level === 'warning'))
 watch(project, (p) => { if (p?.kind === 'latex' && p.last_build_at && !pdfSrc.value) pdfSrc.value = `/api/projects/${p.id}/output.pdf?v=${new Date(p.last_build_at).getTime()}` }, { immediate: true })
 async function compile() {
-  if (!project.value || isSite.value || compiling.value) return
+  if (!project.value || isSite.value || isNotebook.value || compiling.value) return
   compiling.value = true
   try {
     const overrides: Record<string, string> = {}
@@ -245,7 +248,7 @@ function onKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'Enter')) {
     e.preventDefault()
     if (isSite.value) previewNonce.value++
-    else compile()
+    else if (!isNotebook.value) compile()
   }
 }
 onMounted(() => window.addEventListener('keydown', onKey))
@@ -256,9 +259,10 @@ const showTree = useLocalStorage('looty.project.tree', true)
 const showPreview = useLocalStorage('looty.project.preview', true)
 const mobilePane = ref<'files' | 'code' | 'preview'>('code')
 /** Colonnes des seuls panneaux affichés (un panneau masqué ne laisse pas de colonne vide). */
-const columns = computed(() => [showTree.value ? '220px' : '', 'minmax(0, 1fr)', showPreview.value ? 'minmax(0, 1fr)' : ''].filter(Boolean).join(' '))
+const columns = computed(() => [showTree.value ? '220px' : '', 'minmax(0, 1fr)', showPreview.value && !isNotebook.value ? 'minmax(0, 1fr)' : ''].filter(Boolean).join(' '))
 const moreOpen = ref(false)
 const moreItems = computed<MenuItem[]>(() => [
+  ...(isIpynb.value && current.value ? [{ label: t('notebook.download'), icon: Download, onSelect: () => window.open(`/api/projects/${id.value}/files/${current.value!.id}/raw`, '_blank') }] : []),
   { label: t('projects.downloadZip'), icon: Download, onSelect: () => (window.location.href = `/api/projects/${id.value}/download`) },
   ...(canWrite.value ? [{ label: t('projects.renameProject'), icon: Pencil, onSelect: renameProject }] : []),
   ...(data.value?.can_manage ? [{ divider: true }, { label: t('projects.deleteProject'), icon: Trash2, danger: true, onSelect: deleteProject }] : []),
@@ -290,7 +294,7 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
           <UiTooltip :text="t('projects.reload')" :shortcut="['mod', 'S']"><UiButton size="sm" variant="ghost" :icon="RefreshCw" :aria-label="t('projects.reload')" @click="previewNonce++" /></UiTooltip>
           <UiButton v-if="data?.can_publish" size="sm" :variant="project.published ? 'secondary' : 'primary'" :icon="Globe" @click="publishOpen = true">{{ project.published ? t('projects.published') : t('projects.publish') }}</UiButton>
         </template>
-        <template v-else>
+        <template v-else-if="!isNotebook">
           <UiButton size="sm" variant="primary" :icon="Play" :loading="compiling" class="pj-compile" @click="compile">{{ t('projects.compile') }} <UiKbd :keys="['mod', 'S']" /></UiButton>
         </template>
         <UiMenu v-model:open="moreOpen" :items="moreItems" placement="bottom-end">
@@ -303,7 +307,7 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
     <UiEmpty v-else-if="error || !data" class="pj-center" :icon="FolderCode" :title="t('projects.notFound')" />
     <template v-else>
       <div v-if="isMobile" class="pj-mobile-tabs">
-        <UiSegmented v-model="mobilePane" size="md" :options="[{ value: 'files', label: t('projects.files') }, { value: 'code', label: t('projects.code') }, { value: 'preview', label: isSite ? t('projects.preview') : 'PDF' }]" />
+        <UiSegmented v-model="mobilePane" size="md" :options="[{ value: 'files', label: t('projects.files') }, { value: 'code', label: isNotebook ? 'Notebook' : t('projects.code') }, ...(isNotebook ? [] : [{ value: 'preview', label: isSite ? t('projects.preview') : 'PDF' }])]" />
       </div>
       <div class="pj-body" :class="`m-${mobilePane}`" :style="isMobile ? undefined : { gridTemplateColumns: columns }">
         <!-- Fichiers -->
@@ -342,11 +346,15 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
                 <template v-else>{{ t('editor.connecting') }}</template>
               </template>
             </span>
-            <UiButton v-if="!isMobile" size="xs" variant="ghost" :icon="showPreview ? PanelRightClose : PanelRightOpen" :aria-label="t('projects.togglePreview')" @click="showPreview = !showPreview" />
+            <UiButton v-if="!isMobile && !isNotebook" size="xs" variant="ghost" :icon="showPreview ? PanelRightClose : PanelRightOpen" :aria-label="t('projects.togglePreview')" @click="showPreview = !showPreview" />
           </div>
           <div class="pj-editor">
+            <NotebookEditor
+              v-if="isIpynb && current" :key="current.id" ref="editorRef" :file-id="current.id" :path="current.path" :project-id="id" :project-files="files" :read-only="!canWrite" :user="cursorUser"
+              @status="(s) => (status = s)" @collaborators="(c) => (collaborators = c)"
+            />
             <CodeEditor
-              v-if="current?.text" ref="editorRef" :key="current.id" :file-id="current.id" :path="current.path" :read-only="!canWrite" :user="cursorUser"
+              v-else-if="current?.text" ref="editorRef" :key="current.id" :file-id="current.id" :path="current.path" :read-only="!canWrite" :user="cursorUser"
               @status="(s) => (status = s)" @change="onEdit" @collaborators="(c) => (collaborators = c)"
             />
             <div v-else-if="imagePreview" class="pj-binary"><img :src="imagePreview" :alt="current?.path" /></div>
@@ -361,7 +369,7 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
         </section>
 
         <!-- Aperçu -->
-        <section v-show="showPreview || isMobile" class="pj-preview">
+        <section v-if="!isNotebook" v-show="showPreview || isMobile" class="pj-preview">
           <template v-if="isSite">
             <div class="pv-bar">
               <UiSegmented v-model="device" :options="[{ value: 'desktop', icon: Monitor, title: t('projects.desktop') }, { value: 'tablet', icon: Tablet, title: t('projects.tablet') }, { value: 'mobile', icon: Smartphone, title: t('projects.mobile') }]" />

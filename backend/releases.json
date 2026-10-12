@@ -3,6 +3,29 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.16.0",
+      "date": "2026-10-12",
+      "title": {
+        "en": "Jupyter notebooks in projects",
+        "fr": "Notebooks Jupyter dans les projets"
+      },
+      "notes": {
+        "en": [
+          "**Jupyter notebooks in projects**: a new “Notebook” project type next to mini-sites and LaTeX (and any project can hold .ipynb files). Cells are edited together live (code, Markdown with formulas), each person sees the others’ cursors, and the file stays a standard .ipynb you can download, import or open in Jupyter.",
+          "**Python runs in your browser**, not on the server: nothing to install, nothing runs on your server, and each person runs the cells in their own sandbox. Variables persist between cells, `await` works, NumPy / pandas / Matplotlib load automatically on first import (use `%pip install` for others), figures and tables are shown under the cell, and the files of the project (a .csv for example) can be read directly. Shift+Enter, Ctrl+Enter and Alt+Enter run a cell; “Restart Python” starts from scratch.",
+          "**Outputs are shared**: a result computed by one person shows up for everyone and is saved in the notebook. Read-only members can run cells for themselves without changing the notebook.",
+          "Limits: Python libraries need an internet connection the first time they are loaded (the Python engine itself is served by Looty), and a computation cannot be paused, only restarted."
+        ],
+        "fr": [
+          "**Notebooks Jupyter dans les projets** : un nouveau type de projet « Notebook » à côté des mini-sites et de LaTeX (et tout projet peut contenir des fichiers .ipynb). Les cellules sont modifiées à plusieurs en direct (code, Markdown avec formules), chacun voit les curseurs des autres, et le fichier reste un .ipynb standard, à télécharger, importer ou ouvrir dans Jupyter.",
+          "**Python s’exécute dans votre navigateur**, pas sur le serveur : rien à installer, rien ne tourne sur votre serveur, et chacun exécute les cellules dans son propre bac à sable. Les variables persistent d’une cellule à l’autre, `await` fonctionne, NumPy / pandas / Matplotlib se chargent automatiquement au premier import (`%pip install` pour les autres), les graphiques et tableaux s’affichent sous la cellule, et les fichiers du projet (un .csv par exemple) se lisent directement. Maj+Entrée, Ctrl+Entrée et Alt+Entrée exécutent une cellule ; « Redémarrer Python » repart de zéro.",
+          "**Les sorties sont partagées** : un résultat calculé par une personne apparaît chez tout le monde et est enregistré dans le notebook. Les membres en lecture seule peuvent exécuter les cellules pour eux sans modifier le notebook.",
+          "Limites : les bibliothèques Python demandent une connexion internet la première fois qu’elles se chargent (le moteur Python lui-même est servi par Looty), et un calcul ne peut pas être mis en pause, seulement redémarré."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.15.0",
       "date": "2026-10-12",
       "title": {

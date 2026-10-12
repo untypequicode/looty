@@ -2,7 +2,7 @@ import { computed, type Ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api } from './api'
 
-export type ProjectKind = 'site' | 'latex'
+export type ProjectKind = 'site' | 'latex' | 'notebook'
 export interface ProjectSummary {
   id: string
   kind: ProjectKind
