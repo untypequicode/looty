@@ -12,7 +12,8 @@ import { useRealtime, sendLocation, setPresenceStatus, presence } from '~/compos
 import { following, locationPath, locationOfRoute } from '~/composables/usePresenceInfo'
 import { useIdle, useDocumentVisibility } from '@vueuse/core'
 import { toast } from '~/composables/useToast'
-import { useTabs, tabsEnabled, isWorkspaceLink, tabMod } from '~/composables/useTabs'
+import { useTabs, tabsEnabled, isWorkspaceLink, tabMod, draggingTab } from '~/composables/useTabs'
+import { isPane } from '~/composables/usePane'
 import { saveScroll, restoreScroll } from '~/composables/useScrollMemory'
 import { useAuth } from '~/composables/useAuth'
 import { useUi, notepadOpen } from '~/composables/useUi'
@@ -107,6 +108,7 @@ const followersLabel = computed(() => {
   return f.length ? t('presence.followedByMany', { name: f[0]!.name, count: f.length - 1 }) : ''
 })
 watch(() => followers.value.map((m) => m.user_id), (now, before) => {
+  if (isPane) return
   for (const id of now) if (before && !before.includes(id)) toast(t('presence.startedFollowing', { name: member(id)?.name ?? '' }))
 })
 
@@ -132,8 +134,44 @@ function tabShortcuts() {
     ...(tabMod === 'mod' ? [...list('mod'), { keys: 'mod+tab', global: true, handler: when(() => tabs.cycle(1)) }, { keys: 'mod+shift+tab', global: true, handler: when(() => tabs.cycle(-1)) }] : []),
   ]
 }
-const showTabs = computed(() => tabsEnabled.value && !isTablet.value)
-watch(() => route.fullPath, (p) => { if (route.path.startsWith(`/w/${wsId.value}`)) tabs.onNavigate(p) }, { immediate: true })
+const showTabs = computed(() => !isPane && tabsEnabled.value && !isTablet.value)
+// Le volet secondaire (écran partagé) ne touche pas aux onglets : la fenêtre principale les gère.
+watch(() => route.fullPath, (p) => { if (!isPane && route.path.startsWith(`/w/${wsId.value}`)) tabs.onNavigate(p) }, { immediate: true })
+
+// --- Écran partagé : l'onglet actif à gauche, un autre onglet à droite (copie intégrée) ---
+const sideTab = computed(() => (showTabs.value ? tabs.splitTab.value : null))
+const panesEl = ref<HTMLElement | null>(null)
+const resizing = ref(false)
+function startResize(e: PointerEvent) {
+  const el = panesEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const handle = e.currentTarget as HTMLElement
+  handle.setPointerCapture(e.pointerId)
+  resizing.value = true
+  const move = (ev: PointerEvent) => tabs.setRatio((ev.clientX - rect.left) / rect.width)
+  const up = () => {
+    resizing.value = false
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', up)
+    handle.removeEventListener('pointercancel', up)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', up)
+  handle.addEventListener('pointercancel', up)
+}
+function onResizerKey(e: KeyboardEvent) {
+  if (e.key === 'ArrowLeft') tabs.setRatio(tabs.ratio.value - 0.03)
+  else if (e.key === 'ArrowRight') tabs.setRatio(tabs.ratio.value + 0.03)
+  else if (e.key === 'Home' || e.key === 'End') tabs.setRatio(0.5)
+  else return
+  e.preventDefault()
+}
+function onDropSide() {
+  const id = draggingTab.value
+  draggingTab.value = null
+  if (id) tabs.openSide(id)
+}
 router.beforeEach((_to, from) => { saveScroll(from.path) })
 router.afterEach((to, from) => { if (to.path !== from.path) setTimeout(() => restoreScroll(to.path), 0) })
 function linkFrom(e: MouseEvent): string | null {
@@ -222,11 +260,12 @@ function onEdgeStart(e: TouchEvent) {
 </script>
 
 <template>
-  <div class="app" :class="{ collapsed: sidebarCollapsed && !isTablet }" @touchstart.passive="onEdgeStart">
+  <div class="app" :class="{ collapsed: sidebarCollapsed && !isTablet, pane: isPane }" @touchstart.passive="onEdgeStart">
     <Transition name="fade">
-      <div v-if="sidebarOpen && isTablet" class="drawer-overlay" @click="sidebarOpen = false" />
+      <div v-if="sidebarOpen && isTablet && !isPane" class="drawer-overlay" @click="sidebarOpen = false" />
     </Transition>
     <aside
+      v-if="!isPane"
       ref="drawer"
       class="app-sidebar"
       @touchstart.passive="isTablet && onTouchStart($event)"
@@ -240,7 +279,19 @@ function onEdgeStart(e: TouchEvent) {
       <AppTabBar v-if="showTabs" />
       <AppUpdateBanner />
       <AppOfflineBanner />
-      <slot />
+      <div ref="panesEl" class="panes" :class="{ split: !!sideTab, resizing }">
+        <div class="pane-main" :class="{ focused: !!sideTab && !tabs.focusSide.value }" :style="sideTab ? { flex: `0 0 calc(${tabs.ratio.value * 100}% - 3px)` } : undefined" @pointerdown.capture="sideTab && tabs.setFocus('main')">
+          <slot />
+        </div>
+        <template v-if="sideTab">
+          <div
+            class="pane-resizer" role="separator" aria-orientation="vertical" tabindex="0" :aria-label="t('tabs.resize')" :aria-valuenow="Math.round(tabs.ratio.value * 100)"
+            @pointerdown.prevent="startResize" @keydown="onResizerKey" @dblclick="tabs.setRatio(0.5)"
+          />
+          <AppSplitPane :tab="sideTab" :focused="tabs.focusSide.value" />
+        </template>
+        <div v-if="draggingTab && showTabs" class="drop-side" @dragover.prevent @drop.prevent="onDropSide"><span>{{ t('tabs.dropSide') }}</span></div>
+      </div>
       <Transition name="rm">
         <div v-if="followed" class="follow-badge">
           <UiAvatar :name="followed.name" :src="followed.avatar_url" :size="18" />
@@ -249,7 +300,7 @@ function onEdgeStart(e: TouchEvent) {
         </div>
       </Transition>
       <Transition name="rm">
-        <div v-if="followers.length" class="followers-badge" :class="{ below: !!followed }" role="status">
+        <div v-if="followers.length && !isPane" class="followers-badge" :class="{ below: !!followed }" role="status">
           <span class="fb-avatars"><UiAvatar v-for="m in followers.slice(0, 3)" :key="m.user_id" :name="m.name" :src="m.avatar_url" :size="18" /></span>
           <Eye :size="13" /> {{ followersLabel }}
         </div>
@@ -257,7 +308,7 @@ function onEdgeStart(e: TouchEvent) {
     </main>
 
     <!-- Barre d'onglets mobile -->
-    <nav class="tabbar" :aria-label="t('nav.main')">
+    <nav v-if="!isPane" class="tabbar" :aria-label="t('nav.main')">
       <NuxtLink :to="links.home(wsId)" class="tab" :class="{ active: route.path === links.home(wsId) }"><Home :size="20" /><span>{{ t('nav.home') }}</span></NuxtLink>
       <NuxtLink :to="links.inbox(wsId)" class="tab" active-class="active">
         <span class="tab-icon"><Inbox :size="20" /><span v-if="unread" class="tab-badge">{{ unread > 9 ? '9+' : unread }}</span></span>
@@ -269,9 +320,9 @@ function onEdgeStart(e: TouchEvent) {
     </nav>
 
     <AppCommandPalette />
-    <AppNotepad />
-    <AppWorkOnDialog />
-    <AppWhatsNewDialog />
+    <AppNotepad v-if="!isPane" />
+    <AppWorkOnDialog v-if="!isPane" />
+    <AppWhatsNewDialog v-if="!isPane" />
     <AppShortcutsDialog />
     <AppCreateBoardDialog />
     <TaskCreateDialog />
@@ -309,6 +360,21 @@ function onEdgeStart(e: TouchEvent) {
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }
 .app.collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+/* Volet secondaire de l'écran partagé : la page seule, sans barre latérale. */
+.app.pane { grid-template-columns: minmax(0, 1fr); }
+.app.pane .app-main { padding-bottom: 0; }
+.panes { position: relative; flex: 1; min-height: 0; display: flex; }
+.pane-main { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.pane-main::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: transparent; z-index: 5; pointer-events: none; transition: background var(--dur-fast); }
+.pane-main.focused::before { background: var(--accent); }
+.pane-resizer { flex: none; width: 6px; margin: 0 -0px; cursor: col-resize; background: var(--border); position: relative; z-index: 6; transition: background var(--dur-fast); touch-action: none; }
+.pane-resizer:hover, .pane-resizer:focus-visible, .panes.resizing .pane-resizer { background: var(--accent); outline: none; }
+.panes.resizing { user-select: none; cursor: col-resize; }
+.panes.resizing :deep(iframe) { pointer-events: none; }
+.drop-side {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 50%; z-index: 40; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent-text); font-weight: 600;
+}
 .app-sidebar { min-width: 0; overflow: hidden; z-index: 30; }
 .app-main {
   min-width: 0;

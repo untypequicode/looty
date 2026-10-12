@@ -3,6 +3,7 @@ import { Menu, PanelLeftOpen, ChevronRight, ArrowLeft } from 'lucide-vue-next'
 import { isNativeApp, nativeBack } from '~/composables/useNative'
 import type { Component } from 'vue'
 import { useUi } from '~/composables/useUi'
+import { isPane } from '~/composables/usePane'
 const NuxtLink = resolveComponent('NuxtLink')
 
 export interface Crumb {
@@ -14,14 +15,16 @@ export interface Crumb {
 
 defineProps<{ crumbs?: Crumb[]; title?: string }>()
 const { sidebarOpen, sidebarCollapsed } = useUi()
+// Volet secondaire de l'écran partagé : pas de barre latérale à ouvrir.
+const pane = isPane
 </script>
 
 <template>
   <header class="ph">
     <!-- Application Android : retour vers l'écran natif au lieu du menu latéral. -->
     <UiButton v-if="isNativeApp" class="ph-menu ph-back" variant="ghost" size="sm" :icon="ArrowLeft" :aria-label="$t('common.back')" @click="nativeBack" />
-    <UiButton v-else class="ph-menu" variant="ghost" size="sm" :icon="Menu" :aria-label="$t('nav.openMenu')" @click="sidebarOpen = true" />
-    <UiTooltip v-if="sidebarCollapsed" :text="$t('nav.expandSidebar')" shortcut="[">
+    <UiButton v-else-if="!pane" class="ph-menu" variant="ghost" size="sm" :icon="Menu" :aria-label="$t('nav.openMenu')" @click="sidebarOpen = true" />
+    <UiTooltip v-if="sidebarCollapsed && !pane" :text="$t('nav.expandSidebar')" shortcut="[">
       <UiButton class="ph-expand" variant="ghost" size="sm" :icon="PanelLeftOpen" @click="sidebarCollapsed = false" />
     </UiTooltip>
     <nav class="ph-crumbs" aria-label="breadcrumb">

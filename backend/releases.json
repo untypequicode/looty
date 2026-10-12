@@ -3,6 +3,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.15.0",
+      "date": "2026-10-12",
+      "title": {
+        "en": "Split screen",
+        "fr": "Écran partagé"
+      },
+      "notes": {
+        "en": [
+          "**Split screen**: show two tabs side by side. Open the tab menu (right-click) → “Open to the side”, drag a tab onto the right half of the page, use the split button at the end of the tab bar, or “Open to the side” in the documents list menu. Click a pane to give it the focus: clicking a tab then changes that pane only, and clicking the tab shown in the other pane swaps them.",
+          "Each pane is fully independent: you can edit two documents at once (or the same one on both sides, with live collaboration), follow links inside a pane (its tab follows), Ctrl+click opens a tab, and Alt+T / tab shortcuts typed in a pane work. Drag the divider to resize (arrow keys too; double-click for half-and-half). The split is kept when you reload. Others still see you on the page of your main pane.",
+          "The split is for large screens; on tablets and phones the app keeps showing one page."
+        ],
+        "fr": [
+          "**Écran partagé** : affichez deux onglets côte à côte. Menu de l’onglet (clic droit) → « Ouvrir sur le côté », glissez un onglet sur la moitié droite de la page, utilisez le bouton de partage au bout de la barre d’onglets, ou « Ouvrir sur le côté » dans le menu de la liste des documents. Cliquez sur un volet pour lui donner la main : cliquer sur un onglet ne change alors que ce volet, et cliquer sur l’onglet affiché dans l’autre volet les échange.",
+          "Chaque volet est totalement indépendant : vous pouvez modifier deux documents en même temps (ou le même des deux côtés, avec la collaboration en direct), suivre des liens dans un volet (son onglet suit), Ctrl+clic ouvre un onglet, et Alt+T / les raccourcis d’onglets tapés dans un volet fonctionnent. Glissez la séparation pour redimensionner (flèches aussi ; double-clic pour moitié-moitié). Le partage est conservé au rechargement. Les autres vous voient toujours sur la page de votre volet principal.",
+          "L’écran partagé est prévu pour les grands écrans ; sur tablette et téléphone, l’application garde une seule page."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.14.0",
       "date": "2026-10-12",
       "title": {

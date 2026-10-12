@@ -7,6 +7,7 @@ import { wsKeys } from './useWorkspace'
 import { toast } from './useToast'
 import { translate } from './useI18n'
 import { pushActiveHere } from './usePush'
+import { isPane } from './usePane'
 
 /** Base ws(s):// : même origine en production, configurable en développement. */
 export function socketBase(override?: string) {
@@ -32,7 +33,8 @@ export const following = ref<string | null>(null)
 export const shareLocation = useLocalStorage('looty.shareLocation', true)
 
 function pushPresence() {
-  if (socket?.readyState === WebSocket.OPEN) {
+  // Le volet secondaire ne signale rien : la présence est celle de la fenêtre principale.
+  if (!isPane && socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'USER_LOCATION', location: shareLocation.value ? lastLocation : 'hidden', status: lastStatus, following: following.value }))
   }
 }
@@ -311,6 +313,8 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
         ? (n.data?.count ? translate('mail.newCount', { count: n.data.count }) : [n.data?.from, n.data?.title].filter(Boolean).join(' — ') || translate(`inbox.kinds.${n.kind}`))
         : translate(`inbox.kinds.${n.kind}`, { name: n.actor_name || '?', title: n.data?.title || '' })
       const target = n.kind === 'moodle' ? `/w/${wsId}/moodle` : isMail ? `/w/${wsId}/mail?account=${n.target.split(':')[1]}` : `/w/${wsId}/inbox`
+      // Le volet secondaire n'affiche pas les notifications en double.
+      if (isPane) break
       toast(text, { action: { label: translate('common.open'), run: () => navigateTo(target) } })
       // Avec le push actif sur cet appareil, le service worker affiche déjà la notification.
       if (document.hidden && !pushActiveHere() && 'Notification' in window && window.Notification.permission === 'granted') {
