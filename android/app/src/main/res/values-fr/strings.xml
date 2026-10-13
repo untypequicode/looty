@@ -246,7 +246,7 @@
     <string name="update_downloading">Téléchargement…</string>
     <string name="update_check_now">Vérifier maintenant</string>
     <string name="update_permission">Autorisez Looty à installer des applications dans les réglages qui viennent de s’ouvrir, puis revenez et réessayez.</string>
-    <string name="update_hint">La mise à jour est téléchargée depuis le site de téléchargement du projet, vérifiée par sa somme SHA-256, et installée par Android, qui ne l’accepte que si elle est signée avec la même clé que cette application.</string>
+    <string name="update_hint">La mise à jour est téléchargée depuis la publication officielle du projet, vérifiée par sa somme SHA-256, et installée par Android, qui ne l’accepte que si elle est signée avec la même clé que cette application.</string>
     <string name="update_error">Échec de la mise à jour : %s</string>
     <string name="update_auto">Vérifier automatiquement</string>
     <string name="update_auto_hint">Cherche une nouvelle version une fois par jour et vous prévient.</string>

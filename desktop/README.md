@@ -53,8 +53,10 @@ Run `desktop/scripts/apt-key.sh` (creates the signing key; it uses `nix shell ni
 public key `desktop/packaging/looty-archive-keyring.gpg`, add the secrets `APT_GPG_PRIVATE_KEY` (and `APT_GPG_PASSPHRASE` if
 the key has one), the repository variable `SITE_URL` and the secret `SITE_UPLOAD_TOKEN`, and set `"site"` in
 `backend/releases.json`. Every `desktop-v*` release then publishes the signed repository at `<site>/apt`
-(`desktop/scripts/apt-publish.sh`, which keeps only the latest version). Without the key or the site, only the plain `.deb`
-is published and the package does not add the repository. Adding the repository by hand (replace `SITE` by your site address):
+(`desktop/scripts/apt-publish.sh`, which keeps only the latest version). Without a site, the repository is published on
+GitHub Pages instead (`desktop/scripts/apt-publish-pages.sh`, branch `gh-pages`: enable Pages once in the repository
+settings) at `https://<owner>.github.io/<repo>/apt`. Without the key, only the plain `.deb` is published and the package
+does not add the repository. Adding the repository by hand (replace `SITE` by your site address):
 
 ```sh
 sudo install -d /etc/apt/keyrings

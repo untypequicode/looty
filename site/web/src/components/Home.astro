@@ -55,6 +55,8 @@ const strings = JSON.stringify({ unavailable: l.unavailable, version: l.version,
 curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc &gt;/dev/null
 echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
 sudo apt update &amp;&amp; sudo apt install looty</code></pre>
+      <h3 style="margin-top:26px">{l.nixTitle}</h3>
+      <pre><code>nix profile install github:untypequicode/looty#looty-desktop</code></pre>
     </section>
   </main>
   <script is:inline>

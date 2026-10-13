@@ -21,7 +21,7 @@ The **Release** workflow then does everything else: for each platform whose late
 | Platform | Version to bump | Built and published |
 |---|---|---|
 | web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has a `docker-compose.yml` with images pinned to that version |
-| desktop | `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` | `.deb` (Debian 12 / Ubuntu 22.04+, install-tested on a clean Debian); Nix package pushed to the binary cache for x86_64 and aarch64 |
+| desktop | `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` | `.deb` (Debian 12 / Ubuntu 22.04+, install-tested on a clean Debian) and the Windows installer (`*-setup.exe`, unsigned); Nix package pushed to the binary cache for x86_64 and aarch64 |
 | android | `versionName` and `versionCode` in `android/app/build.gradle.kts` | APK, signed when the keystore secrets are set (otherwise a debug APK) |
 
 Releasing only one platform is fine: the others are skipped because their tag already exists.
@@ -34,15 +34,20 @@ To rebuild a release (for example after fixing CI), run **Release** by hand with
 `**bold**` and `` `code` `` are allowed; the English and French lists must have the same number
 of items.
 
-## The download site (private repository? start here)
+## Where people download the apps
 
-GitHub only serves release files to people who can read the repository, and GitHub Pages is not available for
-private repositories on a free plan. So the files that apps and users download are **also uploaded to the Looty
-download site** (`site/`: presentation page, downloads, `/latest.json`, apt repository), which you host yourself
-and which is public. The Android app updates itself from it, the `.deb` adds its apt repository, and the web server
-gives its address to the apps (`"site"` in `backend/releases.json`, or `LOOTY_SITE_URL`). GitHub releases still get
-every file, as a private archive. Setup: `site/README.md` (a container, one variable `SITE_URL`, one secret
-`SITE_UPLOAD_TOKEN`). Without them, publishing to the site is skipped.
+The repository is public, so by default everything comes from **GitHub**: the apps are release assets, the Android
+app updates itself from the latest `android-v*` release (checking the SHA-256 digest GitHub publishes), and the apt
+repository can live on GitHub Pages (branch `gh-pages`; enable Pages once in the repository settings).
+
+You can also run the optional **Looty download site** (`site/`: a presentation page, downloads, `/latest.json`, apt
+repository; one tiny container, see `site/README.md`). When `SITE_URL` and `SITE_UPLOAD_TOKEN` are set, the
+**Release** workflow uploads the signed APK, the `.deb`, the Windows installer and the apt repository there too, the
+server tells the apps its address (`"site"` in `backend/releases.json`, or `LOOTY_SITE_URL`) and they prefer it to
+GitHub. Without them, those steps are skipped and the apt repository goes to GitHub Pages.
+
+The apt repository is signed: run `desktop/scripts/apt-key.sh` once, commit the public key
+`desktop/packaging/looty-archive-keyring.gpg` and add the secret `APT_GPG_PRIVATE_KEY` (and `APT_GPG_PASSPHRASE`).
 
 ## After a release
 

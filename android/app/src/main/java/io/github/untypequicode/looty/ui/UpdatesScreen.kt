@@ -11,6 +11,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.github.untypequicode.looty.AppState
 import io.github.untypequicode.looty.BuildConfig
@@ -60,7 +67,15 @@ fun UpdatesScreen(state: AppState, onBack: () -> Unit) {
             runCatching {
                 val apk = Updater.download(ctx, u) { p -> progress = p }
                 progress = null
+                prefs.edit().remove("updateStatus").apply()
                 Updater.install(ctx, apk)
+                // Android peut refuser l'installation (signature différente…) : on attend son verdict pour l'afficher.
+                repeat(30) {
+                    kotlinx.coroutines.delay(1000)
+                    val st = prefs.getString("updateStatus", null)
+                    if (st != null && st.startsWith("failed")) { error = st.substringAfter(':').substringAfter(':').ifBlank { st }; return@repeat }
+                    if (st == "confirm" || st == "done") return@repeat
+                }
             }.onFailure { error = it.message ?: "error"; progress = null }
             busy = false
         }
@@ -77,7 +92,7 @@ fun UpdatesScreen(state: AppState, onBack: () -> Unit) {
                 u != null -> {
                     Text(stringResource(R.string.update_available_body, u.version), style = MaterialTheme.typography.titleLarge)
                     u.title?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
-                    u.notes.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
+                    u.notes.forEach { Text(markdown("• $it"), style = MaterialTheme.typography.bodyMedium) }
                     progress?.let { p -> if (p >= 0) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     Button(onClick = { install(u) }, enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(if (progress != null) R.string.update_downloading else R.string.update_install)) }
                     if (needPermission) {
@@ -102,4 +117,20 @@ fun UpdatesScreen(state: AppState, onBack: () -> Unit) {
             if (BuildConfig.DEBUG) Text("debug build: updateOverride=" + (prefs.getString("updateOverride", null) ?: "—"), style = MaterialTheme.typography.labelSmall)
         }
     }
+}
+
+/** **gras**, *italique* et `code` des notes de version. */
+private fun markdown(text: String): AnnotatedString = buildAnnotatedString {
+    val re = Regex("\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`")
+    var last = 0
+    for (m in re.findAll(text)) {
+        append(text.substring(last, m.range.first))
+        when {
+            m.groups[1] != null -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(m.groupValues[1]) }
+            m.groups[2] != null -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(m.groupValues[2]) }
+            else -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append(m.groupValues[3]) }
+        }
+        last = m.range.last + 1
+    }
+    append(text.substring(last))
 }

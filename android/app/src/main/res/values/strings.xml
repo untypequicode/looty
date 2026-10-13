@@ -247,7 +247,7 @@
     <string name="update_downloading">Downloading…</string>
     <string name="update_check_now">Check now</string>
     <string name="update_permission">Allow Looty to install apps in the settings that just opened, then come back and try again.</string>
-    <string name="update_hint">The update is downloaded from the project’s download site, checked against its SHA-256 sum, and installed by Android, which only accepts it if it is signed with the same key as this app.</string>
+    <string name="update_hint">The update is downloaded from the project’s official release, checked against its SHA-256 sum, and installed by Android, which only accepts it if it is signed with the same key as this app.</string>
     <string name="update_error">Update failed: %s</string>
     <string name="update_auto">Check automatically</string>
     <string name="update_auto_hint">Looks for a new version once a day and notifies you.</string>
