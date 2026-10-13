@@ -3,6 +3,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.16.1",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Inline formula fix",
+        "fr": "Correctif des formules en ligne"
+      },
+      "notes": {
+        "en": [
+          "Typing an inline formula such as `$\\in$` now turns it into the rendered formula **without leaving the opening `$` behind** in the text."
+        ],
+        "fr": [
+          "Saisir une formule en ligne comme `$\\in$` la transforme maintenant en formule rendue **sans laisser le `$` ouvrant** dans le texte."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.16.0",
       "date": "2026-10-12",
       "title": {
