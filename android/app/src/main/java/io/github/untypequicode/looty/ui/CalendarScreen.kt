@@ -126,7 +126,7 @@ fun CalendarScreen(state: AppState, onBack: () -> Unit, onEdit: (id: String?, da
             )
         },
         floatingActionButton = {
-            if (state.canWrite) ExtendedFloatingActionButton(onClick = { onEdit(null, if (month) day else LocalDate.now()) }, icon = { Icon(Icons.Filled.Add, null) }, text = { Text(stringResource(R.string.new_event)) })
+            if (state.canEditCalendar) ExtendedFloatingActionButton(onClick = { onEdit(null, if (month) day else LocalDate.now()) }, icon = { Icon(Icons.Filled.Add, null) }, text = { Text(stringResource(R.string.new_event)) })
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {

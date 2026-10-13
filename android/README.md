@@ -31,7 +31,9 @@ notification opens the matching native screen.
 
 **Moodle (0.5.1)**: the “Sign in” button opens the official portal in a dedicated screen that catches the `moodlemobile://token=…` redirect, so the key never has to be copied by hand.
 
-Next phases: permission-aware actions, native reading view, widget and sharing,
+**Roles (0.5.2)**: the app reads your rights (`access/me`) and hides or disables what the role does not allow (create, edit, move, delete, complete, comment).
+
+Next phases: native reading view, widget and sharing,
 offline cache.
 
 ## Install
