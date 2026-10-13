@@ -668,6 +668,22 @@
     },
     {
       "platform": "android",
+      "version": "0.12.0",
+      "date": "2026-10-13",
+      "title": { "en": "Update the app from the app", "fr": "Mettre à jour l’application depuis l’application" },
+      "notes": {
+        "en": [
+          "**Updates without an app store**: *More → App updates* shows the version you have and, when a new one is published, its notes and a **Download and install** button. Looty also checks once a day and sends a notification when a new version is out (you can turn this off).",
+          "The update is downloaded from the project’s GitHub release and installed by Android, which only accepts it if it is signed with the same key as the installed app. The first time, Android asks you to allow Looty to install apps."
+        ],
+        "fr": [
+          "**Des mises à jour sans boutique d’applications** : *Plus → Mises à jour* montre la version installée et, quand une nouvelle est publiée, ses notes et un bouton **Télécharger et installer**. Looty vérifie aussi une fois par jour et envoie une notification quand une nouvelle version est disponible (désactivable).",
+          "La mise à jour est téléchargée depuis la publication GitHub du projet et installée par Android, qui ne l’accepte que si elle est signée avec la même clé que l’application installée. La première fois, Android vous demande d’autoriser Looty à installer des applications."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.11.0",
       "date": "2026-10-13",
       "title": { "en": "Edit documents offline", "fr": "Modifier les documents hors ligne" },

@@ -67,6 +67,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
         val uri = android.net.Uri.parse(link)
         val seg = uri.pathSegments
         val ws = seg.getOrNull(1)
+        if (seg.firstOrNull() == "app" && seg.getOrNull(1) == "updates") { nav.navigate("updates") { launchSingleTop = true }; return@LaunchedEffect }
         if (seg.firstOrNull() != "w" || ws == null) return@LaunchedEffect openWeb(ctx, link)
         if (ws != state.ws) state.switchWorkspace(ws)
         val target = when {
@@ -141,6 +142,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("board/{id}") { e -> BoardScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
             composable("doc/{id}") { e -> ReaderScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("notifications") { NotificationsScreen(state, onBack = { nav.popBackStack() }) }
+            composable("updates") { UpdatesScreen(state, onBack = { nav.popBackStack() }) }
             composable("calendar") { CalendarScreen(state, onBack = { nav.popBackStack() }, onEdit = { id, date -> nav.navigate("event?id=${id.orEmpty()}&date=$date") }) }
             composable("event?id={id}&date={date}") { e ->
                 val id = e.arguments?.getString("id")?.ifEmpty { null }

@@ -236,4 +236,18 @@
         <item quantity="one">%d modification en attente d’envoi</item>
         <item quantity="other">%d modifications en attente d’envoi</item>
     </plurals>
+    <string name="updates">Mises à jour</string>
+    <string name="update_installed">Version installée : %s</string>
+    <string name="update_checking">Recherche de mises à jour…</string>
+    <string name="update_available_title">Une nouvelle version de Looty est disponible</string>
+    <string name="update_available_body">Looty %s est disponible</string>
+    <string name="update_up_to_date">Vous avez la dernière version.</string>
+    <string name="update_install">Télécharger et installer</string>
+    <string name="update_downloading">Téléchargement…</string>
+    <string name="update_check_now">Vérifier maintenant</string>
+    <string name="update_permission">Autorisez Looty à installer des applications dans les réglages qui viennent de s’ouvrir, puis revenez et réessayez.</string>
+    <string name="update_hint">La mise à jour est téléchargée depuis la publication GitHub du projet et installée par Android, qui ne l’accepte que si elle est signée avec la même clé que cette application.</string>
+    <string name="update_error">Échec de la mise à jour : %s</string>
+    <string name="update_auto">Vérifier automatiquement</string>
+    <string name="update_auto_hint">Cherche une nouvelle version une fois par jour et vous prévient.</string>
 </resources>
