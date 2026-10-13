@@ -52,6 +52,9 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
             }
         }
         item {
+            ListItem(headlineContent = { Text(stringResource(R.string.notifications)) }, leadingContent = { Icon(Icons.Outlined.Notifications, null) }, modifier = Modifier.clickable { opener.route("notifications") })
+        }
+        item {
             ListItem(headlineContent = { Text(stringResource(R.string.calendar)) }, leadingContent = { Icon(Icons.Outlined.CalendarMonth, null) }, modifier = Modifier.clickable { opener.route("calendar") })
         }
         item {

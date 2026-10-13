@@ -82,8 +82,8 @@ class MainActivity : ComponentActivity() {
     private fun handleLink(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme != "looty" || uri.host != "w") return
-        val path = "/w" + (uri.encodedPath ?: "") + (uri.encodedQuery?.let { "?$it" } ?: "")
-        WebActivity.open(this, path)
+        // Ouvert par l'application dès que la session est prête (écran natif quand il existe).
+        state.pendingLink = "/w" + (uri.encodedPath ?: "") + (uri.encodedQuery?.let { "?$it" } ?: "")
     }
 
     private fun openLogin() {

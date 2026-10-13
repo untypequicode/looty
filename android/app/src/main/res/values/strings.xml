@@ -178,4 +178,33 @@
     <string name="mail_cc">Cc: %1$s</string>
     <string name="images_blocked">Remote images are blocked to protect your privacy.</string>
     <string name="show_images">Show images</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Notifications</string>
+    <string name="channel_activity">Activity</string>
+    <string name="channel_activity_hint">Mentions, assigned tasks, comments and reminders</string>
+    <string name="push_how">How to receive notifications</string>
+    <string name="push_unified">Instant push (UnifiedPush)</string>
+    <string name="push_unified_hint">Instant and battery-friendly, without Google. Uses the UnifiedPush app you installed (ntfy, Gotify…).</string>
+    <string name="push_unified_on">On · delivered through %1$s</string>
+    <string name="push_unified_missing">Needs a UnifiedPush app such as ntfy. None is installed yet.</string>
+    <string name="push_registering">Connecting to the push service…</string>
+    <string name="push_get_app">Get a UnifiedPush app</string>
+    <string name="push_change_app">Use another app</string>
+    <string name="push_no_distributor">Install a UnifiedPush app (for example ntfy), then try again.</string>
+    <string name="push_polling">Periodic check</string>
+    <string name="push_polling_hint">The app looks for new notifications about every 15 minutes. Works everywhere, but is not instant.</string>
+    <string name="push_off">No notifications</string>
+    <string name="push_test">Send a test notification</string>
+    <string name="push_test_body">Notifications work on this device.</string>
+    <string name="push_test_sent">Test sent: it should arrive within a few seconds.</string>
+    <string name="push_test_none">The server could not reach this device. Check the push app and your connection.</string>
+    <string name="push_test_error">Could not send the test.</string>
+    <string name="push_failed">Could not turn on push notifications.</string>
+    <string name="push_error">Problem: %1$s</string>
+    <string name="push_blocked">Notifications are blocked</string>
+    <string name="push_blocked_hint">Allow Looty to show notifications, otherwise nothing will appear.</string>
+    <string name="push_allow">Allow notifications</string>
+    <string name="push_events">Choose what notifies you</string>
+    <string name="push_events_hint">Mentions, assignments, comments, reminders… in the workspace settings</string>
 </resources>

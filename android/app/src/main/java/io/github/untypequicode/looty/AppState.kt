@@ -18,6 +18,8 @@ import kotlinx.serialization.json.JsonObject
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import io.github.untypequicode.looty.push.Push
+import io.github.untypequicode.looty.push.PushStore
 
 /** État d'un chargement : données (éventuellement anciennes) + chargement + erreur. */
 data class Loadable<T>(val data: T? = null, val loading: Boolean = false, val error: String? = null)
@@ -36,6 +38,8 @@ sealed interface Session {
  */
 class AppState(app: Application) : AndroidViewModel(app) {
     val api = Api(app)
+    /** Lien (« /w/<espace>/… ») à ouvrir dès que la session est prête : notification, « Ouvrir dans l'application ». */
+    var pendingLink by mutableStateOf<String?>(null)
     private val prefs = app.getSharedPreferences("looty", 0)
 
     var session by mutableStateOf<Session>(Session.Loading); private set
@@ -459,6 +463,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
+            // Cet appareil ne doit plus recevoir les notifications de ce compte.
+            PushStore.subscriptionId(getApplication())?.let { sub -> runCatching { api.send("DELETE", "/api/user/push/subscriptions/$sub") }; PushStore.setSubscriptionId(getApplication(), null) }
+            Push.disable(getApplication())
             runCatching { api.send("POST", "/api/auth/logout") }
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
             session = Session.NeedLogin
