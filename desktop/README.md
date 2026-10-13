@@ -68,10 +68,17 @@ previous, **Ctrl+1…9** go to a tab, **Ctrl+PageUp/PageDown**. Ctrl+click or mi
 link to open it in a new tab. (On the website these are Alt+T, Alt+W… because the browser
 keeps Ctrl+T and Ctrl+W for itself.)
 
-## Quick add shortcut
+## Shortcuts and command line
 
-Wayland doesn't let applications grab global keys themselves, so bind a key in your
-desktop to `looty --quick-add` (it opens the quick-add window, starting Looty if needed):
+**Global shortcuts.** On desktops that support the XDG *GlobalShortcuts* portal (GNOME 48+,
+KDE Plasma, Hyprland with xdg-desktop-portal-hyprland), Looty registers **Ctrl+Alt+N**
+(new task) and **Ctrl+Alt+L** (open Looty) by itself. Your desktop may ask you to confirm
+once, and lists them in its keyboard settings, where you can change the keys. They work
+from any application, on Wayland and X11. To turn this off, set `global_shortcuts = false`
+in `~/.config/looty/config.toml`.
+
+**Without portal support**, bind a key in your desktop to `looty --quick-add` (it opens the
+quick-add window, starting Looty if needed):
 
 - **GNOME**: Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → `+`,
   command `looty --quick-add`.
@@ -79,7 +86,19 @@ desktop to `looty --quick-add` (it opens the quick-add window, starting Looty if
   command `looty --quick-add`.
 - **Hyprland**: in `hyprland.conf`: `bind = SUPER, N, exec, looty --quick-add`.
 
-The launcher's right-click menu (GNOME, KDE) also has *New task*.
+**Command line** (also usable from launchers such as rofi, scripts, or a bar button):
+
+| Command | What it does |
+|---------|--------------|
+| `looty --quick-add` | Quick-add window |
+| `looty --new-task "Buy milk"` | Quick-add window with the title filled in |
+| `looty --inbox` | Open your inbox |
+| `looty --my-tasks` | Open your tasks |
+| `looty --open /w/<workspace>/doc/<page>` | Open a page (see *Links*) |
+
+The launcher's right-click menu (GNOME, KDE) has *New task*, *Inbox* and *My tasks*.
+
+Due-date and assignment notifications have a **Mark as done** button next to *Open*.
 
 ## Links
 

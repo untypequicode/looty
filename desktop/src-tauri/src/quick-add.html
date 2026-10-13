@@ -44,6 +44,8 @@
     document.documentElement.lang = 'fr'
     title.placeholder = 'Titre de la tâche'; mineLabel.textContent = 'M’assigner la tâche'; cancel.textContent = 'Annuler'; go.textContent = 'Créer'
   }
+  // Titre proposé en ligne de commande (looty --new-task "Acheter du lait"), ou par la fenêtre déjà ouverte.
+  title.value = new URLSearchParams(location.search).get('title') || ''
   const close = () => fetch('/__looty/quick-add/close', { method: 'POST' })
   cancel.onclick = close
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close() })

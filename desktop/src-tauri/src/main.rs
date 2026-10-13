@@ -6,6 +6,7 @@ mod latex;
 mod offline;
 mod proxy;
 mod service;
+mod shortcuts;
 mod tray;
 
 use std::sync::{Arc, Mutex};
@@ -105,6 +106,10 @@ fn decide_navigation(app: &AppHandle, url: &Url) -> bool {
 enum Action {
     Show,
     QuickAdd,
+    /// `--new-task [titre]` : ajout rapide, titre déjà rempli.
+    NewTask(Option<String>),
+    /// Entrée du menu de la barre système (`--inbox`, `--my-tasks`).
+    Menu(&'static str),
     Open(String),
 }
 
@@ -126,10 +131,13 @@ fn safe_path(raw: &str) -> Option<String> {
 }
 
 fn action_from(args: &[String]) -> Action {
-    let mut it = args.iter().skip(1);
+    let mut it = args.iter().skip(1).peekable();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--quick-add" => return Action::QuickAdd,
+            "--new-task" => return Action::NewTask(it.next_if(|t| !t.starts_with("--")).map(|t| t.chars().take(255).collect())),
+            "--inbox" => return Action::Menu("inbox"),
+            "--my-tasks" => return Action::Menu("my-tasks"),
             "--open" => {
                 if let Some(p) = it.next().and_then(|p| safe_path(p)) {
                     return Action::Open(p);
@@ -150,7 +158,9 @@ fn action_from(args: &[String]) -> Action {
 fn run_action(app: &AppHandle, action: Action) {
     match action {
         Action::Show => show_main(app),
-        Action::QuickAdd => open_quick_add(app),
+        Action::QuickAdd => open_quick_add(app, None),
+        Action::NewTask(title) => open_quick_add(app, title.as_deref()),
+        Action::Menu(id) => on_tray_menu(app, id),
         Action::Open(path) => open_path(app, &path),
     }
 }
@@ -183,7 +193,7 @@ fn on_tray_menu(app: &AppHandle, id: &str) {
                 None => open_path(app, "/"),
             }
         }
-        "new-task" => open_quick_add(app),
+        "new-task" => open_quick_add(app, None),
         "server" => open_path(app, "/__looty/setup"),
         "notifications" => {
             let proxy = app.state::<proxy::Shared>();
@@ -216,28 +226,37 @@ fn on_tray_menu(app: &AppHandle, id: &str) {
             if let Some(path) = other.strip_prefix("open-task|") {
                 open_path(app, path);
             } else if let Some(task) = other.strip_prefix("done-task|") {
-                if let Some(svc) = service(app) {
-                    let task = task.to_string();
-                    tauri::async_runtime::spawn(async move {
-                        // Même règle que l'interface (validation par personne comprise).
-                        svc.put_json(&format!("/api/boards/tasks/{task}/toggle_validation"), serde_json::json!({})).await;
-                        svc.refresh_soon();
-                    });
-                }
+                mark_task_done(app, task.to_string());
             }
         }
     }
 }
 
+/// Termine une tâche (même règle que l'interface : validation par personne comprise).
+pub fn mark_task_done(app: &AppHandle, task: String) {
+    if let Some(svc) = service(app) {
+        tauri::async_runtime::spawn(async move {
+            svc.put_json(&format!("/api/boards/tasks/{task}/toggle_validation"), serde_json::json!({})).await;
+            svc.refresh_soon();
+        });
+    }
+}
+
 /// Petite fenêtre d'ajout rapide de tâche.
-fn open_quick_add(app: &AppHandle) {
+fn open_quick_add(app: &AppHandle, title: Option<&str>) {
     if let Some(w) = app.get_webview_window("quick-add") {
+        if let Some(t) = title {
+            let _ = w.eval(format!("document.getElementById('title').value = {}", serde_json::Value::String(t.into())));
+        }
         let _ = w.show();
         let _ = w.set_focus();
         return;
     }
     let proxy = app.state::<proxy::Shared>();
-    let Ok(url) = Url::parse(&format!("{}/__looty/quick-add", proxy.local_origin())) else { return };
+    let Ok(mut url) = Url::parse(&format!("{}/__looty/quick-add", proxy.local_origin())) else { return };
+    if let Some(t) = title {
+        url.query_pairs_mut().append_pair("title", t);
+    }
     let nav = app.clone();
     let _ = WebviewWindowBuilder::new(app, "quick-add", WebviewUrl::External(url))
         .title(tr("Nouvelle tâche — Looty", "New task — Looty"))
@@ -431,7 +450,7 @@ fn main() {
     // Lancement à l'ouverture de session (--hidden) ou ajout rapide : sans la fenêtre.
     let args: Vec<String> = std::env::args().collect();
     let first_action = action_from(&args);
-    let start_hidden = args.iter().any(|a| a == "--hidden") || matches!(first_action, Action::QuickAdd);
+    let start_hidden = args.iter().any(|a| a == "--hidden") || matches!(first_action, Action::QuickAdd | Action::NewTask(_));
     // Clé de chiffrement de la session (trousseau système), avant de lire la session.
     if config::init_session_key() {
         tracing::info!("session encrypted with a key from the system keyring");
@@ -445,6 +464,7 @@ fn main() {
         .setup(move |app| {
             let cfg = config::Config::load();
             let notifications = cfg.notifications;
+            let shortcuts_on = cfg.global_shortcuts;
             let jar = config::load_jar();
             config::migrate_plain_session(&jar);
             let proxy = tauri::async_runtime::block_on(proxy::start(cfg, jar))?;
@@ -454,6 +474,9 @@ fn main() {
             let boot: Url = proxy.boot_url().parse()?;
             let handle = app.handle().clone();
             app.manage(Native { tray: Mutex::new(None), last_state: Mutex::new(TrayState::default()), service: Mutex::new(None) });
+            if shortcuts_on {
+                shortcuts::start(handle.clone());
+            }
 
             let (open_handle, done_handle, qa_handle, moodle_handle) = (handle.clone(), handle.clone(), handle.clone(), handle.clone());
             let _ = proxy.hooks.set(proxy::Hooks {
@@ -492,7 +515,7 @@ fn main() {
                             (s, r, true) => format!("{s} modification(s) synchronisée(s), {r} refusée(s) par le serveur."),
                             (s, r, false) => format!("{s} change(s) synced, {r} refused by the server."),
                         };
-                        tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into() });
+                        tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into(), done_task: None });
                     }
                 }),
                 open_moodle: Box::new(move |url, login| {
@@ -513,7 +536,7 @@ fn main() {
                                 let _ = w.eval("window.dispatchEvent(new CustomEvent('looty:refresh'))");
                             }
                             let body = format!("{} {title}", tr("Tâche créée :", "Task created:"));
-                            tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into() });
+                            tray::notify(&h, service::OsNotification { title: "Looty".into(), body, path: "/".into(), done_task: None });
                         }
                     });
                 }),
@@ -576,8 +599,10 @@ fn main() {
                 notifications,
             );
             *app.state::<Native>().service.lock().unwrap() = Some(svc);
-            if matches!(first_action, Action::QuickAdd) {
-                open_quick_add(&handle);
+            match &first_action {
+                Action::QuickAdd => open_quick_add(&handle, None),
+                Action::NewTask(title) => open_quick_add(&handle, title.as_deref()),
+                _ => {}
             }
             // Tests automatisés (débogage uniquement) : connexion Moodle lancée au démarrage.
             if cfg!(debug_assertions) {

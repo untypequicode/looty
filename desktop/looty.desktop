@@ -13,9 +13,19 @@ Keywords=tasks;wiki;kanban;notes;tâches;
 MimeType=x-scheme-handler/looty;
 StartupWMClass=looty
 StartupNotify=true
-Actions=quick-add;
+Actions=quick-add;inbox;my-tasks;
 
 [Desktop Action quick-add]
 Name=New task
 Name[fr]=Nouvelle tâche
 Exec=looty --quick-add
+
+[Desktop Action inbox]
+Name=Inbox
+Name[fr]=Boîte de réception
+Exec=looty --inbox
+
+[Desktop Action my-tasks]
+Name=My tasks
+Name[fr]=Mes tâches
+Exec=looty --my-tasks

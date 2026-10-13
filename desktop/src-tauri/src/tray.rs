@@ -122,14 +122,23 @@ pub fn notify(app: &AppHandle, n: OsNotification) {
     std::thread::spawn(move || {
         let mut builder = notify_rust::Notification::new();
         builder.appname("Looty").summary(&n.title).body(&n.body).icon("looty").action("default", tr("Ouvrir", "Open"));
+        if n.done_task.is_some() {
+            builder.action("done", tr("Terminer", "Mark as done"));
+        }
         builder.hint(notify_rust::Hint::DesktopEntry("looty".into()));
         match builder.show() {
-            Ok(handle) => handle.wait_for_action(|action| {
-                if action == "default" {
+            Ok(handle) => handle.wait_for_action(|action| match action {
+                "default" => {
                     let path = n.path.clone();
                     let a = app.clone();
                     let _ = app.run_on_main_thread(move || crate::open_path(&a, &path));
                 }
+                "done" => {
+                    if let Some(task) = n.done_task.clone() {
+                        crate::mark_task_done(&app, task);
+                    }
+                }
+                _ => {}
             }),
             Err(e) => tracing::warn!("notification: {e}"),
         }

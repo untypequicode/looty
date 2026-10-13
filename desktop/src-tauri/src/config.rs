@@ -26,6 +26,9 @@ pub struct Config {
     /// Demander où enregistrer chaque téléchargement (sinon : dossier Téléchargements).
     #[serde(default = "yes")]
     pub ask_download_location: bool,
+    /// Raccourcis clavier globaux (portail XDG), s'ils sont disponibles sur le bureau.
+    #[serde(default = "yes")]
+    pub global_shortcuts: bool,
     /// Dernière version de l'application déjà annoncée (une seule notification par version).
     #[serde(default)]
     pub notified_update: Option<String>,
@@ -37,7 +40,7 @@ fn yes() -> bool {
 
 impl Default for Config {
     fn default() -> Self {
-        Config { server: None, close_to_tray: true, notifications: true, ask_download_location: true, port: None, notified_update: None }
+        Config { server: None, close_to_tray: true, notifications: true, ask_download_location: true, global_shortcuts: true, port: None, notified_update: None }
     }
 }
 

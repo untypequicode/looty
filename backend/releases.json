@@ -2,6 +2,27 @@
   "repository": "https://github.com/untypequicode/looty",
   "releases": [
     {
+      "platform": "desktop",
+      "version": "0.5.0",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Global shortcuts and faster actions",
+        "fr": "Raccourcis globaux et actions plus rapides"
+      },
+      "notes": {
+        "en": [
+          "**Global shortcuts** (GNOME, KDE Plasma, Hyprland…): Looty asks your desktop to register **Ctrl+Alt+N** (new task) and **Ctrl+Alt+L** (open Looty), without any manual setup. They show up in your desktop's keyboard settings, where you can change them. Without that feature on your desktop, bind `looty --quick-add` yourself as before; set `global_shortcuts = false` in `~/.config/looty/config.toml` to turn this off.",
+          "**“Mark as done” on notifications**: due-date and assignment notifications now have a button to complete the task without opening Looty.",
+          "**Command line and launcher menu**: `looty --new-task \"Buy milk\"` opens the quick-add window with the title filled in, `looty --inbox` and `looty --my-tasks` jump to those pages; the launcher's right-click menu also gets *Inbox* and *My tasks*."
+        ],
+        "fr": [
+          "**Raccourcis globaux** (GNOME, KDE Plasma, Hyprland…) : Looty demande à votre bureau d’enregistrer **Ctrl+Alt+N** (nouvelle tâche) et **Ctrl+Alt+L** (ouvrir Looty), sans réglage manuel. Ils apparaissent dans les réglages clavier de votre bureau, où vous pouvez les changer. Si votre bureau ne le permet pas, liez `looty --quick-add` vous-même comme avant ; mettez `global_shortcuts = false` dans `~/.config/looty/config.toml` pour désactiver.",
+          "**« Terminer » dans les notifications** : les notifications d’échéance et d’assignation ont maintenant un bouton pour terminer la tâche sans ouvrir Looty.",
+          "**Ligne de commande et menu du lanceur** : `looty --new-task \"Acheter du lait\"` ouvre l’ajout rapide avec le titre rempli, `looty --inbox` et `looty --my-tasks` ouvrent ces pages ; le menu du clic droit sur le lanceur propose aussi *Boîte de réception* et *Mes tâches*."
+        ]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.16.2",
       "date": "2026-10-13",
