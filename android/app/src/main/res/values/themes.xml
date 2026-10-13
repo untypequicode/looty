@@ -8,4 +8,10 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+    <!-- Écran de partage : translucide, la feuille se pose sur l’application d’origine. -->
+    <style name="Theme.Looty.Share" parent="Theme.Looty">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

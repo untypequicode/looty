@@ -62,6 +62,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             seg.getOrNull(2) == "task" && seg.size > 3 -> "task/${seg[3]}"
             seg.getOrNull(2) == "board" && uri.getQueryParameter("task") != null -> "task/${uri.getQueryParameter("task")}"
             seg.getOrNull(2) == "board" && seg.size > 3 -> "board/${seg[3]}"
+            seg.getOrNull(2) == "doc" && seg.size > 3 -> "doc/${seg[3]}"
             seg.getOrNull(2) == "inbox" -> "inbox"
             seg.getOrNull(2) == "calendar" -> "calendar"
             seg.getOrNull(2) == "mail" && seg.size == 3 -> "mail"
@@ -124,6 +125,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("inbox") { InboxScreen(state, padding) }
             composable("more") { MoreScreen(state, padding, onSignedOut) }
             composable("board/{id}") { e -> BoardScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
+            composable("doc/{id}") { e -> ReaderScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("notifications") { NotificationsScreen(state, onBack = { nav.popBackStack() }) }
             composable("calendar") { CalendarScreen(state, onBack = { nav.popBackStack() }, onEdit = { id, date -> nav.navigate("event?id=${id.orEmpty()}&date=$date") }) }
             composable("event?id={id}&date={date}") { e ->

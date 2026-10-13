@@ -573,6 +573,44 @@
     },
     {
       "platform": "android",
+      "version": "0.7.0",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Home-screen widget and sharing",
+        "fr": "Widget d’accueil et partage"
+      },
+      "notes": {
+        "en": [
+          "**Share to Looty**: from any app, use “Share” → Looty to turn a link or a text into a **task** (in the board you choose, the text goes in the description) or a **document**.",
+          "**Home-screen widget “Looty · To do”**: your tasks to do at a glance, overdue ones in red, as many as the widget has room for (resize it). Tap a task to open it, tap the title to open the app. It refreshes about every 30 minutes and whenever you open the app, and keeps showing the last list when you are offline."
+        ],
+        "fr": [
+          "**Partager vers Looty** : depuis n’importe quelle application, « Partager » → Looty transforme un lien ou un texte en **tâche** (dans le tableau de votre choix, le texte va dans la description) ou en **document**.",
+          "**Widget d’accueil « Looty · À faire »** : vos tâches à faire d’un coup d’œil, celles en retard en rouge, autant que le widget peut en contenir (redimensionnez-le). Touchez une tâche pour l’ouvrir, le titre pour ouvrir l’application. Il se met à jour environ toutes les 30 minutes et à chaque ouverture de l’application, et garde la dernière liste hors ligne."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.6.0",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Native document reading",
+        "fr": "Lecture native des documents"
+      },
+      "notes": {
+        "en": [
+          "**Documents open instantly in a native reading view**: headings, lists, task lists, tables, code, callouts, toggles, images and links, with text you can select. Links to other pages open in the same view.",
+          "Formulas are shown as LaTeX, and diagrams, drawings, PDFs and embeds show a card that opens the editor. The pencil at the top opens the full editor to modify the document."
+        ],
+        "fr": [
+          "**Les documents s’ouvrent instantanément dans une vue de lecture native** : titres, listes, listes de tâches, tableaux, code, encadrés, blocs dépliables, images et liens, avec du texte sélectionnable. Les liens vers d’autres pages s’ouvrent dans la même vue.",
+          "Les formules sont affichées en LaTeX, et les schémas, dessins, PDF et contenus intégrés montrent une carte qui ouvre l’éditeur. Le crayon en haut ouvre l’éditeur complet pour modifier le document."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.5.2",
       "date": "2026-10-13",
       "title": {

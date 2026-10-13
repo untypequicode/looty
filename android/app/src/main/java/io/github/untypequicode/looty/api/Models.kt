@@ -43,6 +43,8 @@ import kotlinx.serialization.json.JsonObject
     val updated_at: String? = null,
     val last_viewed_at: String? = null,
     val can_edit: Boolean? = null,
+    /** HTML du document (lecture seule dans l’application). */
+    val content: String? = null,
 )
 
 @Serializable data class Notification(

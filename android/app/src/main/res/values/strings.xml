@@ -207,4 +207,26 @@
     <string name="push_allow">Allow notifications</string>
     <string name="push_events">Choose what notifies you</string>
     <string name="push_events_hint">Mentions, assignments, comments, reminders… in the workspace settings</string>
+    <string name="reader_failed">Couldn’t load this document</string>
+    <string name="reader_empty">Nothing to show here yet.</string>
+    <string name="reader_diagram">Diagram</string>
+    <string name="reader_drawing">Drawing</string>
+    <string name="reader_pdf">PDF</string>
+    <string name="reader_embed">Embedded content</string>
+    <string name="reader_in_editor">Tap to see it in the editor</string>
+    <string name="share_label">Looty</string>
+    <string name="share_title">Add to Looty</string>
+    <string name="share_as_task">Task</string>
+    <string name="share_as_doc">Document</string>
+    <string name="share_saved">Added to Looty</string>
+    <string name="share_failed">Couldn’t save it. Try again.</string>
+    <string name="share_nothing">Nothing to add</string>
+    <string name="share_sign_in">Sign in to Looty to add this.</string>
+    <string name="share_no_rights">Your role doesn’t allow creating tasks or documents here.</string>
+    <string name="doc_title">Document title</string>
+    <string name="widget_title">Looty · To do</string>
+    <string name="widget_description">Your tasks to do, one tap from the home screen.</string>
+    <string name="widget_empty">Nothing to do. Enjoy!</string>
+    <string name="widget_sign_in">Open Looty to sign in.</string>
+    <string name="widget_offline">Can’t reach the server. Tap to open Looty.</string>
 </resources>
