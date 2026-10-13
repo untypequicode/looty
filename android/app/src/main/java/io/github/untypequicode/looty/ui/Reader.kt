@@ -327,7 +327,9 @@ private fun RemoteImage(state: AppState, img: Img) {
             else -> return@produceState
         }
         value = runCatching {
-            val bytes = state.api.bytes(path)
+            // Images d'un document : gardées sur l'appareil (leur nom ne change jamais) pour la lecture hors ligne.
+            val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { state.cache.getBytes("img-${path}") }
+                ?: state.api.bytes(path).also { b -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { state.cache.putBytes("img-${path}", b) } }
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             var sample = 1

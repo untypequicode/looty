@@ -642,6 +642,24 @@
     },
     {
       "platform": "android",
+      "version": "0.9.0",
+      "date": "2026-10-13",
+      "title": { "en": "Works offline", "fr": "Fonctionne hors ligne" },
+      "notes": {
+        "en": [
+          "**The app now works without a connection**: it opens on the data saved on your phone (tasks, boards, documents with their images, inbox, calendar, mail lists) and shows an *Offline — showing saved data* banner instead of an error screen.",
+          "**Your changes are kept and sent later**: check off or edit tasks, move or delete them, create tasks, comment, mark notifications and emails as read, create or change events. They show up immediately, wait in a queue (the banner counts them, and they survive closing the app) and are sent in order as soon as the server answers again. If the server refuses one (for example, a task deleted meanwhile), you are told which.",
+          "Not available offline: opening documents you never viewed, the web editor, attachments, and Moodle. Signing out clears the saved data."
+        ],
+        "fr": [
+          "**L’application fonctionne maintenant sans connexion** : elle s’ouvre sur les données enregistrées sur votre téléphone (tâches, tableaux, documents avec leurs images, boîte de réception, calendrier, listes de mails) et affiche un bandeau *Hors ligne — données enregistrées* au lieu d’un écran d’erreur.",
+          "**Vos modifications sont gardées et envoyées plus tard** : cochez ou modifiez des tâches, déplacez-les ou supprimez-les, créez des tâches, commentez, marquez notifications et e-mails comme lus, créez ou modifiez des événements. Elles apparaissent tout de suite, attendent dans une file (le bandeau les compte, et elles survivent à la fermeture de l’application) et partent dans l’ordre dès que le serveur répond de nouveau. Si le serveur en refuse une (une tâche supprimée entre-temps, par exemple), vous savez laquelle.",
+          "Pas disponible hors ligne : ouvrir un document jamais consulté, l’éditeur web, les pièces jointes et Moodle. Se déconnecter efface les données enregistrées."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.8.0",
       "date": "2026-10-13",
       "title": { "en": "Share photos and files to Looty", "fr": "Partager photos et fichiers vers Looty" },

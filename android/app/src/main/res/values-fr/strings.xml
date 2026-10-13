@@ -229,4 +229,11 @@
     <string name="widget_sign_in">Ouvrez Looty pour vous connecter.</string>
     <string name="widget_offline">Serveur injoignable. Touchez pour ouvrir Looty.</string>
     <string name="share_files_lost">Ajouté, mais %d fichier(s) n’ont pas pu être joints (trop volumineux ou illisibles).</string>
+    <string name="offline_banner">Hors ligne — données enregistrées</string>
+    <string name="syncing_banner">Envoi de vos modifications…</string>
+    <string name="sync_refused">Le serveur a refusé :</string>
+    <plurals name="pending_changes">
+        <item quantity="one">%d modification en attente d’envoi</item>
+        <item quantity="other">%d modifications en attente d’envoi</item>
+    </plurals>
 </resources>

@@ -39,7 +39,9 @@ notification opens the matching native screen.
 
 **Files (0.8.0)**: sharing images, PDFs or other files creates a task with the files attached (10 files, 25 MB each).
 
-Next phase: offline cache.
+**Offline (0.9.0)**: every list is also saved on the device (`files/offline/`, per server, 80 MB cap), the app opens offline on the saved session, and writes go through a persisted outbox (`files/outbox.json`) replayed in order when the server answers; task/page creation uses client-chosen ids so replays are idempotent. Signing out clears both.
+
+Next: nothing planned.
 
 ## Install
 
