@@ -19,5 +19,7 @@ gpg --export > "$here/packaging/looty-archive-keyring.gpg"
 echo
 echo "Clé publique écrite : desktop/packaging/looty-archive-keyring.gpg  (à commiter)"
 echo
-echo "Secret GitHub APT_GPG_PRIVATE_KEY (copiez tout, de BEGIN à END) :"
-gpg --batch --pinentry-mode loopback --passphrase "$pass" --armor --export-secret-keys
+out="${LOOTY_APT_KEY_OUT:-$HOME/looty-apt-private-key.asc}"
+gpg --batch --pinentry-mode loopback --passphrase "$pass" --armor --export-secret-keys > "$out"; chmod 600 "$out"
+echo "Clé PRIVÉE écrite dans $out (hors du dépôt) : son contenu entier, de BEGIN à END, va dans le secret GitHub APT_GPG_PRIVATE_KEY."
+echo "Avec la CLI GitHub : gh secret set APT_GPG_PRIVATE_KEY < $out ; puis supprimez le fichier."
