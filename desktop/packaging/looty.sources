@@ -1,7 +1,7 @@
 # Dépôt apt de Looty : les mises à jour arrivent avec « sudo apt update && sudo apt upgrade ».
 # Supprimez ce fichier pour ne plus recevoir les mises à jour par apt.
 Types: deb
-URIs: https://untypequicode.github.io/looty/apt
+URIs: @SITE@/apt
 Suites: stable
 Components: main
 Architectures: amd64

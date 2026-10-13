@@ -1,6 +1,17 @@
 {
   "repository": "https://github.com/untypequicode/looty",
+  "site": "",
   "releases": [
+    {
+      "platform": "web",
+      "version": "0.16.7",
+      "date": "2026-10-13",
+      "title": { "en": "A download site for the apps", "fr": "Un site de téléchargement pour les applications" },
+      "notes": {
+        "en": ["Looty now has an optional **download site** (`site/`): a presentation page, the latest Android, Linux and Windows apps, update information and an apt repository, served by a tiny container. Your server tells the apps where it is (`LOOTY_SITE_URL` or `site` in `releases.json`), and the “new version” links point to it instead of GitHub, so the code repository can stay private."],
+        "fr": ["Looty a maintenant un **site de téléchargement** facultatif (`site/`) : une page de présentation, les dernières applications Android, Linux et Windows, les informations de mise à jour et un dépôt apt, servis par un tout petit conteneur. Votre serveur indique aux applications où il se trouve (`LOOTY_SITE_URL` ou `site` dans `releases.json`), et les liens « nouvelle version » y mènent au lieu de GitHub : le dépôt du code peut rester privé."]
+      }
+    },
     {
       "platform": "desktop",
       "version": "0.7.0",
@@ -684,11 +695,11 @@
       "notes": {
         "en": [
           "**Updates without an app store**: *More → App updates* shows the version you have and, when a new one is published, its notes and a **Download and install** button. Looty also checks once a day and sends a notification when a new version is out (you can turn this off).",
-          "The update is downloaded from the project’s GitHub release and installed by Android, which only accepts it if it is signed with the same key as the installed app. The first time, Android asks you to allow Looty to install apps."
+          "The update is downloaded from the project’s download site, checked against its SHA-256 sum, and installed by Android, which only accepts it if it is signed with the same key as the installed app. The first time, Android asks you to allow Looty to install apps."
         ],
         "fr": [
           "**Des mises à jour sans boutique d’applications** : *Plus → Mises à jour* montre la version installée et, quand une nouvelle est publiée, ses notes et un bouton **Télécharger et installer**. Looty vérifie aussi une fois par jour et envoie une notification quand une nouvelle version est disponible (désactivable).",
-          "La mise à jour est téléchargée depuis la publication GitHub du projet et installée par Android, qui ne l’accepte que si elle est signée avec la même clé que l’application installée. La première fois, Android vous demande d’autoriser Looty à installer des applications."
+          "La mise à jour est téléchargée depuis le site de téléchargement du projet, vérifiée par sa somme SHA-256, et installée par Android, qui ne l’accepte que si elle est signée avec la même clé que l’application installée. La première fois, Android vous demande d’autoriser Looty à installer des applications."
         ]
       }
     },

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b8aff"/><stop offset="1" stop-color="#5440c8"/></linearGradient>
+    <linearGradient id="st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e3e1ff"/></linearGradient>
+    <clipPath id="half"><rect x="256" y="0" width="256" height="512"/></clipPath>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bg)"/>
+  <path d="M256.0 130.0L292.4 217.8L387.2 225.4L315.0 287.2L337.1 379.6L256.0 330.0L174.9 379.6L197.0 287.2L124.8 225.4L219.6 217.8Z" fill="url(#st)" stroke="url(#st)" stroke-width="44" stroke-linejoin="round"/>
+  <g opacity=".16" clip-path="url(#half)"><path d="M256.0 130.0L292.4 217.8L387.2 225.4L315.0 287.2L337.1 379.6L256.0 330.0L174.9 379.6L197.0 287.2L124.8 225.4L219.6 217.8Z" fill="#5440c8" stroke="#5440c8" stroke-width="44" stroke-linejoin="round"/></g>
+  <path d="M392 104l8 22 22 8-22 8-8 22-8-22-22-8 22-8z" fill="#fff"/>
+  <path d="M118 372l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="#fff" fill-opacity=".75"/>
+</svg>

@@ -1,0 +1,28 @@
+[package]
+name = "looty-site"
+version = "0.1.0"
+edition = "2021"
+description = "Serveur du site de Looty : pages, téléchargements, métadonnées de mise à jour et dépôt apt"
+license = "GPL-3.0-only"
+
+[dependencies]
+axum = { version = "0.7", default-features = false, features = ["http1", "tokio", "query", "json"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "fs", "io-util", "macros", "signal"] }
+tokio-util = { version = "0.7", default-features = false, features = ["io"] }
+futures-util = { version = "0.3", default-features = false }
+tower = { version = "0.5", default-features = false }
+tower-http = { version = "0.6", default-features = false, features = ["fs", "set-header"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[profile.release]
+lto = "thin"
+strip = true
+opt-level = "s"
+panic = "abort"
+codegen-units = 1

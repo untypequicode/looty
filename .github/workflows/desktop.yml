@@ -78,6 +78,7 @@ jobs:
           restore-keys: deb-
       - name: Build (Debian 12 container)
         env:
+          LOOTY_SITE_URL: ${{ vars.SITE_URL }}
           LOOTY_DEB_SKIP_IMAGE: '1'
           LOOTY_DEB_CACHE: ${{ runner.temp }}/looty-deb
         run: |
@@ -101,27 +102,22 @@ jobs:
         with:
           files: desktop/dist/*.deb
           generate_release_notes: true
-      # Dépôt apt signé (GitHub Pages, branche gh-pages) : « apt upgrade » met Looty à jour.
-      - name: Publish apt repository
-        if: startsWith(github.ref, 'refs/tags/desktop-v') && env.APT_GPG_PRIVATE_KEY != ''
+      # Site de téléchargement (variable SITE_URL, secret SITE_UPLOAD_TOKEN ; sans eux, ignoré) : le .deb, puis le
+      # dépôt apt signé (`apt upgrade` met Looty à jour) si la clé de signature est configurée.
+      - name: Publish to the download site
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
         env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
-          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
-          pages="$RUNNER_TEMP/pages"
-          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if git ls-remote --exit-code --heads "$url" gh-pages >/dev/null 2>&1; then
-            git clone -q --depth 1 --branch gh-pages "$url" "$pages"
-          else
-            mkdir "$pages" && git -C "$pages" init -q -b gh-pages && git -C "$pages" remote add origin "$url"
+          deb=$(ls desktop/dist/*.deb | head -1)
+          ./scripts/site-publish.sh linux "$deb"
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
+            echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+            ./desktop/scripts/apt-publish.sh "$deb"
           fi
-          ./desktop/scripts/apt-repo.sh "$pages/apt" desktop/dist/*.deb
-          touch "$pages/.nojekyll"
-          git -C "$pages" add -A
-          git -C "$pages" -c user.name=looty-ci -c user.email=ci@users.noreply.github.com commit -q -m "apt: $GITHUB_REF_NAME"
-          git -C "$pages" push -q origin gh-pages
 
   windows:
     name: Windows installer
@@ -158,6 +154,13 @@ jobs:
         with:
           name: looty-windows
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+      - name: Publish to the download site
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: bash
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
+        run: ./scripts/site-publish.sh windows "$(ls desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)"
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/desktop-v')
         uses: softprops/action-gh-release@v3

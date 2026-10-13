@@ -35,6 +35,9 @@ pub struct Release {
 #[derive(Deserialize)]
 struct File {
     repository: String,
+    /// Site qui distribue les applications et leurs mises à jour (https://…) ; vide : pas de site.
+    #[serde(default)]
+    site: String,
     releases: Vec<Release>,
 }
 
@@ -45,6 +48,13 @@ fn file() -> &'static File {
         f.releases.sort_by(|a, b| b.date.cmp(&a.date).then_with(|| semver(&b.version).cmp(&semver(&a.version))));
         f
     })
+}
+
+/// Adresse du site de téléchargement : `LOOTY_SITE_URL` (serveur d'un autre projet / fork), sinon celle de `releases.json`.
+pub fn site() -> Option<String> {
+    let s = std::env::var("LOOTY_SITE_URL").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| file().site.clone());
+    let s = s.trim().trim_end_matches('/').to_string();
+    (s.starts_with("https://") || s.starts_with("http://")).then_some(s)
 }
 
 /// « 1.2.3 » → (1, 2, 3) pour comparer les versions.
@@ -68,7 +78,18 @@ pub fn user_routes() -> Router<AppState> {
 async fn list(State(state): State<AppState>, user: Option<AuthUser>) -> ApiResult<Json<serde_json::Value>> {
     let f = file();
     let server = env!("CARGO_PKG_VERSION");
-    let download = |platform: &str| latest(platform).map(|r| serde_json::json!({ "version": r.version, "date": r.date, "url": format!("{}/releases/tag/{platform}-v{}", f.repository, r.version) }));
+    let site = site();
+    // Avec un site : page de téléchargement du site (le dépôt peut être privé) ; sinon page de publication GitHub.
+    let download = |platform: &str| {
+        latest(platform).map(|r| {
+            let url = match (&site, platform) {
+                (Some(s), "android") => format!("{s}/download/android"),
+                (Some(s), "desktop") => format!("{s}/#download"),
+                _ => format!("{}/releases/tag/{platform}-v{}", f.repository, r.version),
+            };
+            serde_json::json!({ "version": r.version, "date": r.date, "url": url })
+        })
+    };
     // « Nouveautés » : à chaque nouvelle version web, sauf pour un compte créé après celle-ci.
     let (last_seen, show) = match user {
         Some(u) => {
@@ -91,6 +112,7 @@ async fn list(State(state): State<AppState>, user: Option<AuthUser>) -> ApiResul
     Ok(Json(serde_json::json!({
         "server_version": server,
         "repository": f.repository,
+        "site": site,
         "latest": { "web": download("web"), "desktop": download("desktop"), "android": download("android") },
         "releases": f.releases,
         "last_seen": last_seen,

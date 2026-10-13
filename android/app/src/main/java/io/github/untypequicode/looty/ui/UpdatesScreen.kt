@@ -35,6 +35,7 @@ fun UpdatesScreen(state: AppState, onBack: () -> Unit) {
     var progress by remember { mutableStateOf<Float?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var needPermission by remember { mutableStateOf(false) }
+    var noSource by remember { mutableStateOf(false) }
     val lang = Locale.getDefault().language
 
     fun check() {
@@ -42,7 +43,7 @@ fun UpdatesScreen(state: AppState, onBack: () -> Unit) {
         scope.launch {
             runCatching { Updater.check(ctx, state.api, lang) }
                 .onSuccess { update = it; checked = true; prefs.edit().putString("updateAvailable", it?.version).putLong("updateChecked", System.currentTimeMillis()).apply() }
-                .onFailure { error = it.message ?: "error" }
+                .onFailure { noSource = it is io.github.untypequicode.looty.update.NoUpdateSource; if (!noSource) error = it.message ?: "error" }
             busy = false
         }
     }
@@ -85,6 +86,7 @@ fun UpdatesScreen(state: AppState, onBack: () -> Unit) {
                     }
                     Text(stringResource(R.string.update_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                noSource -> Text(stringResource(R.string.update_no_source), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 checked -> Text(stringResource(R.string.update_up_to_date), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             error?.let { Text(stringResource(R.string.update_error, it), color = MaterialTheme.colorScheme.error) }
