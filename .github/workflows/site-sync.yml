@@ -1,0 +1,49 @@
+# Remplit le site de téléchargement avec les dernières applications déjà publiées sur GitHub
+# (utile après la mise en ligne du site, sans attendre une nouvelle version).
+# Variable SITE_URL, secrets SITE_UPLOAD_TOKEN (et APT_GPG_PRIVATE_KEY pour le dépôt apt) : voir site/README.md.
+name: Site sync
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the latest apps from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p apps
+          latest() { gh release list --limit 100 --json tagName --jq "[.[].tagName | select(startswith(\"$1-v\"))] | first // empty"; }
+          for p in android desktop; do
+            tag=$(latest "$p")
+            [ -n "$tag" ] || { echo "::warning::no $p release"; continue; }
+            gh release download "$tag" --pattern '*.apk' --pattern '*.deb' --pattern '*-setup.exe' --dir apps || true
+          done
+          ls -la apps
+      - name: Publish
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          [ -n "$SITE_URL" ] && [ -n "$SITE_UPLOAD_TOKEN" ] || { echo "::error::SITE_URL and SITE_UPLOAD_TOKEN are required"; exit 1; }
+          apk=$(ls apps/looty-[0-9]*.apk 2> /dev/null | grep -v -- '-debug' | sort -V | tail -1 || true)
+          [ -z "$apk" ] || ./scripts/site-publish.sh android "$apk"
+          deb=$(ls apps/*.deb 2> /dev/null | sort -V | tail -1 || true)
+          if [ -n "$deb" ]; then
+            ./scripts/site-publish.sh linux "$deb"
+            if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+              sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
+              echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+              ./desktop/scripts/apt-publish.sh "$deb"
+            fi
+          fi
+          exe=$(ls apps/*-setup.exe 2> /dev/null | sort -V | tail -1 || true)
+          [ -z "$exe" ] || ./scripts/site-publish.sh windows "$exe"

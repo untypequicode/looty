@@ -1,0 +1,11 @@
+---
+// Capture de l'application (clair ou sombre selon le thème de la page), dans une fenêtre de navigateur.
+const { name, lang, alt, url = 'looty.example.org', eager = false } = Astro.props
+const src = (theme: string) => `/shots/${name}-${theme}-${lang}.webp`
+const load = eager ? 'eager' : 'lazy'
+---
+<div class="frame">
+  <div class="bar"><i></i><i></i><i></i><span>{url}</span></div>
+  <img class="only-dark" src={src('dark')} alt={alt} width="1800" height="1108" loading={load} decoding="async" fetchpriority={eager ? 'high' : 'auto'} />
+  <img class="only-light" src={src('light')} alt={alt} width="1800" height="1108" loading={load} decoding="async" />
+</div>

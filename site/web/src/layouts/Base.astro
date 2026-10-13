@@ -1,8 +1,12 @@
 ---
-import { t, type Lang } from '../i18n'
+import '@fontsource-variable/inter'
+import '../styles/global.css'
+import Icon from '../components/Icon.astro'
+import { t, REPO, type Lang } from '../i18n'
 interface Props { lang: Lang; title?: string; description?: string }
 const { lang, title, description } = Astro.props
 const l = t[lang]
+const base = l.homeHref
 ---
 <!doctype html>
 <html lang={lang}>
@@ -11,60 +15,54 @@ const l = t[lang]
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title ?? l.title}</title>
     <meta name="description" content={description ?? l.description} />
-    <meta name="color-scheme" content="light dark" />
+    <meta property="og:title" content={title ?? l.title} />
+    <meta property="og:description" content={description ?? l.description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content={`/shots/board-dark-${lang}.webp`} />
+    <meta name="theme-color" content="#0b0b0d" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate" hreflang="en" href="/" />
     <link rel="alternate" hreflang="fr" href="/fr/" />
+    <script is:inline>
+      // Thème : celui choisi ici, sinon celui du système (sombre par défaut, comme l'application). Avant l'affichage : pas de flash.
+      try { var s = localStorage.getItem('looty-site-theme'); document.documentElement.dataset.theme = s || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch (e) {}
+    </script>
   </head>
   <body>
     <header class="top">
-      <a class="brand" href={l.homeHref}><img src="/favicon.svg" alt="" width="28" height="28" /> Looty</a>
-      <nav>
-        <a href={`${l.homeHref}#features`}>{l.nav.features}</a>
-        <a href={`${l.homeHref}#apps`}>{l.nav.apps}</a>
-        <a href={`${l.homeHref}#host`}>{l.nav.host}</a>
-        <a class="pill" href={`${l.homeHref}#download`}>{l.nav.download}</a>
-        <a class="lang" href={l.other.href} hreflang={l.other.code}>{l.other.label}</a>
-      </nav>
+      <div class="wrap">
+        <a class="brand" href={base}><img src="/favicon.svg" alt="" width="28" height="28" />Looty</a>
+        <nav class="nav">
+          <a class="link" href={`${base}#features`}>{l.nav.features}</a>
+          <a class="link" href={`${base}#apps`}>{l.nav.apps}</a>
+          <a class="link" href={`${base}#host`}>{l.nav.host}</a>
+        </nav>
+        <div class="tools">
+          <a class="icon-btn lang" href={l.other.href} hreflang={l.other.code} aria-label={l.other.code}>{l.other.label}</a>
+          <button class="icon-btn" id="theme" type="button" aria-label={l.theme}>
+            <span class="only-dark"><Icon name="sun" size={17} /></span><span class="only-light"><Icon name="moon" size={17} /></span>
+          </button>
+          <a class="icon-btn" href={REPO} aria-label="GitHub"><Icon name="github" size={17} /></a>
+          <a class="btn primary sm" href={`${base}#download`}>{l.nav.download}</a>
+        </div>
+      </div>
     </header>
     <slot />
-    <footer><p>{l.footer}</p></footer>
+    <footer>
+      <div class="wrap">
+        <div><a class="brand" href={base}><img src="/favicon.svg" alt="" width="24" height="24" />Looty</a><p style="margin:12px 0 0;max-width:300px">{l.footer.tag}</p></div>
+        <div class="cols">
+          <div><h4>{l.footer.product}</h4><a href={`${base}#features`}>{l.nav.features}</a><a href={`${base}#apps`}>{l.nav.apps}</a><a href={`${base}#download`}>{l.nav.download}</a></div>
+          <div><h4>{l.footer.project}</h4><a href={REPO}>{l.footer.source}</a><a href={`${REPO}/releases`}>{l.footer.releases}</a><a href={`${REPO}/issues`}>{l.footer.issues}</a><a href={`${REPO}/blob/main/LICENSE`}>{l.footer.license}</a></div>
+        </div>
+      </div>
+    </footer>
+    <script is:inline>
+      document.getElementById('theme').addEventListener('click', function () {
+        var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem('looty-site-theme', next); } catch (e) {}
+      });
+    </script>
   </body>
 </html>
-<style is:global>
-  :root { --bg:#fbfbfd; --fg:#16161d; --muted:#5d5d70; --card:#fff; --line:#e4e4ee; --brand:#5440c8; --brand2:#8b8aff; --code:#f0f0f7; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0e0e13; --fg:#ececf4; --muted:#a3a3b8; --card:#16161d; --line:#2a2a36; --code:#1d1d27; } }
-  * { box-sizing: border-box }
-  [hidden] { display:none !important }
-  html { scroll-behavior: smooth }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif }
-  a { color:var(--brand) } @media (prefers-color-scheme: dark) { a { color:var(--brand2) } }
-  .top { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px max(20px,calc((100vw - 1040px)/2)); position:sticky; top:0; background:color-mix(in srgb,var(--bg) 88%,transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); z-index:5 }
-  .brand { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--fg); text-decoration:none; font-size:18px }
-  nav { display:flex; align-items:center; gap:18px; flex-wrap:wrap; font-size:15px }
-  nav a { color:var(--muted); text-decoration:none } nav a:hover { color:var(--fg) }
-  nav a.pill { color:#fff; background:linear-gradient(135deg,var(--brand2),var(--brand)); padding:6px 14px; border-radius:99px; font-weight:600 }
-  nav a.lang { border:1px solid var(--line); padding:4px 10px; border-radius:8px }
-  main, .wrap { max-width:1040px; margin:0 auto; padding:0 20px }
-  section { padding:56px 0 }
-  h1 { font-size:clamp(32px,6vw,54px); line-height:1.1; margin:0 0 18px; letter-spacing:-.02em }
-  h2 { font-size:clamp(24px,4vw,32px); margin:0 0 22px; letter-spacing:-.01em }
-  h3 { margin:0 0 6px; font-size:18px }
-  .hero { padding:72px 0 40px; text-align:center }
-  .hero p { max-width:720px; margin:0 auto 26px; color:var(--muted); font-size:19px }
-  .btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap }
-  .btn { display:inline-block; padding:12px 22px; border-radius:12px; text-decoration:none; font-weight:600; border:1px solid var(--line); color:var(--fg); background:var(--card) }
-  .btn.primary { color:#fff; border:0; background:linear-gradient(135deg,var(--brand2),var(--brand)) }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px }
-  .card p { margin:0; color:var(--muted); font-size:15px }
-  .dl { display:grid; gap:14px }
-  .dl .card { display:flex; gap:18px; align-items:center; justify-content:space-between; flex-wrap:wrap }
-  .dl .info { flex:1 1 320px } .dl .meta { color:var(--muted); font-size:14px; margin-top:4px }
-  .dl code.sum { display:block; margin-top:6px; font-size:12px; word-break:break-all; color:var(--muted) }
-  pre { background:var(--code); border:1px solid var(--line); border-radius:12px; padding:14px 16px; overflow:auto; font-size:13.5px; line-height:1.5 }
-  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
-  ul.pts { padding-left:20px; color:var(--muted) }
-  .muted { color:var(--muted) }
-  footer { border-top:1px solid var(--line); text-align:center; padding:28px 20px; color:var(--muted); font-size:14px }
-</style>
