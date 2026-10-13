@@ -82,6 +82,12 @@ class WebActivity : ComponentActivity() {
         fileCallback = null
     }
 
+    /** Connexion à Moodle : la clé (moodlemobile://token=…) revient à la page, comme dans l’application de bureau. */
+    private val moodleLogin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val link = if (r.resultCode == RESULT_OK) r.data?.getStringExtra(MoodleLoginActivity.EXTRA_LINK) else null
+        web.evaluateJavascript("window.dispatchEvent(new CustomEvent('looty:moodle-token', { detail: ${JSONObject.quote(link ?: "")} }))", null)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         server = Config.server(this) ?: run {
@@ -364,6 +370,7 @@ class WebActivity : ComponentActivity() {
             "close" -> finish()
             "back" -> if (web.canGoBack()) web.goBack() else finish()
             "theme" -> applyTheme(m.optBoolean("dark"))
+            "moodleLogin" -> moodleLogin.launch(Intent(this, MoodleLoginActivity::class.java).putExtra(MoodleLoginActivity.EXTRA_URL, m.optString("url")))
             "file" -> saveFile(m.optString("name", "download"), m.optString("mime"), m.optString("data"))
         }
     }

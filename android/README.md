@@ -29,7 +29,9 @@ UnifiedPush (ntfy, Gotify… the server sends Web Push to the endpoint your dist
 the app) or, as a fallback, a periodic check every ~15 minutes (WorkManager). Tapping a
 notification opens the matching native screen.
 
-Next phases: Moodle sign-in, permission-aware actions, native reading view, widget and sharing,
+**Moodle (0.5.1)**: the “Sign in” button opens the official portal in a dedicated screen that catches the `moodlemobile://token=…` redirect, so the key never has to be copied by hand.
+
+Next phases: permission-aware actions, native reading view, widget and sharing,
 offline cache.
 
 ## Install
