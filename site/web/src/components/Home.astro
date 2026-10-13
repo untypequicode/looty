@@ -1,81 +1,133 @@
 ---
 import Base from '../layouts/Base.astro'
-import { t, type Lang } from '../i18n'
+import Icon from './Icon.astro'
+import Shot from './Shot.astro'
+import Phone from './Phone.astro'
+import { t, REPO, type Lang } from '../i18n'
 interface Props { lang: Lang }
 const { lang } = Astro.props
 const l = t[lang]
-const strings = JSON.stringify({ unavailable: l.unavailable, version: l.version, released: l.released, size: l.size, checksum: l.checksum, get: l.get, lang })
+const phones = ['home', 'tasks', 'doc', 'board']
+const platforms = [['android', 'phone'], ['linux', 'monitor'], ['windows', 'monitor']] as const
+const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released, checksum: l.dl.checksum, missing: l.dl.missing, lang, repo: REPO })
 ---
 <Base lang={lang}>
   <main>
-    <section class="hero">
-      <h1>{l.hero.h1}</h1>
-      <p>{l.hero.lead}</p>
-      <div class="btns">
-        <a class="btn primary" href="#download">{l.hero.cta}</a>
-        <a class="btn" href="#host">{l.hero.cta2}</a>
+    <section class="hero" style="padding-bottom:0">
+      <div class="wrap">
+        <span class="eyebrow reveal"><b>{l.hero.eyebrow}</b> · {l.hero.eyebrow2}</span>
+        <h1 class="reveal">{l.hero.pre} <em>{l.hero.em}</em>{l.hero.post}</h1>
+        <p class="lead reveal">{l.hero.lead}</p>
+        <div class="cta reveal">
+          <a class="btn primary" href="#download"><Icon name="download" size={17} />{l.hero.cta}</a>
+          <a class="btn" href={REPO}><Icon name="github" size={17} />{l.hero.cta2}</a>
+        </div>
+        <p class="chips">{l.hero.chips.map((c) => <span><Icon name="check" size={15} />{c}</span>)}</p>
+        <div class="hero-shot"><Shot name="board" lang={lang} alt={l.hero.shot} url="looty.example.org/w/acme/board/launch" eager /></div>
       </div>
     </section>
 
     <section id="features">
-      <h2>{l.featuresTitle}</h2>
-      <div class="grid">
-        {l.features.map(([name, text]) => <div class="card"><h3>{name}</h3><p>{text}</p></div>)}
+      <div class="wrap">
+        {l.show.map((s) => (
+          <div class={s.flip ? 'row flip' : 'row'}>
+            <div class="copy">
+              <p class="kicker">{s.kicker}</p>
+              <h2>{s.h}</h2>
+              <p>{s.p}</p>
+              <ul class="ticks">{s.ticks.map((x) => <li>{x}</li>)}</ul>
+            </div>
+            <Shot name={s.shot} lang={lang} alt={s.alt} url={s.url} />
+          </div>
+        ))}
+        <div class="center" style="margin-top:80px">
+          <p class="kicker">{l.more.kicker}</p>
+          <h2>{l.more.h}</h2>
+        </div>
+        <div class="grid">
+          {l.features.map(([icon, name, text]) => <div class="card"><span class="ico"><Icon name={icon} /></span><h3>{name}</h3><p>{text}</p></div>)}
+        </div>
       </div>
     </section>
 
-    <section id="apps">
-      <h2>{l.appsTitle}</h2>
-      <div class="grid">
-        {l.apps.map(([name, text]) => <div class="card"><h3>{name}</h3><p>{text}</p></div>)}
+    <section id="apps" class="apps">
+      <div class="wrap center">
+        <p class="kicker">{l.apps.kicker}</p>
+        <h2>{l.apps.h}</h2>
+        <p class="sub">{l.apps.p}</p>
+        <div class="phones">{phones.map((p, i) => <Phone name={p} lang={lang} alt={l.apps.caps[i]} caption={l.apps.caps[i]} />)}</div>
+        <div class="platforms" style="text-align:left">
+          {l.apps.cards.map(([icon, name, text]) => <div class="card"><span class="ico"><Icon name={icon} /></span><h3>{name}</h3><p>{text}</p></div>)}
+        </div>
       </div>
     </section>
 
     <section id="host">
-      <h2>{l.hostTitle}</h2>
-      <p class="muted">{l.hostText}</p>
-      <ul class="pts">{l.hostPoints.map((p) => <li>{p}</li>)}</ul>
+      <div class="wrap host">
+        <div>
+          <p class="kicker">{l.host.kicker}</p>
+          <h2>{l.host.h}</h2>
+          <p class="sub" style="margin-bottom:18px">{l.host.p}</p>
+          <ul class="ticks">{l.host.ticks.map((x) => <li>{x}</li>)}</ul>
+          <p style="margin-top:22px"><a class="btn" href={`${REPO}#readme`}>{l.host.docs}</a></p>
+        </div>
+        <pre><code><span class="c"># docker-compose.yml + .env</span>
+curl -LO {REPO}/releases/latest/download/docker-compose.yml
+<span class="k">docker compose</span> up -d</code></pre>
+      </div>
     </section>
 
     <section id="download">
-      <h2>{l.downloadTitle}</h2>
-      <p class="muted">{l.downloadHint}</p>
-      <div class="dl" id="dl" data-strings={strings}>
-        {(['android', 'linux', 'windows'] as const).map((p) => (
-          <div class="card" data-platform={p}>
-            <div class="info"><h3>{l[p].name}</h3><p class="muted">{l[p].note}</p><div class="meta" data-meta>{l.loading}</div></div>
-            <a class="btn primary" data-get href={`/download/${p}`} hidden>{l.get}</a>
-          </div>
-        ))}
-      </div>
-
-      <h3 style="margin-top:34px">{l.aptTitle}</h3>
-      <p class="muted">{l.aptText}</p>
-      <pre id="apt"><code>sudo install -d /etc/apt/keyrings
+      <div class="wrap">
+        <div class="center">
+          <p class="kicker">{l.dl.kicker}</p>
+          <h2>{l.dl.h}</h2>
+          <p class="sub">{l.dl.p}</p>
+        </div>
+        <div class="dl" id="dl" data-strings={strings}>
+          {platforms.map(([p, icon]) => (
+            <div class="card" data-platform={p}>
+              <span class="ico"><Icon name={icon} /></span>
+              <div><h3>{l.dl[p][0]}</h3><p>{l.dl[p][1]}</p><div class="meta" data-meta>{l.dl.loading}</div></div>
+              <div class="acts">
+                <a class="btn primary" data-get href={`/download/${p}`} hidden><Icon name="download" size={16} />{l.dl.get}</a>
+                <a class="btn" data-gh href={`${REPO}/releases?q=${p}`} hidden><Icon name="github" size={16} />{l.dl.github}</a>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div class="two">
+          <div class="card"><h3>{l.dl.aptH}</h3><p style="margin-bottom:12px">{l.dl.aptP}</p>
+<pre id="apt"><code>sudo install -d /etc/apt/keyrings
 curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc &gt;/dev/null
 echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
-sudo apt update &amp;&amp; sudo apt install looty</code></pre>
-      <h3 style="margin-top:26px">{l.nixTitle}</h3>
-      <pre><code>nix profile install github:untypequicode/looty#looty-desktop</code></pre>
+sudo apt update &amp;&amp; sudo apt install looty</code></pre></div>
+          <div class="card"><h3>{l.dl.nixH}</h3><p style="margin-bottom:12px">{l.dl.nixP}</p>
+<pre><code>nix run github:untypequicode/looty#looty-desktop
+nix profile install github:untypequicode/looty#looty-desktop</code></pre></div>
+        </div>
+      </div>
     </section>
   </main>
   <script is:inline>
-    // Dernières versions : lues dans /latest.json (sans script, les boutons mènent aux liens stables /download/…).
+    // Dernières versions lues dans /latest.json ; une plateforme absente mène à GitHub.
     (function () {
       var box = document.getElementById('dl'); if (!box) return;
       var s = JSON.parse(box.dataset.strings);
       var apt = document.getElementById('apt'); if (apt) apt.innerHTML = apt.innerHTML.replace(/SITE/g, location.origin);
       function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
-      fetch('/latest.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (d) {
+      function fill(d) {
         box.querySelectorAll('[data-platform]').forEach(function (card) {
-          var p = d[card.dataset.platform]; var meta = card.querySelector('[data-meta]'); var a = card.querySelector('[data-get]');
-          if (!p) { meta.textContent = s.unavailable; return; }
-          a.hidden = false; a.href = p.url;
+          var p = d[card.dataset.platform]; var meta = card.querySelector('[data-meta]');
+          var get = card.querySelector('[data-get]'); var gh = card.querySelector('[data-gh]');
+          if (!p) { meta.textContent = s.missing; gh.hidden = false; return; }
+          get.hidden = false; get.href = p.url;
           var date = p.date ? new Date(p.date).toLocaleDateString(s.lang) : '';
           meta.textContent = s.version + ' ' + p.version + (date ? ' · ' + s.released + ' ' + date : '') + (p.size ? ' · ' + mb(p.size) : '');
-          if (p.sha256) { var c = document.createElement('code'); c.className = 'sum'; c.textContent = s.checksum + ': ' + p.sha256; meta.appendChild(c); }
+          if (p.sha256) { var c = document.createElement('code'); c.textContent = s.checksum + ': ' + p.sha256; meta.appendChild(c); }
         });
-      }).catch(function () { box.querySelectorAll('[data-meta]').forEach(function (m) { m.textContent = ''; }); box.querySelectorAll('[data-get]').forEach(function (a) { a.hidden = false; }); });
+      }
+      fetch('/latest.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(fill).catch(function () { fill({}); });
     })();
   </script>
 </Base>

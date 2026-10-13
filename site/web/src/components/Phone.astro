@@ -1,0 +1,12 @@
+---
+// Capture de l'application Android native, dans un téléphone.
+const { name, lang, alt, caption } = Astro.props
+const src = (theme: string) => `/shots/phone-${name}-${theme}-${lang}.webp`
+---
+<figure class="phone" style="margin:0">
+  <div class="screen">
+    <img class="only-dark" src={src('dark')} alt={alt} width="540" height="1200" loading="lazy" decoding="async" />
+    <img class="only-light" src={src('light')} alt={alt} width="540" height="1200" loading="lazy" decoding="async" />
+  </div>
+  <figcaption class="cap">{caption}</figcaption>
+</figure>

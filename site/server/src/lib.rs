@@ -48,7 +48,7 @@ pub fn app(cfg: Config) -> Router {
     let frame = SetResponseHeaderLayer::if_not_present(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     let csp = SetResponseHeaderLayer::if_not_present(
         header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'"),
+        HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'"),
     );
     let short_cache = SetResponseHeaderLayer::if_not_present(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"));
     let files_cache = SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=3600"));
@@ -61,6 +61,9 @@ pub fn app(cfg: Config) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .nest_service("/releases", ServeDir::new(cfg.data.join("releases")).precompressed_gzip().layer_files_cache(files_cache.clone()))
         .nest_service("/apt", ServeDir::new(cfg.data.join("apt")).layer_files_cache(files_cache))
+        // Fichiers dont le nom change avec le contenu (CSS, polices) : cache d’un an ; captures d’écran : un jour.
+        .nest_service("/_astro", ServeDir::new(cfg.web.join("_astro")).layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"))))
+        .nest_service("/shots", ServeDir::new(cfg.web.join("shots")).layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"))))
         .fallback_service(page)
         .layer(short_cache)
         .layer(nosniff)
