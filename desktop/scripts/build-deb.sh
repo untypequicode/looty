@@ -17,6 +17,8 @@ else
 fi
 # Adresse du site de téléchargement (dépôt apt) : LOOTY_SITE_URL, sinon « site » de backend/releases.json.
 site="${LOOTY_SITE_URL:-$(grep -m1 '"site"' "$repo/backend/releases.json" | cut -d'"' -f4)}"
+# Sans site de téléchargement : GitHub Pages du dépôt public (le dépôt apt y est publié par la CI).
+[ -n "$site" ] || site="$(grep -m1 '"repository"' "$repo/backend/releases.json" | cut -d'"' -f4 | sed -E 's#https://github.com/([^/]+)/([^/]+)#https://\1.github.io/\2#')"
 docker run --rm -e "LOOTY_SITE=${site%/}" \
   -v "$repo:/src:ro" \
   "${caches[@]}" \

@@ -2,8 +2,9 @@
 
 Le site public du projet : page de présentation (français et anglais), **téléchargements** des applications,
 métadonnées de **mise à jour** que lisent les applications, et **dépôt apt** signé pour Debian et Ubuntu.
-Il est indépendant de GitHub : le dépôt du code peut rester privé, les fichiers publiés sont déposés ici par
-l'intégration continue.
+**Facultatif** : le dépôt est public, GitHub suffit pour distribuer les applications (voir `RELEASING.md`). Ce site
+sert à avoir une belle page de présentation, des adresses de téléchargement stables et votre propre dépôt apt, sans
+dépendre de GitHub : les fichiers publiés y sont déposés par l'intégration continue.
 
 Deux morceaux, tous deux très légers :
 

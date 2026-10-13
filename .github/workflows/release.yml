@@ -119,6 +119,8 @@ jobs:
             node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md
             find artifacts -name "*.deb" -exec cp -t out/desktop/ {} +
             ls out/desktop/*.deb > /dev/null
+            # Installateur Windows (peut manquer si cette plateforme a échoué : la release Linux part quand même).
+            find artifacts -name "*-setup.exe" -exec cp -t out/desktop/ {} + || true
           fi
           if [ -n "$ANDROID" ]; then
             node scripts/release-notes.mjs android "$ANDROID" > out/android/notes.md
@@ -142,9 +144,11 @@ jobs:
         with:
           tag_name: desktop-v${{ needs.plan.outputs.desktop }}
           target_commitish: ${{ github.sha }}
-          name: Looty for Linux ${{ needs.plan.outputs.desktop }}
+          name: Looty for Linux and Windows ${{ needs.plan.outputs.desktop }}
           body_path: out/desktop/notes.md
-          files: out/desktop/*.deb
+          files: |
+            out/desktop/*.deb
+            out/desktop/*-setup.exe
           make_latest: false
       - name: Android release
         if: needs.plan.outputs.android != ''
@@ -173,15 +177,45 @@ jobs:
             exit 0
           fi
           mkdir -p apps
-          cp out/desktop/*.deb out/android/*.apk apps/ 2> /dev/null || true
+          cp out/desktop/*.deb out/desktop/*-setup.exe out/android/*.apk apps/ 2> /dev/null || true
           ls apps/*.deb > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern '*.deb' --dir apps || echo "::warning::no .deb found on $DESKTOP_TAG"
           ls apps/*.apk > /dev/null 2>&1 || gh release download "$ANDROID_TAG" --pattern '*.apk' --dir apps || echo "::warning::no .apk found on $ANDROID_TAG"
+          ls apps/*-setup.exe > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern '*-setup.exe' --dir apps 2> /dev/null || true
           ls -la apps
           # Anciennes versions des applications retirées de la release principale.
-          for old in $(gh release view "$MAIN_TAG" --json assets --jq '.assets[].name | select(endswith(".deb") or endswith(".apk"))'); do
-            case "$old" in *.deb|*.apk) ;; *) continue ;; esac
+          for old in $(gh release view "$MAIN_TAG" --json assets --jq '.assets[].name | select(endswith(".deb") or endswith(".apk") or endswith("-setup.exe"))'); do
+            case "$old" in *.deb|*.apk|*-setup.exe) ;; *) continue ;; esac
             [ -e "apps/$old" ] || gh release delete-asset "$MAIN_TAG" "$old" --yes
           done
           if compgen -G 'apps/*' > /dev/null; then
             gh release upload "$MAIN_TAG" apps/* --clobber
+          fi
+      # Site de téléchargement facultatif (variable SITE_URL, secret SITE_UPLOAD_TOKEN ; voir site/README.md) :
+      # APK signé, .deb, installateur Windows et dépôt apt signé (si la clé APT_GPG_PRIVATE_KEY existe).
+      # Sans variable ni secret, les dépôts sur le site sont ignorés ; le dépôt apt part alors sur GitHub Pages.
+      - name: Publish to the download site
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP: ${{ needs.plan.outputs.desktop }}
+          ANDROID: ${{ needs.plan.outputs.android }}
+        run: |
+          if [ -n "$ANDROID" ]; then
+            apk=$(ls out/android/looty-[0-9]*.apk 2> /dev/null | grep -v -- '-debug' | head -1 || true)
+            if [ -n "$apk" ]; then ./scripts/site-publish.sh android "$apk"; else echo "unsigned APK: not published on the site"; fi
+          fi
+          if [ -n "$DESKTOP" ]; then
+            deb=$(ls out/desktop/*.deb | sort -V | tail -1)
+            ./scripts/site-publish.sh linux "$deb"
+            exe=$(ls out/desktop/*-setup.exe 2> /dev/null | head -1 || true)
+            if [ -n "$exe" ]; then ./scripts/site-publish.sh windows "$exe"; fi
+            if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+              sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
+              echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+              # Site configuré : dépôt apt sur le site ; sinon sur GitHub Pages (dépôt public).
+              if [ -n "$SITE_URL" ] && [ -n "$SITE_UPLOAD_TOKEN" ]; then ./desktop/scripts/apt-publish.sh "$deb"; else ./desktop/scripts/apt-publish-pages.sh "$deb"; fi
+            fi
           fi

@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
 /** Nouvelle version de l'application, annoncée par le site de téléchargement. */
 data class Update(val version: String, val apkUrl: String, val title: String?, val notes: List<String>, val sha256: String? = null)
 
-/** Pas de site de téléchargement configuré sur ce serveur : rien à vérifier. */
+/** Ni site de téléchargement ni publication GitHub connue sur ce serveur : rien à vérifier. */
 class NoUpdateSource : Exception("no_source")
 
 /**
@@ -67,21 +67,55 @@ object Updater {
         }
         val root = api.json.parseToJsonElement(api.raw("GET", "/api/releases")).jsonObject
         val site = root["site"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.content?.trimEnd('/')
-        if (site.isNullOrEmpty() || !acceptable(site, BuildConfig.DEBUG)) throw NoUpdateSource()
         val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
+        // Sans site de téléchargement : la publication GitHub du projet (dépôt public).
+        if (site.isNullOrEmpty() || !acceptable(site, BuildConfig.DEBUG)) return@withContext fromGithub(root, client, api, lang) 
+        val fromSite = fromSite(site, client, api, lang)
+        return@withContext fromSite
+    }
+
+    /** Dernière version annoncée par le site (`/latest.json`), si elle est plus récente que celle installée. */
+    private fun fromSite(site: String, client: OkHttpClient, api: Api, lang: String): Update? {
         val meta = client.newCall(Request.Builder().url("$site/latest.json").header("Accept", "application/json").build()).execute().use { r ->
             if (!r.isSuccessful) throw java.io.IOException("HTTP " + r.code)
             api.json.parseToJsonElement(r.body.string()).jsonObject
         }
-        val android: JsonObject = meta["android"]?.jsonObject ?: return@withContext null
-        val version = android["version"]?.jsonPrimitive?.content ?: return@withContext null
-        if (!newer(version, current)) return@withContext null
+        val android: JsonObject = meta["android"]?.jsonObject ?: return null
+        val version = android["version"]?.jsonPrimitive?.content ?: return null
+        if (!newer(version, current)) return null
         // L'APK doit venir du site lui-même.
-        val apk = android["url"]?.jsonPrimitive?.content ?: return@withContext null
-        if (!apk.startsWith("$site/")) return@withContext null
+        val apk = android["url"]?.jsonPrimitive?.content ?: return null
+        if (!apk.startsWith("$site/")) return null
         val notes = (android["notes"]?.jsonObject?.get(lang) ?: android["notes"]?.jsonObject?.get("en"))?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
         val title = android["title"]?.jsonObject?.let { t -> (t[lang] ?: t["en"])?.jsonPrimitive?.content }
-        Update(version, apk, title, notes, android["sha256"]?.jsonPrimitive?.content?.lowercase())
+        return Update(version, apk, title, notes, android["sha256"]?.jsonPrimitive?.content?.lowercase())
+    }
+
+    private val TAG_URL = Regex("^https://github\\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/releases/tag/android-v([0-9]+(?:\\.[0-9]+){1,3})$")
+
+    /** Publication GitHub (dépôt public) annoncée par /api/releases : APK `looty-<version>.apk`, somme SHA-256 de l'API GitHub si elle la donne. */
+    private fun fromGithub(root: JsonObject, client: OkHttpClient, api: Api, lang: String): Update? {
+        val android = root["latest"]?.jsonObject?.get("android")?.jsonObject ?: throw NoUpdateSource()
+        val version = android["version"]?.jsonPrimitive?.content ?: throw NoUpdateSource()
+        val page = android["url"]?.jsonPrimitive?.content ?: throw NoUpdateSource()
+        val m = TAG_URL.matchEntire(page)
+        if (m == null || m.groupValues[3] != version) throw NoUpdateSource()
+        if (!newer(version, current)) return null
+        val apk = page.replace("/releases/tag/", "/releases/download/") + "/looty-$version.apk"
+        // Somme SHA-256 publiée par GitHub pour ce fichier (absente : seule la signature d'Android protège).
+        val sha = runCatching {
+            client.newCall(Request.Builder().url("https://api.github.com/repos/${m.groupValues[1]}/${m.groupValues[2]}/releases/tags/android-v$version").header("Accept", "application/vnd.github+json").build()).execute().use { r ->
+                if (!r.isSuccessful) return@use null
+                api.json.parseToJsonElement(r.body.string()).jsonObject["assets"]?.jsonArray
+                    ?.map { it.jsonObject }?.firstOrNull { it["name"]?.jsonPrimitive?.content == "looty-$version.apk" }
+                    ?.get("digest")?.jsonPrimitive?.content?.removePrefix("sha256:")?.lowercase()
+            }
+        }.getOrNull()
+        val entries = root["releases"]?.jsonArray ?: return Update(version, apk, null, emptyList(), sha)
+        val mine = entries.map { it.jsonObject }.filter { it["platform"]?.jsonPrimitive?.content == "android" && newer(it["version"]?.jsonPrimitive?.content ?: "0", current) }
+        val notes = mine.flatMap { e -> (e["notes"]?.jsonObject?.get(lang) ?: e["notes"]?.jsonObject?.get("en"))?.jsonArray?.map { n -> n.jsonPrimitive.content } ?: emptyList() }
+        val title = mine.firstOrNull()?.get("title")?.jsonObject?.let { t -> (t[lang] ?: t["en"])?.jsonPrimitive?.content }
+        return Update(version, apk, title, notes, sha)
     }
 
     /** Télécharge l'APK dans le cache de l'application ; `onProgress` reçoit une fraction (0..1) ou -1 si inconnue. */
