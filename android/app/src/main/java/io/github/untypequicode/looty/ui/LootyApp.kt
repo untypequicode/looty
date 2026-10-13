@@ -78,7 +78,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                 actions = {
                     when (route) {
                         "inbox" -> if (state.unread > 0) TextButton(onClick = { state.markAllRead() }) { Text(stringResource(R.string.mark_all_read)) }
-                        "docs" -> IconButton(onClick = {
+                        "docs" -> if (state.canEditDocs) IconButton(onClick = {
                             scope.launch { state.createPage().onSuccess { id -> state.ws?.let { openWeb(ctx, Paths.doc(it, id)) } } }
                         }) { Icon(Icons.Outlined.NoteAdd, stringResource(R.string.new_doc)) }
                     }
@@ -109,7 +109,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             }
         },
         floatingActionButton = {
-            if (route == "home" || route == "tasks") {
+            if ((route == "home" || route == "tasks") && state.canEditBoards) {
                 ExtendedFloatingActionButton(onClick = { quickAdd = true }, icon = { Icon(Icons.Filled.Add, null) }, text = { Text(stringResource(R.string.new_task)) })
             }
         },

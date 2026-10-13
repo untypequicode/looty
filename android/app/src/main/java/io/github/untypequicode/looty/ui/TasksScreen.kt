@@ -75,7 +75,7 @@ fun TaskRow(state: AppState, t: MyTask, compact: Boolean = false, snackbar: Snac
     val doneMsg = stringResource(R.string.task_done)
     val undo = stringResource(R.string.undo)
     val rowScope = rememberCoroutineScope()
-    val canCheck = t.assigned_to_me || !t.is_per_person
+    val canCheck = (t.assigned_to_me || !t.is_per_person) && state.canValidate
     val due = localDate(t.due_date)
     val overdue = due?.isBefore(LocalDate.now()) == true
     val tint by animateColorAsState(if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, label = "check")

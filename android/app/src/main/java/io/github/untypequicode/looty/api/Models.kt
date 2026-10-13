@@ -8,6 +8,9 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class Workspace(val id: String, val name: String, val role: String = "member")
 @Serializable data class Workspaces(val workspaces: List<Workspace> = emptyList())
 @Serializable data class Member(val user_id: String, val name: String = "", val email: String = "", val avatar_url: String? = null, val role: String = "")
+/** Droits du rôle dans l’espace (GET access/me) : none < read < comment < validate < edit < manage. */
+@Serializable data class Permissions(val docs: String = "edit", val boards: String = "edit", val calendar: String = "edit", val invite: Boolean = false, val share: Boolean = false, val admin: Boolean = false)
+@Serializable data class MyAccess(val role: String = "member", val permissions: Permissions = Permissions())
 @Serializable data class Members(val members: List<Member> = emptyList())
 
 @Serializable data class MyCounts(val open: Int = 0, val overdue: Int = 0, val due_week: Int = 0, val completed_week: Int = 0)

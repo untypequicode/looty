@@ -54,6 +54,9 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
     val board = state.boardOf(taskId)
     val task = board?.task(taskId)
     val me = state.me?.id
+    // Droits du rôle : modifier la tâche, la terminer, commenter.
+    val edit = state.canEditBoards
+    val validate = state.canValidate
     var menu by remember { mutableStateOf(false) }
     var pickDate by remember { mutableStateOf<String?>(null) }
     var assigneesSheet by remember { mutableStateOf(false) }
@@ -75,7 +78,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                             val ws = state.ws ?: return@DropdownMenuItem
                             board?.let { openWeb(ctx, Paths.task(ws, it.id, taskId)) }
                         })
-                        if (task != null) DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                        if (task != null && edit) DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
                             leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
                             onClick = { menu = false; state.deleteTask(task); onBack() })
                     }
@@ -92,7 +95,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
             // Titre (enregistré en quittant le champ)
             var title by remember(task.id) { mutableStateOf(task.title) }
             TextField(
-                value = title, onValueChange = { title = it }, textStyle = MaterialTheme.typography.headlineSmall,
+                value = title, onValueChange = { title = it }, readOnly = !edit, textStyle = MaterialTheme.typography.headlineSmall,
                 colors = TextFieldDefaults.colors(focusedContainerColor = MaterialTheme.colorScheme.surface, unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     focusedIndicatorColor = MaterialTheme.colorScheme.primary, unfocusedIndicatorColor = MaterialTheme.colorScheme.surface),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -103,9 +106,9 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
             )
             // Terminer / rouvrir
             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (done) FilledTonalButton(onClick = { haptics.performHapticFeedback(HapticFeedbackType.Confirm); state.toggleDone(task) }) {
+                if (done) FilledTonalButton(enabled = validate, onClick = { haptics.performHapticFeedback(HapticFeedbackType.Confirm); state.toggleDone(task) }) {
                     Icon(Icons.Filled.CheckCircle, null); Spacer(Modifier.width(8.dp)); Text(stringResource(if (task.is_per_person) R.string.done_by_me else R.string.completed))
-                } else Button(onClick = { haptics.performHapticFeedback(HapticFeedbackType.Confirm); state.toggleDone(task) }) {
+                } else Button(enabled = validate, onClick = { haptics.performHapticFeedback(HapticFeedbackType.Confirm); state.toggleDone(task) }) {
                     Icon(Icons.Outlined.TaskAlt, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.mark_done))
                 }
                 if (task.is_per_person && task.assignees.isNotEmpty()) {
@@ -119,7 +122,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
             var colMenu by remember { mutableStateOf(false) }
             PropRow(Icons.Outlined.ViewColumn, stringResource(R.string.status)) {
                 Box {
-                    AssistChip(onClick = { colMenu = true }, label = { Text(board.column(task.column_id)?.name ?: "") })
+                    AssistChip(enabled = edit, onClick = { colMenu = true }, label = { Text(board.column(task.column_id)?.name ?: "") })
                     DropdownMenu(expanded = colMenu, onDismissRequest = { colMenu = false }) {
                         board.columns.sortedBy { it.position }.forEach { c ->
                             DropdownMenuItem(text = { Text(c.name) }, onClick = { colMenu = false; if (c.id != task.column_id) state.moveTask(task, c.id) },
@@ -132,7 +135,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
             var prioMenu by remember { mutableStateOf(false) }
             PropRow(Icons.Outlined.Flag, stringResource(R.string.priority)) {
                 Box {
-                    AssistChip(onClick = { prioMenu = true }, label = { Text(stringResource(PRIORITIES[task.priority.coerceIn(0, 4)])) }, leadingIcon = { PriorityIcon(task.priority) })
+                    AssistChip(enabled = edit, onClick = { prioMenu = true }, label = { Text(stringResource(PRIORITIES[task.priority.coerceIn(0, 4)])) }, leadingIcon = { PriorityIcon(task.priority) })
                     DropdownMenu(expanded = prioMenu, onDismissRequest = { prioMenu = false }) {
                         listOf(1, 2, 3, 4, 0).forEach { p ->
                             DropdownMenuItem(text = { Text(stringResource(PRIORITIES[p])) }, leadingIcon = { PriorityIcon(p) }, onClick = {
@@ -148,18 +151,18 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                 val (label, value) = info
                 PropRow(if (field == "due_date") Icons.Outlined.Event else Icons.Outlined.PlayCircleOutline, stringResource(label)) {
                     val d = localDate(value)
-                    InputChip(selected = d != null, onClick = { pickDate = field }, label = { Text(d?.let { dayLabel(it) } ?: stringResource(R.string.no_due)) },
-                        trailingIcon = if (d != null) { { Icon(Icons.Outlined.Close, stringResource(R.string.clear), Modifier.size(18.dp).clickable {
+                    InputChip(enabled = edit, selected = d != null, onClick = { pickDate = field }, label = { Text(d?.let { dayLabel(it) } ?: stringResource(R.string.no_due)) },
+                        trailingIcon = if (d != null && edit) { { Icon(Icons.Outlined.Close, stringResource(R.string.clear), Modifier.size(18.dp).clickable {
                             state.updateTask(task, buildJsonObject { put(field, null as String?) }) { t -> if (field == "due_date") t.copy(due_date = null) else t.copy(start_date = null) }
                         }) } } else null)
                 }
             }
             // Assignés
             PropRow(Icons.Outlined.People, stringResource(R.string.assignees)) {
-                Row(Modifier.clickable { assigneesSheet = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.clickable(enabled = edit) { assigneesSheet = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (task.assignees.isEmpty()) Text(stringResource(R.string.unassigned), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     task.assignees.forEach { a -> Avatar(state.members[a]?.name, 28.dp); Spacer(Modifier.width(4.dp)) }
-                    Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (edit) Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             // Étiquettes
@@ -168,7 +171,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         board.labels.forEach { l ->
                             val on = task.labels.any { it.id == l.id }
-                            FilterChip(selected = on, onClick = { state.setLabel(task, l, !on) }, label = { Text(l.name) },
+                            FilterChip(enabled = edit, selected = on, onClick = { state.setLabel(task, l, !on) }, label = { Text(l.name) },
                                 leadingIcon = { Box(Modifier.size(10.dp).androidx_clipCircle(labelColor(l.color))) })
                         }
                     }
@@ -177,7 +180,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
 
             // Description
             SectionTitle(stringResource(R.string.description))
-            DescriptionBlock(state, board.id, task)
+            DescriptionBlock(state, board.id, task, edit)
 
             // Sous-tâches
             val subtasks = board.allTasks.filter { it.parent_id == task.id }.sortedBy { it.position }
@@ -186,12 +189,12 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                 val sd = st.doneFor(me)
                 ListItem(
                     headlineContent = { Text(st.title, textDecoration = if (sd) TextDecoration.LineThrough else null) },
-                    leadingContent = { Checkbox(checked = sd, onCheckedChange = { state.toggleDone(st) }) },
+                    leadingContent = { Checkbox(checked = sd, enabled = validate, onCheckedChange = { state.toggleDone(st) }) },
                     modifier = Modifier.clickable { onTask(st.id) },
                 )
             }
             var newSub by remember(task.id) { mutableStateOf("") }
-            OutlinedTextField(
+            if (edit) OutlinedTextField(
                 value = newSub, onValueChange = { newSub = it }, singleLine = true, placeholder = { Text(stringResource(R.string.add_subtask)) },
                 leadingIcon = { Icon(Icons.Outlined.Add, null) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -225,7 +228,7 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
             }
             var comment by remember(task.id) { mutableStateOf("") }
             var sending by remember { mutableStateOf(false) }
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (state.canComment) Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(value = comment, onValueChange = { comment = it }, placeholder = { Text(stringResource(R.string.comment_placeholder)) }, modifier = Modifier.weight(1f), maxLines = 6)
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton(enabled = comment.isNotBlank() && !sending, onClick = {
@@ -271,7 +274,7 @@ private fun Modifier.androidx_clipCircle(c: androidx.compose.ui.graphics.Color) 
 
 /** Description : affichée mise en forme ; modifiable ici si elle est simple, sinon dans l'éditeur. */
 @Composable
-private fun DescriptionBlock(state: AppState, boardId: String, task: Task) {
+private fun DescriptionBlock(state: AppState, boardId: String, task: Task, canEdit: Boolean) {
     val ctx = LocalContext.current
     var editing by remember(task.id) { mutableStateOf(false) }
     var text by remember(task.id) { mutableStateOf(Html.toPlain(task.description)) }
@@ -294,7 +297,7 @@ private fun DescriptionBlock(state: AppState, boardId: String, task: Task) {
             val desc = task.description
             if (desc.isNullOrBlank()) Text(stringResource(R.string.no_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
             else Text(AnnotatedString.fromHtml(desc), style = MaterialTheme.typography.bodyLarge)
-            TextButton(onClick = {
+            if (canEdit) TextButton(onClick = {
                 if (simple) editing = true else state.ws?.let { openWeb(ctx, Paths.task(it, boardId, task.id)) }
             }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(if (simple) R.string.edit else R.string.edit_in_editor)) }
         }

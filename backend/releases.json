@@ -573,6 +573,23 @@
     },
     {
       "platform": "android",
+      "version": "0.5.2",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Actions that follow your role",
+        "fr": "Des actions qui suivent votre rôle"
+      },
+      "notes": {
+        "en": [
+          "The app now **only offers what your role allows**: with read-only or comment access, the “New task”, “New document”, move, delete and edit actions are hidden or disabled, instead of failing with an error. Completing a task, commenting and editing events follow the same rules as the website."
+        ],
+        "fr": [
+          "L’application **ne propose plus que ce que votre rôle permet** : en lecture seule ou en commentaire, les actions « Nouvelle tâche », « Nouveau document », déplacer, supprimer et modifier sont masquées ou désactivées, au lieu d’échouer avec une erreur. Terminer une tâche, commenter et modifier des événements suivent les mêmes règles que le site."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.5.1",
       "date": "2026-10-13",
       "title": {

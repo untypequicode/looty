@@ -51,6 +51,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
     var inbox by mutableStateOf(Loadable<List<Notification>>()); private set
     var upcoming by mutableStateOf(Loadable<List<CalEvent>>()); private set
     var boards by mutableStateOf<List<BoardSummary>>(emptyList()); private set
+    /** Droits du rôle dans l’espace ; inconnus (pas encore chargés, hors ligne) = tout permis, le serveur tranche. */
+    var access by mutableStateOf<MyAccess?>(null); private set
 
     val ws: String? get() = (session as? Session.Ready)?.workspaceId
     val me: User? get() = (session as? Session.Ready)?.me
@@ -83,12 +85,13 @@ class AppState(app: Application) : AndroidViewModel(app) {
         val s = session as? Session.Ready ?: return
         prefs.edit().putString("workspace", id).apply()
         session = s.copy(workspaceId = id)
+        access = null
         overview = Loadable(); tasks = Loadable(); pages = Loadable(); inbox = Loadable(); upcoming = Loadable()
         refreshAll()
     }
 
     fun refreshAll() {
-        loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
+        loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
     }
 
     private fun <T> load(get: () -> Loadable<T>, set: (Loadable<T>) -> Unit, block: suspend () -> T) {
@@ -98,6 +101,16 @@ class AppState(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadAccess() { val w = ws ?: return; viewModelScope.launch { runCatching { access = api.get<MyAccess>("/api/workspaces/$w/access/me") } } }
+    private fun level(name: String?) = when (name) { "none" -> 0; "read" -> 1; "comment" -> 2; "validate" -> 3; "edit" -> 4; "manage" -> 5; else -> 4 }
+    private fun allows(area: (Permissions) -> String, needed: Int) = access?.permissions?.let { level(area(it)) >= needed } ?: true
+    /** Créer, modifier, déplacer, supprimer des tâches. */
+    val canEditBoards: Boolean get() = allows({ it.boards }, 4)
+    /** Terminer / rouvrir une tâche (reste possible en lecture selon le rôle). */
+    val canValidate: Boolean get() = allows({ it.boards }, 3)
+    val canComment: Boolean get() = allows({ it.boards }, 2)
+    val canEditDocs: Boolean get() = allows({ it.docs }, 4)
+    val canEditCalendar: Boolean get() = allows({ it.calendar }, 4)
     fun loadMembers() {
         val w = ws ?: return
         viewModelScope.launch { runCatching { members = api.get<Members>("/api/workspaces/$w/members").members.associateBy { it.user_id } } }
@@ -325,7 +338,6 @@ class AppState(app: Application) : AndroidViewModel(app) {
     var calEvents by mutableStateOf(Loadable<CalEvents>()); private set
     /** Calendriers masqués (propres à l'appareil) ; « workspace » = calendrier de l'espace. */
     var hiddenCalendars by mutableStateOf(prefs.getStringSet("hiddenCalendars", emptySet()).orEmpty()); private set
-    val canWrite: Boolean get() = (session as? Session.Ready)?.let { s -> s.workspaces.firstOrNull { it.id == s.workspaceId }?.role } in setOf("owner", "admin", "member")
 
     fun loadCalendars() {
         val w = ws ?: return

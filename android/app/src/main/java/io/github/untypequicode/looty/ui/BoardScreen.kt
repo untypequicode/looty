@@ -89,7 +89,7 @@ fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (S
             )
         },
         floatingActionButton = {
-            if (columns.isNotEmpty()) FloatingActionButton(onClick = { createIn = columns.getOrNull(pager.currentPage)?.id }) { Icon(Icons.Filled.Add, stringResource(R.string.new_task)) }
+            if (columns.isNotEmpty() && state.canEditBoards) FloatingActionButton(onClick = { createIn = columns.getOrNull(pager.currentPage)?.id }) { Icon(Icons.Filled.Add, stringResource(R.string.new_task)) }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -112,7 +112,7 @@ fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (S
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (tasks.isEmpty()) item { EmptyState(Icons.Outlined.Inbox, stringResource(R.string.column_empty)) }
                         items(tasks, key = { it.id }) { t ->
-                            TaskCard(state, board, t, onClick = { onTask(t.id) }, onLongClick = { actionsFor = t }, modifier = Modifier.animateItem())
+                            TaskCard(state, board, t, onClick = { onTask(t.id) }, onLongClick = { if (state.canValidate) actionsFor = t }, modifier = Modifier.animateItem())
                         }
                     }
                 }
@@ -213,8 +213,9 @@ fun TaskActionsSheet(state: AppState, board: BoardFull, t: Task, onDismiss: () -
                 leadingContent = { Icon(if (t.doneFor(me)) Icons.Outlined.RemoveDone else Icons.Outlined.TaskAlt, null) },
                 modifier = Modifier.clickable(onClick = { state.toggleDone(t); onDismiss() }),
             )
-            Text(stringResource(R.string.move_to), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            board.columns.sortedBy { it.position }.forEach { c ->
+            // Déplacer et supprimer : droit de modification des tâches.
+            if (state.canEditBoards) Text(stringResource(R.string.move_to), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            if (state.canEditBoards) board.columns.sortedBy { it.position }.forEach { c ->
                 ListItem(
                     colors = sheetItemColors(),
                     headlineContent = { Text(c.name) },
@@ -222,8 +223,8 @@ fun TaskActionsSheet(state: AppState, board: BoardFull, t: Task, onDismiss: () -
                     modifier = Modifier.clickable(onClick = { if (c.id != t.column_id) state.moveTask(t, c.id); onDismiss() }),
                 )
             }
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            ListItem(
+            if (state.canEditBoards) HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            if (state.canEditBoards) ListItem(
                 colors = sheetItemColors(),
                 headlineContent = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
                 leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
