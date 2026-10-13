@@ -2,6 +2,16 @@
   "repository": "https://github.com/untypequicode/looty",
   "releases": [
     {
+      "platform": "desktop",
+      "version": "0.7.0",
+      "date": "2026-10-13",
+      "title": { "en": "Updates through apt (Debian, Ubuntu)", "fr": "Mises à jour par apt (Debian, Ubuntu)" },
+      "notes": {
+        "en": ["**On Debian and Ubuntu, Looty now updates through apt**: installing the `.deb` once adds Looty’s signed package repository, so new versions arrive with `sudo apt update && sudo apt upgrade` (or automatically with unattended-upgrades). Delete `/etc/apt/sources.list.d/looty.sources` to opt out. With Nix, `nix profile upgrade` or your flake update does it."],
+        "fr": ["**Sur Debian et Ubuntu, Looty se met maintenant à jour par apt** : installer le `.deb` une fois ajoute le dépôt de paquets signé de Looty, et les nouvelles versions arrivent avec `sudo apt update && sudo apt upgrade` (ou automatiquement avec unattended-upgrades). Supprimez `/etc/apt/sources.list.d/looty.sources` pour ne plus en recevoir. Avec Nix, `nix profile upgrade` ou la mise à jour de votre flake s’en charge."]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.16.6",
       "date": "2026-10-13",

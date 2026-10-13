@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Construit desktop/dist/looty_<version>_<arch>.deb avec Docker (Debian 12).
+# Si desktop/packaging/looty-archive-keyring.gpg existe (clé publique du dépôt apt), le paquet installe aussi
+# le dépôt apt de Looty (/etc/apt/sources.list.d/looty.sources) : les mises à jour passent alors par apt.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 repo="$(cd "$here/.." && pwd)"
@@ -18,5 +20,7 @@ docker run --rm \
   "${caches[@]}" \
   -v "$here/dist:/dist" \
   looty-deb-builder \
-  bash -c 'rm -rf /work && cp -a /src/desktop /work && cd /work/src-tauri && cargo tauri build --bundles deb && cp /target/release/bundle/deb/*.deb /dist/ && chown '"$(id -u):$(id -g)"' /dist/*.deb'
+  bash -c 'rm -rf /work && cp -a /src/desktop /work && cd /work/src-tauri && \
+    extra=() && if [ -f ../packaging/looty-archive-keyring.gpg ]; then extra=(--config '"'"'{"bundle":{"linux":{"deb":{"files":{"/etc/apt/sources.list.d/looty.sources":"../packaging/looty.sources","/usr/share/keyrings/looty-archive-keyring.gpg":"../packaging/looty-archive-keyring.gpg"}}}}}'"'"'); fi && \
+    cargo tauri build --bundles deb "${extra[@]}" && cp /target/release/bundle/deb/*.deb /dist/ && chown '"$(id -u):$(id -g)"' /dist/*.deb'
 ls -lh "$here/dist/"*.deb

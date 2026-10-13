@@ -35,6 +35,32 @@ sudo apt install ./desktop/dist/Looty_0.1.0_amd64.deb
 
 The package targets Debian 12 (bookworm) and newer, and Ubuntu 22.04+.
 
+### Updates (Debian / Ubuntu)
+
+The `.deb` also installs Looty's signed apt repository (`/etc/apt/sources.list.d/looty.sources` and its key in
+`/usr/share/keyrings/`). After the first manual install, updates arrive like any other package:
+
+```sh
+sudo apt update && sudo apt upgrade          # or let unattended-upgrades do it
+```
+
+To receive them automatically with *unattended-upgrades*, add `"Looty:stable";` to `Unattended-Upgrade::Allowed-Origins`.
+Delete the `looty.sources` file to opt out. Nix users update with their flake (`nix flake update looty`, or
+`nix profile upgrade`). Windows has no auto-update yet.
+
+**Maintainer setup (once)**: run `desktop/scripts/apt-key.sh` (creates the signing key), commit the public key
+`desktop/packaging/looty-archive-keyring.gpg`, add the secrets `APT_GPG_PRIVATE_KEY` (and `APT_GPG_PASSPHRASE` if the
+key has one) in the GitHub repository, and enable GitHub Pages on the `gh-pages` branch. Every `desktop-v*` release then
+publishes the repository at `https://<owner>.github.io/<repo>/apt` (`desktop/scripts/apt-repo.sh`). Without the key, only
+the plain `.deb` is published and the package does not add the repository. Adding the repository by hand:
+
+```sh
+sudo install -d /etc/apt/keyrings
+curl -fsSL https://untypequicode.github.io/looty/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/looty.asc] https://untypequicode.github.io/looty/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
+sudo apt update && sudo apt install looty
+```
+
 ### Windows 10 / 11
 
 Download `Looty_<version>_x64-setup.exe` from the GitHub releases (tags `desktop-v*`) and run it.
