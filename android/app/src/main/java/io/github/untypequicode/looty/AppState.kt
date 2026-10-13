@@ -62,6 +62,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     // -----------------------------------------------------------------------
 
     val cache = OfflineCache(app)
+    private val webCache = io.github.untypequicode.looty.offline.WebCache(app, api)
     private val outbox = Outbox.get(app, api.json)
     /** Le dernier appel n'a pas atteint le serveur : données gardées affichées, modifications en attente. */
     var offline by mutableStateOf(false); private set
@@ -408,9 +409,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
                 }
             }
             persistTaskBoard()
-            // Documents : pas sur une connexion limitée.
+            // Interface web complète (éditeur, Moodle…) puis documents : pas sur une connexion limitée.
             val cm = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
             if (cm.isActiveNetworkMetered) return@launch
+            withContext(Dispatchers.IO) { webCache.prefetchAssets() }
             val list = pages.data ?: return@launch
             val wanted = (list.filter { it.is_favorite == true } + list.sortedByDescending { it.updated_at ?: "" }.take(15)).distinctBy { it.id }.take(25)
             for (p in wanted) {
@@ -761,6 +763,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
             runCatching { api.send("POST", "/api/auth/logout") }
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
             withContext(Dispatchers.IO) { cache.clear() }
+            prefs.edit().remove("assetVersion").apply()
             outbox.clear(); pendingChanges = 0; offline = false
             session = Session.NeedLogin
             onDone()

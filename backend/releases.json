@@ -3,6 +3,16 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.16.6",
+      "date": "2026-10-13",
+      "title": { "en": "Offline document editing in the Android app", "fr": "Édition de documents hors ligne dans l’application Android" },
+      "notes": {
+        "en": ["The document editor keeps a local copy of each page in the **Android app** too (as the desktop app already did): documents you have opened can be edited without a connection, and your changes merge with everyone else’s as soon as you are back online."],
+        "fr": ["L’éditeur de documents garde aussi une copie locale de chaque page dans **l’application Android** (comme l’application de bureau le faisait déjà) : les documents déjà ouverts se modifient sans connexion, et vos changements fusionnent avec ceux des autres dès le retour en ligne."]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.16.5",
       "date": "2026-10-13",
       "title": { "en": "Install Looty on iPhone and iPad", "fr": "Installer Looty sur iPhone et iPad" },
@@ -653,6 +663,22 @@
           "**Graphe** de l’espace pour voir et créer des liens entre documents et tâches.",
           "**Serveur CalDAV** : vos tâches et le calendrier de l’espace dans Thunderbird, DAVx⁵, Apple Calendrier…",
           "Administration : tableau de bord du stockage avec la taille réelle des fichiers envoyés."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.11.0",
+      "date": "2026-10-13",
+      "title": { "en": "Edit documents offline", "fr": "Modifier les documents hors ligne" },
+      "notes": {
+        "en": [
+          "**Write in your documents without a connection**: the web editor now opens and works offline for the documents you have opened before. Your changes are kept on the phone and merge automatically (even with other people’s edits) when the connection returns.",
+          "**The whole web interface is saved on the phone** (downloaded in the background on an unmetered connection), so web screens open offline too, and show the last data they loaded, for example your Moodle overview. Anything that needs the server, like sending a Moodle message or uploading, still needs a connection."
+        ],
+        "fr": [
+          "**Écrivez dans vos documents sans connexion** : l’éditeur web s’ouvre et fonctionne maintenant hors ligne pour les documents déjà ouverts. Vos modifications sont gardées sur le téléphone et fusionnent automatiquement (même avec celles des autres) au retour de la connexion.",
+          "**Toute l’interface web est enregistrée sur le téléphone** (téléchargée en arrière-plan sur une connexion non limitée) : les écrans web s’ouvrent donc aussi hors ligne et montrent les dernières données chargées, par exemple votre aperçu Moodle. Ce qui demande le serveur, comme envoyer un message Moodle ou un fichier, demande toujours une connexion."
         ]
       }
     },

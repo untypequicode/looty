@@ -43,6 +43,8 @@ notification opens the matching native screen.
 
 **Offline, part 2 (0.10.0)**: boards and favourite/recent documents (with images) are prefetched; files shared offline are queued as `UPLOAD` entries (`files/outbox-files/`); a WorkManager job (`OutboxWorker`, network-constrained) replays the queue even when the app is closed — app and job share one `Outbox` instance and one lock.
 
+**Offline web (0.11.0)**: `offline/WebCache.kt` is a network-first OkHttp cache behind the WebView (`shouldInterceptRequest`): GET responses of the server are saved; when it is unreachable they (and the HTML shell for any route) are served. `/asset-manifest.json` (a Nitro route listing `/_nuxt/`) lets the app prefetch the whole UI. The doc editor's IndexedDB Yjs persistence is enabled in the native app (`isNativeApp`), so offline edits merge on reconnect.
+
 Next: nothing planned.
 
 ## Install

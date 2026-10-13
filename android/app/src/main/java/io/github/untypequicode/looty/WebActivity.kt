@@ -62,6 +62,8 @@ class WebActivity : ComponentActivity() {
     private lateinit var back: OnBackPressedCallback
 
     private lateinit var web: WebView
+    /** Cache web hors ligne : interface, lectures de l’API et fichiers du serveur (voir WebCache). */
+    private val webCache by lazy { io.github.untypequicode.looty.offline.WebCache(this, io.github.untypequicode.looty.api.Api(this)).also { it.trim() } }
     private lateinit var root: FrameLayout
     private lateinit var server: String
     private val main = Handler(Looper.getMainLooper())
@@ -198,7 +200,7 @@ class WebActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                 if (request.isForMainFrame) !allowInApp(request.url, newWindow = false) else false
 
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = intercept(request)
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = intercept(request) ?: webCache.serve(request)
 
             override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
                 back.isEnabled = view.canGoBack()

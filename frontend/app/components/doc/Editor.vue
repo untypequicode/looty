@@ -5,7 +5,7 @@ import type { Editor as TEditor } from '@tiptap/core'
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { IndexeddbPersistence } from 'y-indexeddb'
-import { isDesktop } from '~/composables/useDesktop'
+import { isDesktop, isNativeApp } from '~/composables/useDesktop'
 import { useDebounceFn } from '@vueuse/core'
 import { docExtensions } from '~/editor/extensions'
 import { headingsKey, type HeadingInfo } from '~/editor/headings'
@@ -47,8 +47,8 @@ const router = useRouter()
 const ydoc = new Y.Doc()
 const collabUrl = (config.public.collabUrl as string) || `${socketBase()}/collab`
 const provider = new HocuspocusProvider({ url: `${collabUrl}${collabUrl.includes('?') ? '&' : '?'}schema=${DOC_SCHEMA}`, name: props.pageId, document: ydoc })
-// Application de bureau : copie locale du document (édition hors ligne, fusion au retour).
-const local = isDesktop ? new IndexeddbPersistence(`looty-page:${props.pageId}`, ydoc) : null
+// Application de bureau ou Android : copie locale du document (édition hors ligne, fusion au retour).
+const local = isDesktop || isNativeApp ? new IndexeddbPersistence(`looty-page:${props.pageId}`, ydoc) : null
 const synced = ref(false)
 const serverSynced = ref(false)
 /** Hors ligne, page jamais ouverte sur cet appareil : lecture seule du HTML enregistré. */
