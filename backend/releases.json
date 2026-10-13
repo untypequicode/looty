@@ -642,6 +642,22 @@
     },
     {
       "platform": "android",
+      "version": "0.8.0",
+      "date": "2026-10-13",
+      "title": { "en": "Share photos and files to Looty", "fr": "Partager photos et fichiers vers Looty" },
+      "notes": {
+        "en": [
+          "**Share images, PDFs and other files to Looty**: from your gallery or any app, “Share” → Looty creates a task (named after the file, in the board you choose) and **attaches the files to it** (up to 10 files, 25 MB each). If some files can’t be attached, you are told.",
+          "The home-screen widget now has a preview in the widget picker."
+        ],
+        "fr": [
+          "**Partagez images, PDF et autres fichiers vers Looty** : depuis votre galerie ou n’importe quelle application, « Partager » → Looty crée une tâche (au nom du fichier, dans le tableau de votre choix) et **y joint les fichiers** (jusqu’à 10 fichiers de 25 Mo). Si certains fichiers ne peuvent pas être joints, vous en êtes informé.",
+          "Le widget d’écran d’accueil a maintenant un aperçu dans le sélecteur de widgets."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.7.1",
       "date": "2026-10-13",
       "title": { "en": "A new icon", "fr": "Une nouvelle icône" },

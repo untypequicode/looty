@@ -15,6 +15,7 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
@@ -64,6 +65,16 @@ class Api(private val ctx: Context) {
                 throw ApiException(res.code, code ?: "http_${res.code}")
             }
             text
+        }
+    }
+
+    /** Envoie un fichier (champ « file », comme l'interface web). */
+    suspend fun upload(path: String, filename: String, mime: String, bytes: ByteArray) = withContext(Dispatchers.IO) {
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("file", filename, bytes.toRequestBody(mime.toMediaType()))
+            .build()
+        client.newCall(Request.Builder().url(server + path).post(body).build()).execute().use { res ->
+            if (!res.isSuccessful) throw ApiException(res.code, "http_${res.code}")
         }
     }
 

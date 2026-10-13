@@ -187,6 +187,13 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
     val lastBoard: String? get() = prefs.getString("lastBoard", null)
 
+    /** Joint des fichiers (partage depuis une autre application) à une tâche. Renvoie le nombre d'échecs. */
+    suspend fun attachFiles(taskId: String, files: List<SharedFile>): Int {
+        var failed = 0
+        for (f in files) runCatching { api.upload("/api/boards/tasks/$taskId/attachments", f.name, f.mime, f.bytes) }.onFailure { failed++; android.util.Log.w("LootyShare", "upload failed: ${f.name}", it) }
+        return failed
+    }
+
     suspend fun createPage(title: String = "", content: String? = null): Result<String> = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
         val p = api.post<Page>("/api/workspaces/$w/pages", buildJsonObject { put("title", title); if (content != null) put("content", content) })
