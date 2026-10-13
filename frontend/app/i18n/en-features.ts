@@ -1,7 +1,7 @@
 export default {
   releases: {
     whatsNew: 'What’s new', allReleases: 'All releases', gotIt: 'Got it', all: 'All', current: 'Current', updateShort: 'Update',
-    platform: { web: 'Looty', desktop: 'Looty for Linux', android: 'Looty for Android' },
+    platform: { web: 'Looty', desktop: 'Looty for desktop', android: 'Looty for Android' },
     webReady: 'A new version of Looty is available.', reload: 'Reload', download: 'Download',
     appReady: '{app} {version} is available.', installed: 'installed: {v}', releasePage: 'Release page and install instructions',
   },

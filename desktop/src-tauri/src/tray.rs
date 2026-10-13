@@ -1,6 +1,7 @@
 //! Barre système : menu dynamique (non lues, tâches du jour / en retard), pastille,
 //! notifications système et lancement à l'ouverture de session.
 
+#[cfg(not(windows))]
 use std::path::PathBuf;
 use tauri::{
     image::Image,
@@ -116,48 +117,94 @@ pub fn apply(app: &AppHandle, tray: &TrayIcon, state: &TrayState, launch_at_logi
     }
 }
 
-/// Notification système ; un clic ouvre la page correspondante.
+/// Notification système. `actions` : (identifiant, libellé) ; « default » est le clic sur la
+/// notification elle-même. `on_action` reçoit l'identifiant choisi (sur un fil à part).
+/// Linux : service de notifications du bureau (D-Bus) ; Windows : notification « toast ».
+pub fn toast(title: &str, body: &str, actions: &[(&str, &str)], on_action: impl Fn(&str) + Send + 'static) {
+    #[cfg(target_os = "linux")]
+    {
+        let (title, body) = (title.to_string(), body.to_string());
+        let actions: Vec<(String, String)> = actions.iter().map(|(a, l)| (a.to_string(), l.to_string())).collect();
+        std::thread::spawn(move || {
+            let mut builder = notify_rust::Notification::new();
+            builder.appname("Looty").summary(&title).body(&body).icon("looty");
+            for (id, label) in &actions {
+                builder.action(id, label);
+            }
+            builder.hint(notify_rust::Hint::DesktopEntry("looty".into()));
+            match builder.show() {
+                Ok(handle) => handle.wait_for_action(|action| on_action(action)),
+                Err(e) => tracing::warn!("notification: {e}"),
+            }
+        });
+    }
+    #[cfg(windows)]
+    {
+        use tauri_winrt_notification::Toast;
+        // Installée (NSIS), l'application s'identifie par son identifiant ; en développement,
+        // Windows n'affiche que les notifications d'une application connue : celle de PowerShell.
+        let app_id = if cfg!(debug_assertions) { Toast::POWERSHELL_APP_ID } else { "app.looty.desktop" };
+        let mut t = Toast::new(app_id).title(title).text1(body);
+        for (id, label) in actions {
+            if *id != "default" {
+                t = t.add_button(label, id);
+            }
+        }
+        let shown = t
+            .on_activated(move |action| {
+                on_action(action.as_deref().unwrap_or("default"));
+                Ok(())
+            })
+            .show();
+        if let Err(e) = shown {
+            tracing::warn!("notification: {e}");
+        }
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
+    {
+        let _ = (title, body, actions, on_action);
+    }
+}
+
+/// Notification de Looty ; un clic ouvre la page correspondante.
 pub fn notify(app: &AppHandle, n: OsNotification) {
     let app = app.clone();
-    std::thread::spawn(move || {
-        let mut builder = notify_rust::Notification::new();
-        builder.appname("Looty").summary(&n.title).body(&n.body).icon("looty").action("default", tr("Ouvrir", "Open"));
-        if n.done_task.is_some() {
-            builder.action("done", tr("Terminer", "Mark as done"));
+    let mut actions = vec![("default", tr("Ouvrir", "Open"))];
+    if n.done_task.is_some() {
+        actions.push(("done", tr("Terminer", "Mark as done")));
+    }
+    toast(&n.title, &n.body, &actions, move |action| match action {
+        "default" => {
+            let path = n.path.clone();
+            let a = app.clone();
+            let _ = app.run_on_main_thread(move || crate::open_path(&a, &path));
         }
-        builder.hint(notify_rust::Hint::DesktopEntry("looty".into()));
-        match builder.show() {
-            Ok(handle) => handle.wait_for_action(|action| match action {
-                "default" => {
-                    let path = n.path.clone();
-                    let a = app.clone();
-                    let _ = app.run_on_main_thread(move || crate::open_path(&a, &path));
-                }
-                "done" => {
-                    if let Some(task) = n.done_task.clone() {
-                        crate::mark_task_done(&app, task);
-                    }
-                }
-                _ => {}
-            }),
-            Err(e) => tracing::warn!("notification: {e}"),
+        "done" => {
+            if let Some(task) = n.done_task.clone() {
+                crate::mark_task_done(&app, task);
+            }
         }
+        _ => {}
     });
 }
 
 // ---------------------------------------------------------------------------
-// Lancement à l'ouverture de session (~/.config/autostart/looty.desktop)
+// Lancement à l'ouverture de session : ~/.config/autostart/looty.desktop (Linux),
+// clé « Run » du registre de l'utilisateur (Windows)
 // ---------------------------------------------------------------------------
 
+#[cfg(not(windows))]
 fn autostart_file() -> PathBuf {
     dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("autostart").join("looty.desktop")
 }
 
+#[cfg(not(windows))]
 pub fn autostart_enabled() -> bool {
     autostart_file().exists()
 }
 
 /// Commande à lancer : le lanceur utilisé (enveloppe Nix comprise), sinon `looty`.
+#[cfg(not(windows))]
 fn launcher() -> String {
     std::env::args()
         .next()
@@ -165,6 +212,7 @@ fn launcher() -> String {
         .unwrap_or_else(|| "looty".into())
 }
 
+#[cfg(not(windows))]
 pub fn set_autostart(on: bool) -> std::io::Result<()> {
     let path = autostart_file();
     if on {
@@ -183,4 +231,31 @@ pub fn set_autostart(on: bool) -> std::io::Result<()> {
     } else {
         Ok(())
     }
+}
+
+#[cfg(windows)]
+const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// `reg.exe` sans fenêtre de console.
+#[cfg(windows)]
+fn reg(args: &[&str]) -> std::io::Result<std::process::ExitStatus> {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("reg").args(args).creation_flags(0x0800_0000).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status()
+}
+
+#[cfg(windows)]
+pub fn autostart_enabled() -> bool {
+    reg(&["query", RUN_KEY, "/v", "Looty"]).map(|s| s.success()).unwrap_or(false)
+}
+
+#[cfg(windows)]
+pub fn set_autostart(on: bool) -> std::io::Result<()> {
+    if on {
+        let exe = std::env::current_exe()?;
+        let command = format!("\"{}\" --hidden", exe.display());
+        reg(&["add", RUN_KEY, "/v", "Looty", "/t", "REG_SZ", "/d", &command, "/f"])?;
+    } else if autostart_enabled() {
+        reg(&["delete", RUN_KEY, "/v", "Looty", "/f"])?;
+    }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-//! Looty pour le bureau (Linux) : fenêtre, barre système, service de fond et proxy local.
+//! Looty pour le bureau (Linux et Windows) : fenêtre, barre système, service de fond et proxy local.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod config;
@@ -322,6 +322,7 @@ fn moodle_navigation(app: &AppHandle, url: &Url) -> bool {
 
 /// Correcteur orthographique de WebKitGTK (désactivé par défaut) : langue du système,
 /// plus le français et l'anglais (dictionnaires hunspell installés via enchant).
+#[cfg(target_os = "linux")]
 fn enable_spellcheck(window: &tauri::WebviewWindow) {
     let _ = window.with_webview(|wv| {
         use webkit2gtk::{WebContextExt, WebViewExt};
@@ -348,8 +349,13 @@ fn enable_spellcheck(window: &tauri::WebviewWindow) {
     });
 }
 
+/// Windows : WebView2 a son propre correcteur orthographique.
+#[cfg(not(target_os = "linux"))]
+fn enable_spellcheck(_window: &tauri::WebviewWindow) {}
+
 /// Sans les schémas GSettings de GTK, la fenêtre de fichiers ferait planter le processus :
 /// dans ce cas, enregistrement direct dans Téléchargements.
+#[cfg(target_os = "linux")]
 fn file_chooser_available() -> bool {
     let ok = gtk::gio::SettingsSchemaSource::default().and_then(|s| s.lookup("org.gtk.Settings.FileChooser", true)).is_some();
     if !ok {
@@ -358,8 +364,15 @@ fn file_chooser_available() -> bool {
     ok
 }
 
+/// Windows : pas de fenêtre « Enregistrer sous » pour l'instant, dossier Téléchargements.
+#[cfg(not(target_os = "linux"))]
+fn file_chooser_available() -> bool {
+    false
+}
+
 /// Fenêtre « Enregistrer sous » native (portail XDG si disponible). Appelée sur le fil
 /// principal GTK (signal de WebKit) : `run()` tourne une boucle imbriquée.
+#[cfg(target_os = "linux")]
 fn ask_save_path(app: &AppHandle, dir: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
     use gtk::prelude::*;
     let parent = app.get_webview_window("main").and_then(|w| w.gtk_window().ok());
@@ -371,6 +384,11 @@ fn ask_save_path(app: &AppHandle, dir: &std::path::Path, name: &str) -> Option<s
     let path = if res == gtk::ResponseType::Accept { dialog.filename() } else { None };
     dialog.destroy();
     path
+}
+
+#[cfg(not(target_os = "linux"))]
+fn ask_save_path(_app: &AppHandle, _dir: &std::path::Path, _name: &str) -> Option<std::path::PathBuf> {
+    None
 }
 
 /// Téléchargements (exports, pièces jointes) : « Enregistrer sous » ou dossier
@@ -416,20 +434,12 @@ fn on_download(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
                 let body = if success { format!("{} {name}", tr("Enregistré :", "Saved:")) } else { format!("{} {name}", tr("Échec du téléchargement :", "Download failed:")) };
                 let folder = path.parent().map(|p| p.to_path_buf());
                 let app = app.clone();
-                std::thread::spawn(move || {
-                    let mut n = notify_rust::Notification::new();
-                    n.appname("Looty").summary("Looty").body(&body).icon("looty");
-                    if success && folder.is_some() {
-                        n.action("default", tr("Ouvrir le dossier", "Open folder"));
-                    }
-                    if let Ok(h) = n.show() {
-                        h.wait_for_action(|a| {
-                            if a == "default" {
-                                if let Some(f) = &folder {
-                                    let _ = app.opener().open_path(f.to_string_lossy(), None::<&str>);
-                                }
-                            }
-                        });
+                let actions: Vec<(&str, &str)> = if success && folder.is_some() { vec![("default", tr("Ouvrir le dossier", "Open folder"))] } else { vec![] };
+                tray::toast("Looty", &body, &actions, move |a| {
+                    if a == "default" {
+                        if let Some(f) = &folder {
+                            let _ = app.opener().open_path(f.to_string_lossy(), None::<&str>);
+                        }
                     }
                 });
             }
@@ -444,6 +454,7 @@ fn main() {
         .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "looty=info,warn".into()))
         .init();
     // Pilote NVIDIA propriétaire : le rendu DMA-BUF de WebKitGTK donne une fenêtre vide.
+    #[cfg(target_os = "linux")]
     if std::path::Path::new("/proc/driver/nvidia").exists() && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }

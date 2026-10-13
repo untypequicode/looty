@@ -66,6 +66,8 @@ async fn run(dir: &Path, program: &Path, args: &[&str]) -> Result<String, String
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let child = cmd.spawn().map_err(|e| e.to_string())?;
     match tokio::time::timeout(Duration::from_secs(60), child.wait_with_output()).await {
         Ok(Ok(o)) => Ok(format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
