@@ -18,6 +18,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import io.github.untypequicode.looty.offline.*
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -60,14 +62,13 @@ class AppState(app: Application) : AndroidViewModel(app) {
     // -----------------------------------------------------------------------
 
     val cache = OfflineCache(app)
-    private val outbox = Outbox(app, api.json)
+    private val outbox = Outbox.get(app, api.json)
     /** Le dernier appel n'a pas atteint le serveur : données gardées affichées, modifications en attente. */
     var offline by mutableStateOf(false); private set
     /** Modifications faites hors ligne, pas encore envoyées. */
     var pendingChanges by mutableStateOf(outbox.size()); private set
     /** Modifications hors ligne refusées par le serveur au rejeu (à signaler une fois). */
     var refused by mutableStateOf<List<String>>(emptyList())
-    private val drainLock = Mutex()
     private var network: android.net.ConnectivityManager.NetworkCallback? = null
 
     private fun markOffline() { if (!offline) offline = true }
@@ -75,6 +76,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     init {
         cache.trim()
+        if (outbox.size() > 0) OutboxWorker.schedule(app)
+        // Refus constatés par la tâche de fond pendant que l'application était fermée.
+        prefs.getStringSet("refusedChanges", null)?.takeIf { it.isNotEmpty() }?.let { refused = refused + it; prefs.edit().remove("refusedChanges").apply() }
         viewModelScope.launch {
             withContext(Dispatchers.IO) { cache.get("taskboard") }?.let { raw ->
                 runCatching { api.json.decodeFromString<Map<String, String>>(raw) }.onSuccess { taskBoard.putAll(it) }
@@ -105,24 +109,15 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     /** Écrit les modifications en attente dans l'ordre ; s'arrête dès que le serveur est de nouveau injoignable. */
     suspend fun drain() {
-        if (!drainLock.tryLock()) return
+        if (!Outbox.replayLock.tryLock()) return
         try {
-            var sent = false
-            while (true) {
-                val p = outbox.first() ?: break
-                try {
-                    api.raw(p.method, p.path, p.body)
-                    outbox.remove(p.id); sent = true; markOnline()
-                } catch (e: Exception) {
-                    if (e.isOffline()) { markOffline(); break }
-                    outbox.remove(p.id)
-                    refused = refused + p.label
-                }
-            }
+            val r = outbox.replay(api)
+            if (r.offline) markOffline() else if (r.sent) markOnline()
+            if (r.refused.isNotEmpty()) refused = refused + r.refused
             pendingChanges = outbox.size()
-            if (sent) refreshAll()
+            if (r.sent) refreshAll()
         } finally {
-            drainLock.unlock()
+            Outbox.replayLock.unlock()
         }
     }
 
@@ -138,6 +133,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         }
         outbox.add(Pending(java.util.UUID.randomUUID().toString(), method, path, body?.toString(), label))
         pendingChanges = outbox.size()
+        OutboxWorker.schedule(getApplication())
         return true
     }
 
@@ -223,6 +219,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshAll() {
+        prefetchDocs()
         loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
     }
 
@@ -372,8 +369,61 @@ class AppState(app: Application) : AndroidViewModel(app) {
     /** Joint des fichiers (partage depuis une autre application) à une tâche. Renvoie le nombre d'échecs. */
     suspend fun attachFiles(taskId: String, files: List<SharedFile>): Int {
         var failed = 0
-        for (f in files) runCatching { api.upload("/api/boards/tasks/$taskId/attachments", f.name, f.mime, f.bytes) }.onFailure { failed++; android.util.Log.w("LootyShare", "upload failed: ${f.name}", it) }
+        for (f in files) runCatching { upload("/api/boards/tasks/$taskId/attachments", f) }.onFailure { failed++; android.util.Log.w("LootyShare", "upload failed: ${f.name}", it) }
         return failed
+    }
+
+    /** Envoi d'un fichier ; hors ligne, il est gardé sur l'appareil et envoyé avec les autres modifications. */
+    private suspend fun upload(path: String, f: SharedFile) {
+        if (outbox.size() > 0) drain()
+        if (outbox.size() == 0) {
+            try { api.upload(path, f.name, f.mime, f.bytes); markOnline(); return }
+            catch (e: Exception) { if (!e.isOffline()) throw e; markOffline() }
+        }
+        val id = java.util.UUID.randomUUID().toString()
+        withContext(Dispatchers.IO) { outbox.files.mkdirs(); java.io.File(outbox.files, id).writeBytes(f.bytes) }
+        outbox.add(Pending(id, "UPLOAD", path, buildJsonObject { put("name", f.name); put("mime", f.mime) }.toString(), f.name))
+        pendingChanges = outbox.size()
+        OutboxWorker.schedule(getApplication())
+    }
+
+    private var lastPrefetch = 0L
+
+    /**
+     * Préchargement pour le hors ligne, au plus toutes les 10 minutes : tous les tableaux, puis les favoris et
+     * derniers documents modifiés avec leurs images (ces derniers pas sur une connexion limitée).
+     */
+    fun prefetchDocs() {
+        val now = System.currentTimeMillis()
+        if (now - lastPrefetch < 10 * 60_000) return
+        lastPrefetch = now
+        viewModelScope.launch {
+            delay(4_000)
+            if (offline) return@launch
+            // Tableaux d'abord (petits) : l'ajout rapide et l'ouverture d'une tâche marchent alors hors ligne.
+            for (b in boards) {
+                runCatching { api.get<BoardFull>("/api/boards/${b.id}") }.onSuccess { full ->
+                    full.allTasks.forEach { taskBoard[it.id] = b.id }
+                    withContext(Dispatchers.IO) { cache.put("board-${b.id}", api.json.encodeToString(full)) }
+                }
+            }
+            persistTaskBoard()
+            // Documents : pas sur une connexion limitée.
+            val cm = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
+            if (cm.isActiveNetworkMetered) return@launch
+            val list = pages.data ?: return@launch
+            val wanted = (list.filter { it.is_favorite == true } + list.sortedByDescending { it.updated_at ?: "" }.take(15)).distinctBy { it.id }.take(25)
+            for (p in wanted) {
+                val cached = withContext(Dispatchers.IO) { cache.get("page-${p.id}") }?.let { runCatching { api.json.decodeFromString<Page>(it) }.getOrNull() }
+                val doc = if (cached != null && cached.updated_at == p.updated_at) cached else pageDoc(p.id) ?: continue
+                Regex("src=\"(/uploads/[^\"]+)\"").findAll(doc.content.orEmpty()).take(10).forEach { m ->
+                    val path = m.groupValues[1]
+                    if (withContext(Dispatchers.IO) { cache.getBytes("img-${path}") } == null) {
+                        runCatching { api.bytes(path) }.onSuccess { b -> withContext(Dispatchers.IO) { cache.putBytes("img-${path}", b) } }
+                    }
+                }
+            }
+        }
     }
 
     suspend fun createPage(title: String = "", content: String? = null): Result<String> = runCatching {

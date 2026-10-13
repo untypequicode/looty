@@ -41,6 +41,8 @@ notification opens the matching native screen.
 
 **Offline (0.9.0)**: every list is also saved on the device (`files/offline/`, per server, 80 MB cap), the app opens offline on the saved session, and writes go through a persisted outbox (`files/outbox.json`) replayed in order when the server answers; task/page creation uses client-chosen ids so replays are idempotent. Signing out clears both.
 
+**Offline, part 2 (0.10.0)**: boards and favourite/recent documents (with images) are prefetched; files shared offline are queued as `UPLOAD` entries (`files/outbox-files/`); a WorkManager job (`OutboxWorker`, network-constrained) replays the queue even when the app is closed — app and job share one `Outbox` instance and one lock.
+
 Next: nothing planned.
 
 ## Install

@@ -658,6 +658,24 @@
     },
     {
       "platform": "android",
+      "version": "0.10.0",
+      "date": "2026-10-13",
+      "title": { "en": "Offline: documents, files and background sending", "fr": "Hors ligne : documents, fichiers et envoi en arrière-plan" },
+      "notes": {
+        "en": [
+          "**Documents are ready offline**: your favourite and most recently edited documents (and their images) are downloaded in the background, on Wi-Fi or any unmetered connection, so they open without having been viewed first. All your boards are downloaded too, so you can add and open tasks offline from the start.",
+          "**Files shared while offline are kept**: “Share” → Looty works without a connection; the task and its attachments are sent later.",
+          "**Changes are sent even if the app is closed**: as soon as a connection is back, Android sends your waiting changes in the background. Anything the server refused is reported the next time you open Looty."
+        ],
+        "fr": [
+          "**Les documents sont prêts hors ligne** : vos documents favoris et les derniers modifiés (avec leurs images) sont téléchargés en arrière-plan, en Wi-Fi ou sur toute connexion non limitée, pour s’ouvrir sans avoir été consultés avant. Tous vos tableaux sont aussi téléchargés : vous pouvez ajouter et ouvrir des tâches hors ligne dès le départ.",
+          "**Les fichiers partagés hors ligne sont gardés** : « Partager » → Looty fonctionne sans connexion ; la tâche et ses pièces jointes partent plus tard.",
+          "**Les modifications partent même application fermée** : dès que la connexion revient, Android envoie vos modifications en attente en arrière-plan. Ce que le serveur a refusé est signalé à la prochaine ouverture de Looty."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.9.0",
       "date": "2026-10-13",
       "title": { "en": "Works offline", "fr": "Fonctionne hors ligne" },
