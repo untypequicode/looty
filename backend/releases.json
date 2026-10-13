@@ -3,6 +3,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.16.2",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Moodle sign-in in the Android app",
+        "fr": "Connexion Moodle dans l’application Android"
+      },
+      "notes": {
+        "en": [
+          "In the Android app, **Moodle sign-in uses the official login page** (CAS…) and Looty picks up the connection by itself: no more copying a key by hand."
+        ],
+        "fr": [
+          "Dans l’application Android, **la connexion à Moodle passe par la page officielle** (CAS…) et Looty récupère la connexion tout seul : plus besoin de copier une clé à la main."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.16.1",
       "date": "2026-10-13",
       "title": {
@@ -551,6 +568,23 @@
           "**Graphe** de l’espace pour voir et créer des liens entre documents et tâches.",
           "**Serveur CalDAV** : vos tâches et le calendrier de l’espace dans Thunderbird, DAVx⁵, Apple Calendrier…",
           "Administration : tableau de bord du stockage avec la taille réelle des fichiers envoyés."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.5.1",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Moodle sign-in",
+        "fr": "Connexion à Moodle"
+      },
+      "notes": {
+        "en": [
+          "**Sign in to Moodle in one tap**: the official login page of your school opens in a dedicated screen, and the app picks up the connection when you are done. The password never goes through Looty."
+        ],
+        "fr": [
+          "**Connexion à Moodle en un geste** : la page de connexion officielle de votre établissement s’ouvre dans un écran dédié, et l’application récupère la connexion à la fin. Le mot de passe ne passe jamais par Looty."
         ]
       }
     },

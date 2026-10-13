@@ -72,6 +72,10 @@ async function connect(body?: Record<string, string>) {
 // dans sa fenêtre Moodle ; dans le navigateur, le gestionnaire de protocole web+looty
 // la reçoit si la plateforme le permet.
 const waiting = ref(false)
+/** Application Android : la connexion s’ouvre dans un écran natif qui intercepte moodlemobile://. */
+const inAndroidApp = typeof window !== 'undefined' && !!(window as any).LootyApp
+/** Connexion par le portail officiel dans une fenêtre de l’application (bureau, Android). */
+const portal = isDesktop || inAndroidApp
 async function portalLogin() {
   if (!site.value) return
   connectError.value = ''
@@ -80,19 +84,23 @@ async function portalLogin() {
     await fetch('/__looty/moodle/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: site.value.launch_url, login: true }) })
     return
   }
+  if (inAndroidApp) {
+    ;(window as any).LootyApp.postMessage(JSON.stringify({ type: 'moodleLogin', url: site.value.launch_url }))
+    return
+  }
   localStorage.setItem('looty.moodle.pending', wsId.value)
   try { navigator.registerProtocolHandler('web+looty', `${location.origin}/moodle-callback?link=%s`) } catch { /* navigateur sans gestionnaire */ }
   window.open(site.value.launch_url_web, 'looty-moodle', 'popup,width=960,height=780')
 }
 /** « Autres façons » : identifiant (comptes locaux), ou clé dans l'application de bureau. */
-const usesPassword = computed(() => !isDesktop || method.value === 'password')
+const usesPassword = computed(() => !portal || method.value === 'password')
 function connectOther() {
   connect(usesPassword.value ? { username: form.username, password: form.password } : { token: form.token })
 }
 function openTokens() {
   if (site.value) window.open(site.value.tokens_url, 'looty-moodle', 'popup,width=960,height=780')
 }
-function onDesktopToken(e: Event) { const link = (e as CustomEvent<string>).detail; if (link) connect({ token: link }) }
+function onDesktopToken(e: Event) { const link = (e as CustomEvent<string>).detail; if (link) connect({ token: link }); else waiting.value = false }
 function onPopupMessage(e: MessageEvent) {
   if (e.origin === location.origin && e.data?.type === 'looty-moodle-token' && typeof e.data.link === 'string') connect({ token: e.data.link })
 }
@@ -259,7 +267,7 @@ useHead({ title: () => t('moodle.title') })
         <p class="muted">{{ t('moodle.connectHint') }}</p>
         <p v-if="siteError" class="md-err">{{ siteError }}</p>
         <!-- Application de bureau : portail officiel dans une fenêtre, connexion automatique. -->
-        <template v-if="isDesktop">
+        <template v-if="portal">
           <UiButton class="md-portal" variant="primary" :icon="LogIn" :disabled="!site" :loading="connecting" @click="portalLogin">{{ t('moodle.portalLogin', { site: site?.site_name || 'Moodle' }) }}</UiButton>
           <p class="md-small">{{ t('moodle.portalHintDesktop') }}</p>
           <div v-if="waiting" class="md-wait"><UiSpinner :size="14" /> <span>{{ t('moodle.waitingDesktop') }}</span></div>
@@ -287,8 +295,8 @@ useHead({ title: () => t('moodle.title') })
 
         <button class="md-other" :aria-expanded="otherWays" @click="otherWays = !otherWays">{{ t('moodle.otherWays') }}</button>
         <template v-if="otherWays">
-          <UiSegmented v-if="isDesktop" v-model="method" size="md" :options="[{ value: 'token', label: t('moodle.methods.token') }, { value: 'password', label: t('moodle.methods.password') }]" />
-          <template v-if="method === 'password' || !isDesktop">
+          <UiSegmented v-if="portal" v-model="method" size="md" :options="[{ value: 'token', label: t('moodle.methods.token') }, { value: 'password', label: t('moodle.methods.password') }]" />
+          <template v-if="method === 'password' || !portal">
             <UiInput v-model="form.username" :placeholder="t('moodle.username')" autocomplete="username" />
             <UiInput v-model="form.password" type="password" :placeholder="t('moodle.password')" autocomplete="current-password" @keydown.enter="connectOther" />
             <p class="md-small">{{ t('moodle.passwordHint') }}</p>

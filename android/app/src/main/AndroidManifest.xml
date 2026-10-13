@@ -80,6 +80,11 @@
             </intent-filter>
         </service>
 
+        <!-- Connexion à Moodle (portail officiel) : intercepte moodlemobile://token=… -->
+        <activity
+            android:name=".MoodleLoginActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".SetupActivity"
             android:exported="false"
