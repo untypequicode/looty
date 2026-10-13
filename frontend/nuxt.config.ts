@@ -30,8 +30,14 @@ export default defineNuxtConfig({
         { name: 'theme-color', content: '#0b0b0d', media: '(prefers-color-scheme: dark)' },
         { name: 'theme-color', content: '#fbfbfc', media: '(prefers-color-scheme: light)' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-title', content: 'Looty' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
       ],
       link: [
+        // Application installable (iPhone : Partager → Sur l'écran d'accueil, requis pour les notifications).
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
         { rel: 'preconnect', href: 'https://rsms.me/' },
         { rel: 'stylesheet', href: 'https://rsms.me/inter/inter.css' },
       ],

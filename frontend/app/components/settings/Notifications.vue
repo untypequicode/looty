@@ -62,6 +62,8 @@ async function testPush() {
 // Sans push (http, navigateur ancien) : notifications système tant que Looty est ouvert.
 const desktop = ref(typeof window !== 'undefined' && 'Notification' in window ? window.Notification.permission : 'denied')
 async function enableDesktop() { desktop.value = await window.Notification.requestPermission() }
+// iPhone / iPad : le push n'existe que pour l'application ajoutée à l'écran d'accueil (iOS 16.4+).
+const iosBrowser = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent) && !(window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone)
 const anyPush = computed(() => (devices.value?.length ?? 0) > 0)
 </script>
 
@@ -70,7 +72,7 @@ const anyPush = computed(() => (devices.value?.length ?? 0) > 0)
     <SettingsRow :label="t('settings.notify.emailLabel')" :hint="prefs?.email_available ? t('settings.notify.emailHint', { email: prefs?.email ?? '' }) : t('settings.notify.emailUnavailable')">
       <UiSwitch :model-value="!!prefs?.email_enabled && !!prefs?.email_available" :disabled="!prefs?.email_available" @update:model-value="(v: boolean) => save({ email_enabled: v })" />
     </SettingsRow>
-    <SettingsRow :label="t('settings.notify.pushLabel')" :hint="push.state.value === 'unsupported' ? t('settings.notify.pushUnsupported') : push.state.value === 'denied' ? t('settings.notify.pushDenied') : t('settings.notify.pushHint')">
+    <SettingsRow :label="t('settings.notify.pushLabel')" :hint="push.state.value === 'unsupported' ? (iosBrowser ? t('settings.notify.pushIos') : t('settings.notify.pushUnsupported')) : push.state.value === 'denied' ? t('settings.notify.pushDenied') : t('settings.notify.pushHint')">
       <span v-if="push.state.value === 'on'" class="ok">{{ t('settings.notify.pushOnHere') }}</span>
       <UiButton v-else-if="push.state.value === 'unsupported' && desktop === 'default'" size="sm" @click="enableDesktop">{{ t('settings.notify.enableDesktop') }}</UiButton>
       <span v-else-if="push.state.value === 'unsupported' && desktop === 'granted'" class="ok">{{ t('settings.notify.desktopOn') }}</span>

@@ -13,7 +13,7 @@ export default {
       channels: 'Channels', channelsHint: 'Notifications always appear in your inbox. Choose where else you want to receive them.',
       emailLabel: 'Email notifications', emailHint: 'Sent to {email}', emailUnavailable: 'Email sending isn’t configured on this instance yet.',
       pushLabel: 'Push notifications', pushHint: 'On your computer or phone, even when Looty is closed.',
-      pushUnsupported: 'Not available in this browser (a secure https connection is required).', pushDenied: 'Blocked in this browser’s site settings.',
+      pushIos: 'On iPhone and iPad, notifications need the app on your home screen: in Safari tap Share → “Add to Home Screen”, then open Looty from there and come back here (iOS 16.4 or later).', pushUnsupported: 'Not available in this browser (a secure https connection is required).', pushDenied: 'Blocked in this browser’s site settings.',
       pushOnHere: 'On for this device', enableHere: 'Enable on this device', pushEnabled: 'Push notifications enabled on this device',
       enableDesktop: 'Notify while Looty is open', desktopOn: 'While Looty is open',
       events: 'What you receive', eventsHint: 'Pick a channel for each kind of event.', email: 'Email', push: 'Push',
