@@ -177,4 +177,33 @@
     <string name="mail_cc">Cc : %1$s</string>
     <string name="images_blocked">Les images distantes sont bloquées pour protéger votre vie privée.</string>
     <string name="show_images">Afficher les images</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Notifications</string>
+    <string name="channel_activity">Activité</string>
+    <string name="channel_activity_hint">Mentions, tâches assignées, commentaires et rappels</string>
+    <string name="push_how">Comment recevoir les notifications</string>
+    <string name="push_unified">Push instantané (UnifiedPush)</string>
+    <string name="push_unified_hint">Instantané et économe en batterie, sans Google. Utilise l’application UnifiedPush installée (ntfy, Gotify…).</string>
+    <string name="push_unified_on">Activé · via %1$s</string>
+    <string name="push_unified_missing">Nécessite une application UnifiedPush comme ntfy. Aucune n’est installée.</string>
+    <string name="push_registering">Connexion au service de notifications…</string>
+    <string name="push_get_app">Obtenir une application UnifiedPush</string>
+    <string name="push_change_app">Utiliser une autre application</string>
+    <string name="push_no_distributor">Installez une application UnifiedPush (par exemple ntfy), puis réessayez.</string>
+    <string name="push_polling">Vérification périodique</string>
+    <string name="push_polling_hint">L’application cherche les nouvelles notifications environ toutes les 15 minutes. Fonctionne partout, mais pas instantané.</string>
+    <string name="push_off">Aucune notification</string>
+    <string name="push_test">Envoyer une notification de test</string>
+    <string name="push_test_body">Les notifications fonctionnent sur cet appareil.</string>
+    <string name="push_test_sent">Test envoyé : il devrait arriver dans quelques secondes.</string>
+    <string name="push_test_none">Le serveur n’a pas pu joindre cet appareil. Vérifiez l’application de notifications et votre connexion.</string>
+    <string name="push_test_error">Impossible d’envoyer le test.</string>
+    <string name="push_failed">Impossible d’activer les notifications push.</string>
+    <string name="push_error">Problème : %1$s</string>
+    <string name="push_blocked">Les notifications sont bloquées</string>
+    <string name="push_blocked_hint">Autorisez Looty à afficher des notifications, sinon rien n’apparaîtra.</string>
+    <string name="push_allow">Autoriser les notifications</string>
+    <string name="push_events">Choisir ce qui vous notifie</string>
+    <string name="push_events_hint">Mentions, assignations, commentaires, rappels… dans les réglages de l’espace</string>
 </resources>

@@ -25,8 +25,8 @@ android {
         applicationId = "io.github.untypequicode.looty"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
     }
 
     signingConfigs {
@@ -93,4 +93,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    // Notifications sans Google : UnifiedPush (ntfy, Gotify, NextPush…) ; à défaut, vérification périodique.
+    implementation("org.unifiedpush.android:connector:3.3.5")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 }

@@ -539,6 +539,29 @@
     },
     {
       "platform": "android",
+      "version": "0.5.0",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Notifications without Google",
+        "fr": "Notifications sans Google"
+      },
+      "notes": {
+        "en": [
+          "**Notifications on your phone, without Google**: turn on “Instant push” in More → Notifications to receive mentions, assignments, comments and reminders as they happen, even when the app is closed. It works with any UnifiedPush app (ntfy, Gotify…): install one, choose it once, done.",
+          "No UnifiedPush app? Choose the **periodic check** instead: the app looks for new notifications about every 15 minutes (Android does not allow faster).",
+          "A test button checks the whole chain from the server to your phone. Tapping a notification opens the task, board, inbox or page directly, in the native screens when they exist.",
+          "Signing out removes the device from the server, so it stops receiving notifications of that account. What notifies you is still chosen in the workspace settings."
+        ],
+        "fr": [
+          "**Notifications sur votre téléphone, sans Google** : activez « Push instantané » dans Plus → Notifications pour recevoir mentions, assignations, commentaires et rappels au moment où ils arrivent, même application fermée. Cela fonctionne avec toute application UnifiedPush (ntfy, Gotify…) : installez-en une, choisissez-la une fois, c’est tout.",
+          "Pas d’application UnifiedPush ? Choisissez plutôt la **vérification périodique** : l’application cherche les nouvelles notifications environ toutes les 15 minutes (Android n’autorise pas plus rapide).",
+          "Un bouton de test vérifie toute la chaîne, du serveur à votre téléphone. Toucher une notification ouvre directement la tâche, le tableau, la boîte de réception ou la page, dans les écrans natifs quand ils existent.",
+          "Se déconnecter retire l’appareil du serveur : il ne reçoit plus les notifications de ce compte. Ce qui vous notifie se choisit toujours dans les réglages de l’espace."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.4.0",
       "date": "2026-10-05",
       "title": {

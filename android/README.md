@@ -24,8 +24,13 @@ Native screens (since 0.2.0, boards and tasks since 0.3.0): **Boards** (swipe be
 (tree, favorites, search, new document), **Inbox** (notifications, mark as read) and **More**
 (workspaces, boards, other screens, server, sign out); **New task** bottom sheet.
 
-Next phases: calendar and mail, notifications
-(UnifiedPush/ntfy with a periodic check as fallback), widget and sharing, offline cache.
+**Notifications (0.5.0)**, without Google: *More → Notifications*. Instant push through
+UnifiedPush (ntfy, Gotify… the server sends Web Push to the endpoint your distributor app gives
+the app) or, as a fallback, a periodic check every ~15 minutes (WorkManager). Tapping a
+notification opens the matching native screen.
+
+Next phases: Moodle sign-in, permission-aware actions, native reading view, widget and sharing,
+offline cache.
 
 ## Install
 
