@@ -1,6 +1,8 @@
 package io.github.untypequicode.looty
 
 import android.content.Intent
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -75,7 +77,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Retour d'un écran web : les données ont pu changer.
-        if (state.session is Session.Ready) state.refreshAll()
+        if (state.session is Session.Ready) {
+            state.refreshAll()
+            // Modifications faites hors ligne : envoyées dès le retour dans l'application.
+            state.viewModelScope.launch { state.drain() }
+        }
     }
 
     /** looty://w/… : la page correspondante (écran web pour l'instant). */

@@ -9,8 +9,16 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.untypequicode.looty.api.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
+import io.github.untypequicode.looty.offline.*
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -23,6 +31,9 @@ import io.github.untypequicode.looty.push.Push
 import io.github.untypequicode.looty.push.PushStore
 
 /** État d'un chargement : données (éventuellement anciennes) + chargement + erreur. */
+/** Compte et espaces gardés pour ouvrir l'application sans serveur. */
+@Serializable data class CachedSession(val user: User, val workspaces: List<Workspace>)
+
 data class Loadable<T>(val data: T? = null, val loading: Boolean = false, val error: String? = null)
 
 sealed interface Session {
@@ -42,6 +53,112 @@ class AppState(app: Application) : AndroidViewModel(app) {
     /** Lien (« /w/<espace>/… ») à ouvrir dès que la session est prête : notification, « Ouvrir dans l'application ». */
     var pendingLink by mutableStateOf<String?>(null)
     private val prefs = app.getSharedPreferences("looty", 0)
+
+    // -----------------------------------------------------------------------
+    // Hors ligne : les écrans s'affichent depuis une copie gardée sur l'appareil ; les
+    // modifications faites sans serveur sont mises en file d'attente puis rejouées dans l'ordre.
+    // -----------------------------------------------------------------------
+
+    val cache = OfflineCache(app)
+    private val outbox = Outbox(app, api.json)
+    /** Le dernier appel n'a pas atteint le serveur : données gardées affichées, modifications en attente. */
+    var offline by mutableStateOf(false); private set
+    /** Modifications faites hors ligne, pas encore envoyées. */
+    var pendingChanges by mutableStateOf(outbox.size()); private set
+    /** Modifications hors ligne refusées par le serveur au rejeu (à signaler une fois). */
+    var refused by mutableStateOf<List<String>>(emptyList())
+    private val drainLock = Mutex()
+    private var network: android.net.ConnectivityManager.NetworkCallback? = null
+
+    private fun markOffline() { if (!offline) offline = true }
+    private fun markOnline() { if (offline) offline = false }
+
+    init {
+        cache.trim()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { cache.get("taskboard") }?.let { raw ->
+                runCatching { api.json.decodeFromString<Map<String, String>>(raw) }.onSuccess { taskBoard.putAll(it) }
+            }
+        }
+        // Dès que le réseau revient : envoi des modifications en attente, puis rechargement.
+        val cm = app.getSystemService(android.net.ConnectivityManager::class.java)
+        network = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) { viewModelScope.launch { retryNow() } }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(network!!) }
+        // Serveur injoignable alors que le réseau est là : nouvel essai toutes les 30 secondes.
+        viewModelScope.launch { while (true) { delay(30_000); if (offline || pendingChanges > 0) retryNow() } }
+    }
+
+    override fun onCleared() {
+        network?.let { n -> runCatching { getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(n) } }
+    }
+
+    /** Renvoie les modifications en attente, puis recharge les données. */
+    suspend fun retryNow() {
+        when (session) {
+            is Session.Ready -> { drain(); if (offline) refreshAll() }
+            is Session.Offline -> start()
+            else -> {}
+        }
+    }
+
+    /** Écrit les modifications en attente dans l'ordre ; s'arrête dès que le serveur est de nouveau injoignable. */
+    suspend fun drain() {
+        if (!drainLock.tryLock()) return
+        try {
+            var sent = false
+            while (true) {
+                val p = outbox.first() ?: break
+                try {
+                    api.raw(p.method, p.path, p.body)
+                    outbox.remove(p.id); sent = true; markOnline()
+                } catch (e: Exception) {
+                    if (e.isOffline()) { markOffline(); break }
+                    outbox.remove(p.id)
+                    refused = refused + p.label
+                }
+            }
+            pendingChanges = outbox.size()
+            if (sent) refreshAll()
+        } finally {
+            drainLock.unlock()
+        }
+    }
+
+    /**
+     * Écriture : envoyée tout de suite ; si le serveur est injoignable, mise en file d'attente (rejouée
+     * dès que possible). Renvoie true quand elle est en attente. Les écritures déjà en attente passent d'abord.
+     */
+    private suspend fun write(method: String, path: String, body: JsonElement? = null, label: String = path.substringAfterLast('/')): Boolean {
+        if (outbox.size() > 0) drain()
+        if (outbox.size() == 0) {
+            try { api.send(method, path, body); markOnline(); return false }
+            catch (e: Exception) { if (!e.isOffline()) throw e; markOffline() }
+        }
+        outbox.add(Pending(java.util.UUID.randomUUID().toString(), method, path, body?.toString(), label))
+        pendingChanges = outbox.size()
+        return true
+    }
+
+    /** Lecture avec copie locale : affiche la copie tout de suite, la remplace par la réponse du serveur. */
+    private inline fun <reified T> fetchCached(key: String, crossinline apply: (T) -> Unit, crossinline fetch: suspend () -> T) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { cache.get(key) }?.let { raw -> runCatching { apply(api.json.decodeFromString<T>(raw)) } }
+            try {
+                val v = fetch()
+                apply(v); markOnline()
+                withContext(Dispatchers.IO) { cache.put(key, api.json.encodeToString(v)) }
+            } catch (e: Exception) {
+                if (e.isOffline()) markOffline()
+            }
+        }
+    }
+
+    private fun persistTaskBoard() {
+        val snapshot = taskBoard.toMap()
+        viewModelScope.launch(Dispatchers.IO) { cache.put("taskboard", api.json.encodeToString(snapshot)) }
+    }
 
     var session by mutableStateOf<Session>(Session.Loading); private set
     var members by mutableStateOf<Map<String, Member>>(emptyMap()); private set
@@ -71,15 +188,29 @@ class AppState(app: Application) : AndroidViewModel(app) {
                     val list = api.get<Workspaces>("/api/workspaces").workspaces
                     val saved = prefs.getString("workspace", null)
                     val wsId = list.firstOrNull { it.id == saved }?.id ?: list.firstOrNull()?.id
-                    if (wsId == null) Session.Offline("no_workspace") else Session.Ready(user, list, wsId)
+                    if (wsId == null) Session.Offline("no_workspace") else {
+                        withContext(Dispatchers.IO) { cache.put("session", api.json.encodeToString(CachedSession(user, list))) }
+                        markOnline()
+                        Session.Ready(user, list, wsId)
+                    }
                 }
             } catch (e: ApiException) {
-                if (e.status == 401) Session.NeedLogin else Session.Offline(e.code)
+                if (e.status == 401) Session.NeedLogin else offlineSession(e) ?: Session.Offline(e.code)
             } catch (e: Exception) {
-                Session.Offline(e.message ?: "offline")
+                offlineSession(e) ?: Session.Offline(e.message ?: "offline")
             }
             if (session is Session.Ready) refreshAll()
         }
+    }
+
+    /** Serveur injoignable : si on s'est déjà connecté ici, l'application s'ouvre sur les données gardées. */
+    private suspend fun offlineSession(e: Throwable): Session.Ready? {
+        if (!e.isOffline()) return null
+        val c = withContext(Dispatchers.IO) { cache.get("session") }?.let { runCatching { api.json.decodeFromString<CachedSession>(it) }.getOrNull() } ?: return null
+        val saved = prefs.getString("workspace", null)
+        val wsId = c.workspaces.firstOrNull { it.id == saved }?.id ?: c.workspaces.firstOrNull()?.id ?: return null
+        markOffline()
+        return Session.Ready(c.user, c.workspaces, wsId)
     }
 
     fun switchWorkspace(id: String) {
@@ -95,14 +226,27 @@ class AppState(app: Application) : AndroidViewModel(app) {
         loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
     }
 
-    private fun <T> load(get: () -> Loadable<T>, set: (Loadable<T>) -> Unit, block: suspend () -> T) {
+    /** Charge une liste : copie gardée affichée d'abord, puis réponse du serveur ; hors ligne, la copie reste. */
+    private inline fun <reified T> load(crossinline get: () -> Loadable<T>, crossinline set: (Loadable<T>) -> Unit, key: String?, crossinline block: suspend () -> T) {
         set(get().copy(loading = true, error = null))
         viewModelScope.launch {
-            set(try { Loadable(block()) } catch (e: ApiException) { get().copy(loading = false, error = e.code) } catch (e: Exception) { get().copy(loading = false, error = "offline") })
+            if (key != null && get().data == null) {
+                withContext(Dispatchers.IO) { cache.get(key) }?.let { raw -> runCatching { api.json.decodeFromString<T>(raw) }.getOrNull() }?.let { set(Loadable(it, loading = true)) }
+            }
+            try {
+                val v = block()
+                set(Loadable(v)); markOnline()
+                if (key != null) withContext(Dispatchers.IO) { cache.put(key, api.json.encodeToString(v)) }
+            } catch (e: Exception) {
+                val off = e.isOffline()
+                if (off) markOffline()
+                val cur = get()
+                set(cur.copy(loading = false, error = if (cur.data != null && off) null else (e as? ApiException)?.code ?: "offline"))
+            }
         }
     }
 
-    fun loadAccess() { val w = ws ?: return; viewModelScope.launch { runCatching { access = api.get<MyAccess>("/api/workspaces/$w/access/me") } } }
+    fun loadAccess() { val w = ws ?: return; fetchCached("${w}/access", { a: MyAccess -> access = a }) { api.get<MyAccess>("/api/workspaces/$w/access/me") } }
     private fun level(name: String?) = when (name) { "none" -> 0; "read" -> 1; "comment" -> 2; "validate" -> 3; "edit" -> 4; "manage" -> 5; else -> 4 }
     private fun allows(area: (Permissions) -> String, needed: Int) = access?.permissions?.let { level(area(it)) >= needed } ?: true
     /** Créer, modifier, déplacer, supprimer des tâches. */
@@ -113,28 +257,33 @@ class AppState(app: Application) : AndroidViewModel(app) {
     val canEditDocs: Boolean get() = allows({ it.docs }, 4)
     val canEditCalendar: Boolean get() = allows({ it.calendar }, 4)
     /** Document complet (titre + HTML) pour la lecture native ; null si introuvable. */
-    suspend fun pageDoc(id: String): Page? = ws?.let { w -> runCatching { api.get<Page>("/api/workspaces/$w/pages/$id") }.getOrNull() }
+    suspend fun pageDoc(id: String): Page? = ws?.let { w ->
+        runCatching { api.get<Page>("/api/workspaces/$w/pages/$id").also { p -> markOnline(); withContext(Dispatchers.IO) { cache.put("page-$id", api.json.encodeToString(p)) } } }.onFailure { if (it.isOffline()) markOffline() }.getOrNull()
+            ?: withContext(Dispatchers.IO) { cache.get("page-$id") }?.let { raw -> runCatching { api.json.decodeFromString<Page>(raw) }.getOrNull() }
+    }
     fun loadMembers() {
         val w = ws ?: return
-        viewModelScope.launch { runCatching { members = api.get<Members>("/api/workspaces/$w/members").members.associateBy { it.user_id } } }
+        fetchCached("${w}/members", { m: Members -> members = m.members.associateBy { it.user_id } }) { api.get<Members>("/api/workspaces/$w/members") }
     }
-    fun loadOverview() { val w = ws ?: return; load({ overview }, { overview = it }) { api.get("/api/workspaces/$w/overview") } }
+    fun loadOverview() { val w = ws ?: return; load({ overview }, { overview = it }, "${w}/overview") { api.get<Overview>("/api/workspaces/$w/overview") } }
     fun loadTasks() {
         val w = ws ?: return
-        load({ tasks }, { tasks = it }) { api.get<MyTasks>("/api/workspaces/$w/my_tasks?scope=$taskScope").tasks }
+        load({ tasks }, { tasks = it }, "${w}/tasks-${taskScope}") {
+            api.get<MyTasks>("/api/workspaces/$w/my_tasks?scope=$taskScope").tasks.also { l -> l.forEach { taskBoard[it.id] = it.board_id }; persistTaskBoard() }
+        }
         // Le widget de l’écran d’accueil suit les tâches affichées.
         viewModelScope.launch { runCatching { io.github.untypequicode.looty.widget.LootyWidget().updateAll(getApplication()) } }
     }
-    fun loadPages() { val w = ws ?: return; load({ pages }, { pages = it }) { api.get<List<Page>>("/api/workspaces/$w/pages") } }
-    fun loadInbox() { val w = ws ?: return; load({ inbox }, { inbox = it }) { api.get<List<Notification>>("/api/notifications?workspace_id=$w") } }
-    fun loadBoards() { val w = ws ?: return; viewModelScope.launch { runCatching { boards = api.get<List<BoardSummary>>("/api/workspaces/$w/boards") } } }
+    fun loadPages() { val w = ws ?: return; load({ pages }, { pages = it }, "${w}/pages") { api.get<List<Page>>("/api/workspaces/$w/pages") } }
+    fun loadInbox() { val w = ws ?: return; load({ inbox }, { inbox = it }, "${w}/inbox") { api.get<List<Notification>>("/api/notifications?workspace_id=$w") } }
+    fun loadBoards() { val w = ws ?: return; fetchCached("${w}/boards", { l: List<BoardSummary> -> boards = l }) { api.get<List<BoardSummary>>("/api/workspaces/$w/boards") } }
     /** Événements d'aujourd'hui et de demain (calendriers de l'espace et personnels). */
     fun loadUpcoming() {
         val w = ws ?: return
         val zone = ZoneId.systemDefault()
         val from = LocalDate.now().atStartOfDay(zone).toInstant()
         val to = from.plusSeconds(2 * 86400)
-        load({ upcoming }, { upcoming = it }) {
+        load({ upcoming }, { upcoming = it }, "${w}/upcoming") {
             api.get<CalEvents>("/api/workspaces/$w/calendars/events?from=$from&to=$to").events
                 .filter { Instant.parse(it.ends_at) >= Instant.now() || it.all_day }
                 .sortedBy { it.starts_at }
@@ -149,31 +298,63 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     /** Coche / décoche (pour une tâche individuelle : ma part seulement). */
     fun toggleTask(id: String, onDone: () -> Unit = {}) {
+        // Copie locale tout de suite (visible aussi hors ligne), puis envoi ou mise en file d'attente.
+        tasks = tasks.copy(data = tasks.data?.map { if (it.id == id) { if (it.is_per_person) it.copy(done_by_me = !it.done_by_me) else it.copy(is_completed = !it.is_completed) } else it })
+        saveTasksCache()
         viewModelScope.launch {
-            runCatching { api.send("PUT", "/api/boards/tasks/$id/toggle_validation") }
+            runCatching { write("PUT", "/api/boards/tasks/$id/toggle_validation", null, tasks.data?.firstOrNull { it.id == id }?.title ?: "task") }
             // Laisse voir la coche avant que la tâche quitte la liste.
             kotlinx.coroutines.delay(900)
             loadTasks(); loadOverview(); onDone()
         }
     }
 
+    private fun saveTasksCache() {
+        val w = ws ?: return
+        val data = tasks.data ?: return
+        val key = "${w}/tasks-${taskScope}"
+        viewModelScope.launch(Dispatchers.IO) { cache.put(key, api.json.encodeToString(data)) }
+    }
+
     fun markRead(n: Notification) {
         if (n.read_at != null) return
         inbox = inbox.copy(data = inbox.data?.map { if (it.id == n.id) it.copy(read_at = Instant.now().toString()) else it })
-        viewModelScope.launch { runCatching { api.send("PUT", "/api/notifications/${n.id}/read", buildJsonObject { put("read", true) }) } }
+        viewModelScope.launch { runCatching { write("PUT", "/api/notifications/${n.id}/read", buildJsonObject { put("read", true) }, "notification") } }
     }
 
     fun markAllRead() {
         val w = ws ?: return
         inbox = inbox.copy(data = inbox.data?.map { it.copy(read_at = it.read_at ?: Instant.now().toString()) })
-        viewModelScope.launch { runCatching { api.send("POST", "/api/notifications/read-all?workspace_id=$w") }; loadInbox() }
+        viewModelScope.launch { runCatching { write("POST", "/api/notifications/read-all?workspace_id=$w", null, "inbox") }; loadInbox() }
     }
 
     /** Ajout rapide : première colonne du tableau choisi. */
+    /** Colonnes d'un tableau : celles du serveur, sinon la copie gardée sur l'appareil. */
+    private suspend fun boardColumns(boardId: String): Board =
+        try { api.get<Board>("/api/boards/$boardId").also { markOnline() } }
+        catch (e: Exception) {
+            if (!e.isOffline()) throw e
+            markOffline()
+            val b = boardData[boardId]?.data ?: withContext(Dispatchers.IO) { cache.get("board-$boardId") }?.let { api.json.decodeFromString<BoardFull>(it) } ?: throw e
+            Board(b.id, b.name, b.columns.map { Column(it.id, it.name, it.position) })
+        }
+
+    /** Tâche créée hors ligne : visible tout de suite dans le tableau et les listes. */
+    private fun insertLocalTask(boardId: String, boardName: String, column: Column, t: Task) {
+        taskBoard[t.id] = boardId
+        persistTaskBoard()
+        patchLocal(boardId) { bd -> bd.copy(columns = bd.columns.map { c -> if (c.id == column.id) c.copy(tasks = listOf(t) + c.tasks) else c }) }
+        tasks = tasks.copy(data = listOf(MyTask(id = t.id, title = t.title, due_date = t.due_date, board_id = boardId, board_name = boardName, column_name = column.name, assignees = t.assignees)) + tasks.data.orEmpty())
+        saveTasksCache()
+    }
+
     suspend fun createTask(boardId: String, title: String, due: LocalDate?, assignMe: Boolean, description: String? = null): Result<String> = runCatching {
-        val board = api.get<Board>("/api/boards/$boardId")
+        val board = boardColumns(boardId)
         val col = board.columns.minByOrNull { it.position } ?: throw ApiException(0, "no_column")
+        val id = java.util.UUID.randomUUID().toString()
+        val dueIso = due?.atTime(12, 0)?.atZone(ZoneId.systemDefault())?.toInstant()?.toString()
         val body = buildJsonObject {
+            put("id", id)
             put("title", title.trim())
             put("at_top", true)
             if (description != null) put("description", description)
@@ -181,9 +362,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
             if (assignMe) me?.let { putJsonArray("assignees") { add(it.id) } }
         }
         prefs.edit().putString("lastBoard", boardId).apply()
-        val created = api.post<Created>("/api/boards/columns/${col.id}/tasks", body)
-        loadTasks(); loadOverview()
-        created.id
+        val queued = write("POST", "/api/boards/columns/${col.id}/tasks", body, title.trim())
+        if (queued) insertLocalTask(boardId, board.name, col, Task(id = id, column_id = col.id, title = title.trim(), description = description, due_date = dueIso, assignees = if (assignMe) listOfNotNull(me?.id) else emptyList(), position = 0.0))
+        else { loadTasks(); loadOverview() }
+        id
     }
     val lastBoard: String? get() = prefs.getString("lastBoard", null)
 
@@ -196,9 +378,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     suspend fun createPage(title: String = "", content: String? = null): Result<String> = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
-        val p = api.post<Page>("/api/workspaces/$w/pages", buildJsonObject { put("title", title); if (content != null) put("content", content) })
-        loadPages()
-        p.id
+        val id = java.util.UUID.randomUUID().toString()
+        val queued = write("POST", "/api/workspaces/$w/pages", buildJsonObject { put("id", id); put("title", title); if (content != null) put("content", content) }, title.ifBlank { "document" })
+        if (!queued) loadPages()
+        id
     }
 
     // -----------------------------------------------------------------------
@@ -217,14 +400,23 @@ class AppState(app: Application) : AndroidViewModel(app) {
         val cur = boardData[id] ?: Loadable()
         boardData[id] = cur.copy(loading = true, error = null)
         viewModelScope.launch {
+            if (boardData[id]?.data == null) {
+                withContext(Dispatchers.IO) { cache.get("board-$id") }?.let { raw -> runCatching { api.json.decodeFromString<BoardFull>(raw) }.getOrNull() }?.let { b ->
+                    b.allTasks.forEach { taskBoard[it.id] = id }
+                    boardData[id] = Loadable(b, loading = true)
+                }
+            }
             boardData[id] = try {
                 val b = api.get<BoardFull>("/api/boards/$id")
                 b.allTasks.forEach { taskBoard[it.id] = id }
+                markOnline()
+                withContext(Dispatchers.IO) { cache.put("board-$id", api.json.encodeToString(b)) }
                 Loadable(b)
-            } catch (e: ApiException) {
-                (boardData[id] ?: Loadable()).copy(loading = false, error = e.code)
             } catch (e: Exception) {
-                (boardData[id] ?: Loadable()).copy(loading = false, error = "offline")
+                val off = e.isOffline()
+                if (off) markOffline()
+                val last = boardData[id] ?: Loadable()
+                last.copy(loading = false, error = if (last.data != null && off) null else (e as? ApiException)?.code ?: "offline")
             }
         }
     }
@@ -245,7 +437,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
     private fun patchLocal(boardId: String, f: (BoardFull) -> BoardFull) {
         val entry = boardData[boardId] ?: return
         val cur = entry.data ?: return
-        boardData[boardId] = entry.copy(data = f(cur))
+        val next = f(cur)
+        boardData[boardId] = entry.copy(data = next)
+        // La copie gardée suit les modifications locales (visibles aussi après un redémarrage hors ligne).
+        viewModelScope.launch(Dispatchers.IO) { cache.put("board-$boardId", api.json.encodeToString(next)) }
     }
 
     private fun mapTask(b: BoardFull, id: String, f: (Task) -> Task) =
@@ -263,7 +458,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun updateTask(task: Task, body: JsonObject, local: (Task) -> Task) {
         val b = taskBoard[task.id] ?: return
-        mutate(b, { mapTask(it, task.id, local) }) { api.send("PUT", "/api/boards/tasks/${task.id}", body) }
+        mutate(b, { mapTask(it, task.id, local) }) { write("PUT", "/api/boards/tasks/${task.id}", body, task.title) }
     }
 
     fun toggleDone(task: Task) {
@@ -272,7 +467,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         mutate(b, { bd -> mapTask(bd, task.id) { t ->
             if (t.is_per_person) t.copy(validations = if (meId in t.validations) t.validations - meId else t.validations + meId)
             else t.copy(is_completed = !t.is_completed)
-        } }) { api.send("PUT", "/api/boards/tasks/${task.id}/toggle_validation") }
+        } }) { write("PUT", "/api/boards/tasks/${task.id}/toggle_validation", null, task.title) }
     }
 
     fun moveTask(task: Task, columnId: String) {
@@ -287,62 +482,72 @@ class AppState(app: Application) : AndroidViewModel(app) {
                 if (c.id == columnId) c.copy(tasks = listOf(moved) + c.tasks.filter { it.id != task.id })
                 else c.copy(tasks = c.tasks.filter { it.id != task.id })
             })
-        }) { api.send("PUT", "/api/boards/tasks/${task.id}/move", buildJsonObject { put("column_id", columnId); put("position", pos) }) }
+        }) { write("PUT", "/api/boards/tasks/${task.id}/move", buildJsonObject { put("column_id", columnId); put("position", pos) }, task.title) }
     }
 
     fun setLabel(task: Task, label: Label, on: Boolean) {
         val b = taskBoard[task.id] ?: return
         mutate(b, { bd -> mapTask(bd, task.id) { t -> t.copy(labels = if (on) t.labels + label else t.labels.filter { it.id != label.id }) } }) {
-            api.send(if (on) "POST" else "DELETE", "/api/boards/tasks/${task.id}/labels/${label.id}")
+            write(if (on) "POST" else "DELETE", "/api/boards/tasks/${task.id}/labels/${label.id}", null, task.title)
         }
     }
 
     fun setAssignee(task: Task, userId: String, on: Boolean) {
         val b = taskBoard[task.id] ?: return
         mutate(b, { bd -> mapTask(bd, task.id) { t -> t.copy(assignees = if (on) t.assignees + userId else t.assignees - userId) } }) {
-            api.send(if (on) "POST" else "DELETE", "/api/boards/tasks/${task.id}/assignees/$userId")
+            write(if (on) "POST" else "DELETE", "/api/boards/tasks/${task.id}/assignees/$userId", null, task.title)
         }
     }
 
     fun addSubtask(parent: Task, title: String) {
         val b = taskBoard[parent.id] ?: return
         viewModelScope.launch {
-            runCatching { api.send("POST", "/api/boards/tasks/${parent.id}/subtasks", buildJsonObject { put("title", title.trim()) }) }
+            runCatching { write("POST", "/api/boards/tasks/${parent.id}/subtasks", buildJsonObject { put("title", title.trim()) }, title.trim()) }
                 .onFailure { lastError = (it as? ApiException)?.code ?: "offline" }
             loadBoard(b)
         }
     }
 
     suspend fun createInColumn(boardId: String, columnId: String, title: String): Result<String> = runCatching {
-        val created = api.post<Created>("/api/boards/columns/$columnId/tasks", buildJsonObject { put("title", title.trim()); put("at_top", true) })
-        taskBoard[created.id] = boardId
-        loadBoard(boardId)
-        created.id
+        val id = java.util.UUID.randomUUID().toString()
+        val queued = write("POST", "/api/boards/columns/$columnId/tasks", buildJsonObject { put("id", id); put("title", title.trim()); put("at_top", true) }, title.trim())
+        taskBoard[id] = boardId
+        if (queued) {
+            val col = boardData[boardId]?.data?.column(columnId)
+            if (col != null) insertLocalTask(boardId, boardData[boardId]?.data?.name.orEmpty(), Column(col.id, col.name, col.position), Task(id = id, column_id = columnId, title = title.trim()))
+        } else loadBoard(boardId)
+        id
     }
 
     fun deleteTask(task: Task) {
         val b = taskBoard[task.id] ?: return
         mutate(b, { bd -> bd.copy(columns = bd.columns.map { c -> c.copy(tasks = c.tasks.filter { it.id != task.id && it.parent_id != task.id }) }) }) {
-            api.send("DELETE", "/api/boards/tasks/${task.id}")
+            write("DELETE", "/api/boards/tasks/${task.id}", null, task.title)
         }
     }
 
     /** Annulation d'une suppression (corbeille). */
     fun restoreTask(taskId: String) {
         val b = taskBoard[taskId] ?: return
-        viewModelScope.launch { runCatching { api.send("POST", "/api/trash/tasks/$taskId/restore") }; loadBoard(b); loadTasks() }
+        viewModelScope.launch { runCatching { write("POST", "/api/trash/tasks/$taskId/restore", null, "task") }; loadBoard(b); loadTasks() }
     }
 
     fun loadComments(taskId: String) {
         viewModelScope.launch {
-            runCatching { api.get<List<Comment>>("/api/boards/tasks/$taskId/comments") }.onSuccess { comments[taskId] = it }
-            runCatching { api.get<List<Attachment>>("/api/boards/tasks/$taskId/attachments") }.onSuccess { attachments[taskId] = it }
+            // Copie gardée d'abord (ouverture hors ligne), puis le serveur.
+            withContext(Dispatchers.IO) { cache.get("comments-$taskId") }?.let { raw -> runCatching { api.json.decodeFromString<List<Comment>>(raw) }.getOrNull() }?.let { if (comments[taskId] == null) comments[taskId] = it }
+            withContext(Dispatchers.IO) { cache.get("attachments-$taskId") }?.let { raw -> runCatching { api.json.decodeFromString<List<Attachment>>(raw) }.getOrNull() }?.let { if (attachments[taskId] == null) attachments[taskId] = it }
+            runCatching { api.get<List<Comment>>("/api/boards/tasks/$taskId/comments") }.onSuccess { comments[taskId] = it; markOnline(); withContext(Dispatchers.IO) { cache.put("comments-$taskId", api.json.encodeToString(it)) } }.onFailure { if (it.isOffline()) markOffline() }
+            runCatching { api.get<List<Attachment>>("/api/boards/tasks/$taskId/attachments") }.onSuccess { attachments[taskId] = it; withContext(Dispatchers.IO) { cache.put("attachments-$taskId", api.json.encodeToString(it)) } }
         }
     }
 
     suspend fun addComment(taskId: String, text: String): Boolean = runCatching {
-        api.send("POST", "/api/boards/tasks/$taskId/comments", buildJsonObject { put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)) })
-        loadComments(taskId)
+        val html = io.github.untypequicode.looty.ui.Html.fromPlain(text)
+        val queued = write("POST", "/api/boards/tasks/$taskId/comments", buildJsonObject { put("content", html) }, "comment")
+        // Hors ligne : le commentaire apparaît tout de suite ; il sera envoyé avec le reste.
+        if (queued) comments[taskId] = comments[taskId].orEmpty() + Comment("local-" + java.util.UUID.randomUUID(), taskId, me?.id.orEmpty(), html, Instant.now().toString())
+        else loadComments(taskId)
     }.isSuccess
 
     // -----------------------------------------------------------------------
@@ -362,7 +567,13 @@ class AppState(app: Application) : AndroidViewModel(app) {
                 // Calendriers Looty de l'espace (par défaut, thématiques, tableaux) puis abonnements.
                 val looty = runCatching { api.get<List<LootyCalendar>>("/api/workspaces/$w/planning/calendars") }.getOrDefault(emptyList())
                     .map { CalendarSource(it.id, if (it.is_default) "" else it.name, it.color, "looty", "workspace") }
-                calSources = looty + api.get<List<CalendarSource>>("/api/workspaces/$w/calendars")
+                val all = looty + api.get<List<CalendarSource>>("/api/workspaces/$w/calendars")
+                calSources = all
+                markOnline()
+                withContext(Dispatchers.IO) { cache.put("${w}/calsources", api.json.encodeToString(all)) }
+            }.onFailure {
+                if (it.isOffline()) markOffline()
+                if (calSources.isEmpty()) withContext(Dispatchers.IO) { cache.get("${w}/calsources") }?.let { raw -> runCatching { calSources = api.json.decodeFromString<List<CalendarSource>>(raw) } }
             }
         }
     }
@@ -373,7 +584,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         val zone = ZoneId.systemDefault()
         val f = from.atStartOfDay(zone).toInstant()
         val t = to.atStartOfDay(zone).toInstant()
-        load({ calEvents }, { calEvents = it }) { api.get<CalEvents>("/api/workspaces/$w/calendars/events?from=$f&to=$t") }
+        load({ calEvents }, { calEvents = it }, "${w}/events-${from}-${to}") { api.get<CalEvents>("/api/workspaces/$w/calendars/events?from=$f&to=$t") }
     }
 
     private fun reloadEvents() { calRange?.let { (f, t) -> loadEvents(f, t) }; loadUpcoming() }
@@ -383,12 +594,15 @@ class AppState(app: Application) : AndroidViewModel(app) {
         prefs.edit().putStringSet("hiddenCalendars", hiddenCalendars).apply()
     }
 
-    suspend fun eventDetail(id: String): EventDetail? = ws?.let { w -> runCatching { api.get<EventDetail>("/api/workspaces/$w/events/$id") }.getOrNull() }
+    suspend fun eventDetail(id: String): EventDetail? = ws?.let { w ->
+        runCatching { api.get<EventDetail>("/api/workspaces/$w/events/$id").also { d -> withContext(Dispatchers.IO) { cache.put("event-$id", api.json.encodeToString(d)) } } }.getOrNull()
+            ?: withContext(Dispatchers.IO) { cache.get("event-$id") }?.let { raw -> runCatching { api.json.decodeFromString<EventDetail>(raw) }.getOrNull() }
+    }
 
     /** Création ou modification d'un événement de l'espace (corps comme l'interface web). */
     suspend fun saveEvent(id: String?, body: JsonObject): Result<Unit> = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
-        if (id == null) api.send("POST", "/api/workspaces/$w/events", body) else api.send("PUT", "/api/workspaces/$w/events/$id", body)
+        if (id == null) write("POST", "/api/workspaces/$w/events", body, body["title"]?.toString()?.trim('"') ?: "event") else write("PUT", "/api/workspaces/$w/events/$id", body, body["title"]?.toString()?.trim('"') ?: "event")
         reloadEvents()
     }
 
@@ -399,7 +613,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         calEvents = calEvents.copy(data = calEvents.data?.let { d -> d.copy(events = d.events.filter { if (onlyThis) it.id != e.id else it.event_id != id }) })
         viewModelScope.launch {
             val q = if (onlyThis && e.recurring) "?occurrence=${java.net.URLEncoder.encode(e.starts_at, "UTF-8")}" else ""
-            runCatching { api.send("DELETE", "/api/workspaces/$w/events/$id$q") }.onFailure { lastError = (it as? ApiException)?.code ?: "offline" }
+            runCatching { write("DELETE", "/api/workspaces/$w/events/$id$q", null, e.summary) }.onFailure { lastError = (it as? ApiException)?.code ?: "offline" }
             reloadEvents()
         }
     }
@@ -419,7 +633,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     val mailUnread: Int get() = mailAccounts.data?.sumOf { it.unread } ?: 0
 
     fun loadMailAccounts() {
-        load({ mailAccounts }, { mailAccounts = it }) { api.get<List<MailAccount>>("/api/mail/accounts") }
+        load({ mailAccounts }, { mailAccounts = it }, "mail-accounts") { api.get<List<MailAccount>>("/api/mail/accounts") }
     }
 
     fun selectMailAccount(id: String) {
@@ -432,7 +646,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun loadMail() {
         val acc = currentMailAccount?.id ?: return
-        load({ mailList }, { mailList = it }) {
+        load({ mailList }, { mailList = it }, "mail-${acc}-${mailUnreadOnly}") {
             val page = api.get<MailPage>("/api/mail/accounts/$acc/messages${if (mailUnreadOnly) "?unread=true" else ""}")
             mailHasMore = page.has_more
             page.messages
@@ -473,7 +687,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         val acc = currentMailAccount?.id ?: return
         localSeen(uid, seen)
         viewModelScope.launch {
-            runCatching { api.send("PUT", "/api/mail/accounts/$acc/messages/$uid/seen", buildJsonObject { put("seen", seen) }) }.onFailure { localSeen(uid, !seen) }
+            runCatching { write("PUT", "/api/mail/accounts/$acc/messages/$uid/seen", buildJsonObject { put("seen", seen) }, "mail") }.onFailure { localSeen(uid, !seen) }
         }
     }
 
@@ -496,6 +710,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
             Push.disable(getApplication())
             runCatching { api.send("POST", "/api/auth/logout") }
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            withContext(Dispatchers.IO) { cache.clear() }
+            outbox.clear(); pendingChanges = 0; offline = false
             session = Session.NeedLogin
             onDone()
         }

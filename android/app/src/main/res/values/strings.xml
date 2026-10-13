@@ -230,4 +230,11 @@
     <string name="widget_sign_in">Open Looty to sign in.</string>
     <string name="widget_offline">Can’t reach the server. Tap to open Looty.</string>
     <string name="share_files_lost">Added, but %d file(s) could not be attached (too large or unreadable).</string>
+    <string name="offline_banner">Offline — showing saved data</string>
+    <string name="syncing_banner">Sending your changes…</string>
+    <string name="sync_refused">The server refused:</string>
+    <plurals name="pending_changes">
+        <item quantity="one">%d change waiting to be sent</item>
+        <item quantity="other">%d changes waiting to be sent</item>
+    </plurals>
 </resources>

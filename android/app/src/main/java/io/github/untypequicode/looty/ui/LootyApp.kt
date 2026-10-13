@@ -1,5 +1,7 @@
 package io.github.untypequicode.looty.ui
 
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
@@ -44,6 +46,15 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     var quickAdd by remember { mutableStateOf(false) }
     val createdMsg = stringResource(R.string.created)
+    val refusedMsg = stringResource(R.string.sync_refused)
+    // Modifications faites hors ligne que le serveur a refusées au rejeu : signalées une fois, par nom.
+    val refused = state.refused
+    LaunchedEffect(refused) {
+        if (refused.isNotEmpty()) {
+            state.refused = emptyList()
+            snackbar.showSnackbar(refusedMsg + " " + refused.take(3).joinToString(", ") { "« " + it + " »" } + if (refused.size > 3) "…" else "")
+        }
+    }
     val isTab = TABS.any { it.route == route }
     val opener = remember(nav) { Opener(task = { nav.navigate("task/$it") }, board = { nav.navigate("board/$it") }, route = { nav.navigate(it) { launchSingleTop = true } }) }
     val workspace = (state.session as? Session.Ready)?.let { s -> s.workspaces.firstOrNull { it.id == s.workspaceId }?.name }.orEmpty()
@@ -87,6 +98,8 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             )
         },
         bottomBar = {
+            Column {
+            OfflineBanner(state, padNav = !isTab)
             if (isTab) NavigationBar {
                 TABS.forEach { tab ->
                     val selected = route == tab.route
@@ -108,6 +121,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                     )
                 }
             }
+            }
         },
         floatingActionButton = {
             if ((route == "home" || route == "tasks") && state.canEditBoards) {
@@ -118,7 +132,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
     ) { innerPadding ->
         // Écrans de détail : leur propre barre supérieure, sans barre de navigation du bas.
         val padding = if (isTab) innerPadding else PaddingValues()
-        NavHost(nav, startDestination = "home") {
+        NavHost(nav, startDestination = "home", modifier = if (isTab) Modifier else Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
             composable("home") { HomeScreen(state, padding) { nav.navigate("tasks") { launchSingleTop = true } } }
             composable("tasks") { TasksScreen(state, padding, snackbar) }
             composable("docs") { DocsScreen(state, padding) }
@@ -144,5 +158,25 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             quickAdd = false
             scope.launch { snackbar.showSnackbar(createdMsg) }
         })
+    }
+}
+
+/** Bandeau « hors ligne » : données gardées sur l'appareil, modifications en attente, bouton pour réessayer. */
+@Composable
+private fun OfflineBanner(state: AppState, padNav: Boolean) {
+    val show = state.offline || state.pendingChanges > 0
+    androidx.compose.animation.AnimatedVisibility(show) {
+        val scope = rememberCoroutineScope()
+        Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+            Row((if (padNav) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (state.offline) Icons.Outlined.CloudOff else Icons.Outlined.Sync, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(if (state.offline) R.string.offline_banner else R.string.syncing_banner), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    if (state.pendingChanges > 0) Text(androidx.compose.ui.res.pluralStringResource(R.plurals.pending_changes, state.pendingChanges, state.pendingChanges), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                }
+                TextButton(onClick = { scope.launch { state.retryNow() } }) { Text(stringResource(R.string.retry)) }
+            }
+        }
     }
 }
