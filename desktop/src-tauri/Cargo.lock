@@ -2423,7 +2423,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "looty-desktop"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "aes-gcm",
  "ashpd",
@@ -2441,6 +2441,7 @@ dependencies = [
  "rand 0.8.8",
  "reqwest 0.12.28",
  "reqwest_cookie_store",
+ "rfd",
  "serde",
  "serde_json",
  "sha2",
@@ -3670,6 +3671,27 @@ dependencies = [
  "cookie_store 0.21.1",
  "reqwest 0.12.28",
  "url",
+]
+
+[[package]]
+name = "rfd"
+version = "0.15.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef2bee61e6cffa4635c72d7d81a84294e28f0930db0ddcb0f66d10244674ebed"
+dependencies = [
+ "block2",
+ "dispatch2",
+ "js-sys",
+ "log",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-core-foundation",
+ "objc2-foundation",
+ "raw-window-handle",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

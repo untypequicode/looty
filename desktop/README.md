@@ -47,9 +47,9 @@ What works the same as on Linux: sign-in in your browser (passkeys included), tr
 unread badge and today's tasks, notifications (click to open, *Mark as done* button), tabs,
 offline mode, *Launch at login*, `looty://` links, quick add, local LaTeX compilation (needs a
 TeX distribution such as MiKTeX on your PATH), and the global shortcuts **Ctrl+Alt+N** (new task)
-and **Ctrl+Alt+L** (open Looty). Differences: downloads go straight to your Downloads folder (no
-*Save as* window yet), spell checking is Windows's own, and the tray icon may be hidden in the
-"^" overflow of the taskbar until you drag it out. Build it yourself with
+and **Ctrl+Alt+L** (open Looty). Downloads open the standard *Save as* window (same tray toggle as on Linux), and a red
+dot on the taskbar icon shows unread notifications. Spell checking is Windows's own, and the tray
+icon may be hidden in the "^" overflow of the taskbar until you drag it out. Build it yourself with
 `cargo tauri build --bundles nsis` in `desktop/src-tauri` (Windows, Rust and the Tauri CLI needed).
 
 ## First launch
