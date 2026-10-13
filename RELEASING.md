@@ -34,6 +34,16 @@ To rebuild a release (for example after fixing CI), run **Release** by hand with
 `**bold**` and `` `code` `` are allowed; the English and French lists must have the same number
 of items.
 
+## The download site (private repository? start here)
+
+GitHub only serves release files to people who can read the repository, and GitHub Pages is not available for
+private repositories on a free plan. So the files that apps and users download are **also uploaded to the Looty
+download site** (`site/`: presentation page, downloads, `/latest.json`, apt repository), which you host yourself
+and which is public. The Android app updates itself from it, the `.deb` adds its apt repository, and the web server
+gives its address to the apps (`"site"` in `backend/releases.json`, or `LOOTY_SITE_URL`). GitHub releases still get
+every file, as a private archive. Setup: `site/README.md` (a container, one variable `SITE_URL`, one secret
+`SITE_UPLOAD_TOKEN`). Without them, publishing to the site is skipped.
+
 ## After a release
 
 - **Server:** pull the new images and restart (`docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`),
@@ -41,7 +51,8 @@ of items.
   window once; open tabs show a *Reload* banner within 10 minutes.
 - **Desktop and Android:** once the server runs the new `releases.json`, older apps get an
   update banner (and, on the desktop, a system notification once per version) pointing to
-  the release page.
+  the download site (or the GitHub release page when no site is set). The Android app can
+  download and install the update itself; Debian and Ubuntu users get it with `apt upgrade`.
 
 ## One-time repository setup
 

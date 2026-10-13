@@ -15,12 +15,14 @@ if [ -n "${LOOTY_DEB_CACHE:-}" ]; then
 else
   caches=(-v looty-deb-cargo:/usr/local/cargo/registry -v looty-deb-target:/target)
 fi
-docker run --rm \
+# Adresse du site de téléchargement (dépôt apt) : LOOTY_SITE_URL, sinon « site » de backend/releases.json.
+site="${LOOTY_SITE_URL:-$(grep -m1 '"site"' "$repo/backend/releases.json" | cut -d'"' -f4)}"
+docker run --rm -e "LOOTY_SITE=${site%/}" \
   -v "$repo:/src:ro" \
   "${caches[@]}" \
   -v "$here/dist:/dist" \
   looty-deb-builder \
   bash -c 'rm -rf /work && cp -a /src/desktop /work && cd /work/src-tauri && \
-    extra=() && if [ -f ../packaging/looty-archive-keyring.gpg ]; then extra=(--config '"'"'{"bundle":{"linux":{"deb":{"files":{"/etc/apt/sources.list.d/looty.sources":"../packaging/looty.sources","/usr/share/keyrings/looty-archive-keyring.gpg":"../packaging/looty-archive-keyring.gpg"}}}}}'"'"'); fi && \
+    extra=() && if [ -f ../packaging/looty-archive-keyring.gpg ] && [ -n "$LOOTY_SITE" ]; then sed -i "s#@SITE@#$LOOTY_SITE#" ../packaging/looty.sources; extra=(--config '"'"'{"bundle":{"linux":{"deb":{"files":{"/etc/apt/sources.list.d/looty.sources":"../packaging/looty.sources","/usr/share/keyrings/looty-archive-keyring.gpg":"../packaging/looty-archive-keyring.gpg"}}}}}'"'"'); fi && \
     cargo tauri build --bundles deb "${extra[@]}" && cp /target/release/bundle/deb/*.deb /dist/ && chown '"$(id -u):$(id -g)"' /dist/*.deb'
 ls -lh "$here/dist/"*.deb

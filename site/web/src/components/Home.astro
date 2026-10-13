@@ -1,0 +1,79 @@
+---
+import Base from '../layouts/Base.astro'
+import { t, type Lang } from '../i18n'
+interface Props { lang: Lang }
+const { lang } = Astro.props
+const l = t[lang]
+const strings = JSON.stringify({ unavailable: l.unavailable, version: l.version, released: l.released, size: l.size, checksum: l.checksum, get: l.get, lang })
+---
+<Base lang={lang}>
+  <main>
+    <section class="hero">
+      <h1>{l.hero.h1}</h1>
+      <p>{l.hero.lead}</p>
+      <div class="btns">
+        <a class="btn primary" href="#download">{l.hero.cta}</a>
+        <a class="btn" href="#host">{l.hero.cta2}</a>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2>{l.featuresTitle}</h2>
+      <div class="grid">
+        {l.features.map(([name, text]) => <div class="card"><h3>{name}</h3><p>{text}</p></div>)}
+      </div>
+    </section>
+
+    <section id="apps">
+      <h2>{l.appsTitle}</h2>
+      <div class="grid">
+        {l.apps.map(([name, text]) => <div class="card"><h3>{name}</h3><p>{text}</p></div>)}
+      </div>
+    </section>
+
+    <section id="host">
+      <h2>{l.hostTitle}</h2>
+      <p class="muted">{l.hostText}</p>
+      <ul class="pts">{l.hostPoints.map((p) => <li>{p}</li>)}</ul>
+    </section>
+
+    <section id="download">
+      <h2>{l.downloadTitle}</h2>
+      <p class="muted">{l.downloadHint}</p>
+      <div class="dl" id="dl" data-strings={strings}>
+        {(['android', 'linux', 'windows'] as const).map((p) => (
+          <div class="card" data-platform={p}>
+            <div class="info"><h3>{l[p].name}</h3><p class="muted">{l[p].note}</p><div class="meta" data-meta>{l.loading}</div></div>
+            <a class="btn primary" data-get href={`/download/${p}`} hidden>{l.get}</a>
+          </div>
+        ))}
+      </div>
+
+      <h3 style="margin-top:34px">{l.aptTitle}</h3>
+      <p class="muted">{l.aptText}</p>
+      <pre id="apt"><code>sudo install -d /etc/apt/keyrings
+curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc &gt;/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
+sudo apt update &amp;&amp; sudo apt install looty</code></pre>
+    </section>
+  </main>
+  <script is:inline>
+    // Dernières versions : lues dans /latest.json (sans script, les boutons mènent aux liens stables /download/…).
+    (function () {
+      var box = document.getElementById('dl'); if (!box) return;
+      var s = JSON.parse(box.dataset.strings);
+      var apt = document.getElementById('apt'); if (apt) apt.innerHTML = apt.innerHTML.replace(/SITE/g, location.origin);
+      function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
+      fetch('/latest.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (d) {
+        box.querySelectorAll('[data-platform]').forEach(function (card) {
+          var p = d[card.dataset.platform]; var meta = card.querySelector('[data-meta]'); var a = card.querySelector('[data-get]');
+          if (!p) { meta.textContent = s.unavailable; return; }
+          a.hidden = false; a.href = p.url;
+          var date = p.date ? new Date(p.date).toLocaleDateString(s.lang) : '';
+          meta.textContent = s.version + ' ' + p.version + (date ? ' · ' + s.released + ' ' + date : '') + (p.size ? ' · ' + mb(p.size) : '');
+          if (p.sha256) { var c = document.createElement('code'); c.className = 'sum'; c.textContent = s.checksum + ': ' + p.sha256; meta.appendChild(c); }
+        });
+      }).catch(function () { box.querySelectorAll('[data-meta]').forEach(function (m) { m.textContent = ''; }); box.querySelectorAll('[data-get]').forEach(function (a) { a.hidden = false; }); });
+    })();
+  </script>
+</Base>

@@ -73,6 +73,16 @@ jobs:
         with:
           name: looty-android
           path: dist/*.apk
+      # Site de téléchargement (le dépôt peut être privé) : variable SITE_URL et secret SITE_UPLOAD_TOKEN ; sans eux, ignoré.
+      - name: Publish to the download site
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        working-directory: ${{ github.workspace }}
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
+        run: |
+          apk=$(ls dist/looty-[0-9]*.apk | grep -v -- '-debug' | head -1 || true)
+          if [ -n "$apk" ]; then ./scripts/site-publish.sh android "$apk"; else echo "unsigned build: not published on the site"; fi
       - name: Release
         if: startsWith(github.ref, 'refs/tags/android-v')
         uses: softprops/action-gh-release@v3

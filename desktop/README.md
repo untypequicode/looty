@@ -46,18 +46,20 @@ sudo apt update && sudo apt upgrade          # or let unattended-upgrades do it
 
 To receive them automatically with *unattended-upgrades*, add `"Looty:stable";` to `Unattended-Upgrade::Allowed-Origins`.
 Delete the `looty.sources` file to opt out. Nix users update with their flake (`nix flake update looty`, or
-`nix profile upgrade`). Windows has no auto-update yet.
+`nix profile upgrade`; the flake needs read access to the repository). Windows has no auto-update yet.
 
-**Maintainer setup (once)**: run `desktop/scripts/apt-key.sh` (creates the signing key), commit the public key
-`desktop/packaging/looty-archive-keyring.gpg`, add the secrets `APT_GPG_PRIVATE_KEY` (and `APT_GPG_PASSPHRASE` if the
-key has one) in the GitHub repository, and enable GitHub Pages on the `gh-pages` branch. Every `desktop-v*` release then
-publishes the repository at `https://<owner>.github.io/<repo>/apt` (`desktop/scripts/apt-repo.sh`). Without the key, only
-the plain `.deb` is published and the package does not add the repository. Adding the repository by hand:
+**Maintainer setup (once)**: the apt repository is published on the Looty download site (see `site/README.md`).
+Run `desktop/scripts/apt-key.sh` (creates the signing key; it uses `nix shell nixpkgs#gnupg` if `gpg` is missing), commit the
+public key `desktop/packaging/looty-archive-keyring.gpg`, add the secrets `APT_GPG_PRIVATE_KEY` (and `APT_GPG_PASSPHRASE` if
+the key has one), the repository variable `SITE_URL` and the secret `SITE_UPLOAD_TOKEN`, and set `"site"` in
+`backend/releases.json`. Every `desktop-v*` release then publishes the signed repository at `<site>/apt`
+(`desktop/scripts/apt-publish.sh`, which keeps only the latest version). Without the key or the site, only the plain `.deb`
+is published and the package does not add the repository. Adding the repository by hand (replace `SITE` by your site address):
 
 ```sh
 sudo install -d /etc/apt/keyrings
-curl -fsSL https://untypequicode.github.io/looty/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc >/dev/null
-echo "deb [signed-by=/etc/apt/keyrings/looty.asc] https://untypequicode.github.io/looty/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
+curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
 sudo apt update && sudo apt install looty
 ```
 

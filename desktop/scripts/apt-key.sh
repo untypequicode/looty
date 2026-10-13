@@ -2,6 +2,11 @@
 # Crée la clé de signature du dépôt apt (à faire une seule fois, par le mainteneur).
 #   - desktop/packaging/looty-archive-keyring.gpg : clé PUBLIQUE, à ajouter au dépôt git (elle part dans le .deb)
 #   - clé PRIVÉE : à copier dans le secret GitHub APT_GPG_PRIVATE_KEY (et APT_GPG_PASSPHRASE si protégée)
+# gpg manquant (shell Nix, système minimal) : relance le script avec gnupg fourni par Nix.
+if ! command -v gpg >/dev/null 2>&1; then
+  if command -v nix >/dev/null 2>&1; then exec nix shell nixpkgs#gnupg -c "$0" "$@"; fi
+  echo "gpg introuvable : installez gnupg (sudo apt install gnupg)" >&2; exit 1
+fi
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 home="$(mktemp -d)"; trap 'rm -rf "$home"' EXIT
