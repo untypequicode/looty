@@ -2,6 +2,22 @@
   "repository": "https://github.com/untypequicode/looty",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.16.5",
+      "date": "2026-10-13",
+      "title": { "en": "Install Looty on iPhone and iPad", "fr": "Installer Looty sur iPhone et iPad" },
+      "notes": {
+        "en": [
+          "**Looty can be installed as an app** on iPhone, iPad and Android: in Safari tap Share → “Add to Home Screen” (in Chrome: “Install app”). It opens full screen with its own icon.",
+          "**Notifications on iPhone and iPad** (iOS 16.4 or later): once Looty is on your home screen, open it from there and turn on notifications in Settings → Notifications, which now explains the steps. Notification icons are fixed too."
+        ],
+        "fr": [
+          "**Looty peut s’installer comme une application** sur iPhone, iPad et Android : dans Safari, touchez Partager → « Sur l’écran d’accueil » (dans Chrome : « Installer l’application »). Elle s’ouvre en plein écran avec sa propre icône.",
+          "**Notifications sur iPhone et iPad** (iOS 16.4 ou plus) : une fois Looty sur votre écran d’accueil, ouvrez-le depuis là et activez les notifications dans Réglages → Notifications, qui explique maintenant les étapes. Les icônes de notification sont aussi réparées."
+        ]
+      }
+    },
+    {
       "platform": "desktop",
       "version": "0.6.1",
       "date": "2026-10-13",

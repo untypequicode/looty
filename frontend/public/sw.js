@@ -1,4 +1,4 @@
-// Service worker Looty : notifications push.
+// Service worker Looty : notifications push (navigateurs, PWA installée sur iPhone / iPad / Android).
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
@@ -12,8 +12,8 @@ self.addEventListener('push', (event) => {
     await self.registration.showNotification(data.title || 'Looty', {
       body: data.body || '',
       tag: data.tag || undefined,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: data.url || '/' },
     })
   })())
