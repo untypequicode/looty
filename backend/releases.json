@@ -1,7 +1,27 @@
 {
   "repository": "https://github.com/untypequicode/looty",
-  "site": "",
+  "site": "https://looty.untypequicode.fr",
   "releases": [
+    {
+      "platform": "web",
+      "version": "0.16.8",
+      "date": "2026-10-13",
+      "title": { "en": "Download site address", "fr": "Adresse du site de téléchargement" },
+      "notes": {
+        "en": ["The apps’ download site is now **looty.untypequicode.fr**: the “new version” links and the Android in-app updates point to it (and fall back to GitHub if it is unreachable). Administrators can point their server to another site with `LOOTY_SITE_URL`."],
+        "fr": ["Le site de téléchargement des applications est maintenant **looty.untypequicode.fr** : les liens « nouvelle version » et les mises à jour Android dans l’application y mènent (et se rabattent sur GitHub s’il est injoignable). Les administrateurs peuvent pointer leur serveur vers un autre site avec `LOOTY_SITE_URL`."]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.7.1",
+      "date": "2026-10-13",
+      "title": { "en": "Windows installer on the release page, apt updates", "fr": "Installateur Windows sur la page des versions, mises à jour apt" },
+      "notes": {
+        "en": ["The **Windows installer** (`…-setup.exe`) is now attached to the release next to the Linux package. The Linux package is also the first to register Looty’s **signed apt repository**, so after installing it once, `sudo apt update && sudo apt upgrade` keeps Looty up to date."],
+        "fr": ["**L’installateur Windows** (`…-setup.exe`) est maintenant joint à la version, à côté du paquet Linux. Le paquet Linux est aussi le premier à enregistrer le **dépôt apt signé** de Looty : après l’avoir installé une fois, `sudo apt update && sudo apt upgrade` garde Looty à jour."]
+      }
+    },
     {
       "platform": "web",
       "version": "0.16.7",

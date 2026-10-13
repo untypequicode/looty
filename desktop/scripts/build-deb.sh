@@ -15,9 +15,9 @@ if [ -n "${LOOTY_DEB_CACHE:-}" ]; then
 else
   caches=(-v looty-deb-cargo:/usr/local/cargo/registry -v looty-deb-target:/target)
 fi
-# Adresse du site de téléchargement (dépôt apt) : LOOTY_SITE_URL, sinon « site » de backend/releases.json.
-site="${LOOTY_SITE_URL:-$(grep -m1 '"site"' "$repo/backend/releases.json" | cut -d'"' -f4)}"
-# Sans site de téléchargement : GitHub Pages du dépôt public (le dépôt apt y est publié par la CI).
+# Dépôt apt : sur le site de téléchargement si LOOTY_SITE_URL est défini (la CI le fait avec la variable SITE_URL, comme
+# pour la publication), sinon sur les GitHub Pages du dépôt public (https://<propriétaire>.github.io/<dépôt>).
+site="${LOOTY_SITE_URL:-}"
 [ -n "$site" ] || site="$(grep -m1 '"repository"' "$repo/backend/releases.json" | cut -d'"' -f4 | sed -E 's#https://github.com/([^/]+)/([^/]+)#https://\1.github.io/\2#')"
 docker run --rm -e "LOOTY_SITE=${site%/}" \
   -v "$repo:/src:ro" \

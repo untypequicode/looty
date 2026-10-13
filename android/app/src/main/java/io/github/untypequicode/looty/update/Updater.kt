@@ -24,6 +24,9 @@ import java.util.concurrent.TimeUnit
 /** Nouvelle version de l'application, annoncée par le site de téléchargement. */
 data class Update(val version: String, val apkUrl: String, val title: String?, val notes: List<String>, val sha256: String? = null)
 
+/** Le site répond mais n'a encore publié aucune version Android. */
+private class SiteHasNoRelease : Exception("no_release")
+
 /** Ni site de téléchargement ni publication GitHub connue sur ce serveur : rien à vérifier. */
 class NoUpdateSource : Exception("no_source")
 
@@ -70,8 +73,12 @@ object Updater {
         val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
         // Sans site de téléchargement : la publication GitHub du projet (dépôt public).
         if (site.isNullOrEmpty() || !acceptable(site, BuildConfig.DEBUG)) return@withContext fromGithub(root, client, api, lang) 
-        val fromSite = fromSite(site, client, api, lang)
-        return@withContext fromSite
+        // Site injoignable ou sans version publiée (pas encore alimenté) : on se rabat sur GitHub.
+        val result = runCatching { fromSite(site, client, api, lang) }
+        val cause = result.exceptionOrNull()
+        if (cause == null) return@withContext result.getOrNull()
+        if (cause is java.io.IOException || cause is SiteHasNoRelease) return@withContext fromGithub(root, client, api, lang)
+        throw cause
     }
 
     /** Dernière version annoncée par le site (`/latest.json`), si elle est plus récente que celle installée. */
@@ -80,7 +87,7 @@ object Updater {
             if (!r.isSuccessful) throw java.io.IOException("HTTP " + r.code)
             api.json.parseToJsonElement(r.body.string()).jsonObject
         }
-        val android: JsonObject = meta["android"]?.jsonObject ?: return null
+        val android: JsonObject = meta["android"]?.jsonObject ?: throw SiteHasNoRelease()
         val version = android["version"]?.jsonPrimitive?.content ?: return null
         if (!newer(version, current)) return null
         // L'APK doit venir du site lui-même.
