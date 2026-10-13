@@ -111,10 +111,38 @@ pub fn apply(app: &AppHandle, tray: &TrayIcon, state: &TrayState, launch_at_logi
     }
     let tip = if state.unread > 0 { format!("Looty — {} {}", state.unread, tr("non lue(s)", "unread")) } else { "Looty".to_string() };
     let _ = tray.set_tooltip(Some(tip));
-    // Compteur sur l'icône du lanceur (KDE, Dash to Dock… via l'API Unity).
+    // Compteur sur l'icône du lanceur (KDE, Dash to Dock… via l'API Unity) ; Windows : pastille
+    // rouge sur l'icône de la barre des tâches.
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.set_badge_count(if state.unread > 0 { Some(state.unread) } else { None });
+        #[cfg(windows)]
+        {
+            let _ = w.set_overlay_icon(if state.unread > 0 { Some(overlay_dot()) } else { None });
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = w.set_badge_count(if state.unread > 0 { Some(state.unread) } else { None });
+        }
     }
+}
+
+/// Pastille rouge (32 px) posée sur l'icône de la barre des tâches de Windows.
+#[cfg(windows)]
+fn overlay_dot() -> Image<'static> {
+    const N: u32 = 32;
+    let (c, r) = (N as f32 / 2.0, N as f32 / 2.0 - 1.0);
+    let mut px = vec![0u8; (N * N * 4) as usize];
+    for y in 0..N {
+        for x in 0..N {
+            let d = ((x as f32 + 0.5 - c).powi(2) + (y as f32 + 0.5 - c).powi(2)).sqrt();
+            let i = ((y * N + x) * 4) as usize;
+            if d <= r - 3.0 {
+                px[i..i + 4].copy_from_slice(&[229, 72, 77, 255]);
+            } else if d <= r {
+                px[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
+            }
+        }
+    }
+    Image::new_owned(px, N, N)
 }
 
 /// Notification système. `actions` : (identifiant, libellé) ; « default » est le clic sur la

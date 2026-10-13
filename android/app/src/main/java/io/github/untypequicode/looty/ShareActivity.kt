@@ -1,6 +1,9 @@
 package io.github.untypequicode.looty
 
 import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.core.content.IntentCompat
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -27,7 +30,14 @@ import io.github.untypequicode.looty.ui.LoadingIndicatorCompat
 import io.github.untypequicode.looty.ui.LootyTheme
 import io.github.untypequicode.looty.ui.NoNavScrim
 import io.github.untypequicode.looty.ui.Paths
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** Fichier reçu d'une autre application, lu en mémoire pour l'envoi. */
+class SharedFile(val name: String, val mime: String, val bytes: ByteArray)
+
+private const val MAX_FILE = 25L * 1024 * 1024
 
 /**
  * « Partager » vers Looty : le texte ou le lien reçu d'une autre application devient une
@@ -42,7 +52,9 @@ class ShareActivity : ComponentActivity() {
         enableEdgeToEdge()
         val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
         val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)?.trim().orEmpty()
-        if (Config.server(this) == null || text.isEmpty() && subject.isEmpty()) {
+        val uris: List<Uri> = (IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            ?: listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))).take(10)
+        if (Config.server(this) == null || text.isEmpty() && subject.isEmpty() && uris.isEmpty()) {
             Toast.makeText(this, R.string.share_nothing, Toast.LENGTH_SHORT).show()
             finish()
             return
@@ -50,20 +62,26 @@ class ShareActivity : ComponentActivity() {
         if (savedInstanceState == null) state.start()
         setContent {
             LootyTheme {
-                ShareSheet(state, subject, text, onClose = { finish() })
+                ShareSheet(state, subject, text, uris, onClose = { finish() })
             }
         }
     }
 }
 
+private fun fileName(ctx: android.content.Context, uri: Uri): String =
+    runCatching {
+        ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull() ?: uri.lastPathSegment ?: "file"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ShareSheet(state: AppState, subject: String, text: String, onClose: () -> Unit) {
+private fun ShareSheet(state: AppState, subject: String, text: String, uris: List<Uri>, onClose: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // Titre proposé : l'objet du partage, sinon la première ligne du texte.
-    val suggested = remember { (subject.ifEmpty { text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty() }).take(120) }
+    val names = remember { uris.map { fileName(ctx, it) } }
+    val suggested = remember { (subject.ifEmpty { text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty() }.ifEmpty { names.firstOrNull().orEmpty() }).take(120) }
     var title by remember { mutableStateOf(suggested) }
     var asDoc by remember { mutableStateOf(false) }
     var boardId by remember(state.boards) { mutableStateOf(state.lastBoard?.takeIf { id -> state.boards.any { it.id == id } } ?: state.boards.firstOrNull()?.id) }
@@ -82,9 +100,23 @@ private fun ShareSheet(state: AppState, subject: String, text: String, onClose: 
             val body = text.takeIf { it.isNotBlank() && it != title.trim() }?.let { Html.fromPlain(it) }
             val result = if (asDoc) state.createPage(title.trim(), Html.fromPlain(text.ifBlank { subject }))
             else boardId?.let { b -> state.createTask(b, title, null, assignMe = true, description = body) } ?: Result.failure(IllegalStateException("no_board"))
+            var lost = 0
+            val taskId = result.getOrNull()
+            if (taskId != null && !asDoc && uris.isNotEmpty()) {
+                // Lecture des fichiers hors du fil principal ; au-delà de 25 Mo un fichier est écarté.
+                val files = withContext(Dispatchers.IO) {
+                    uris.mapIndexedNotNull { i, u ->
+                        runCatching {
+                            val bytes = ctx.contentResolver.openInputStream(u)?.use { it.readNBytes(MAX_FILE.toInt() + 1) } ?: return@runCatching null
+                            if (bytes.size > MAX_FILE) null else SharedFile(names[i], ctx.contentResolver.getType(u) ?: "application/octet-stream", bytes)
+                        }.onFailure { android.util.Log.w("LootyShare", "cannot read $u", it) }.getOrNull()
+                    }
+                }
+                lost = (uris.size - files.size) + state.attachFiles(taskId, files)
+            }
             busy = false
             result.onSuccess {
-                android.widget.Toast.makeText(ctx, saved, android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(ctx, if (lost > 0) ctx.getString(R.string.share_files_lost, lost) else saved, android.widget.Toast.LENGTH_LONG).show()
                 onClose()
             }.onFailure { failed = true }
         }
@@ -107,11 +139,12 @@ private fun ShareSheet(state: AppState, subject: String, text: String, onClose: 
                 is Session.Ready -> {
                     val canTask = state.canEditBoards
                     val canDoc = state.canEditDocs
-                    LaunchedEffect(canTask, canDoc) { if (!canTask && canDoc) asDoc = true }
-                    if (!canTask && !canDoc) Text(stringResource(R.string.share_no_rights), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LaunchedEffect(canTask, canDoc) { if (!canTask && canDoc && uris.isEmpty()) asDoc = true }
+                    if (!canTask && (uris.isNotEmpty() || !canDoc)) Text(stringResource(R.string.share_no_rights), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     else {
-                        Text(text.ifEmpty { subject }, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (canTask && canDoc) SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        Text((text.ifEmpty { subject }).ifEmpty { names.joinToString(", ") }, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (uris.isNotEmpty() && text.isNotEmpty()) Text(names.joinToString(", "), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (canTask && canDoc && uris.isEmpty()) SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                             SegmentedButton(selected = !asDoc, onClick = { asDoc = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text(stringResource(R.string.share_as_task)) }
                             SegmentedButton(selected = asDoc, onClick = { asDoc = true }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text(stringResource(R.string.share_as_doc)) }
                         }

@@ -37,6 +37,8 @@ notification opens the matching native screen.
 
 **Sharing and widget (0.7.0)**: “Share” → Looty creates a task or a document from a link or text; a “Looty · To do” home-screen widget (Jetpack Glance) lists your tasks.
 
+**Files (0.8.0)**: sharing images, PDFs or other files creates a task with the files attached (10 files, 25 MB each).
+
 Next phase: offline cache.
 
 ## Install

@@ -1,6 +1,6 @@
 [package]
 name = "looty-desktop"
-version = "0.6.0"
+version = "0.6.1"
 description = "Looty desktop app"
 edition = "2021"
 license = "MIT"
@@ -58,6 +58,8 @@ keyring = { version = "3", features = ["windows-native"] }
 # Notifications (toasts) avec boutons et clic.
 tauri-winrt-notification = "0.8"
 tauri-plugin-global-shortcut = "2"
+# Fenêtre « Enregistrer sous » native.
+rfd = { version = "0.15", default-features = false }
 
 [profile.release]
 # LTO « thin » : presque le même binaire qu'en LTO complet, construit bien plus vite.

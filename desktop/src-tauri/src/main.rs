@@ -364,8 +364,13 @@ fn file_chooser_available() -> bool {
     ok
 }
 
-/// Windows : pas de fenêtre « Enregistrer sous » pour l'instant, dossier Téléchargements.
-#[cfg(not(target_os = "linux"))]
+/// Windows : la fenêtre « Enregistrer sous » du système est toujours disponible.
+#[cfg(windows)]
+fn file_chooser_available() -> bool {
+    true
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 fn file_chooser_available() -> bool {
     false
 }
@@ -386,7 +391,17 @@ fn ask_save_path(app: &AppHandle, dir: &std::path::Path, name: &str) -> Option<s
     path
 }
 
-#[cfg(not(target_os = "linux"))]
+/// Windows : fenêtre « Enregistrer sous » du système (confirmation d'écrasement comprise).
+#[cfg(windows)]
+fn ask_save_path(app: &AppHandle, dir: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
+    let mut dialog = rfd::FileDialog::new().set_title(tr("Enregistrer le fichier", "Save file")).set_directory(dir).set_file_name(name);
+    if let Some(w) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&w);
+    }
+    dialog.save_file()
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 fn ask_save_path(_app: &AppHandle, _dir: &std::path::Path, _name: &str) -> Option<std::path::PathBuf> {
     None
 }

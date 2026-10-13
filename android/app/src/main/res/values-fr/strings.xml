@@ -228,4 +228,5 @@
     <string name="widget_empty">Rien à faire. Profitez !</string>
     <string name="widget_sign_in">Ouvrez Looty pour vous connecter.</string>
     <string name="widget_offline">Serveur injoignable. Touchez pour ouvrir Looty.</string>
+    <string name="share_files_lost">Ajouté, mais %d fichier(s) n’ont pas pu être joints (trop volumineux ou illisibles).</string>
 </resources>

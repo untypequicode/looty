@@ -2,6 +2,16 @@
   "repository": "https://github.com/untypequicode/looty",
   "releases": [
     {
+      "platform": "desktop",
+      "version": "0.6.1",
+      "date": "2026-10-13",
+      "title": { "en": "Windows: Save as and taskbar badge", "fr": "Windows : Enregistrer sous et pastille de la barre des tâches" },
+      "notes": {
+        "en": ["**Windows**: downloads now open the standard *Save as* window (turn it off from the tray menu to save straight to Downloads), and a red dot shows on the taskbar icon when you have unread notifications."],
+        "fr": ["**Windows** : les téléchargements ouvrent maintenant la fenêtre *Enregistrer sous* habituelle (désactivable depuis le menu de la barre système pour enregistrer directement dans Téléchargements), et une pastille rouge s’affiche sur l’icône de la barre des tâches quand vous avez des notifications non lues."]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.16.4",
       "date": "2026-10-13",
@@ -627,6 +637,22 @@
           "**Graphe** de l’espace pour voir et créer des liens entre documents et tâches.",
           "**Serveur CalDAV** : vos tâches et le calendrier de l’espace dans Thunderbird, DAVx⁵, Apple Calendrier…",
           "Administration : tableau de bord du stockage avec la taille réelle des fichiers envoyés."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.8.0",
+      "date": "2026-10-13",
+      "title": { "en": "Share photos and files to Looty", "fr": "Partager photos et fichiers vers Looty" },
+      "notes": {
+        "en": [
+          "**Share images, PDFs and other files to Looty**: from your gallery or any app, “Share” → Looty creates a task (named after the file, in the board you choose) and **attaches the files to it** (up to 10 files, 25 MB each). If some files can’t be attached, you are told.",
+          "The home-screen widget now has a preview in the widget picker."
+        ],
+        "fr": [
+          "**Partagez images, PDF et autres fichiers vers Looty** : depuis votre galerie ou n’importe quelle application, « Partager » → Looty crée une tâche (au nom du fichier, dans le tableau de votre choix) et **y joint les fichiers** (jusqu’à 10 fichiers de 25 Mo). Si certains fichiers ne peuvent pas être joints, vous en êtes informé.",
+          "Le widget d’écran d’accueil a maintenant un aperçu dans le sélecteur de widgets."
         ]
       }
     },
