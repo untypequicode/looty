@@ -573,6 +573,25 @@
     },
     {
       "platform": "android",
+      "version": "0.6.0",
+      "date": "2026-10-13",
+      "title": {
+        "en": "Native document reading",
+        "fr": "Lecture native des documents"
+      },
+      "notes": {
+        "en": [
+          "**Documents open instantly in a native reading view**: headings, lists, task lists, tables, code, callouts, toggles, images and links, with text you can select. Links to other pages open in the same view.",
+          "Formulas are shown as LaTeX, and diagrams, drawings, PDFs and embeds show a card that opens the editor. The pencil at the top opens the full editor to modify the document."
+        ],
+        "fr": [
+          "**Les documents s’ouvrent instantanément dans une vue de lecture native** : titres, listes, listes de tâches, tableaux, code, encadrés, blocs dépliables, images et liens, avec du texte sélectionnable. Les liens vers d’autres pages s’ouvrent dans la même vue.",
+          "Les formules sont affichées en LaTeX, et les schémas, dessins, PDF et contenus intégrés montrent une carte qui ouvre l’éditeur. Le crayon en haut ouvre l’éditeur complet pour modifier le document."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.5.2",
       "date": "2026-10-13",
       "title": {

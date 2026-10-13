@@ -207,4 +207,11 @@
     <string name="push_allow">Allow notifications</string>
     <string name="push_events">Choose what notifies you</string>
     <string name="push_events_hint">Mentions, assignments, comments, reminders… in the workspace settings</string>
+    <string name="reader_failed">Couldn’t load this document</string>
+    <string name="reader_empty">Nothing to show here yet.</string>
+    <string name="reader_diagram">Diagram</string>
+    <string name="reader_drawing">Drawing</string>
+    <string name="reader_pdf">PDF</string>
+    <string name="reader_embed">Embedded content</string>
+    <string name="reader_in_editor">Tap to see it in the editor</string>
 </resources>

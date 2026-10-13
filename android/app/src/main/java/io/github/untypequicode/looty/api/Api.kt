@@ -67,6 +67,14 @@ class Api(private val ctx: Context) {
         }
     }
 
+    /** Fichier du serveur (image d’un document…), avec la session. */
+    suspend fun bytes(path: String): ByteArray = withContext(Dispatchers.IO) {
+        client.newCall(Request.Builder().url(server + path).build()).execute().use { res ->
+            if (!res.isSuccessful) throw ApiException(res.code, "http_${res.code}")
+            res.body.bytes()
+        }
+    }
+
     suspend inline fun <reified T> get(path: String): T = json.decodeFromString(raw("GET", path))
     suspend inline fun <reified T> post(path: String, body: JsonElement? = null): T = json.decodeFromString(raw("POST", path, body?.toString()).ifBlank { "null" })
     suspend fun send(method: String, path: String, body: JsonElement? = null) { raw(method, path, body?.toString()) }

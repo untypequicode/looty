@@ -111,6 +111,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
     val canComment: Boolean get() = allows({ it.boards }, 2)
     val canEditDocs: Boolean get() = allows({ it.docs }, 4)
     val canEditCalendar: Boolean get() = allows({ it.calendar }, 4)
+    /** Document complet (titre + HTML) pour la lecture native ; null si introuvable. */
+    suspend fun pageDoc(id: String): Page? = ws?.let { w -> runCatching { api.get<Page>("/api/workspaces/$w/pages/$id") }.getOrNull() }
     fun loadMembers() {
         val w = ws ?: return
         viewModelScope.launch { runCatching { members = api.get<Members>("/api/workspaces/$w/members").members.associateBy { it.user_id } } }

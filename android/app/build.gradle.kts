@@ -25,8 +25,8 @@ android {
         applicationId = "io.github.untypequicode.looty"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.5.2"
+        versionCode = 8
+        versionName = "0.6.0"
     }
 
     signingConfigs {
@@ -96,4 +96,6 @@ dependencies {
     // Notifications sans Google : UnifiedPush (ntfy, Gotify, NextPush…) ; à défaut, vérification périodique.
     implementation("org.unifiedpush.android:connector:3.3.5")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
+    // Lecture native des documents (HTML de l’éditeur) ; Java pur, sans Google.
+    implementation("org.jsoup:jsoup:1.21.2")
 }

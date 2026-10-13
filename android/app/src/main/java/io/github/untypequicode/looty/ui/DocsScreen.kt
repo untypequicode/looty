@@ -28,6 +28,7 @@ import io.github.untypequicode.looty.api.Page
 @Composable
 fun DocsScreen(state: AppState, padding: PaddingValues) {
     val ctx = LocalContext.current
+    val opener = LocalOpener.current
     val ws = state.ws ?: return
     val all = state.pages.data.orEmpty()
     var query by rememberSaveable { mutableStateOf("") }
@@ -57,13 +58,13 @@ fun DocsScreen(state: AppState, padding: PaddingValues) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                 if (query.isBlank() && favorites.isNotEmpty()) {
                     item { SectionTitle(stringResource(R.string.favorites)) }
-                    items(favorites, key = { "f" + it.id }) { p -> DocRow(p, 0, hasChildren = false, open = false, onToggle = {}) { openWeb(ctx, Paths.doc(ws, p.id)) } }
+                    items(favorites, key = { "f" + it.id }) { p -> DocRow(p, 0, hasChildren = false, open = false, onToggle = {}) { opener.route("doc/${p.id}") } }
                     item { SectionTitle(stringResource(R.string.nav_docs)) }
                 }
                 if (rows.isEmpty() && !state.pages.loading) item { EmptyState(Icons.AutoMirrored.Outlined.Article, stringResource(R.string.no_docs)) }
                 items(rows, key = { it.first.id }) { (p, depth) ->
                     DocRow(p, depth, hasChildren = query.isBlank() && byParent[p.id].orEmpty().isNotEmpty(), open = p.id in expanded,
-                        onToggle = { expanded = if (p.id in expanded) expanded - p.id else expanded + p.id }) { openWeb(ctx, Paths.doc(ws, p.id)) }
+                        onToggle = { expanded = if (p.id in expanded) expanded - p.id else expanded + p.id }) { opener.route("doc/${p.id}") }
                 }
             }
         }

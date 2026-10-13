@@ -33,7 +33,9 @@ notification opens the matching native screen.
 
 **Roles (0.5.2)**: the app reads your rights (`access/me`) and hides or disables what the role does not allow (create, edit, move, delete, complete, comment).
 
-Next phases: native reading view, widget and sharing,
+**Reading view (0.6.0)**: documents open in a native, read-only view (HTML saved by the editor parsed with jsoup into Compose blocks); the pencil opens the web editor.
+
+Next phases: widget and sharing,
 offline cache.
 
 ## Install
