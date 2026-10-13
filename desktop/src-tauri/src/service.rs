@@ -48,6 +48,8 @@ pub struct OsNotification {
     pub title: String,
     pub body: String,
     pub path: String,
+    /// Tâche à terminer depuis le bouton « Terminer » de la notification (échéance, assignation).
+    pub done_task: Option<String>,
 }
 
 /// Actions de l'interface (fournies par main.rs).
@@ -164,7 +166,7 @@ impl Service {
         cfg.notified_update = Some(latest.clone());
         let _ = cfg.save();
         let body = if french() { format!("Looty {latest} est disponible : voyez les nouveautés et comment mettre à jour.") } else { format!("Looty {latest} is available: see what's new and how to update.") };
-        (self.ui.notify)(OsNotification { title: "Looty".into(), body, path: format!("/w/{workspace_id}/whats-new") });
+        (self.ui.notify)(OsNotification { title: "Looty".into(), body, path: format!("/w/{workspace_id}/whats-new"), done_task: None });
     }
 
     async fn workspaces(&self) -> Option<Vec<Workspace>> {
@@ -336,7 +338,11 @@ impl Service {
             ("mail", Some(from), _) => (from.to_string(), title.to_string()),
             _ => ("Looty".to_string(), describe(kind, target, actor, title)),
         };
-        (self.ui.notify)(OsNotification { title: head, body, path: target_path(workspace_id, target, &n["data"]) });
+        let done_task = match (kind, target.split_once(':')) {
+            ("due_soon" | "assigned", Some(("task", id))) => Some(id.to_string()),
+            _ => None,
+        };
+        (self.ui.notify)(OsNotification { title: head, body, path: target_path(workspace_id, target, &n["data"]), done_task });
     }
 }
 
