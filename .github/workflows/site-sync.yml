@@ -36,14 +36,14 @@ jobs:
           [ -n "$SITE_URL" ] && [ -n "$SITE_UPLOAD_TOKEN" ] || { echo "::error::SITE_URL and SITE_UPLOAD_TOKEN are required"; exit 1; }
           apk=$(ls apps/looty-[0-9]*.apk 2> /dev/null | grep -v -- '-debug' | sort -V | tail -1 || true)
           [ -z "$apk" ] || ./scripts/site-publish.sh android "$apk"
+          exe=$(ls apps/*-setup.exe 2> /dev/null | sort -V | tail -1 || true)
+          [ -z "$exe" ] || ./scripts/site-publish.sh windows "$exe"
           deb=$(ls apps/*.deb 2> /dev/null | sort -V | tail -1 || true)
           if [ -n "$deb" ]; then
             ./scripts/site-publish.sh linux "$deb"
             if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
               sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
-              echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+              echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import || { echo "::error::APT_GPG_PRIVATE_KEY is not a valid armored key: paste the output of gpg --armor --export-secret-keys <fingerprint>, BEGIN and END lines included"; exit 1; }
               ./desktop/scripts/apt-publish.sh "$deb"
             fi
           fi
-          exe=$(ls apps/*-setup.exe 2> /dev/null | sort -V | tail -1 || true)
-          [ -z "$exe" ] || ./scripts/site-publish.sh windows "$exe"
