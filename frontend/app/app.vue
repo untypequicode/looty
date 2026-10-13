@@ -14,7 +14,8 @@ useHead(() => ({
     const name = settings.value?.app_name || 'Looty'
     return chunk ? `${chunk} · ${name}` : name
   },
-  link: settings.value?.favicon_url ? [{ rel: 'icon', href: settings.value.favicon_url }] : [],
+  // Favicon de l’instance (réglage admin), sinon l’étoile de Looty.
+  link: [settings.value?.favicon_url ? { rel: 'icon', href: settings.value.favicon_url } : { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
   script:
     settings.value?.umami_website_id && settings.value?.umami_script_url
       ? [{ src: settings.value.umami_script_url, 'data-website-id': settings.value.umami_website_id, defer: true }]

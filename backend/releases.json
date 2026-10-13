@@ -2,6 +2,16 @@
   "repository": "https://github.com/untypequicode/looty",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.16.3",
+      "date": "2026-10-13",
+      "title": { "en": "A new Looty icon", "fr": "Une nouvelle icône Looty" },
+      "notes": {
+        "en": ["Looty has a new icon, a rounded star with a little sparkle, used as the browser tab icon (unless your administrator set their own favicon). The apps get it too."],
+        "fr": ["Looty a une nouvelle icône, une étoile arrondie avec une petite étincelle, utilisée dans l’onglet du navigateur (sauf si votre administrateur a choisi son propre favicon). Les applications l’adoptent aussi."]
+      }
+    },
+    {
       "platform": "desktop",
       "version": "0.5.0",
       "date": "2026-10-13",
@@ -590,6 +600,16 @@
           "**Serveur CalDAV** : vos tâches et le calendrier de l’espace dans Thunderbird, DAVx⁵, Apple Calendrier…",
           "Administration : tableau de bord du stockage avec la taille réelle des fichiers envoyés."
         ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.7.1",
+      "date": "2026-10-13",
+      "title": { "en": "A new icon", "fr": "Une nouvelle icône" },
+      "notes": {
+        "en": ["The app has the new Looty icon (a rounded star), including the themed monochrome version of the launcher icon and the notification icon."],
+        "fr": ["L’application adopte la nouvelle icône Looty (une étoile arrondie), y compris la version monochrome du lanceur pour les icônes thématiques et l’icône des notifications."]
       }
     },
     {

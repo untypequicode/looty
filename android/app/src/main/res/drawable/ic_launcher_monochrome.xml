@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Version monochrome (icônes thématiques) du même dessin que l'icône de bureau (viewBox 512), réduit dans la zone sûre de 108 dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="256" android:pivotY="256" android:scaleX="0.17" android:scaleY="0.17" android:translateX="-202" android:translateY="-202">
+        <path android:pathData="M256.0 130.0L292.4 217.8L387.2 225.4L315.0 287.2L337.1 379.6L256.0 330.0L174.9 379.6L197.0 287.2L124.8 225.4L219.6 217.8Z" android:fillColor="#FF000000" android:strokeColor="#FF000000" android:strokeWidth="44" android:strokeLineJoin="round" />
+        <path android:pathData="M392,104l8,22 22,8 -22,8 -8,22 -8,-22 -22,-8 22,-8z" android:fillColor="#FF000000" />
+        <path android:pathData="M118,372l5,13 13,5 -13,5 -5,13 -5,-13 -13,-5 13,-5z" android:fillColor="#FF000000" />
+    </group>
+</vector>
