@@ -108,8 +108,11 @@ export const MathInline = Node.create({
       new InputRule({
         find: /(?:^|[^$])\$([^$\s][^$]*?)\$$/,
         handler: ({ state, range, match }) => {
-          // Le « $ » final n'est pas encore dans le document : « $ » ouvrant + formule.
-          const start = range.to - match[1].length - 1
+          // Le « $ » final n'est pas encore dans le document : on retrouve le « $ » ouvrant
+          // dans le texte déjà saisi pour le remplacer, lui aussi, par la formule.
+          const typed = state.doc.textBetween(range.from, range.to, undefined, '￼')
+          const open = typed.lastIndexOf('$' + match[1])
+          const start = open >= 0 ? range.from + open : range.to - match[1].length - 1
           state.tr.replaceWith(start, range.to, this.type.create(null, sourceText(state.schema, match[1])))
         },
       }),
