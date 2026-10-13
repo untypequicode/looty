@@ -35,8 +35,9 @@ notification opens the matching native screen.
 
 **Reading view (0.6.0)**: documents open in a native, read-only view (HTML saved by the editor parsed with jsoup into Compose blocks); the pencil opens the web editor.
 
-Next phases: widget and sharing,
-offline cache.
+**Sharing and widget (0.7.0)**: “Share” → Looty creates a task or a document from a link or text; a “Looty · To do” home-screen widget (Jetpack Glance) lists your tasks.
+
+Next phase: offline cache.
 
 ## Install
 

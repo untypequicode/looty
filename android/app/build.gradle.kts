@@ -25,8 +25,8 @@ android {
         applicationId = "io.github.untypequicode.looty"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.6.0"
+        versionCode = 9
+        versionName = "0.7.0"
     }
 
     signingConfigs {
@@ -98,4 +98,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     // Lecture native des documents (HTML de l’éditeur) ; Java pur, sans Google.
     implementation("org.jsoup:jsoup:1.21.2")
+    // Widget d’écran d’accueil (Jetpack Glance, sans services Google).
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
 }

@@ -80,6 +80,29 @@
             </intent-filter>
         </service>
 
+        <!-- Widget : mes tâches à faire. -->
+        <receiver android:name=".widget.LootyWidgetReceiver" android:exported="true" android:label="@string/widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/looty_widget_info" />
+        </receiver>
+
+        <!-- « Partager » vers Looty : texte ou lien reçu → tâche ou document. -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Looty.Share"
+            android:excludeFromRecents="true"
+            android:label="@string/share_label"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- Connexion à Moodle (portail officiel) : intercepte moodlemobile://token=… -->
         <activity
             android:name=".MoodleLoginActivity"

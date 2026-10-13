@@ -213,4 +213,19 @@
     <string name="reader_pdf">PDF</string>
     <string name="reader_embed">Contenu intégré</string>
     <string name="reader_in_editor">Touchez pour le voir dans l’éditeur</string>
+    <string name="share_label">Looty</string>
+    <string name="share_title">Ajouter à Looty</string>
+    <string name="share_as_task">Tâche</string>
+    <string name="share_as_doc">Document</string>
+    <string name="share_saved">Ajouté à Looty</string>
+    <string name="share_failed">Enregistrement impossible. Réessayez.</string>
+    <string name="share_nothing">Rien à ajouter</string>
+    <string name="share_sign_in">Connectez-vous à Looty pour l’ajouter.</string>
+    <string name="share_no_rights">Votre rôle ne permet pas de créer des tâches ou des documents ici.</string>
+    <string name="doc_title">Titre du document</string>
+    <string name="widget_title">Looty · À faire</string>
+    <string name="widget_description">Vos tâches à faire, à un geste de l’écran d’accueil.</string>
+    <string name="widget_empty">Rien à faire. Profitez !</string>
+    <string name="widget_sign_in">Ouvrez Looty pour vous connecter.</string>
+    <string name="widget_offline">Serveur injoignable. Touchez pour ouvrir Looty.</string>
 </resources>

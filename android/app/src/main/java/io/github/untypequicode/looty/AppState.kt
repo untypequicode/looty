@@ -1,5 +1,6 @@
 package io.github.untypequicode.looty
 
+import androidx.glance.appwidget.updateAll
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -118,7 +119,12 @@ class AppState(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { runCatching { members = api.get<Members>("/api/workspaces/$w/members").members.associateBy { it.user_id } } }
     }
     fun loadOverview() { val w = ws ?: return; load({ overview }, { overview = it }) { api.get("/api/workspaces/$w/overview") } }
-    fun loadTasks() { val w = ws ?: return; load({ tasks }, { tasks = it }) { api.get<MyTasks>("/api/workspaces/$w/my_tasks?scope=$taskScope").tasks } }
+    fun loadTasks() {
+        val w = ws ?: return
+        load({ tasks }, { tasks = it }) { api.get<MyTasks>("/api/workspaces/$w/my_tasks?scope=$taskScope").tasks }
+        // Le widget de l’écran d’accueil suit les tâches affichées.
+        viewModelScope.launch { runCatching { io.github.untypequicode.looty.widget.LootyWidget().updateAll(getApplication()) } }
+    }
     fun loadPages() { val w = ws ?: return; load({ pages }, { pages = it }) { api.get<List<Page>>("/api/workspaces/$w/pages") } }
     fun loadInbox() { val w = ws ?: return; load({ inbox }, { inbox = it }) { api.get<List<Notification>>("/api/notifications?workspace_id=$w") } }
     fun loadBoards() { val w = ws ?: return; viewModelScope.launch { runCatching { boards = api.get<List<BoardSummary>>("/api/workspaces/$w/boards") } } }
@@ -164,12 +170,13 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
 
     /** Ajout rapide : première colonne du tableau choisi. */
-    suspend fun createTask(boardId: String, title: String, due: LocalDate?, assignMe: Boolean): Result<String> = runCatching {
+    suspend fun createTask(boardId: String, title: String, due: LocalDate?, assignMe: Boolean, description: String? = null): Result<String> = runCatching {
         val board = api.get<Board>("/api/boards/$boardId")
         val col = board.columns.minByOrNull { it.position } ?: throw ApiException(0, "no_column")
         val body = buildJsonObject {
             put("title", title.trim())
             put("at_top", true)
+            if (description != null) put("description", description)
             if (due != null) put("due_date", due.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toString())
             if (assignMe) me?.let { putJsonArray("assignees") { add(it.id) } }
         }
@@ -180,9 +187,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
     val lastBoard: String? get() = prefs.getString("lastBoard", null)
 
-    suspend fun createPage(): Result<String> = runCatching {
+    suspend fun createPage(title: String = "", content: String? = null): Result<String> = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
-        val p = api.post<Page>("/api/workspaces/$w/pages", buildJsonObject { put("title", "") })
+        val p = api.post<Page>("/api/workspaces/$w/pages", buildJsonObject { put("title", title); if (content != null) put("content", content) })
         loadPages()
         p.id
     }
