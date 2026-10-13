@@ -1,7 +1,8 @@
-# Looty desktop (Linux)
+# Looty desktop (Linux and Windows)
 
 Native client for a Looty server, built with [Tauri 2](https://tauri.app): a Rust core and
-the system WebKitGTK engine (no bundled browser, ~12 MB binary). Linux only: NixOS and Debian.
+the system web engine (WebKitGTK on Linux, WebView2 on Windows; no bundled browser, ~12 MB binary).
+Linux: NixOS and Debian. Windows: 10 and 11.
 
 ## Install
 
@@ -33,6 +34,23 @@ sudo apt install ./desktop/dist/Looty_0.1.0_amd64.deb
 ```
 
 The package targets Debian 12 (bookworm) and newer, and Ubuntu 22.04+.
+
+### Windows 10 / 11
+
+Download `Looty_<version>_x64-setup.exe` from the GitHub releases (tags `desktop-v*`) and run it.
+It installs for your user only (no administrator rights) and registers the `looty://` links.
+Windows SmartScreen may say the publisher is unknown, because the installer is not signed yet:
+*More info* → *Run anyway*. WebView2 (the web engine) is part of Windows 10/11; the installer
+downloads it if it is missing.
+
+What works the same as on Linux: sign-in in your browser (passkeys included), tray icon with the
+unread badge and today's tasks, notifications (click to open, *Mark as done* button), tabs,
+offline mode, *Launch at login*, `looty://` links, quick add, local LaTeX compilation (needs a
+TeX distribution such as MiKTeX on your PATH), and the global shortcuts **Ctrl+Alt+N** (new task)
+and **Ctrl+Alt+L** (open Looty). Differences: downloads go straight to your Downloads folder (no
+*Save as* window yet), spell checking is Windows's own, and the tray icon may be hidden in the
+"^" overflow of the taskbar until you drag it out. Build it yourself with
+`cargo tauri build --bundles nsis` in `desktop/src-tauri` (Windows, Rust and the Tauri CLI needed).
 
 ## First launch
 

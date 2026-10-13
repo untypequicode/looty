@@ -1,6 +1,6 @@
 [package]
 name = "looty-desktop"
-version = "0.5.0"
+version = "0.6.0"
 description = "Looty desktop app"
 edition = "2021"
 license = "MIT"
@@ -34,19 +34,30 @@ rand = "0.8"
 hex = "0.4"
 sha2 = "0.10"
 notify-rust = "4"
-# Raccourcis globaux (portail XDG GlobalShortcuts : GNOME, KDE, Hyprland, sous Wayland comme X11).
-ashpd = { version = "0.11", default-features = false, features = ["tokio"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["clock", "serde"] }
 base64 = "0.22"
 bytes = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-keyring = { version = "3", features = ["async-secret-service", "tokio", "crypto-rust"] }
 aes-gcm = "0.10"
+
+# --- Linux ---------------------------------------------------------------------
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["async-secret-service", "tokio", "crypto-rust"] }
 # Mêmes versions que Tauri / wry : fenêtre « Enregistrer sous » et correcteur orthographique.
 gtk = "0.18"
 webkit2gtk = { version = "2.0", features = ["v2_40"] }
+# Raccourcis globaux (portail XDG GlobalShortcuts : GNOME, KDE, Hyprland, sous Wayland comme X11).
+ashpd = { version = "0.11", default-features = false, features = ["tokio"] }
+
+# --- Windows -------------------------------------------------------------------
+[target.'cfg(windows)'.dependencies]
+# Gestionnaire d'identifiants Windows pour la clé de chiffrement de la session.
+keyring = { version = "3", features = ["windows-native"] }
+# Notifications (toasts) avec boutons et clic.
+tauri-winrt-notification = "0.8"
+tauri-plugin-global-shortcut = "2"
 
 [profile.release]
 # LTO « thin » : presque le même binaire qu'en LTO complet, construit bien plus vite.

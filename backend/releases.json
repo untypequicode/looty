@@ -3,6 +3,34 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.16.4",
+      "date": "2026-10-13",
+      "title": { "en": "Desktop app: Linux and Windows", "fr": "Application de bureau : Linux et Windows" },
+      "notes": {
+        "en": ["The desktop app is now labelled “Looty for desktop” in the release notes, since it exists for both Linux and Windows."],
+        "fr": ["L’application de bureau s’appelle maintenant « Looty pour ordinateur » dans les notes de version, puisqu’elle existe pour Linux et pour Windows."]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.6.0",
+      "date": "2026-10-13",
+      "title": { "en": "Looty for Windows, and a new icon", "fr": "Looty pour Windows, et une nouvelle icône" },
+      "notes": {
+        "en": [
+          "**Looty now runs on Windows 10 and 11**: the same app, with the Windows web engine (WebView2), a system-tray icon with the unread badge, Windows notifications (click to open, *Mark as done* button), global shortcuts **Ctrl+Alt+N** and **Ctrl+Alt+L**, *Launch at login*, `looty://` links, offline mode and local LaTeX compilation. Download the `-setup.exe` installer from the releases page; it installs for your user only, no administrator rights needed. Windows may warn that the publisher is unknown, because the installer is not signed yet.",
+          "On Windows, downloads go straight to your Downloads folder (no *Save as* window yet), and spell checking is Windows's own.",
+          "**New icon** on all platforms: a rounded star."
+        ],
+        "fr": [
+          "**Looty fonctionne maintenant sous Windows 10 et 11** : la même application, avec le moteur web de Windows (WebView2), une icône dans la zone de notification avec la pastille de non lus, des notifications Windows (clic pour ouvrir, bouton *Terminer*), les raccourcis globaux **Ctrl+Alt+N** et **Ctrl+Alt+L**, *Lancer à l’ouverture de session*, les liens `looty://`, le mode hors ligne et la compilation LaTeX locale. Téléchargez l’installateur `-setup.exe` sur la page des versions ; il s’installe pour votre utilisateur uniquement, sans droits d’administrateur. Windows peut avertir que l’éditeur est inconnu, car l’installateur n’est pas encore signé.",
+          "Sous Windows, les téléchargements vont directement dans votre dossier Téléchargements (pas encore de fenêtre *Enregistrer sous*) et le correcteur orthographique est celui de Windows.",
+          "**Nouvelle icône** sur toutes les plateformes : une étoile arrondie."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.16.3",
       "date": "2026-10-13",
       "title": { "en": "A new Looty icon", "fr": "Une nouvelle icône Looty" },

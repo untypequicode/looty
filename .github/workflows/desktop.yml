@@ -1,4 +1,4 @@
-# Application de bureau Linux : paquet Nix et .deb (Debian 12), publiés sur les tags desktop-v*.
+# Application de bureau : paquet Nix et .deb (Linux), installateur Windows (NSIS), publiés sur les tags desktop-v*.
 name: Desktop
 
 on:
@@ -97,4 +97,46 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: desktop/dist/*.deb
+          generate_release_notes: true
+
+  windows:
+    name: Windows installer
+    needs: version
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      # L'outil de construction Tauri (cargo tauri) et les dépendances Rust sont gardés en cache.
+      - name: Cache Tauri CLI
+        id: cli
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-tauri.exe
+          key: tauri-cli-windows-2
+      - name: Install Tauri CLI
+        if: steps.cli.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Cargo cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: windows-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: windows-
+      - name: Build the NSIS installer
+        working-directory: desktop/src-tauri
+        run: cargo tauri build --bundles nsis
+      - name: Installer exists
+        shell: bash
+        run: ls -l desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+      - uses: actions/upload-artifact@v7
+        with:
+          name: looty-windows
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           generate_release_notes: true
