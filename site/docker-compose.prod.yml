@@ -1,0 +1,25 @@
+# Site de Looty (présentation, téléchargements, mises à jour, dépôt apt) derrière Traefik,
+# comme docker-compose.prod.yml. Variables (fichier .env à côté) : voir .env.example.
+#   docker compose -f docker-compose.prod.yml up -d
+# L'image est publiée par le workflow « Site » (Actions → Site → Run workflow, ou un tag site-v0.1.0).
+services:
+  site:
+    image: ghcr.io/untypequicode/looty-site:${LOOTY_SITE_VERSION:-latest}
+    environment:
+      SITE_URL: https://${SITE_DOMAIN:?domaine du site, ex. looty.untypequicode.fr}
+      # Jeton des dépôts de fichiers de l'intégration continue : le même que le secret GitHub SITE_UPLOAD_TOKEN.
+      UPLOAD_TOKEN: ${SITE_UPLOAD_TOKEN:?jeton secret (openssl rand -hex 32)}
+    volumes:
+      - site_data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${SITE_NAME:-looty-site}.rule=Host(`${SITE_DOMAIN}`)"
+      - "traefik.http.services.${SITE_NAME:-looty-site}.loadbalancer.server.port=8080"
+    restart: unless-stopped
+
+volumes:
+  site_data:
