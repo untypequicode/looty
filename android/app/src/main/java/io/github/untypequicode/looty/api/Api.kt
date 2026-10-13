@@ -53,6 +53,9 @@ class Api(private val ctx: Context) {
         }
         .build()
 
+    /** Client sans suivi des redirections (la WebView doit les voir) pour le cache web hors ligne. */
+    val rawClient: OkHttpClient by lazy { client.newBuilder().followRedirects(false).followSslRedirects(false).build() }
+
     val server: String get() = Config.server(ctx) ?: throw ApiException(0, "no_server")
 
     suspend fun raw(method: String, path: String, body: String? = null): String = withContext(Dispatchers.IO) {

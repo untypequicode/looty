@@ -53,6 +53,13 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
         }
         item {
             ListItem(headlineContent = { Text(stringResource(R.string.notifications)) }, leadingContent = { Icon(Icons.Outlined.Notifications, null) }, modifier = Modifier.clickable { opener.route("notifications") })
+            val availableUpdate = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("looty", 0).getString("updateAvailable", null)
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.updates)) },
+                supportingContent = { Text(if (availableUpdate != null) stringResource(R.string.update_available_body, availableUpdate) else stringResource(R.string.update_installed, io.github.untypequicode.looty.update.Updater.current)) },
+                leadingContent = { Icon(Icons.Outlined.SystemUpdate, null) },
+                modifier = Modifier.clickable { opener.route("updates") },
+            )
         }
         item {
             ListItem(headlineContent = { Text(stringResource(R.string.calendar)) }, leadingContent = { Icon(Icons.Outlined.CalendarMonth, null) }, modifier = Modifier.clickable { opener.route("calendar") })

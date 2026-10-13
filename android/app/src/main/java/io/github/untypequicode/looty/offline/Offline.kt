@@ -59,7 +59,7 @@ class OfflineCache(private val ctx: Context) {
         for (f in files) { if (total <= maxBytes) break; total -= f.length(); f.delete() }
     }
 
-    @Synchronized fun clear() { File(ctx.filesDir, "offline").deleteRecursively() }
+    @Synchronized fun clear() { File(ctx.filesDir, "offline").deleteRecursively(); File(ctx.filesDir, "webcache").deleteRecursively() }
 }
 
 /** Modification faite hors ligne, rejouée dans l'ordre dès que le serveur répond. */

@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
     /** looty://w/… : la page correspondante (écran web pour l'instant). */
     private fun handleLink(intent: Intent?) {
         val uri = intent?.data ?: return
+        if (uri.scheme == "looty" && uri.host == "app") { state.pendingLink = "/app" + (uri.encodedPath ?: ""); return }
         if (uri.scheme != "looty" || uri.host != "w") return
         // Ouvert par l'application dès que la session est prête (écran natif quand il existe).
         state.pendingLink = "/w" + (uri.encodedPath ?: "") + (uri.encodedQuery?.let { "?$it" } ?: "")
