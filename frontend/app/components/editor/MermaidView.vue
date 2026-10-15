@@ -59,7 +59,7 @@ function onKey(e: KeyboardEvent) {
     </div>
     <div class="mmd-body" :class="view" contenteditable="false">
       <div v-if="editor.isEditable && view !== 'preview'" class="mmd-code-wrap">
-        <textarea ref="area" v-model="code" class="mmd-code" spellcheck="false" placeholder="graph TD&#10;  A[Début] --> B{Choix}" @keydown="onKey" @beforeinput="field.onBeforeInput" />
+        <textarea ref="area" v-model="code" class="mmd-code" spellcheck="false" :placeholder="$t('embeds.mermaidPlaceholder')" @keydown="onKey" @beforeinput="field.onBeforeInput" />
         <EditorSourceCursors :carets="carets" />
       </div>
       <div v-if="view !== 'code'" class="mmd-preview">

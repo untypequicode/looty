@@ -6,7 +6,7 @@ export default {
     },
   },
   embeds: {
-    preview: 'Preview', split: 'Side by side', code: 'Code', mermaidEmpty: 'Type a Mermaid diagram',
+    preview: 'Preview', split: 'Side by side', code: 'Code', mermaidEmpty: 'Type a Mermaid diagram', mermaidPlaceholder: 'graph TD\n  A[Start] --> B{Choice}',
     drawingEmpty: 'Empty drawing', editDrawing: 'Edit drawing', openDrawing: 'Open', closeDrawing: 'Save and close',
     link: 'Link', urlPlaceholder: 'https://www.youtube.com/watch?v=…', insert: 'Embed',
     supported: 'YouTube, Vimeo, Loom, Figma, CodePen, Google Docs/Sheets/Slides, Miro.',

@@ -16,7 +16,7 @@ export default {
   inbox: { kinds: { mail: 'New email' } },
   settings: { notify: { ev: { mail_received: 'New emails' }, evHint: { mail_received: 'A message arrives in a connected mailbox (Mail page).' } } },
   mail: {
-    title: 'Mail', account: 'Account', refresh: 'Check now', openWebmail: 'Webmail', addAccount: 'Add a mailbox',
+    title: 'Mail', account: 'Account', emailPlaceholder: 'first.last@university.edu', refresh: 'Check now', openWebmail: 'Webmail', addAccount: 'Add a mailbox',
     editAccount: 'Edit mailbox', removeAccount: 'Remove mailbox', removeTitle: 'Remove “{name}”?', removeHint: 'Looty forgets this mailbox. Your emails stay on the server.',
     emptyTitle: 'Read your email in Looty', emptyHint: 'Connect a mailbox (university, work…) to see your inbox and get notified of new messages. Read, organize, search and send your email without leaving Looty.',
     addTitle: 'Connect a mailbox', addHint: 'Incoming over IMAP, sending over SMTP. Passwords are stored encrypted.', editTitle: 'Mailbox settings',
@@ -25,7 +25,7 @@ export default {
     notify: 'Notify me of new emails', connect: 'Connect', added: 'Mailbox connected',
     noMessages: 'No messages in the inbox.', syncing: 'Fetching your messages…', checked: 'Checked {when}', fix: 'Fix',
     unknownSender: 'Unknown sender', noSubject: '(no subject)', pick: 'Select a message to read it',
-    to: 'To', cc: 'Cc', showImages: 'Show images', attachmentsHint: 'Open the webmail to download attachments.',
+    to: 'To', cc: 'Cc', showImages: 'Show images',
     loadFailed: 'Couldn’t load this message.', all: 'All', unread: 'Unread', noUnread: 'No unread messages.',
     markRead: 'Mark as read', markUnread: 'Mark as unread', readAll: 'Mark all as read', loadMore: 'Load older messages', newCount: { one: '1 new message', other: '{count} new messages' },
     folders: { inbox: 'Inbox', sent: 'Sent', drafts: 'Drafts', archive: 'Archive', junk: 'Junk', trash: 'Trash' },

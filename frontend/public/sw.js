@@ -6,9 +6,11 @@ self.addEventListener('push', (event) => {
   let data = {}
   try { data = event.data ? event.data.json() : {} } catch { data = { body: event.data && event.data.text() } }
   event.waitUntil((async () => {
-    // Application ouverte et au premier plan : la notification apparaît déjà dans l'app.
+    // Application ouverte et au premier plan : la notification apparaît déjà dans l'app. Sauf sur
+    // iPhone / iPad / Safari, qui retire l'abonnement push après quelques messages sans notification.
+    const apple = /iPhone|iPad|Macintosh/.test(navigator.userAgent) && !/Chrome|Chromium|Firefox|Android/.test(navigator.userAgent)
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    if (wins.some((w) => w.focused && w.visibilityState === 'visible') && data.tag !== 'looty-test') return
+    if (!apple && wins.some((w) => w.focused && w.visibilityState === 'visible') && data.tag !== 'looty-test') return
     await self.registration.showNotification(data.title || 'Looty', {
       body: data.body || '',
       tag: data.tag || undefined,

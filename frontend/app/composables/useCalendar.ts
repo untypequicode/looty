@@ -75,8 +75,6 @@ export function useLootyCalendars(ws: Ref<string>) {
   })
 }
 
-export const WORKSPACE_CAL = 'workspace'
-
 export interface CalTask {
   id: string
   title: string
@@ -133,7 +131,6 @@ export function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0,
 export function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 export function startOfWeek(d: Date) { const x = startOfDay(d); return addDays(x, -((x.getDay() + 6) % 7)) }
 export function sameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate() }
-export function dayKey(d: Date) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` }
 
 /** Événement « journée entière » : dates stockées à minuit UTC, affichées sans décalage. */
 export function eventDays(e: CalEvent): { start: Date; end: Date } {

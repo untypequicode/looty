@@ -6,7 +6,7 @@ export default {
     typeToConfirm: 'Tapez « {text} » pour confirmer', enable: 'Activer', me: 'moi', edit: 'Modifier', add: 'Ajouter',
     search: 'Rechercher', loading: 'Chargement…', copy: 'Copier', copied: 'Copié', remove: 'Retirer', none: 'Aucun',
     yes: 'Oui', no: 'Non', back: 'Retour', done: 'Terminé', upload: 'Importer', change: 'Changer', revoke: 'Révoquer',
-    never: 'Jamais', unknown: 'Inconnu', you: 'Vous', or: 'ou', filter: 'Filtrer', clear: 'Effacer', apply: 'Appliquer',
+    never: 'Jamais', unknown: 'Inconnu', you: 'Vous', or: 'ou', filter: 'Filtrer', clear: 'Effacer', breadcrumb: 'Fil d’Ariane', apply: 'Appliquer',
   },
   time: { justNow: 'à l’instant' },
   date: { today: 'Aujourd’hui', tomorrow: 'Demain', nextWeek: 'Semaine prochaine', inTwoWeeks: 'Dans 2 semaines', clear: 'Retirer la date', yesterday: 'Hier' },
@@ -84,7 +84,6 @@ export default {
     deleteWithChildren: { one: 'Son sous-document ira aussi dans la corbeille.', other: 'Ses {count} sous-documents iront aussi dans la corbeille.' },
     empty: 'Aucun document', emptyHint: 'Rédigez votre première page de wiki.', filter: 'Filtrer par titre…',
     listView: 'Liste', gridView: 'Grille', sortUpdated: 'Modifiés', sortCreated: 'Créés', sortPopular: 'Populaires', sortTitle: 'A–Z',
-    updatedOn: 'Mis à jour le {date}',
   },
   board: {
     new: 'Nouveau tableau', newHint: 'Un tableau Kanban pour suivre un projet ou un flux de travail.', namePlaceholder: 'Ex. Développement, Marketing…',

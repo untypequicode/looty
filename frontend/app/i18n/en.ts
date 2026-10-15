@@ -6,7 +6,7 @@ export default {
     typeToConfirm: 'Type “{text}” to confirm', enable: 'Enable', me: 'me', edit: 'Edit', add: 'Add',
     search: 'Search', loading: 'Loading…', copy: 'Copy', copied: 'Copied', remove: 'Remove', none: 'None',
     yes: 'Yes', no: 'No', back: 'Back', done: 'Done', upload: 'Upload', change: 'Change', revoke: 'Revoke',
-    never: 'Never', unknown: 'Unknown', you: 'You', or: 'or', filter: 'Filter', clear: 'Clear', apply: 'Apply',
+    never: 'Never', unknown: 'Unknown', you: 'You', or: 'or', filter: 'Filter', clear: 'Clear', apply: 'Apply', breadcrumb: 'Breadcrumb',
   },
   time: { justNow: 'just now' },
   date: { today: 'Today', tomorrow: 'Tomorrow', nextWeek: 'Next week', inTwoWeeks: 'In 2 weeks', clear: 'Clear date', yesterday: 'Yesterday' },
@@ -84,7 +84,6 @@ export default {
     deleteWithChildren: { one: 'Its sub-document will be moved to the trash too.', other: 'Its {count} sub-documents will be moved to the trash too.' },
     empty: 'No documents', emptyHint: 'Write your first wiki page.', filter: 'Filter by title…',
     listView: 'List', gridView: 'Grid', sortUpdated: 'Updated', sortCreated: 'Created', sortPopular: 'Popular', sortTitle: 'A–Z',
-    updatedOn: 'Updated {date}',
   },
   board: {
     new: 'New board', newHint: 'A Kanban board to track a project or a workflow.', namePlaceholder: 'e.g. Engineering, Marketing…',

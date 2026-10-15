@@ -244,6 +244,7 @@ With the proprietary NVIDIA driver, WebKitGTK may show a blank window; the app s
 
 ## Releases
 
-`./desktop/scripts/release.sh 0.2.0` sets the version; push a `desktop-v0.2.0` tag and
-the *Desktop* GitHub workflow builds the Nix package and the `.deb` (tested on a clean
-Debian 12) and attaches the `.deb` to the GitHub release.
+`./desktop/scripts/release.sh 0.2.0` sets the version; add the matching entry to
+`backend/releases.json` and merge into `main`: the *Release* workflow builds the `.deb` (tested on a clean
+Debian 12) and the Windows installer, publishes the `desktop-v0.2.0` GitHub release, and the *Nix cache*
+workflow builds the Nix package. See [RELEASING.md](../RELEASING.md).

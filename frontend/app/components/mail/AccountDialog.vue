@@ -86,7 +86,7 @@ async function save() {
     <div class="ma">
       <template v-if="!editing">
         <div class="ma-label">{{ t('mail.address') }}</div>
-        <UiInput v-model="form.email" type="email" placeholder="prenom.nom@etu.univ.fr" autocomplete="off" @blur="onEmail" />
+        <UiInput v-model="form.email" type="email" :placeholder="t('mail.emailPlaceholder')" autocomplete="off" @blur="onEmail" />
         <div class="ma-label">{{ t('mail.server') }}</div>
         <div class="ma-row">
           <UiInput v-model="form.host" placeholder="imap.univ.fr" autocomplete="off" />

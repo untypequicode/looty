@@ -416,7 +416,7 @@ useHead({ title: () => project.value?.name ?? t('projects.title') })
     <UiDialog v-model:open="publishOpen" :title="t('projects.publishTitle')" :description="t('projects.publishHint')" :width="480">
       <div class="pub">
         <label class="pub-label">{{ t('projects.address') }}</label>
-        <div class="pub-url"><span class="pub-base">{{ (data?.public_url?.replace(/\/pages\/.*$/, '') ?? '') || '' }}/pages/</span><UiInput v-model="slugDraft" placeholder="mon-site" maxlength="64" /></div>
+        <div class="pub-url"><span class="pub-base">{{ (data?.public_url?.replace(/\/pages\/.*$/, '') ?? '') || '' }}/pages/</span><UiInput v-model="slugDraft" :placeholder="t('projects.slugPlaceholder')" maxlength="64" /></div>
         <p class="pub-hint">{{ t('projects.slugHint') }}</p>
         <div v-if="project?.published && data?.public_url" class="pub-live">
           <Globe :size="14" /> <a :href="data.public_url" target="_blank" rel="noopener" class="truncate">{{ data.public_url }}</a>

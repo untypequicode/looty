@@ -1,22 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Restaure une sauvegarde de scripts/backup.sh : restore.sh <backups/backup_….sql.gz>
+# (et les fichiers envoyés de la même date, uploads_….tar.gz, s'ils existent). À lancer depuis la racine du dépôt.
+set -euo pipefail
 
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
     echo "Usage: $0 <backup_file.sql.gz>"
     echo "Example: $0 ./backups/backup_2023-10-25_12-00-00.sql.gz"
     exit 1
 fi
-
-BACKUP_FILE=$1
-
+BACKUP_FILE=$(realpath "$1")
 if [ ! -f "$BACKUP_FILE" ]; then
-    echo "Error: File $BACKUP_FILE not found!"
+    echo "Error: File $1 not found!"
     exit 1
 fi
 
-DB_CONTAINER=$(docker compose -f docker-compose.prod.yml ps -q postgres 2>/dev/null || docker compose ps -q postgres)
+cd "$(dirname "$0")/.."
+if [ -f .env ]; then set -a; . ./.env; set +a; fi
 DB_USER=${DB_USER:-postgres}
 DB_NAME=${DB_NAME:-looty_db}
 
+DB_CONTAINER=$(docker compose -f docker-compose.prod.yml ps -q postgres 2>/dev/null || true)
+[ -n "$DB_CONTAINER" ] || DB_CONTAINER=$(docker compose ps -q postgres 2>/dev/null || true)
 if [ -z "$DB_CONTAINER" ]; then
     echo "Error: PostgreSQL container is not running."
     exit 1
@@ -31,26 +35,21 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 echo "Restoring database from $BACKUP_FILE..."
-
-# Drop and recreate the database to ensure a clean restore
-docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME WITH (FORCE);"
-docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d postgres -c "CREATE DATABASE $DB_NAME;"
-
-# Restore
-gunzip -c "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME"
-
-if [ $? -eq 0 ]; then
-    echo "Database restore completed successfully!"
-    
-    # Try to find corresponding uploads backup
-    UPLOADS_FILE="${BACKUP_FILE/backup_/uploads_}"
-    UPLOADS_FILE="${UPLOADS_FILE/.sql/.tar}"
-    if [ -f "$UPLOADS_FILE" ]; then
-        echo "Found corresponding uploads backup. Restoring..."
-        tar -xzf "$UPLOADS_FILE"
-        echo "Uploads restored!"
-    fi
-else
+# Base recréée vide pour une restauration propre.
+docker exec "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS \"$DB_NAME\" WITH (FORCE);"
+docker exec "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres -c "CREATE DATABASE \"$DB_NAME\";"
+if ! gunzip -c "$BACKUP_FILE" | docker exec -i "$DB_CONTAINER" psql -q -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" > /dev/null; then
     echo "Error: Restore failed!"
     exit 1
+fi
+echo "Database restore completed successfully!"
+
+# Fichiers envoyés de la même sauvegarde (backup_X.sql.gz → uploads_X.tar.gz).
+name=$(basename "$BACKUP_FILE")
+name="${name/backup_/uploads_}"
+UPLOADS_FILE="$(dirname "$BACKUP_FILE")/${name/.sql/.tar}"
+if [ -f "$UPLOADS_FILE" ]; then
+    echo "Found corresponding uploads backup. Restoring..."
+    tar -xzf "$UPLOADS_FILE"
+    echo "Uploads restored!"
 fi

@@ -28,7 +28,7 @@ export default {
     pickFile: 'Choisissez un fichier à gauche.', offline: 'Hors ligne', editedBy: 'modifié par {name} {time}', toggleFiles: 'Afficher / masquer les fichiers', togglePreview: 'Afficher / masquer l’aperçu',
     reload: 'Recharger l’aperçu', openPreview: 'Ouvrir l’aperçu dans un onglet', desktop: 'Ordinateur', tablet: 'Tablette', mobile: 'Téléphone',
     publish: 'Publier', published: 'Publié', unpublish: 'Dépublier', publishTitle: 'Publier le site', publishHint: 'Le site est accessible à tous à cette adresse, sans compte.',
-    address: 'Adresse', slugHint: 'Lettres minuscules, chiffres et tirets.', publishedToast: 'Site publié', unpublishedToast: 'Site retiré du web',
+    address: 'Adresse', slugHint: 'Lettres minuscules, chiffres et tirets.', slugPlaceholder: 'mon-site', publishedToast: 'Site publié', unpublishedToast: 'Site retiré du web',
     sandboxHint: 'Le code du site s’exécute isolé : il n’a pas accès à Looty ni aux comptes des visiteurs (pas de cookies ni de stockage local).',
     compile: 'Compiler', compiled: 'Compilé en {s} s', compiledWithErrors: { one: 'PDF produit, 1 erreur', other: 'PDF produit, {count} erreurs' }, failed: { one: 'Échec : 1 erreur', other: 'Échec : {count} erreurs' },
     compileHint: 'Compilez pour voir le PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Journal de compilation', downloadPdf: 'Télécharger le PDF',

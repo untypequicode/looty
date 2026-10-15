@@ -16,7 +16,7 @@ export default {
   inbox: { kinds: { mail: 'Nouveau message' } },
   settings: { notify: { ev: { mail_received: 'Nouveaux e-mails' }, evHint: { mail_received: 'Un message arrive dans une boîte connectée (page Mail).' } } },
   mail: {
-    title: 'Mail', account: 'Compte', refresh: 'Relever maintenant', openWebmail: 'Webmail', addAccount: 'Ajouter une boîte mail',
+    title: 'Mail', account: 'Compte', emailPlaceholder: 'prenom.nom@etu.univ.fr', refresh: 'Relever maintenant', openWebmail: 'Webmail', addAccount: 'Ajouter une boîte mail',
     editAccount: 'Modifier la boîte', removeAccount: 'Retirer la boîte', removeTitle: 'Retirer « {name} » ?', removeHint: 'Looty oublie cette boîte. Vos messages restent sur le serveur.',
     emptyTitle: 'Lisez vos e-mails dans Looty', emptyHint: 'Connectez une boîte (université, travail…) pour voir vos messages et être notifié des nouveaux. Lisez, rangez, recherchez et envoyez vos messages sans quitter Looty.',
     addTitle: 'Connecter une boîte mail', addHint: 'Réception par IMAP, envoi par SMTP. Les mots de passe sont stockés chiffrés.', editTitle: 'Réglages de la boîte',
@@ -25,7 +25,7 @@ export default {
     notify: 'Me notifier des nouveaux messages', connect: 'Connecter', added: 'Boîte mail connectée',
     noMessages: 'Aucun message dans la boîte de réception.', syncing: 'Récupération de vos messages…', checked: 'Relevé {when}', fix: 'Corriger',
     unknownSender: 'Expéditeur inconnu', noSubject: '(sans objet)', pick: 'Sélectionnez un message pour le lire',
-    to: 'À', cc: 'Cc', showImages: 'Afficher les images', attachmentsHint: 'Ouvrez le webmail pour télécharger les pièces jointes.',
+    to: 'À', cc: 'Cc', showImages: 'Afficher les images',
     loadFailed: 'Impossible de charger ce message.', all: 'Tous', unread: 'Non lus', noUnread: 'Aucun message non lu.',
     markRead: 'Marquer comme lu', markUnread: 'Marquer comme non lu', readAll: 'Tout marquer comme lu', loadMore: 'Charger les messages plus anciens', newCount: { one: '1 nouveau message', other: '{count} nouveaux messages' },
     folders: { inbox: 'Boîte de réception', sent: 'Envoyés', drafts: 'Brouillons', archive: 'Archives', junk: 'Indésirables', trash: 'Corbeille' },

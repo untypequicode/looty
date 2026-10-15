@@ -1,6 +1,7 @@
-# Cache binaire Nix (Cachix) : l'application de bureau et son environnement de
-# développement sont construits pour x86_64 et aarch64 puis poussés dans le cache, pour
-# que `nix run` / `nix profile install` / `nix develop` téléchargent au lieu de compiler.
+# Paquet Nix et cache binaire (Cachix) : l'application de bureau et son environnement de
+# développement sont construits pour x86_64 et aarch64 (vérifiés sur les pull requests) puis,
+# sur main, poussés dans le cache, pour que `nix run` / `nix profile install` / `nix develop`
+# téléchargent au lieu de compiler. Une nouvelle version de bureau modifie desktop/, donc passe ici.
 #
 # Réglages du dépôt : variable CACHIX_CACHE (nom du cache, « looty » par défaut) et secret
 # CACHIX_AUTH_TOKEN. Sans jeton, les builds sont vérifiés mais rien n'est poussé.
@@ -11,7 +12,8 @@ on:
   push:
     branches: [main]
     paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/nix-cache.yml']
-  workflow_call:
+  pull_request:
+    paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/nix-cache.yml']
   workflow_dispatch:
 
 permissions:
@@ -38,13 +40,14 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       # Cache pas encore configuré (secret absent) : les builds sont vérifiés sans cache.
       - name: Cachix not configured
-        if: env.CACHIX_AUTH_TOKEN == ''
+        if: env.CACHIX_AUTH_TOKEN == '' && github.event_name != 'pull_request'
         run: echo "::notice title=Nix cache::CACHIX_AUTH_TOKEN is not set — builds run without pushing to Cachix (see RELEASING.md)."
+      # Pull requests : le cache sert à télécharger, rien n'y est poussé.
       - uses: cachix/cachix-action@v17
         if: env.CACHIX_AUTH_TOKEN != ''
         with:
           name: ${{ vars.CACHIX_CACHE || 'looty' }}
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          authToken: ${{ github.event_name != 'pull_request' && secrets.CACHIX_AUTH_TOKEN || '' }}
           # Rien d'autre que nos propres dérivations (nixpkgs est déjà sur cache.nixos.org).
           pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
       - name: Desktop package

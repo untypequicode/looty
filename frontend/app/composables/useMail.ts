@@ -74,8 +74,6 @@ export type MailFilter = 'all' | 'unread' | 'flagged'
 
 export const mailKeys = {
   accounts: ['mail', 'accounts'] as const,
-  messages: (id: string, unread = false) => ['mail', 'messages', id, unread] as const,
-  message: (id: string, uid: number) => ['mail', 'message', id, uid] as const,
   folders: (id: string) => ['mail', 'folders', id] as const,
   folder: (id: string, folder: string, filter: MailFilter, q: string) => ['mail', 'folder', id, folder, filter, q] as const,
   folderMessage: (id: string, folder: string, uid: number) => ['mail', 'message', id, folder, uid] as const,
@@ -175,30 +173,6 @@ export const useComposeDraft = () => useState<ComposeDraft | null>('mail-compose
 
 export function useMailAccounts() {
   return useQuery({ queryKey: mailKeys.accounts, queryFn: () => api<MailAccount[]>('/api/mail/accounts'), refetchInterval: 120_000 })
-}
-
-/** Boîte de réception paginée (« Charger plus » va chercher les plus anciens sur le serveur). */
-export function useMailMessages(account: Ref<string | null>, unread: Ref<boolean>) {
-  return useInfiniteQuery({
-    queryKey: computed(() => mailKeys.messages(account.value ?? '', unread.value)),
-    queryFn: ({ pageParam }) => api<{ messages: MailSummary[]; has_more: boolean }>(
-      `/api/mail/accounts/${account.value}/messages?${unread.value ? 'unread=true&' : ''}${pageParam ? `before=${pageParam}` : ''}`,
-    ),
-    initialPageParam: 0,
-    getNextPageParam: (last) => (last.has_more && last.messages.length ? last.messages[last.messages.length - 1]!.uid : undefined),
-    enabled: computed(() => !!account.value),
-    refetchInterval: 120_000,
-  })
-}
-
-export function useMailMessage(account: Ref<string | null>, uid: Ref<number | null>) {
-  return useQuery({
-    queryKey: computed(() => mailKeys.message(account.value ?? '', uid.value ?? 0)),
-    queryFn: () => api<MailMessage>(`/api/mail/accounts/${account.value}/messages/${uid.value}`, { silent: true }),
-    enabled: computed(() => !!account.value && uid.value != null),
-    staleTime: Infinity,
-    retry: false,
-  })
 }
 
 export function useMailInvalidate() {

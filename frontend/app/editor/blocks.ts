@@ -45,10 +45,6 @@ export function blockLabel(node: PMNode): string {
   }
 }
 
-export function selectBlock(editor: Editor, b: BlockRef) {
-  editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, b.pos)))
-}
-
 export function deleteBlock(editor: Editor, b: BlockRef) {
   editor.chain().focus().deleteRange({ from: b.pos, to: b.pos + b.node.nodeSize }).run()
 }

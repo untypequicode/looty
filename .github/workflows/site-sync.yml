@@ -1,5 +1,5 @@
-# Remplit le site de téléchargement avec les dernières applications déjà publiées sur GitHub
-# (utile après la mise en ligne du site, sans attendre une nouvelle version).
+# Remplit le site de téléchargement avec les dernières applications déjà publiées sur GitHub (lancement manuel :
+# après la mise en ligne du site ou la perte de son volume, sans attendre une nouvelle version).
 # Variable SITE_URL, secrets SITE_UPLOAD_TOKEN (et APT_GPG_PRIVATE_KEY pour le dépôt apt) : voir site/README.md.
 name: Site sync
 
@@ -34,16 +34,4 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
         run: |
           [ -n "$SITE_URL" ] && [ -n "$SITE_UPLOAD_TOKEN" ] || { echo "::error::SITE_URL and SITE_UPLOAD_TOKEN are required"; exit 1; }
-          apk=$(ls apps/looty-[0-9]*.apk 2> /dev/null | grep -v -- '-debug' | sort -V | tail -1 || true)
-          [ -z "$apk" ] || ./scripts/site-publish.sh android "$apk"
-          exe=$(ls apps/*-setup.exe 2> /dev/null | sort -V | tail -1 || true)
-          [ -z "$exe" ] || ./scripts/site-publish.sh windows "$exe"
-          deb=$(ls apps/*.deb 2> /dev/null | sort -V | tail -1 || true)
-          if [ -n "$deb" ]; then
-            ./scripts/site-publish.sh linux "$deb"
-            if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
-              sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
-              echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import || { echo "::error::APT_GPG_PRIVATE_KEY is not a valid armored key: paste the output of gpg --armor --export-secret-keys <fingerprint>, BEGIN and END lines included"; exit 1; }
-              ./desktop/scripts/apt-publish.sh "$deb"
-            fi
-          fi
+          ./scripts/publish-apps.sh apps

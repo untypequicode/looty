@@ -20,7 +20,7 @@ export default {
   calendar: {
     workspaceCal: 'Calendrier de l’espace',
     title: 'Calendrier', calendars: 'Calendriers', today: 'Aujourd’hui', previous: 'Précédent', next: 'Suivant',
-    week: 'Semaine', month: 'Mois', agenda: 'Agenda', addShort: 'Calendrier', allDay: 'Journée', due: 'Échéance',
+    week: 'Semaine', month: 'Mois', agenda: 'Agenda', allDay: 'Journée', due: 'Échéance',
     group: { shared: 'Espace de travail', personal: 'Personnels' },
     empty: { shared: 'Aucun calendrier partagé.', personal: 'Aucun calendrier personnel.' },
     other: 'Autres', myTasks: 'Mes tâches (échéances)', untitled: '(Sans titre)', openLink: 'Ouvrir le lien',
@@ -44,6 +44,6 @@ export default {
     linkTitle: 'Relier ces cours à un document', pattern: 'Filtre', patternHint: 'Les cours dont le titre contient ces mots. Séparez les variantes par des virgules.',
     calendar: 'Calendrier', anyCalendar: 'Tous les calendriers', page: 'Document', pickPage: 'Choisir un document…', includeSub: 'Inclure ses sous-pages',
     link: 'Relier', linked: 'Cours reliés à « {title} »', rules: 'Cours et documents', noRules: 'Aucun cours relié à un document pour l’instant.',
-    matchCount: { one: '1 événement dans cette vue', other: '{count} événements dans cette vue' }, remove: 'Retirer', manage: 'Cours et documents', subShort: 'sous-pages',
+    remove: 'Retirer', manage: 'Cours et documents', subShort: 'sous-pages',
   },
 }

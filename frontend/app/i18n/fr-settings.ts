@@ -17,8 +17,7 @@ export default {
       appearance: 'Apparence', themeHint: 'Le thème système suit le réglage de votre appareil.', language: 'Langue',
       languageHint: 'Langue de l’interface, enregistrée sur votre compte.', compactSidebar: 'Masquer la barre latérale',
       compactSidebarHint: 'Raccourci : [', notifications: 'Notifications', desktop: 'Notifications système',
-      desktopHint: 'Alertes du navigateur pour les mentions, assignations et commentaires quand l’onglet est en arrière-plan.',
-      enabled: 'Activées', blocked: 'Bloquées par le navigateur', notifTest: 'Les notifications sont activées.',
+      enabled: 'Activées', blocked: 'Bloquées par le navigateur',
     },
     security: {
       accounts: 'Comptes connectés', accountsHint: 'Fournisseurs avec lesquels vous pouvez vous connecter.', unknownProvider: 'Fournisseur supprimé',

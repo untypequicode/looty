@@ -13,7 +13,6 @@ pkgs.mkShell {
 
     # Frontend (Node.js/Nuxt)
     nodejs_24
-    pnpm
 
     # Base de données & Infra
     postgresql_15

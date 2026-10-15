@@ -46,8 +46,8 @@ export default defineNuxtConfig({
 
   components: [{ path: '~/components', pathPrefix: true }],
 
-  // En production le reverse proxy (Traefik) route /api, /uploads et /collab directement.
-  // Ces règles servent de repli si le frontend est exposé seul.
+  // En production le reverse proxy (Traefik) route /api, /uploads, /pages, /dav et /collab directement.
+  // Ces règles servent de repli si le frontend est exposé seul (le temps réel de /collab exige le proxy).
   routeRules: isDev
     ? {}
     : {
@@ -55,6 +55,8 @@ export default defineNuxtConfig({
         // doivent atteindre le navigateur avec leur Set-Cookie, pas être suivies par le proxy.
         '/api/**': { proxy: { to: `${backend}/api/**`, fetchOptions: { redirect: 'manual' } } },
         '/uploads/**': { proxy: { to: `${backend}/uploads/**`, fetchOptions: { redirect: 'manual' } } },
+        // Mini-sites publiés (projets).
+        '/pages/**': { proxy: { to: `${backend}/pages/**`, fetchOptions: { redirect: 'manual' } } },
         // /dav et /.well-known/caldav : voir server/routes (corps PROPFIND / REPORT).
         // La page HTML ne doit pas être mise en cache : elle référence les fichiers de la
         // version déployée (eux sont immuables). Sinon un ancien index pointe vers des
@@ -70,6 +72,7 @@ export default defineNuxtConfig({
     devProxy: {
       '/api': { target: `${backend}/api`, ws: true, changeOrigin: true },
       '/uploads': { target: `${backend}/uploads`, changeOrigin: true },
+      '/pages': { target: `${backend}/pages`, changeOrigin: true },
       '/dav': { target: `${backend}/dav`, changeOrigin: true },
       '/.well-known/caldav': { target: `${backend}/.well-known/caldav`, changeOrigin: true },
       '/collab': { target: collab, ws: true, changeOrigin: true },

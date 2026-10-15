@@ -24,7 +24,7 @@ docker run --rm -e "LOOTY_SITE=${site%/}" \
   "${caches[@]}" \
   -v "$here/dist:/dist" \
   looty-deb-builder \
-  bash -c 'rm -rf /work && cp -a /src/desktop /work && cd /work/src-tauri && \
+  bash -c 'rm -rf /work /target/release/bundle && cp -a /src/desktop /work && cd /work/src-tauri && \
     extra=() && if [ -f ../packaging/looty-archive-keyring.gpg ] && [ -n "$LOOTY_SITE" ]; then sed -i "s#@SITE@#$LOOTY_SITE#" ../packaging/looty.sources; extra=(--config '"'"'{"bundle":{"linux":{"deb":{"files":{"/etc/apt/sources.list.d/looty.sources":"../packaging/looty.sources","/usr/share/keyrings/looty-archive-keyring.gpg":"../packaging/looty-archive-keyring.gpg"}}}}}'"'"'); fi && \
     cargo tauri build --bundles deb "${extra[@]}" && cp /target/release/bundle/deb/*.deb /dist/ && chown '"$(id -u):$(id -g)"' /dist/*.deb'
 ls -lh "$here/dist/"*.deb

@@ -69,8 +69,6 @@ services:
 
   frontend:
     image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
-    environment:
-      NUXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}/api
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
