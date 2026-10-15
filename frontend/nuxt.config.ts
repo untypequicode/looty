@@ -8,9 +8,8 @@ const isDev = process.env.NODE_ENV !== 'production'
 const pyodideDir = fileURLToPath(new URL('./node_modules/pyodide', import.meta.url))
 
 export default defineNuxtConfig({
-  compatibilityDate: '2024-04-03',
+  compatibilityDate: '2026-10-01',
   devtools: { enabled: false },
-  future: { compatibilityVersion: 4 },
   srcDir: 'app',
   serverDir: 'server',
 

@@ -23,8 +23,8 @@ use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/:page_id/revisions", get(list).post(create))
-        .route("/:page_id/revisions/:rev_id", get(get_one).patch(rename).delete(remove))
+        .route("/{page_id}/revisions", get(list).post(create))
+        .route("/{page_id}/revisions/{rev_id}", get(get_one).patch(rename).delete(remove))
 }
 
 #[derive(Serialize, sqlx::FromRow)]

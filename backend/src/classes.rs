@@ -26,7 +26,7 @@ use crate::state::AppState;
 pub fn workspace_routes() -> Router<AppState> {
     Router::new()
         .route("/class-links", get(list_links).post(create_link))
-        .route("/class-links/:id", patch(update_link).delete(delete_link))
+        .route("/class-links/{id}", patch(update_link).delete(delete_link))
         .route("/classes", get(classes))
 }
 

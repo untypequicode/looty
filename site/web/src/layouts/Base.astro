@@ -3,47 +3,88 @@ import '@fontsource-variable/inter'
 import '../styles/global.css'
 import Icon from '../components/Icon.astro'
 import { t, REPO, type Lang } from '../i18n'
-interface Props { lang: Lang; title?: string; description?: string }
-const { lang, title, description } = Astro.props
+interface Props { lang: Lang; title?: string; description?: string; noindex?: boolean }
+const { lang, title, description, noindex = false } = Astro.props
 const l = t[lang]
 const base = l.homeHref
+// Adresses absolues (aperçus des réseaux sociaux, moteurs de recherche) : `site` d'astro.config.mjs.
+const site = Astro.site ?? new URL('https://looty.untypequicode.fr')
+const abs = (path: string) => new URL(path, site).href
+const pageTitle = title ?? l.title
+const pageDescription = description ?? l.description
+const ld = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Looty',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Android, Linux, Windows, Web',
+  description: l.description,
+  url: abs(base),
+  downloadUrl: abs(`${base}#download`),
+  license: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+  codeRepository: REPO,
+})
 ---
 <!doctype html>
 <html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title ?? l.title}</title>
-    <meta name="description" content={description ?? l.description} />
-    <meta property="og:title" content={title ?? l.title} />
-    <meta property="og:description" content={description ?? l.description} />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={abs(Astro.url.pathname)} />}
+    <meta property="og:site_name" content="Looty" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content={`/shots/board-dark-${lang}.webp`} />
+    <meta property="og:url" content={abs(Astro.url.pathname)} />
+    <meta property="og:locale" content={lang === 'fr' ? 'fr_FR' : 'en_US'} />
+    <meta property="og:image" content={abs(`/og-${lang}.png`)} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={l.hero.shot} />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#0b0b0d" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="alternate" hreflang="en" href="/" />
-    <link rel="alternate" hreflang="fr" href="/fr/" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="alternate" hreflang="en" href={abs('/')} />
+    <link rel="alternate" hreflang="fr" href={abs('/fr/')} />
+    <link rel="alternate" hreflang="x-default" href={abs('/')} />
+    <script type="application/ld+json" set:html={ld} />
     <script is:inline>
       // Thème : celui choisi ici, sinon celui du système (sombre par défaut, comme l'application). Avant l'affichage : pas de flash.
       try { var s = localStorage.getItem('looty-site-theme'); document.documentElement.dataset.theme = s || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch (e) {}
+      document.querySelector('meta[name="theme-color"]').content = document.documentElement.dataset.theme === 'light' ? '#fcfcfd' : '#0b0b0d';
     </script>
   </head>
   <body>
+    <a class="skip" href="#main">{l.skip}</a>
     <header class="top">
       <div class="wrap">
         <a class="brand" href={base}><img src="/favicon.svg" alt="" width="28" height="28" />Looty</a>
-        <nav class="nav">
+        <nav class="nav" aria-label={l.menu}>
           <a class="link" href={`${base}#features`}>{l.nav.features}</a>
           <a class="link" href={`${base}#apps`}>{l.nav.apps}</a>
           <a class="link" href={`${base}#host`}>{l.nav.host}</a>
         </nav>
         <div class="tools">
-          <a class="icon-btn lang" href={l.other.href} hreflang={l.other.code} aria-label={l.other.code}>{l.other.label}</a>
-          <button class="icon-btn" id="theme" type="button" aria-label={l.theme}>
+          <a class="icon-btn lang" href={l.other.href} hreflang={l.other.code} lang={l.other.code} title={l.other.name} aria-label={l.other.name}>{l.other.label}</a>
+          <button class="icon-btn" id="theme" type="button" aria-label={l.theme} title={l.theme}>
             <span class="only-dark"><Icon name="sun" size={17} /></span><span class="only-light"><Icon name="moon" size={17} /></span>
           </button>
-          <a class="icon-btn" href={REPO} aria-label="GitHub"><Icon name="github" size={17} /></a>
+          <a class="icon-btn hide-sm" href={REPO} aria-label="GitHub" title="GitHub"><Icon name="github" size={17} /></a>
           <a class="btn primary sm" href={`${base}#download`}>{l.nav.download}</a>
+          <details class="menu">
+            <summary class="icon-btn" aria-label={l.menu} title={l.menu}><Icon name="menu" size={18} /></summary>
+            <div class="menu-panel">
+              <a href={`${base}#features`}>{l.nav.features}</a>
+              <a href={`${base}#apps`}>{l.nav.apps}</a>
+              <a href={`${base}#host`}>{l.nav.host}</a>
+              <a href={`${base}#download`}>{l.nav.download}</a>
+              <a href={REPO}>GitHub</a>
+            </div>
+          </details>
         </div>
       </div>
     </header>
@@ -54,14 +95,31 @@ const base = l.homeHref
         <div class="cols">
           <div><h4>{l.footer.product}</h4><a href={`${base}#features`}>{l.nav.features}</a><a href={`${base}#apps`}>{l.nav.apps}</a><a href={`${base}#download`}>{l.nav.download}</a></div>
           <div><h4>{l.footer.project}</h4><a href={REPO}>{l.footer.source}</a><a href={`${REPO}/releases`}>{l.footer.releases}</a><a href={`${REPO}/issues`}>{l.footer.issues}</a><a href={`${REPO}/blob/main/LICENSE`}>{l.footer.license}</a></div>
+          <div><h4>{l.footer.language}</h4><a href="/" lang="en">English</a><a href="/fr/" lang="fr">Français</a></div>
         </div>
       </div>
     </footer>
-    <script is:inline>
+    <script is:inline define:vars={{ copy: l.copy, copied: l.copied }}>
+      var root = document.documentElement, meta = document.querySelector('meta[name="theme-color"]');
       document.getElementById('theme').addEventListener('click', function () {
-        var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-        document.documentElement.dataset.theme = next;
+        var next = root.dataset.theme === 'light' ? 'dark' : 'light';
+        root.dataset.theme = next;
+        meta.content = next === 'light' ? '#fcfcfd' : '#0b0b0d';
         try { localStorage.setItem('looty-site-theme', next); } catch (e) {}
+      });
+      // Menu mobile : refermé après un choix ou un clic ailleurs.
+      var menu = document.querySelector('details.menu');
+      menu.addEventListener('click', function (e) { if (e.target.closest('a')) menu.open = false; });
+      document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+      // Bouton « Copier » sur les commandes.
+      document.querySelectorAll('pre[data-copy]').forEach(function (pre) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'copy'; b.textContent = copy;
+        b.addEventListener('click', function () {
+          navigator.clipboard.writeText(pre.querySelector('code').innerText.trim()).then(function () {
+            b.textContent = copied; setTimeout(function () { b.textContent = copy; }, 1600);
+          });
+        });
+        pre.appendChild(b);
       });
     </script>
   </body>

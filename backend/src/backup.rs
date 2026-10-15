@@ -37,9 +37,9 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(list).post(create_now))
         .route("/settings", axum::routing::put(update_settings))
         .route("/upload", post(upload).layer(DefaultBodyLimit::max(8 * 1024 * 1024 * 1024)))
-        .route("/:name", delete(remove))
-        .route("/:name/download", get(download))
-        .route("/:name/restore", post(restore_route))
+        .route("/{name}", delete(remove))
+        .route("/{name}/download", get(download))
+        .route("/{name}/restore", post(restore_route))
 }
 
 fn backup_dir() -> PathBuf {
@@ -372,7 +372,7 @@ async fn restore(state: &AppState, path: &FsPath) -> ApiResult<serde_json::Value
     sqlx::query("SET LOCAL session_replication_role = replica").execute(&mut *tx).await?;
     let to_clear: Vec<String> = now_tables.keys().filter(|t| t.as_str() != "_sqlx_migrations").map(|t| format!("public.{}", quote(t))).collect();
     if !to_clear.is_empty() {
-        sqlx::query(&format!("TRUNCATE {} RESTART IDENTITY CASCADE", to_clear.join(", "))).execute(&mut *tx).await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!("TRUNCATE {} RESTART IDENTITY CASCADE", to_clear.join(", ")))).execute(&mut *tx).await?;
     }
     let mut restored: HashMap<String, i64> = HashMap::new();
     for (table, cols) in &manifest.tables {
@@ -401,7 +401,7 @@ async fn restore(state: &AppState, path: &FsPath) -> ApiResult<serde_json::Value
             "SELECT setval(pg_get_serial_sequence('public.{}', '{}'), COALESCE((SELECT max({}) FROM public.{}), 0) + 1, false)",
             quote(&t).replace('\'', "''"), c.replace('\'', "''"), quote(&c), quote(&t)
         );
-        let _ = sqlx::query(&sql).execute(&mut *tx).await;
+        let _ = sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).execute(&mut *tx).await;
     }
     tx.commit().await?;
 

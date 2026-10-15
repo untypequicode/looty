@@ -42,7 +42,22 @@ fn find(bin: &str) -> Option<PathBuf> {
             dirs.push(e.path().join("bin/aarch64-linux"));
         }
     }
-    dirs.into_iter().map(|d| d.join(bin)).find(|p| p.is_file())
+    // Windows : TeX Live (C:\texlive\<année>) et MiKTeX (pour l'utilisateur ou pour tous).
+    #[cfg(windows)]
+    {
+        if let Ok(entries) = std::fs::read_dir("C:\\texlive") {
+            for e in entries.flatten() {
+                dirs.push(e.path().join("bin\\windows"));
+                dirs.push(e.path().join("bin\\win64"));
+            }
+        }
+        if let Some(local) = dirs::data_local_dir() {
+            dirs.push(local.join("Programs\\MiKTeX\\miktex\\bin\\x64"));
+        }
+        dirs.push("C:\\Program Files\\MiKTeX\\miktex\\bin\\x64".into());
+    }
+    let name = if cfg!(windows) { format!("{bin}.exe") } else { bin.to_string() };
+    dirs.into_iter().map(|d| d.join(&name)).find(|p| p.is_file())
 }
 
 /// Chemin relatif sans `..` ni chemin absolu.

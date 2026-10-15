@@ -49,17 +49,17 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/contacts", get(contacts))
-        .route("/accounts/:id/folders", get(list_folders).post(create_folder))
-        .route("/accounts/:id/folders/rename", post(rename_folder))
-        .route("/accounts/:id/folders/delete", post(delete_folder))
-        .route("/accounts/:id/folders/empty", post(empty_folder))
-        .route("/accounts/:id/folder", get(list_folder))
-        .route("/accounts/:id/folder/message", get(read_message))
-        .route("/accounts/:id/folder/attachment", get(attachment))
-        .route("/accounts/:id/folder/flags", post(set_flags))
-        .route("/accounts/:id/folder/move", post(move_messages))
-        .route("/accounts/:id/folder/delete", post(delete_messages))
-        .route("/accounts/:id/send", post(send))
+        .route("/accounts/{id}/folders", get(list_folders).post(create_folder))
+        .route("/accounts/{id}/folders/rename", post(rename_folder))
+        .route("/accounts/{id}/folders/delete", post(delete_folder))
+        .route("/accounts/{id}/folders/empty", post(empty_folder))
+        .route("/accounts/{id}/folder", get(list_folder))
+        .route("/accounts/{id}/folder/message", get(read_message))
+        .route("/accounts/{id}/folder/attachment", get(attachment))
+        .route("/accounts/{id}/folder/flags", post(set_flags))
+        .route("/accounts/{id}/folder/move", post(move_messages))
+        .route("/accounts/{id}/folder/delete", post(delete_messages))
+        .route("/accounts/{id}/send", post(send))
 }
 
 // ---------------------------------------------------------------------------

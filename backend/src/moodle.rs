@@ -42,7 +42,7 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/deadlines", get(deadlines))
         .route("/notifications", get(notifications))
         .route("/conversations", get(conversations))
-        .route("/conversations/:id", get(conversation).post(send_message))
+        .route("/conversations/{id}", get(conversation).post(send_message))
         .route("/calendar/sync", post(sync_calendar))
         .route("/open", get(open_link))
 }

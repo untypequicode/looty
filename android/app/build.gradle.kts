@@ -25,8 +25,8 @@ android {
         applicationId = "io.github.untypequicode.looty"
         minSdk = 26
         targetSdk = 37
-        versionCode = 16
-        versionName = "0.12.1"
+        versionCode = 17
+        versionName = "0.12.2"
     }
 
     signingConfigs {
@@ -87,7 +87,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     // Material 3 Expressive : API publiques (expérimentales) à partir de la 1.5.
-    implementation("androidx.compose.material3:material3:1.5.0-alpha29")
+    implementation("androidx.compose.material3:material3:1.5.0-beta01")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
@@ -97,8 +97,8 @@ dependencies {
     implementation("org.unifiedpush.android:connector:3.3.5")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     // Lecture native des documents (HTML de l’éditeur) ; Java pur, sans Google.
-    implementation("org.jsoup:jsoup:1.21.2")
+    implementation("org.jsoup:jsoup:1.23.2")
     // Widget d’écran d’accueil (Jetpack Glance, sans services Google).
-    implementation("androidx.glance:glance-appwidget:1.1.1")
-    implementation("androidx.glance:glance-material3:1.1.1")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
+    implementation("androidx.glance:glance-material3:1.2.0")
 }

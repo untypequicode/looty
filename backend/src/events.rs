@@ -25,9 +25,9 @@ use crate::state::AppState;
 pub fn workspace_routes() -> Router<AppState> {
     Router::new()
         .route("/", axum::routing::post(create))
-        .route("/:id", get(get_one).put(update).delete(remove))
-        .route("/:id/calendar", axum::routing::put(move_to_calendar))
-        .route("/:id/members", axum::routing::put(set_members_route))
+        .route("/{id}", get(get_one).put(update).delete(remove))
+        .route("/{id}/calendar", axum::routing::put(move_to_calendar))
+        .route("/{id}/members", axum::routing::put(set_members_route))
 }
 
 #[derive(sqlx::FromRow, Clone)]
@@ -64,9 +64,9 @@ const FROM: &str = "FROM workspace_events e
 
 /// Événements d'un calendrier Looty de l'espace (`None` : le calendrier par défaut).
 pub(crate) async fn list(pool: &sqlx::PgPool, workspace_id: Uuid, calendar: Option<Uuid>) -> ApiResult<Vec<EventRow>> {
-    Ok(sqlx::query_as(&format!(
+    Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {COLS} {FROM} WHERE e.workspace_id = $1 AND (CASE WHEN $2::uuid IS NULL THEN lc.is_default ELSE lc.id = $2 END) ORDER BY e.created_at"
-    ))
+    )))
     .bind(workspace_id)
     .bind(calendar)
     .fetch_all(pool)
@@ -75,10 +75,10 @@ pub(crate) async fn list(pool: &sqlx::PgPool, workspace_id: Uuid, calendar: Opti
 
 pub(crate) async fn find_by_name(pool: &sqlx::PgPool, workspace_id: Uuid, name: &str, calendar: Option<Uuid>) -> ApiResult<Option<EventRow>> {
     let by_id = name.strip_suffix(".ics").and_then(|s| Uuid::parse_str(s).ok());
-    Ok(sqlx::query_as(&format!(
+    Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {COLS} {FROM} WHERE e.workspace_id = $1 AND (e.dav_name = $2 OR (e.dav_name IS NULL AND e.id = $3))
            AND (CASE WHEN $4::uuid IS NULL THEN lc.is_default ELSE lc.id = $4 END)"
-    ))
+    )))
     .bind(workspace_id)
     .bind(name)
     .bind(by_id)

@@ -1,15 +1,15 @@
-FROM rust:slim-bookworm AS builder
+FROM rust:slim-trixie AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev
 COPY . .
 RUN cargo build --release --locked
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 WORKDIR /app
 # Compilation des projets LaTeX sur le serveur (TeX Live, ~1 Go).
 # Image plus légère sans : docker build --build-arg WITH_LATEX=0
 ARG WITH_LATEX=1
-RUN apt-get update && apt-get install -y --no-install-recommends libssl3 ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends libssl3t64 ca-certificates \
  && if [ "$WITH_LATEX" = "1" ]; then apt-get install -y --no-install-recommends \
       latexmk texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
       texlive-lang-french texlive-lang-english texlive-xetex texlive-luatex texlive-bibtex-extra texlive-science texlive-pictures biber lmodern; fi \

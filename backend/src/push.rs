@@ -54,7 +54,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/key", get(public_key))
         .route("/subscriptions", get(list).post(subscribe))
-        .route("/subscriptions/:id", delete(unsubscribe))
+        .route("/subscriptions/{id}", delete(unsubscribe))
         .route("/test", post(test))
 }
 

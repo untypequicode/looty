@@ -24,7 +24,7 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/graph", get(graph))
         .route("/graph/related", get(related))
         .route("/links", post(create_link))
-        .route("/links/:id", delete(delete_link))
+        .route("/links/{id}", delete(delete_link))
 }
 
 #[derive(Serialize, Clone)]

@@ -17,9 +17,9 @@ pub fn routes() -> Router<AppState> {
         .route("/profile", put(update_profile))
         .route("/preferences", put(update_preferences))
         .route("/tokens", get(list_tokens).post(create_token))
-        .route("/tokens/:id", delete(delete_token))
+        .route("/tokens/{id}", delete(delete_token))
         .route("/identities", get(list_identities))
-        .route("/identities/:provider", delete(delete_identity))
+        .route("/identities/{provider}", delete(delete_identity))
 }
 
 fn check_avatar(url: &Option<String>) -> ApiResult<Option<String>> {

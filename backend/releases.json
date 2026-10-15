@@ -3,6 +3,32 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "desktop",
+      "version": "0.7.2",
+      "date": "2026-10-15",
+      "title": { "en": "LaTeX on Windows, updated libraries", "fr": "LaTeX sous Windows, bibliothèques à jour" },
+      "notes": {
+        "en": [
+          "Windows: LaTeX projects compile on your computer when TeX Live or MiKTeX is installed (the app could not find them before).",
+          "Updated libraries (network, global shortcuts, encryption)."
+        ],
+        "fr": [
+          "Windows : les projets LaTeX se compilent sur votre ordinateur quand TeX Live ou MiKTeX est installé (l’application ne les trouvait pas).",
+          "Bibliothèques mises à jour (réseau, raccourcis globaux, chiffrement)."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.12.2",
+      "date": "2026-10-15",
+      "title": { "en": "Updated libraries", "fr": "Bibliothèques à jour" },
+      "notes": {
+        "en": ["Updated interface, widget and HTML libraries."],
+        "fr": ["Bibliothèques de l’interface, du widget et du HTML mises à jour."]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.16.9",
       "date": "2026-10-15",
@@ -12,13 +38,17 @@
           "If the database is briefly unreachable while a document or project file opens, Looty now waits and retries instead of opening it empty, so a later save can no longer erase its content.",
           "Restoring a backup and replacing project files keep working after a database restart.",
           "iPhone and iPad (installed app): notifications keep arriving after you used Looty with it open.",
-          "A few labels that only existed in French are translated, and unused texts were removed."
+          "A few labels that only existed in French are translated, and unused texts were removed.",
+          "Calendar week view: the hours follow your language (1 PM in English, 13 h in French).",
+          "Up-to-date foundations: Nuxt 4, Mermaid 12, pdf.js 6, KaTeX 0.19 and the latest server libraries. Expired sign-in sessions are now cleaned up automatically."
         ],
         "fr": [
           "Si la base de données est brièvement injoignable à l’ouverture d’un document ou d’un fichier de projet, Looty attend et réessaie au lieu de l’ouvrir vide : un enregistrement ultérieur ne peut plus effacer son contenu.",
           "La restauration d’une sauvegarde et le remplacement de fichiers de projet fonctionnent toujours après un redémarrage de la base.",
           "iPhone et iPad (application installée) : les notifications continuent d’arriver après avoir utilisé Looty ouvert.",
-          "Quelques textes qui n’existaient qu’en français sont traduits, et les textes inutilisés ont été retirés."
+          "Quelques textes qui n’existaient qu’en français sont traduits, et les textes inutilisés ont été retirés.",
+          "Vue semaine du calendrier : les heures suivent votre langue (13 h en français, 1 PM en anglais).",
+          "Fondations à jour : Nuxt 4, Mermaid 12, pdf.js 6, KaTeX 0.19 et les dernières bibliothèques du serveur. Les sessions de connexion expirées sont désormais nettoyées automatiquement."
         ]
       }
     },

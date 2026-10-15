@@ -1,6 +1,10 @@
 use axum::extract::FromRef;
 use dashmap::DashMap;
 use openidconnect::core::CoreClient;
+use openidconnect::{EndpointMaybeSet, EndpointNotSet, EndpointSet};
+
+/// Client OIDC découvert (point d'autorisation connu ; jeton et profil selon le fournisseur).
+pub type OidcClient = CoreClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointMaybeSet, EndpointMaybeSet>;
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -10,7 +14,7 @@ use crate::ws::Hub;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    pub oidc_clients: Arc<DashMap<Uuid, CoreClient>>,
+    pub oidc_clients: Arc<DashMap<Uuid, OidcClient>>,
     pub hub: Arc<Hub>,
     pub base_url: String,
     /// Réveille la synchronisation CalDAV après une modification de tâche.

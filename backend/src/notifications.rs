@@ -72,7 +72,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list))
         .route("/read-all", post(read_all))
-        .route("/:id/read", put(mark_read))
+        .route("/{id}/read", put(mark_read))
 }
 
 #[derive(Deserialize)]

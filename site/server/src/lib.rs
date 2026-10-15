@@ -55,9 +55,9 @@ pub fn app(cfg: Config) -> Router {
     let page = ServeDir::new(&cfg.web).not_found_service(ServeFile::new(cfg.web.join("404.html")));
     Router::new()
         .route("/latest.json", get(latest))
-        .route("/download/:platform", get(download))
-        .route("/_upload/*path", put(upload).delete(remove))
-        .route("/_ls/*dir", get(list))
+        .route("/download/{platform}", get(download))
+        .route("/_upload/{*path}", put(upload).delete(remove))
+        .route("/_ls/{*dir}", get(list))
         .route("/healthz", get(|| async { "ok" }))
         .nest_service("/releases", ServeDir::new(cfg.data.join("releases")).precompressed_gzip().layer_files_cache(files_cache.clone()))
         .nest_service("/apt", ServeDir::new(cfg.data.join("apt")).layer_files_cache(files_cache))

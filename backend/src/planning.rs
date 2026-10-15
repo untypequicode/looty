@@ -17,7 +17,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 pub fn workspace_routes() -> Router<AppState> {
-    Router::new().route("/calendars", get(list).post(create)).route("/calendars/:id", patch(update).delete(remove))
+    Router::new().route("/calendars", get(list).post(create)).route("/calendars/{id}", patch(update).delete(remove))
 }
 
 #[derive(Serialize, sqlx::FromRow)]

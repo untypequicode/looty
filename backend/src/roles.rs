@@ -19,7 +19,7 @@ use crate::state::AppState;
 pub fn workspace_routes() -> Router<AppState> {
     Router::new()
         .route("/roles", get(list).post(create))
-        .route("/roles/:role_id", patch(update).delete(remove))
+        .route("/roles/{role_id}", patch(update).delete(remove))
         .route("/me", get(me).patch(update_me))
         .route("/members/add", post(add_member))
 }

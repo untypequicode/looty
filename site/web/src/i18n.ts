@@ -11,7 +11,7 @@ const en = {
     lead: 'Kanban boards, collaborative documents, a calendar, your mailbox and projects in a single workspace that you host yourself, with apps for Android, Linux and Windows that keep working offline.',
     cta: 'Download the apps', cta2: 'View on GitHub',
     chips: ['Android', 'Linux', 'Windows', 'Web', 'iPhone and iPad'],
-    shot: 'The Looty board view: columns, labels, assignees and due dates',
+    shot: 'The Looty home page: today’s events, your tasks, documents and board progress', phone: 'The Looty Android app',
   },
   show: [
     { kicker: 'Boards', h: 'Boards your team will actually use', p: 'Move work from idea to done on a calm, fast board, then see the same tasks in a list, a timeline or the calendar.',
@@ -23,9 +23,6 @@ const en = {
     { kicker: 'Calendar', h: 'A calendar that knows your work', p: 'Plan the week with events and recurrence, and watch task deadlines land where they belong.',
       ticks: ['Week, month and agenda views', 'Recurring events and a calendar per board', 'Subscribe to your school or work calendars (CalDAV)', 'Task due dates show up on the calendar'],
       shot: 'calendar', alt: 'Week view of the calendar with recurring events', url: 'looty.example.org/w/acme/calendar' },
-    { kicker: 'Home', h: 'Your day at a glance', p: 'Today’s events, your tasks, the documents you were in and what waits for your approval, arranged the way you like.',
-      ticks: ['Cards you can show, hide and reorder', 'Progress of every board', 'Latest activity in the workspace'],
-      shot: 'home', alt: 'The home page with numbers, events, tasks and activity', url: 'looty.example.org/w/acme', flip: true },
   ],
   more: { kicker: 'And around it', h: 'Everything a team needs, nothing it doesn’t' },
   features: [
@@ -62,9 +59,10 @@ const en = {
     aptH: 'Debian and Ubuntu with apt', aptP: 'Add the repository by hand if you prefer, then install and update like any package:',
     nixH: 'NixOS and Nix', nixP: 'Run it, or install it in your profile:',
   },
-  footer: { product: 'Product', project: 'Project', releases: 'All releases', source: 'Source code', license: 'Licence GPL-3.0', issues: 'Report an issue', tag: 'Free software, made to be hosted by you.' },
+  footer: { product: 'Product', project: 'Project', releases: 'All releases', source: 'Source code', license: 'Licence GPL-3.0', issues: 'Report an issue', language: 'Language', tag: 'Free software, made to be hosted by you.' },
   notFound: 'Page not found', home: 'Back to the home page',
-  other: { code: 'fr', label: 'FR', href: '/fr/' }, homeHref: '/', theme: 'Toggle light and dark theme',
+  other: { code: 'fr', label: 'FR', href: '/fr/', name: 'Français' }, homeHref: '/', theme: 'Toggle light and dark theme', menu: 'Menu', skip: 'Skip to content',
+  copy: 'Copy', copied: 'Copied', recommended: 'For this device',
 }
 
 const fr: typeof en = {
@@ -77,7 +75,7 @@ const fr: typeof en = {
     lead: 'Tableaux kanban, documents collaboratifs, calendrier, boîte mail et projets dans un seul espace de travail que vous hébergez vous-même, avec des applications Android, Linux et Windows qui fonctionnent même hors ligne.',
     cta: 'Télécharger les applications', cta2: 'Voir sur GitHub',
     chips: ['Android', 'Linux', 'Windows', 'Web', 'iPhone et iPad'],
-    shot: 'Le tableau kanban de Looty : colonnes, étiquettes, assignés et échéances',
+    shot: 'L’accueil de Looty : événements du jour, vos tâches, documents et avancement des tableaux', phone: 'L’application Android de Looty',
   },
   show: [
     { kicker: 'Tableaux', h: 'Des tableaux que votre équipe utilisera vraiment', p: 'Faites avancer le travail de l’idée à « terminé » sur un tableau calme et rapide, puis retrouvez les mêmes tâches en liste, en frise ou dans le calendrier.',
@@ -89,9 +87,6 @@ const fr: typeof en = {
     { kicker: 'Calendrier', h: 'Un calendrier qui connaît votre travail', p: 'Organisez la semaine avec des événements et des récurrences, et voyez les échéances des tâches se placer d’elles-mêmes.',
       ticks: ['Vues semaine, mois et agenda', 'Événements récurrents et un calendrier par tableau', 'Abonnement à vos calendriers d’école ou de travail (CalDAV)', 'Les échéances des tâches s’affichent dans le calendrier'],
       shot: 'calendar', alt: 'Vue semaine du calendrier avec des événements récurrents', url: 'looty.example.org/w/acme/calendar' },
-    { kicker: 'Accueil', h: 'Votre journée d’un coup d’œil', p: 'Les événements du jour, vos tâches, les documents où vous étiez et ce qui attend votre validation, présentés comme vous l’aimez.',
-      ticks: ['Cartes à afficher, masquer et réordonner', 'Avancement de chaque tableau', 'Dernière activité de l’espace de travail'],
-      shot: 'home', alt: 'Page d’accueil avec chiffres, événements, tâches et activité', url: 'looty.example.org/w/acme', flip: true },
   ],
   more: { kicker: 'Et tout autour', h: 'Tout ce dont une équipe a besoin, rien de superflu' },
   features: [
@@ -128,9 +123,10 @@ const fr: typeof en = {
     aptH: 'Debian et Ubuntu avec apt', aptP: 'Ajoutez le dépôt à la main si vous préférez, puis installez et mettez à jour comme n’importe quel paquet :',
     nixH: 'NixOS et Nix', nixP: 'Lancez-le, ou installez-le dans votre profil :',
   },
-  footer: { product: 'Produit', project: 'Projet', releases: 'Toutes les versions', source: 'Code source', license: 'Licence GPL-3.0', issues: 'Signaler un problème', tag: 'Logiciel libre, fait pour être hébergé par vous.' },
+  footer: { product: 'Produit', project: 'Projet', releases: 'Toutes les versions', source: 'Code source', license: 'Licence GPL-3.0', issues: 'Signaler un problème', language: 'Langue', tag: 'Logiciel libre, fait pour être hébergé par vous.' },
   notFound: 'Page introuvable', home: 'Retour à l’accueil',
-  other: { code: 'en', label: 'EN', href: '/' }, homeHref: '/fr/', theme: 'Basculer entre thème clair et sombre',
+  other: { code: 'en', label: 'EN', href: '/', name: 'English' }, homeHref: '/fr/', theme: 'Basculer entre thème clair et sombre', menu: 'Menu', skip: 'Aller au contenu',
+  copy: 'Copier', copied: 'Copié', recommended: 'Pour cet appareil',
 }
 
 export const t = { en, fr }

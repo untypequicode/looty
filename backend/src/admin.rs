@@ -15,14 +15,14 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/providers", get(list_providers).post(create_provider))
-        .route("/providers/:id", put(update_provider).delete(delete_provider))
+        .route("/providers/{id}", put(update_provider).delete(delete_provider))
         .route("/users", get(list_users))
-        .route("/users/:id", delete(delete_user))
-        .route("/users/:id/role", put(update_user_role))
-        .route("/users/:id/suspend", put(suspend_user))
+        .route("/users/{id}", delete(delete_user))
+        .route("/users/{id}/role", put(update_user_role))
+        .route("/users/{id}/suspend", put(suspend_user))
         .route("/settings", get(get_settings).put(update_settings))
         .route("/workspaces", get(list_workspaces))
-        .route("/workspaces/:id", delete(delete_workspace))
+        .route("/workspaces/{id}", delete(delete_workspace))
         .route("/stats", get(get_stats))
 }
 
@@ -61,7 +61,7 @@ const PROVIDER_SELECT: &str = "SELECT p.id, p.name, p.issuer_url, p.client_id, (
 
 async fn list_providers(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<Vec<OAuthProviderDto>>> {
     require_super_admin(&user)?;
-    Ok(Json(sqlx::query_as(&format!("{PROVIDER_SELECT} ORDER BY p.name")).fetch_all(&pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{PROVIDER_SELECT} ORDER BY p.name"))).fetch_all(&pool).await?))
 }
 
 #[derive(Deserialize)]
@@ -105,7 +105,7 @@ async fn create_provider(
     .bind(p.is_active)
     .fetch_one(&pool)
     .await?;
-    Ok(Json(sqlx::query_as(&format!("{PROVIDER_SELECT} WHERE p.id = $1")).bind(id).fetch_one(&pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{PROVIDER_SELECT} WHERE p.id = $1"))).bind(id).fetch_one(&pool).await?))
 }
 
 async fn update_provider(
@@ -134,7 +134,7 @@ async fn update_provider(
         return Err(ApiError::NotFound);
     }
     state.oidc_clients.remove(&id);
-    Ok(Json(sqlx::query_as(&format!("{PROVIDER_SELECT} WHERE p.id = $1")).bind(id).fetch_one(&state.pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{PROVIDER_SELECT} WHERE p.id = $1"))).bind(id).fetch_one(&state.pool).await?))
 }
 
 async fn delete_provider(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
