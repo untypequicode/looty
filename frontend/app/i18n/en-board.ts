@@ -16,7 +16,7 @@ export default {
     edited: 'edited', deleteTitle: 'Delete this comment?',
   },
   filters: {
-    clear: 'Clear all', searchTasks: 'Search tasks…', showCompleted: 'Show completed tasks', completed: 'Completed tasks', doneShow: 'Show', doneHide: 'Hide', doneMine: 'Hide mine',
+    clear: 'Clear all', searchTasks: 'Search tasks…', completed: 'Completed tasks', doneShow: 'Show', doneHide: 'Hide', doneMine: 'Hide mine',
     showSubtasks: 'Show sub-tasks as cards', showing: '{shown} of {total}', unassigned: 'Unassigned',
     due: { overdue: 'Overdue', today: 'Today', week: 'This week', none: 'No due date' },
   },

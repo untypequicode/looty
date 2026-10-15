@@ -1,6 +1,6 @@
+# Sans Traefik : interface sur http://localhost:3000 (elle relaie /api, /uploads, /pages et /dav au backend).
+# Copier en docker-compose.override.yml.
 services:
   frontend:
     ports:
       - "3000:3000"
-    environment:
-      - NUXT_PUBLIC_API_BASE=http://localhost:8080/api

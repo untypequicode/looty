@@ -16,7 +16,7 @@ export default {
     edited: 'modifié', deleteTitle: 'Supprimer ce commentaire ?',
   },
   filters: {
-    clear: 'Tout effacer', searchTasks: 'Rechercher une tâche…', showCompleted: 'Afficher les tâches terminées', completed: 'Tâches terminées', doneShow: 'Afficher', doneHide: 'Masquer', doneMine: 'Masquer les miennes',
+    clear: 'Tout effacer', searchTasks: 'Rechercher une tâche…', completed: 'Tâches terminées', doneShow: 'Afficher', doneHide: 'Masquer', doneMine: 'Masquer les miennes',
     showSubtasks: 'Afficher les sous-tâches comme cartes', showing: '{shown} sur {total}', unassigned: 'Non assignée',
     due: { overdue: 'En retard', today: 'Aujourd’hui', week: 'Cette semaine', none: 'Sans échéance' },
   },

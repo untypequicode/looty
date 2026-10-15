@@ -20,7 +20,7 @@ export default {
   calendar: {
     workspaceCal: 'Workspace calendar',
     title: 'Calendar', calendars: 'Calendars', today: 'Today', previous: 'Previous', next: 'Next',
-    week: 'Week', month: 'Month', agenda: 'Agenda', addShort: 'Calendar', allDay: 'All day', due: 'Due',
+    week: 'Week', month: 'Month', agenda: 'Agenda', allDay: 'All day', due: 'Due',
     group: { shared: 'Workspace', personal: 'Personal' },
     empty: { shared: 'No shared calendar.', personal: 'No personal calendar.' },
     other: 'Other', myTasks: 'My tasks (due dates)', untitled: '(No title)', openLink: 'Open link',
@@ -44,6 +44,6 @@ export default {
     linkTitle: 'Link these classes to a document', pattern: 'Filter', patternHint: 'Classes whose title contains these words. Separate alternatives with commas.',
     calendar: 'Calendar', anyCalendar: 'All calendars', page: 'Document', pickPage: 'Choose a document…', includeSub: 'Include its sub-pages',
     link: 'Link', linked: 'Classes linked to “{title}”', rules: 'Classes and documents', noRules: 'No class linked to a document yet.',
-    matchCount: { one: '1 event in this view', other: '{count} events in this view' }, remove: 'Remove', manage: 'Classes and documents', subShort: 'sub-pages',
+    remove: 'Remove', manage: 'Classes and documents', subShort: 'sub-pages',
   },
 }

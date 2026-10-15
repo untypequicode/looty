@@ -1,61 +1,22 @@
-# Application de bureau : paquet Nix et .deb (Linux), installateur Windows (NSIS), publiés sur les tags desktop-v*.
+# Application de bureau : .deb (Linux, testé sur une Debian 12 propre) et installateur Windows (NSIS). Vérifiés sur les
+# pull requests ; publiés par « Release » (backend/releases.json), qui appelle ce workflow. Le paquet Nix est construit
+# par « Nix cache ».
 name: Desktop
 
 on:
-  push:
-    tags: ['desktop-v*']
   pull_request:
-    paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/desktop.yml']
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
   workflow_dispatch:
   # Appelé par « Release » (publication automatique depuis backend/releases.json).
   workflow_call:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  version:
-    name: Version check
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Tag matches Cargo.toml and tauri.conf.json
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        run: |
-          tag="${GITHUB_REF_NAME#desktop-v}"
-          cargo=$(grep -m1 '^version' desktop/src-tauri/Cargo.toml | cut -d'"' -f2)
-          tauri=$(grep -m1 '"version"' desktop/src-tauri/tauri.conf.json | cut -d'"' -f4)
-          echo "tag=$tag cargo=$cargo tauri=$tauri"
-          test "$tag" = "$cargo" && test "$tag" = "$tauri"
-
-  nix:
-    name: Nix package
-    needs: version
-    runs-on: ubuntu-24.04
-    env:
-      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      # Cache binaire : paquet déjà construit (workflow « Nix cache ») = téléchargé, pas recompilé.
-      - uses: cachix/cachix-action@v17
-        if: env.CACHIX_AUTH_TOKEN != ''
-        with:
-          name: ${{ vars.CACHIX_CACHE || 'looty' }}
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
-      - run: nix build .#looty-desktop -L --accept-flake-config
-      - run: test -x result/bin/looty && test -f result/share/applications/looty.desktop
-
   deb:
     name: Debian package
-    needs: version
     runs-on: ubuntu-24.04
-    env:
-      # Clé de signature du dépôt apt (voir desktop/README.md) ; sans elle, seul le .deb est publié.
-      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v7
       # Image de construction (Rust + WebKitGTK) : couches gardées dans le cache GitHub.
@@ -96,32 +57,9 @@ jobs:
         with:
           name: looty-deb
           path: desktop/dist/*.deb
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        uses: softprops/action-gh-release@v3
-        with:
-          files: desktop/dist/*.deb
-          generate_release_notes: true
-      # Site de téléchargement (variable SITE_URL, secret SITE_UPLOAD_TOKEN ; sans eux, ignoré) : le .deb, puis le
-      # dépôt apt signé (`apt upgrade` met Looty à jour) si la clé de signature est configurée.
-      - name: Publish to the download site
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        env:
-          SITE_URL: ${{ vars.SITE_URL }}
-          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
-          GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
-        run: |
-          deb=$(ls desktop/dist/*.deb | head -1)
-          ./scripts/site-publish.sh linux "$deb"
-          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
-            echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
-            ./desktop/scripts/apt-publish.sh "$deb"
-          fi
 
   windows:
     name: Windows installer
-    needs: version
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
@@ -144,9 +82,13 @@ jobs:
             desktop/src-tauri/target
           key: windows-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: windows-
+      # Installateurs des versions précédentes (dossier target en cache) retirés : seul le nouveau est publié.
       - name: Build the NSIS installer
         working-directory: desktop/src-tauri
-        run: cargo tauri build --bundles nsis
+        shell: bash
+        run: |
+          rm -rf target/release/bundle
+          cargo tauri build --bundles nsis
       - name: Installer exists
         shell: bash
         run: ls -l desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -154,16 +96,3 @@ jobs:
         with:
           name: looty-windows
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
-      - name: Publish to the download site
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        shell: bash
-        env:
-          SITE_URL: ${{ vars.SITE_URL }}
-          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
-        run: ./scripts/site-publish.sh windows "$(ls desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)"
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        uses: softprops/action-gh-release@v3
-        with:
-          files: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
-          generate_release_notes: true

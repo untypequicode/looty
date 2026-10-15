@@ -43,5 +43,6 @@ for (const platform of Object.keys(builds)) {
   out.push(`latest_${platform}=${r ? r.version : ''}`)
   console.error(`${platform}: ${r ? r.version : '—'} ${todo ? '→ release ' + tag : '(already released)'}`)
 }
-out.push(`any=${out.some((l) => !l.endsWith('=')) ? 'true' : 'false'}`)
+// Seules les plateformes à publier comptent (les lignes latest_* sont toujours remplies).
+out.push(`any=${Object.keys(builds).some((p) => !out.includes(`${p}=`)) ? 'true' : 'false'}`)
 console.log(out.join('\n'))

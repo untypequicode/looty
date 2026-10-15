@@ -24,9 +24,9 @@ interface Pending {
   resolve: (r: { ok: boolean; outputs: NbOutput[] }) => void
 }
 
-export type ProjectFile = { path: string; data: ArrayBuffer }
+export type KernelFile = { path: string; data: ArrayBuffer }
 
-export function useNotebookKernel(opts: { signature?: () => string; files?: () => Promise<ProjectFile[]> } = {}) {
+export function useNotebookKernel(opts: { signature?: () => string; files?: () => Promise<KernelFile[]> } = {}) {
   const state = ref<KernelState>('off')
   const message = ref('')
   let worker: Worker | null = null

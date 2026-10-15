@@ -15,7 +15,7 @@ text of the GitHub releases.
 4. Merge into `main`.
 
 The **Release** workflow then does everything else: for each platform whose latest version in
-`releases.json` has no tag yet, it runs the tests, builds, creates the tag
+`releases.json` has no tag yet, it runs the tests (the **CI** workflow), builds, creates the tag
 `<platform>-v<version>` and publishes the GitHub release with the notes and the files.
 
 | Platform | Version to bump | Built and published |
@@ -81,5 +81,18 @@ The apt repository is signed: run `desktop/scripts/apt-key.sh` once, commit the 
 - Desktop: `./desktop/scripts/build-deb.sh`, or `nix build .#looty-desktop`.
 - Android: `cd android && ./gradlew assembleRelease`.
 
-Pushing a tag `desktop-v<version>` or `android-v<version>` by hand still works and runs the
-matching workflow alone.
+Pushing a tag by hand publishes nothing: releases always go through `releases.json` and the **Release**
+workflow (run it by hand with `force` to rebuild one).
+
+## Workflows
+
+| Workflow | Runs on | Does |
+|---|---|---|
+| **CI** | pull requests and `main` (server code), called by Release | backend tests, translations check, frontend build, collaboration server check |
+| **Release** | `backend/releases.json` changed on `main`, or by hand | everything in this document |
+| **Docker** | called by Release, or by hand | multi-arch images on ghcr.io |
+| **Desktop** | pull requests touching `desktop/`, called by Release | `.deb` (install-tested) and Windows installer |
+| **Android** | pull requests touching `android/`, called by Release | APK |
+| **Nix cache** | pull requests and `main` touching `desktop/` or the flake | Nix package for x86_64 and aarch64, pushed to Cachix from `main` |
+| **Site** | `site/` changes, tags `site-v*` | site tests and its Docker image |
+| **Site sync** | by hand | refills the download site from the latest GitHub releases |

@@ -17,8 +17,7 @@ export default {
       appearance: 'Appearance', themeHint: 'System follows your device setting.', language: 'Language',
       languageHint: 'Interface language, saved to your account.', compactSidebar: 'Hide sidebar',
       compactSidebarHint: 'Shortcut: [', notifications: 'Notifications', desktop: 'Desktop notifications',
-      desktopHint: 'Browser alerts for mentions, assignments and comments when the tab is in the background.',
-      enabled: 'Enabled', blocked: 'Blocked by the browser', notifTest: 'Notifications are enabled.',
+      enabled: 'Enabled', blocked: 'Blocked by the browser',
     },
     security: {
       accounts: 'Connected accounts', accountsHint: 'Providers you can sign in with.', unknownProvider: 'Deleted provider',

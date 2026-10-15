@@ -1,6 +1,6 @@
 # Site de Looty : pages (Astro, statiques) + serveur Rust. Image finale vide (« scratch ») : un binaire
 # statique et les pages, quelques Mo de mémoire. Les fichiers publiés vivent dans le volume /data.
-FROM node:22-alpine AS web
+FROM node:24-alpine AS web
 WORKDIR /w
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund

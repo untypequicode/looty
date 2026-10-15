@@ -27,7 +27,7 @@ const pane = isPane
     <UiTooltip v-if="sidebarCollapsed && !pane" :text="$t('nav.expandSidebar')" shortcut="[">
       <UiButton class="ph-expand" variant="ghost" size="sm" :icon="PanelLeftOpen" @click="sidebarCollapsed = false" />
     </UiTooltip>
-    <nav class="ph-crumbs" aria-label="breadcrumb">
+    <nav class="ph-crumbs" :aria-label="$t('common.breadcrumb')">
       <template v-for="(c, i) in crumbs ?? []" :key="i">
         <ChevronRight v-if="i > 0" :size="13" class="ph-sep" />
         <component :is="c.to ? NuxtLink : 'span'" :to="c.to" class="ph-crumb" :class="{ last: i === (crumbs?.length ?? 0) - 1 }">

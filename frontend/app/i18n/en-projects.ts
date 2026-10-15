@@ -28,7 +28,7 @@ export default {
     pickFile: 'Pick a file on the left.', offline: 'Offline', editedBy: 'edited by {name} {time}', toggleFiles: 'Show / hide files', togglePreview: 'Show / hide preview',
     reload: 'Reload preview', openPreview: 'Open preview in a tab', desktop: 'Desktop', tablet: 'Tablet', mobile: 'Phone',
     publish: 'Publish', published: 'Published', unpublish: 'Unpublish', publishTitle: 'Publish the site', publishHint: 'The site is available to everyone at this address, no account needed.',
-    address: 'Address', slugHint: 'Lowercase letters, digits and dashes.', publishedToast: 'Site published', unpublishedToast: 'Site taken offline',
+    address: 'Address', slugHint: 'Lowercase letters, digits and dashes.', slugPlaceholder: 'my-site', publishedToast: 'Site published', unpublishedToast: 'Site taken offline',
     sandboxHint: 'The site’s code runs isolated: it can’t access Looty or visitors’ accounts (no cookies or local storage).',
     compile: 'Compile', compiled: 'Compiled in {s} s', compiledWithErrors: { one: 'PDF produced, 1 error', other: 'PDF produced, {count} errors' }, failed: { one: 'Failed: 1 error', other: 'Failed: {count} errors' },
     compileHint: 'Compile to see the PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Compilation log', downloadPdf: 'Download PDF',

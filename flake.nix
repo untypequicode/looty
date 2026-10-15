@@ -57,6 +57,9 @@
             }).androidsdk;
         in
         {
+          # nix develop : serveur (Rust, Node, PostgreSQL), comme nix-shell.
+          default = import ./shell.nix { inherit pkgs; };
+
           # nix develop .#android
           android = pkgs.mkShell {
             packages = [

@@ -90,7 +90,7 @@ cd frontend && npm install && npm run dev   # web app on :3000
 cd collaboration && npm install && node index.js
 ```
 
-`docker compose up` (without Traefik) builds and runs everything from source. Backend tests: `cargo test` in `backend/`. Each app has its own README: [`desktop/`](desktop/README.md), [`android/`](android/README.md), [`site/`](site/README.md).
+`docker compose up` (without Traefik) builds and runs everything from source; add `docker-compose.override.yml.example` as `docker-compose.override.yml` to reach it on port 3000 (real-time editing still needs a proxy for `/collab`, see [TODO.md](TODO.md)). Checks run by CI: `cargo test` in `backend/`, `node scripts/check-i18n.mjs` (French and English texts match) and `npm run build` in `frontend/`. Each app has its own README: [`desktop/`](desktop/README.md), [`android/`](android/README.md), [`site/`](site/README.md).
 
 ## Releasing
 

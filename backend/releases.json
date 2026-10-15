@@ -4,6 +4,26 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.16.9",
+      "date": "2026-10-15",
+      "title": { "en": "Safer document saving, iPhone notifications", "fr": "Enregistrement des documents plus sûr, notifications sur iPhone" },
+      "notes": {
+        "en": [
+          "If the database is briefly unreachable while a document or project file opens, Looty now waits and retries instead of opening it empty, so a later save can no longer erase its content.",
+          "Restoring a backup and replacing project files keep working after a database restart.",
+          "iPhone and iPad (installed app): notifications keep arriving after you used Looty with it open.",
+          "A few labels that only existed in French are translated, and unused texts were removed."
+        ],
+        "fr": [
+          "Si la base de données est brièvement injoignable à l’ouverture d’un document ou d’un fichier de projet, Looty attend et réessaie au lieu de l’ouvrir vide : un enregistrement ultérieur ne peut plus effacer son contenu.",
+          "La restauration d’une sauvegarde et le remplacement de fichiers de projet fonctionnent toujours après un redémarrage de la base.",
+          "iPhone et iPad (application installée) : les notifications continuent d’arriver après avoir utilisé Looty ouvert.",
+          "Quelques textes qui n’existaient qu’en français sont traduits, et les textes inutilisés ont été retirés."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.16.8",
       "date": "2026-10-13",
       "title": { "en": "Download site address", "fr": "Adresse du site de téléchargement" },

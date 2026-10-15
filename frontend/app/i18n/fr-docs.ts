@@ -6,7 +6,7 @@ export default {
     headingPlaceholder: 'Titre {level}', togglePlaceholder: 'Résumé du bloc dépliable', mathPlaceholder: 'Cliquez pour saisir une formule LaTeX', mathPreamble: 'Définitions LaTeX', emojiRecent: 'Utilisés récemment', emojiNone: 'Aucun émoji trouvé', emojiGroups: { 0: 'Smileys et émotions', 1: 'Personnes et corps', 3: 'Animaux et nature', 4: 'Nourriture et boissons', 5: 'Voyages et lieux', 6: 'Activités', 7: 'Objets', 8: 'Symboles', 9: 'Drapeaux' }, mathDefines: 'Définit {names} pour la suite du document', mathPackageUnknown: '{name} : paquet indisponible, ses commandes risquent de ne pas s’afficher', mathScopeHint: '\\newcommand et \\usepackage s’appliquent aux formules suivantes',
     toValidate: 'pour valider', addBlock: 'Ajouter un bloc dessous', dragHint: 'Glisser pour déplacer · cliquer pour le menu',
     turnInto: 'Transformer en', copySectionLink: 'Copier le lien vers cette section', moveUp: 'Monter', moveDown: 'Descendre',
-    addIcon: 'Ajouter une icône', searchEmoji: 'Rechercher un émoji…', suggested: 'Suggestions', allEmojis: 'Tous les émojis',
+    addIcon: 'Ajouter une icône', searchEmoji: 'Rechercher un émoji…', suggested: 'Suggestions',
     underline: 'Souligné', strike: 'Barré', code: 'Code', highlight: 'Surligner', linkPlaceholder: 'Coller un lien ou rechercher un document…',
     removeLink: 'Retirer le lien', language: 'Langage…', alignLeft: 'Aligner à gauche', alignCenter: 'Centrer', fullWidth: 'Pleine largeur',
     contents: 'Sommaire', findInPage: 'Rechercher dans la page', findPlaceholder: 'Rechercher dans la page…',
@@ -29,7 +29,6 @@ export default {
   share: {
     title: 'Partager le document', share: 'Partager', access: 'Accès', internal: 'Lien interne', internalHint: 'Pour les membres de l’espace qui ont accès.',
     public: 'Publier sur le web', publicOn: 'Toute personne disposant du lien peut lire ce document.', publicOff: 'Seuls les membres autorisés y ont accès.',
-    accessHint: 'Les droits s’appliquent aussi aux sous-documents. Les administrateurs ont toujours un accès complet.',
-    inherit: 'Selon son rôle', editor: 'Peut modifier', viewer: 'Lecture seule', blocked: 'Aucun accès', fullAccess: 'Accès complet',
+    inherit: 'Selon son rôle', editor: 'Peut modifier', viewer: 'Lecture seule', blocked: 'Aucun accès',
   },
 }

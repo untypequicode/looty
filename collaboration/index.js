@@ -252,8 +252,9 @@ const server = new Server({
             if (row?.yjs_state && row.yjs_state.length > 0) return row.yjs_state
             return textState(row?.content ?? '')
           } catch (e) {
+            // Jamais un document vide à la place : son enregistrement effacerait le fichier.
             console.error('Error fetching file', fid, e.message)
-            return textState('')
+            throw e
           }
         }
         try {
@@ -273,7 +274,10 @@ const server = new Server({
             return again.rows[0]?.yjs_state ?? state
           }
         } catch (e) {
+          // Base injoignable : la connexion échoue (le client réessaie) plutôt que d'ouvrir un
+          // document vide dont l'enregistrement remplacerait la page.
           console.error('Error fetching document', documentName, e.message)
+          throw e
         }
         return EMPTY_DOC
       },
@@ -316,36 +320,51 @@ const server = new Server({
 
 server.listen()
 
-;(async () => {
+function onNotification(msg) {
+  const hp = server.hocuspocus
+  if (msg.channel === 'looty_file_reset') {
+    const name = FILE_PREFIX + msg.payload
+    resetAt.set(name, Date.now())
+    hp.closeConnections(name)
+    const doc = hp.documents.get(name)
+    if (doc) {
+      hp.documents.delete(name)
+      try { doc.destroy() } catch {}
+    }
+    return
+  }
+  restoredAt = Date.now()
+  hp.closeConnections()
+  for (const [name, doc] of hp.documents) {
+    hp.documents.delete(name)
+    try { doc.destroy() } catch {}
+  }
+  loadedAt.clear()
+  console.log('Backup restored: documents unloaded')
+}
+
+// Connexion inactive du pool perdue (redémarrage de PostgreSQL) : signalée, sans arrêter le serveur.
+pool.on('error', (e) => console.error('PostgreSQL pool error', e.message))
+
+/** Écoute des notifications du backend, reprise automatiquement si la connexion tombe. */
+async function listen() {
+  let client
   try {
-    const client = await pool.connect()
+    client = await pool.connect()
     await client.query('LISTEN looty_restore')
     await client.query('LISTEN looty_file_reset')
-    client.on('notification', (msg) => {
-      if (msg.channel === 'looty_file_reset') {
-        const name = FILE_PREFIX + msg.payload
-        resetAt.set(name, Date.now())
-        const hp = server.hocuspocus
-        hp.closeConnections(name)
-        const doc = hp.documents.get(name)
-        if (doc) {
-          hp.documents.delete(name)
-          try { doc.destroy() } catch {}
-        }
-        return
-      }
-      restoredAt = Date.now()
-      const hp = server.hocuspocus
-      hp.closeConnections()
-      for (const [name, doc] of hp.documents) {
-        hp.documents.delete(name)
-        try { doc.destroy() } catch {}
-      }
-      loadedAt.clear()
-      console.log('Backup restored: documents unloaded')
-    })
   } catch (e) {
-    console.error('LISTEN looty_restore failed', e.message)
+    console.error('LISTEN failed, retrying in 5 s', e.message)
+    client?.release(true)
+    setTimeout(listen, 5000)
+    return
   }
-})()
+  client.on('notification', onNotification)
+  client.once('error', (e) => {
+    console.error('LISTEN connection lost, reconnecting', e.message)
+    client.release(true)
+    setTimeout(listen, 1000)
+  })
+}
+listen()
 console.log('Hocuspocus is listening on port', server.configuration?.port || 8082)

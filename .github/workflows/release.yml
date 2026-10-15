@@ -2,8 +2,10 @@
 # version de backend/releases.json n'a pas encore de tag (<plateforme>-v<version>) est
 # construite puis publiée sur GitHub :
 #   web      → images Docker (amd64 + arm64) sur ghcr.io, docker-compose.yml épinglé
-#   desktop  → paquet .deb (et paquet Nix poussé dans le cache binaire)
+#   desktop  → paquet .deb et installateur Windows (le paquet Nix part dans le cache binaire
+#              avec le workflow « Nix cache », lancé par la modification de desktop/)
 #   android  → APK
+# puis le site de téléchargement et le dépôt apt (scripts/publish-apps.sh).
 # Les notes viennent de releases.json (anglais, français dépliable).
 # Lancement manuel : republier une plateforme avec « force ».
 name: Release
@@ -47,17 +49,10 @@ jobs:
         run: node scripts/release-plan.mjs --force "${{ inputs.force }}" >> "$GITHUB_OUTPUT"
 
   tests:
-    name: Backend tests
+    name: Tests
     needs: plan
     if: needs.plan.outputs.any == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend
-      - run: cargo test --manifest-path backend/Cargo.toml
+    uses: ./.github/workflows/ci.yml
 
   docker:
     name: Docker images
@@ -80,13 +75,6 @@ jobs:
     needs: [plan, tests]
     if: needs.plan.outputs.android != ''
     uses: ./.github/workflows/android.yml
-    secrets: inherit
-
-  nix-cache:
-    name: Nix cache
-    needs: [plan, tests]
-    if: needs.plan.outputs.desktop != ''
-    uses: ./.github/workflows/nix-cache.yml
     secrets: inherit
 
   publish:
@@ -117,14 +105,15 @@ jobs:
           fi
           if [ -n "$DESKTOP" ]; then
             node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md
-            find artifacts -name "*.deb" -exec cp -t out/desktop/ {} +
+            # Seulement les fichiers de cette version (jamais ceux d'une version précédente restés en cache).
+            find artifacts -name "*_${DESKTOP}_*.deb" -exec cp -t out/desktop/ {} +
             ls out/desktop/*.deb > /dev/null
             # Installateur Windows (peut manquer si cette plateforme a échoué : la release Linux part quand même).
-            find artifacts -name "*-setup.exe" -exec cp -t out/desktop/ {} + || true
+            find artifacts -name "*_${DESKTOP}_*-setup.exe" -exec cp -t out/desktop/ {} + || true
           fi
           if [ -n "$ANDROID" ]; then
             node scripts/release-notes.mjs android "$ANDROID" > out/android/notes.md
-            find artifacts -name "*.apk" -exec cp -t out/android/ {} +
+            find artifacts \( -name "looty-${ANDROID}.apk" -o -name "looty-${ANDROID}-debug.apk" \) -exec cp -t out/android/ {} +
             ls out/android/*.apk > /dev/null
           fi
           find out -type f | sort
@@ -178,9 +167,11 @@ jobs:
           fi
           mkdir -p apps
           cp out/desktop/*.deb out/desktop/*-setup.exe out/android/*.apk apps/ 2> /dev/null || true
-          ls apps/*.deb > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern '*.deb' --dir apps || echo "::warning::no .deb found on $DESKTOP_TAG"
-          ls apps/*.apk > /dev/null 2>&1 || gh release download "$ANDROID_TAG" --pattern '*.apk' --dir apps || echo "::warning::no .apk found on $ANDROID_TAG"
-          ls apps/*-setup.exe > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern '*-setup.exe' --dir apps 2> /dev/null || true
+          # Fichiers de la dernière version seulement (une release peut garder d'anciens fichiers).
+          d="${DESKTOP_TAG#desktop-v}"; a="${ANDROID_TAG#android-v}"
+          ls apps/*.deb > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern "*_${d}_*.deb" --dir apps || echo "::warning::no .deb found on $DESKTOP_TAG"
+          ls apps/*.apk > /dev/null 2>&1 || gh release download "$ANDROID_TAG" --pattern "looty-${a}*.apk" --dir apps || echo "::warning::no .apk found on $ANDROID_TAG"
+          ls apps/*-setup.exe > /dev/null 2>&1 || gh release download "$DESKTOP_TAG" --pattern "*_${d}_*-setup.exe" --dir apps 2> /dev/null || true
           ls -la apps
           # Anciennes versions des applications retirées de la release principale.
           for old in $(gh release view "$MAIN_TAG" --json assets --jq '.assets[].name | select(endswith(".deb") or endswith(".apk") or endswith("-setup.exe"))'); do
@@ -190,32 +181,16 @@ jobs:
           if compgen -G 'apps/*' > /dev/null; then
             gh release upload "$MAIN_TAG" apps/* --clobber
           fi
-      # Site de téléchargement facultatif (variable SITE_URL, secret SITE_UPLOAD_TOKEN ; voir site/README.md) :
-      # APK signé, .deb, installateur Windows et dépôt apt signé (si la clé APT_GPG_PRIVATE_KEY existe).
-      # Sans variable ni secret, les dépôts sur le site sont ignorés ; le dépôt apt part alors sur GitHub Pages.
-      - name: Publish to the download site
+      # Site de téléchargement facultatif (variable SITE_URL, secret SITE_UPLOAD_TOKEN ; voir site/README.md) et dépôt apt
+      # signé (si la clé APT_GPG_PRIVATE_KEY existe) : sur le site s'il est configuré, sinon sur GitHub Pages.
+      - name: Publish to the download site and apt
         env:
           SITE_URL: ${{ vars.SITE_URL }}
           SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
           GH_TOKEN: ${{ github.token }}
-          DESKTOP: ${{ needs.plan.outputs.desktop }}
-          ANDROID: ${{ needs.plan.outputs.android }}
         run: |
-          if [ -n "$ANDROID" ]; then
-            apk=$(ls out/android/looty-[0-9]*.apk 2> /dev/null | grep -v -- '-debug' | head -1 || true)
-            if [ -n "$apk" ]; then ./scripts/site-publish.sh android "$apk"; else echo "unsigned APK: not published on the site"; fi
-          fi
-          if [ -n "$DESKTOP" ]; then
-            deb=$(ls out/desktop/*.deb | sort -V | tail -1)
-            ./scripts/site-publish.sh linux "$deb"
-            exe=$(ls out/desktop/*-setup.exe 2> /dev/null | head -1 || true)
-            if [ -n "$exe" ]; then ./scripts/site-publish.sh windows "$exe"; fi
-            if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
-              sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils gnupg
-              echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
-              # Site configuré : dépôt apt sur le site ; sinon sur GitHub Pages (dépôt public).
-              if [ -n "$SITE_URL" ] && [ -n "$SITE_UPLOAD_TOKEN" ]; then ./desktop/scripts/apt-publish.sh "$deb"; else ./desktop/scripts/apt-publish-pages.sh "$deb"; fi
-            fi
-          fi
+          mkdir -p publish
+          find out/desktop out/android -type f ! -name notes.md -exec cp -t publish/ {} +
+          ./scripts/publish-apps.sh publish

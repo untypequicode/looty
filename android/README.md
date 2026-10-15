@@ -88,8 +88,8 @@ keyPassword=…
 
 `gradle assembleRelease` then produces `app/build/outputs/apk/release/app-release.apk`
 (about 1 MB). In CI, the same values come from the `ANDROID_KEYSTORE_B64`,
-`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` secrets; pushing
-a tag `android-v<versionName>` publishes the APK.
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` secrets; a new
+`android` entry in `backend/releases.json` merged into `main` publishes the APK (see [RELEASING.md](../RELEASING.md)).
 
 ### Emulator
 

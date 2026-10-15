@@ -6,7 +6,7 @@ export default {
     headingPlaceholder: 'Heading {level}', togglePlaceholder: 'Toggle summary', mathPlaceholder: 'Click to enter a LaTeX formula', mathPreamble: 'LaTeX definitions', emojiRecent: 'Recently used', emojiNone: 'No emoji found', emojiGroups: { 0: 'Smileys & emotion', 1: 'People & body', 3: 'Animals & nature', 4: 'Food & drink', 5: 'Travel & places', 6: 'Activities', 7: 'Objects', 8: 'Symbols', 9: 'Flags' }, mathDefines: 'Defines {names} for the rest of the document', mathPackageUnknown: '{name}: package not available, its commands may not render', mathScopeHint: '\\newcommand and \\usepackage apply to the formulas below',
     toValidate: 'to confirm', addBlock: 'Add a block below', dragHint: 'Drag to move · click for menu',
     turnInto: 'Turn into', copySectionLink: 'Copy link to section', moveUp: 'Move up', moveDown: 'Move down',
-    addIcon: 'Add icon', searchEmoji: 'Search emoji…', suggested: 'Suggested', allEmojis: 'All emojis',
+    addIcon: 'Add icon', searchEmoji: 'Search emoji…', suggested: 'Suggested',
     underline: 'Underline', strike: 'Strikethrough', code: 'Code', highlight: 'Highlight', linkPlaceholder: 'Paste a link or search documents…',
     removeLink: 'Remove link', language: 'Language…', alignLeft: 'Align left', alignCenter: 'Center', fullWidth: 'Full width',
     contents: 'Contents', findInPage: 'Find in page', findPlaceholder: 'Find in page…',
@@ -29,7 +29,6 @@ export default {
   share: {
     title: 'Share document', share: 'Share', access: 'Access', internal: 'Internal link', internalHint: 'For workspace members who have access.',
     public: 'Publish to the web', publicOn: 'Anyone with the link can read this document.', publicOff: 'Only authorized members have access.',
-    accessHint: 'Permissions also apply to sub-documents. Admins always have full access.',
-    inherit: 'Based on role', editor: 'Can edit', viewer: 'Read only', blocked: 'No access', fullAccess: 'Full access',
+    inherit: 'Based on role', editor: 'Can edit', viewer: 'Read only', blocked: 'No access',
   },
 }
