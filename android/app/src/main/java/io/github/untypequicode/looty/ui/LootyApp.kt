@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -48,11 +50,19 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
     val createdMsg = stringResource(R.string.created)
     val refusedMsg = stringResource(R.string.sync_refused)
     // Modifications faites hors ligne que le serveur a refusées au rejeu : signalées une fois, par nom.
-    val refused = state.refused
-    LaunchedEffect(refused) {
-        if (refused.isNotEmpty()) {
+    // (snapshotFlow : vider la valeur ne doit pas annuler le message en cours d'affichage.)
+    LaunchedEffect(Unit) {
+        snapshotFlow { state.refused }.filter { it.isNotEmpty() }.collect { refused ->
             state.refused = emptyList()
             snackbar.showSnackbar(refusedMsg + " " + refused.take(3).joinToString(", ") { "« " + it + " »" } + if (refused.size > 3) "…" else "")
+        }
+    }
+    // Écriture refusée ou impossible (droits, serveur injoignable) : dite une fois.
+    val errors = mapOf("forbidden" to stringResource(R.string.error_forbidden), "offline" to stringResource(R.string.error_offline), "" to stringResource(R.string.error_generic))
+    LaunchedEffect(Unit) {
+        snapshotFlow { state.lastError }.filterNotNull().collect { e ->
+            state.lastError = null
+            snackbar.showSnackbar(errors[if (e == "http_403" || e == "forbidden") "forbidden" else if (e == "offline") "offline" else ""]!!)
         }
     }
     val isTab = TABS.any { it.route == route }
@@ -139,7 +149,14 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("docs") { DocsScreen(state, padding) }
             composable("inbox") { InboxScreen(state, padding) }
             composable("more") { MoreScreen(state, padding, onSignedOut) }
-            composable("board/{id}") { e -> BoardScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
+            composable("board/{id}") { e ->
+                val id = e.arguments?.getString("id") ?: ""
+                BoardScreen(state, id, onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }, onSettings = { nav.navigate("board/$id/settings") })
+            }
+            composable("board/{id}/settings") { e ->
+                BoardSettingsScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() },
+                    onDeleted = { nav.popBackStack("board/{id}", inclusive = true) })
+            }
             composable("doc/{id}") { e -> ReaderScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("notifications") { NotificationsScreen(state, onBack = { nav.popBackStack() }) }
             composable("updates") { UpdatesScreen(state, onBack = { nav.popBackStack() }) }

@@ -39,6 +39,18 @@ class SharedFile(val name: String, val mime: String, val bytes: ByteArray)
 
 private const val MAX_FILE = 25L * 1024 * 1024
 
+/** Lit au plus [max] + 1 octets (au-delà, le fichier est trop gros) ; readNBytes n'existe qu'à partir d'Android 13. */
+private fun java.io.InputStream.readAtMost(max: Int): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buf = ByteArray(64 * 1024)
+    while (out.size() <= max) {
+        val n = read(buf, 0, minOf(buf.size, max + 1 - out.size()))
+        if (n < 0) break
+        out.write(buf, 0, n)
+    }
+    return out.toByteArray()
+}
+
 /**
  * « Partager » vers Looty : le texte ou le lien reçu d'une autre application devient une
  * tâche (dans le tableau choisi) ou un document. Écran translucide : une feuille au-dessus
@@ -72,6 +84,12 @@ private fun fileName(ctx: android.content.Context, uri: Uri): String =
     runCatching {
         ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
     }.getOrNull() ?: uri.lastPathSegment ?: "file"
+
+/** Fichier choisi ou partagé → contenu à envoyer ; null s'il est illisible ou dépasse 25 Mo. */
+fun readSharedFile(ctx: android.content.Context, uri: Uri): SharedFile? = runCatching {
+    val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readAtMost(MAX_FILE.toInt()) } ?: return@runCatching null
+    if (bytes.size > MAX_FILE) null else SharedFile(fileName(ctx, uri), ctx.contentResolver.getType(uri) ?: "application/octet-stream", bytes)
+}.getOrNull()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,7 +125,7 @@ private fun ShareSheet(state: AppState, subject: String, text: String, uris: Lis
                 val files = withContext(Dispatchers.IO) {
                     uris.mapIndexedNotNull { i, u ->
                         runCatching {
-                            val bytes = ctx.contentResolver.openInputStream(u)?.use { it.readNBytes(MAX_FILE.toInt() + 1) } ?: return@runCatching null
+                            val bytes = ctx.contentResolver.openInputStream(u)?.use { it.readAtMost(MAX_FILE.toInt()) } ?: return@runCatching null
                             if (bytes.size > MAX_FILE) null else SharedFile(names[i], ctx.contentResolver.getType(u) ?: "application/octet-stream", bytes)
                         }.onFailure { android.util.Log.w("LootyShare", "cannot read $u", it) }.getOrNull()
                     }

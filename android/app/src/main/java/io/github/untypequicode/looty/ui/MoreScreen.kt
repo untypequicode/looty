@@ -9,7 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -20,6 +20,7 @@ import io.github.untypequicode.looty.BuildConfig
 import io.github.untypequicode.looty.R
 import io.github.untypequicode.looty.Session
 import io.github.untypequicode.looty.SetupActivity
+import kotlinx.coroutines.launch
 
 @Composable
 fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit) {
@@ -27,6 +28,12 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
     val s = state.session as? Session.Ready ?: return
     val ws = s.workspaceId
     val opener = LocalOpener.current
+    var newBoard by remember { mutableStateOf(false) }
+    val boardScope = rememberCoroutineScope()
+    if (newBoard) NameDialog(stringResource(R.string.new_board), stringResource(R.string.board_name), "", onDismiss = { newBoard = false }) { name ->
+        newBoard = false
+        boardScope.launch { state.createBoard(name)?.let { opener.board(it) } }
+    }
     val links: List<Triple<ImageVector, Int, String>> = listOf(
         Triple(Icons.Outlined.Hub, R.string.graph, "graph"),
         Triple(Icons.Outlined.History, R.string.activity, "activity"),
@@ -71,7 +78,11 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
                 modifier = Modifier.clickable { opener.route("mail") },
             )
         }
-        item { SectionTitle(stringResource(R.string.boards)) }
+        item {
+            SectionTitle(stringResource(R.string.boards), action = if (state.canManageBoards) { {
+                IconButton(onClick = { newBoard = true }) { Icon(Icons.Outlined.Add, stringResource(R.string.new_board)) }
+            } } else null)
+        }
         items(state.boards, key = { "b" + it.id }) { b ->
             ListItem(headlineContent = { Text(b.name) }, leadingContent = { Icon(Icons.Outlined.ViewKanban, null) }, modifier = Modifier.clickable { opener.board(b.id) })
         }

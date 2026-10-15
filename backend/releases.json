@@ -20,12 +20,30 @@
     },
     {
       "platform": "android",
-      "version": "0.12.2",
-      "date": "2026-10-15",
-      "title": { "en": "Updated libraries", "fr": "Bibliothèques à jour" },
+      "version": "0.13.0",
+      "date": "2026-10-16",
+      "title": { "en": "Boards and tasks, fully in the app", "fr": "Tableaux et tâches, entièrement dans l’application" },
       "notes": {
-        "en": ["Updated interface, widget and HTML libraries."],
-        "fr": ["Bibliothèques de l’interface, du widget et du HTML mises à jour."]
+        "en": [
+          "Write task descriptions right in the app: headings, bulleted and numbered lists, checklists, quotes, code, bold, italic and links. Checklists can be ticked directly.",
+          "Add files to a task from your phone, open them with the right app, and remove them.",
+          "Edit or delete your comments (long press), and show a task’s change history, with a way to restore an earlier title or description.",
+          "Labels: create new ones from a task, with a colour. Per-person tasks can be switched on and off.",
+          "Boards: a list view next to the columns, search, and filters by label and person. Board settings to rename it and to add, rename, reorder or delete columns, manage labels and the “when completed” automation. New boards can be created from the More tab.",
+          "When a change can’t be saved (no permission, server unreachable), the app now says so.",
+          "Sharing a file into Looty no longer fails on Android 8 to 12.",
+          "Updated interface, widget and HTML libraries."
+        ],
+        "fr": [
+          "Écrivez la description des tâches directement dans l’application : titres, listes à puces et numérotées, cases à cocher, citations, code, gras, italique et liens. Les cases se cochent directement.",
+          "Ajoutez des fichiers à une tâche depuis le téléphone, ouvrez-les avec la bonne application et supprimez-les.",
+          "Modifiez ou supprimez vos commentaires (appui long) et affichez l’historique d’une tâche, avec la possibilité de rétablir un ancien titre ou une ancienne description.",
+          "Étiquettes : créez-en de nouvelles depuis une tâche, avec une couleur. La validation par personne s’active et se désactive.",
+          "Tableaux : une vue en liste à côté des colonnes, une recherche et des filtres par étiquette et par personne. Les paramètres du tableau permettent de le renommer, d’ajouter, renommer, réordonner ou supprimer des colonnes, de gérer les étiquettes et l’automatisation « une fois terminée ». On peut créer un tableau depuis l’onglet Plus.",
+          "Quand une modification ne peut pas être enregistrée (pas le droit, serveur injoignable), l’application le dit désormais.",
+          "Le partage d’un fichier vers Looty n’échoue plus sur Android 8 à 12.",
+          "Bibliothèques de l’interface, du widget et du HTML mises à jour."
+        ]
       }
     },
     {

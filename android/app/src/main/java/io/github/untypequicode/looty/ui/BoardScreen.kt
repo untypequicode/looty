@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,21 +47,27 @@ fun labelColor(hex: String): Color = runCatching { Color(android.graphics.Color.
 fun Task.doneFor(me: String?): Boolean = if (is_per_person) me != null && me in validations || is_completed else is_completed
 
 /**
- * Tableau : une colonne par page (balayer pour changer), onglets avec le nombre de
- * tâches ; appui long sur une carte : déplacer, terminer, supprimer.
+ * Tableau : en colonnes (une colonne par page, balayer pour changer) ou en liste groupée
+ * par colonne ; recherche et filtres ; appui long sur une tâche : déplacer, terminer, supprimer.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (String) -> Unit) {
+fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (String) -> Unit, onSettings: () -> Unit) {
     val ctx = LocalContext.current
     val entry = state.boardData[boardId]
     val board = entry?.data
     LaunchedEffect(boardId) { state.loadBoard(boardId) }
-    var showDone by remember { mutableStateOf(false) }
-    var onlyMine by remember { mutableStateOf(false) }
+    var showDone by rememberSaveable { mutableStateOf(false) }
+    var onlyMine by rememberSaveable { mutableStateOf(false) }
+    var labelFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
+    // Personnes ; "" = sans personne assignée.
+    var peopleFilter by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var search by rememberSaveable { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
+    var filterSheet by remember { mutableStateOf(false) }
     var actionsFor by remember { mutableStateOf<Task?>(null) }
     var createIn by remember { mutableStateOf<String?>(null) }
+    var addColumn by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val me = state.me?.id
@@ -68,20 +75,43 @@ fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (S
     val pager = rememberPagerState { columns.size }
     val deletedMsg = stringResource(R.string.task_deleted)
     val undo = stringResource(R.string.undo)
+    val asList = state.boardView == "list"
+    val filters = (if (showDone) 1 else 0) + (if (onlyMine) 1 else 0) + labelFilter.size + peopleFilter.size
+
+    fun visible(t: Task) = t.parent_id == null && (showDone || !t.doneFor(me)) && (!onlyMine || me in t.assignees) &&
+        (labelFilter.isEmpty() || t.labels.any { it.id in labelFilter }) &&
+        (peopleFilter.isEmpty() || t.assignees.any { it in peopleFilter } || ("" in peopleFilter && t.assignees.isEmpty())) &&
+        (search.isNullOrBlank() || t.title.contains(search!!.trim(), ignoreCase = true))
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            if (search != null) {
+                val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                LaunchedEffect(Unit) { focus.requestFocus() }
+                TopAppBar(
+                    title = {
+                        TextField(search!!, { search = it }, singleLine = true, placeholder = { Text(stringResource(R.string.search_tasks)) },
+                            colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus))
+                    },
+                    navigationIcon = { IconButton(onClick = { search = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                    actions = { if (search!!.isNotEmpty()) IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, stringResource(R.string.clear)) } },
+                )
+            } else TopAppBar(
                 title = { Text(board?.name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.FilterList, stringResource(R.string.filters)) }
+                    IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Search, stringResource(R.string.search_tasks)) }
+                    IconButton(onClick = { state.setBoardViewMode(if (asList) "columns" else "list") }) {
+                        Icon(if (asList) Icons.Outlined.ViewColumn else Icons.Outlined.ViewAgenda, stringResource(if (asList) R.string.view_columns else R.string.view_list))
+                    }
+                    IconButton(onClick = { filterSheet = true }) {
+                        BadgedBox(badge = { if (filters > 0) Badge { Text("$filters") } }) { Icon(Icons.Outlined.FilterList, stringResource(R.string.filters)) }
+                    }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, null) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.show_completed)) }, onClick = { showDone = !showDone; menu = false },
-                            leadingIcon = { Checkbox(checked = showDone, onCheckedChange = null) })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.only_mine)) }, onClick = { onlyMine = !onlyMine; menu = false },
-                            leadingIcon = { Checkbox(checked = onlyMine, onCheckedChange = null) })
-                        HorizontalDivider()
+                        if (state.canManageBoards) DropdownMenuItem(text = { Text(stringResource(R.string.board_settings)) }, leadingIcon = { Icon(Icons.Outlined.Settings, null) },
+                            onClick = { menu = false; onSettings() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.open_in_browser_view)) }, leadingIcon = { Icon(Icons.Outlined.OpenInNew, null) },
                             onClick = { menu = false; state.ws?.let { openWeb(ctx, Paths.board(it, boardId)) } })
                     }
@@ -89,7 +119,7 @@ fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (S
             )
         },
         floatingActionButton = {
-            if (columns.isNotEmpty() && state.canEditBoards) FloatingActionButton(onClick = { createIn = columns.getOrNull(pager.currentPage)?.id }) { Icon(Icons.Filled.Add, stringResource(R.string.new_task)) }
+            if (columns.isNotEmpty() && state.canEditBoards) FloatingActionButton(onClick = { createIn = if (asList) columns.first().id else columns.getOrNull(pager.currentPage)?.id }) { Icon(Icons.Filled.Add, stringResource(R.string.new_task)) }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -98,7 +128,17 @@ fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (S
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { if (entry?.error != null) Text(stringResource(R.string.error_generic)) else LoadingIndicatorCompat() }
                 return@Column
             }
-            fun visible(t: Task) = t.parent_id == null && (showDone || !t.doneFor(me)) && (!onlyMine || me in t.assignees)
+            if (columns.isEmpty()) {
+                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    EmptyState(Icons.Outlined.ViewColumn, stringResource(R.string.no_columns))
+                    if (state.canManageBoards) Button(onClick = { addColumn = true }) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_column)) }
+                }
+                return@Column
+            }
+            if (asList) {
+                BoardList(state, board, columns, ::visible, onTask = onTask, onActions = { if (state.canValidate) actionsFor = it }, onCreate = { createIn = it })
+                return@Column
+            }
             PrimaryScrollableTabRow(selectedTabIndex = pager.currentPage.coerceAtMost((columns.size - 1).coerceAtLeast(0)), edgePadding = 12.dp) {
                 columns.forEachIndexed { i, c ->
                     Tab(selected = pager.currentPage == i, onClick = { scope.launch { pager.animateScrollToPage(i) } },
@@ -130,6 +170,145 @@ fun BoardScreen(state: AppState, boardId: String, onBack: () -> Unit, onTask: (S
             scope.launch { state.createInColumn(boardId, colId, title); createIn = null }
         }
     }
+    if (filterSheet && board != null) FilterSheet(state, board, showDone, onlyMine, labelFilter, peopleFilter,
+        onShowDone = { showDone = it }, onOnlyMine = { onlyMine = it }, onLabels = { labelFilter = it }, onPeople = { peopleFilter = it },
+        onClear = { showDone = false; onlyMine = false; labelFilter = emptyList(); peopleFilter = emptyList() },
+        onDismiss = { filterSheet = false })
+    if (addColumn) NameDialog(stringResource(R.string.add_column), stringResource(R.string.column_name), "", onDismiss = { addColumn = false }) { name ->
+        addColumn = false
+        scope.launch { state.createColumn(boardId, name) }
+    }
+}
+
+/** Vue liste : les tâches groupées par colonne (repliables), une ligne par tâche. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BoardList(state: AppState, board: BoardFull, columns: List<io.github.untypequicode.looty.api.ColumnFull>, visible: (Task) -> Boolean,
+                      onTask: (String) -> Unit, onActions: (Task) -> Unit, onCreate: (String) -> Unit) {
+    val collapsed = remember { mutableStateMapOf<String, Boolean>() }
+    val entry = state.boardData[board.id]
+    PullToRefreshBox(isRefreshing = entry?.loading == true, onRefresh = { state.loadBoard(board.id) }) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+            columns.forEach { col ->
+                val tasks = col.tasks.filter(visible).sortedBy { it.position }
+                val closed = collapsed[col.id] == true
+                item(key = "h" + col.id) {
+                    Row(Modifier.fillMaxWidth().clickable { collapsed[col.id] = !closed }.background(MaterialTheme.colorScheme.surfaceContainerLow).padding(start = 12.dp, end = 4.dp).heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (closed) Icons.Outlined.ChevronRight else Icons.Outlined.ExpandMore, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Text(col.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.width(8.dp))
+                            Text("${tasks.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (state.canEditBoards) IconButton(onClick = { onCreate(col.id) }) { Icon(Icons.Filled.Add, stringResource(R.string.new_task)) }
+                    }
+                }
+                if (!closed) {
+                    if (tasks.isEmpty()) item(key = "e" + col.id) {
+                        Text(stringResource(R.string.column_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 52.dp, vertical = 12.dp))
+                    }
+                    items(tasks, key = { it.id }) { t -> TaskRow(state, board, t, onClick = { onTask(t.id) }, onLongClick = { onActions(t) }, modifier = Modifier.animateItem()) }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TaskRow(state: AppState, board: BoardFull, t: Task, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier) {
+    val haptics = LocalHapticFeedback.current
+    val me = state.me?.id
+    val done = t.doneFor(me)
+    val due = localDate(t.due_date)
+    val subtasks = board.allTasks.filter { it.parent_id == t.id }
+    Row(modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() })
+        .padding(start = 4.dp, end = 12.dp, top = 2.dp, bottom = 2.dp).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = done, enabled = state.canValidate, onCheckedChange = { haptics.performHapticFeedback(HapticFeedbackType.Confirm); state.toggleDone(t) })
+        Column(Modifier.weight(1f).padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PriorityIcon(t.priority)
+                Text(t.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (done) TextDecoration.LineThrough else null, color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+            }
+            if (t.labels.isNotEmpty() || due != null || subtasks.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (due != null) {
+                    val overdue = !done && due.isBefore(LocalDate.now())
+                    Text(dayLabel(due), style = MaterialTheme.typography.labelMedium, color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (subtasks.isNotEmpty()) Text("${subtasks.count { it.doneFor(me) }}/${subtasks.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                t.labels.take(3).forEach { l ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(labelColor(l.color)))
+                        Spacer(Modifier.width(4.dp))
+                        Text(l.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) { t.assignees.take(3).forEach { a -> Avatar(state.members[a]?.name, 22.dp) } }
+    }
+}
+
+/** Filtres du tableau : terminées, mes tâches, étiquettes, personnes. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun FilterSheet(state: AppState, board: BoardFull, showDone: Boolean, onlyMine: Boolean, labels: List<String>, people: List<String>,
+                        onShowDone: (Boolean) -> Unit, onOnlyMine: (Boolean) -> Unit, onLabels: (List<String>) -> Unit, onPeople: (List<String>) -> Unit,
+                        onClear: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        NoNavScrim()
+        Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).navigationBarsPadding().padding(bottom = 24.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.filters), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onClear) { Text(stringResource(R.string.clear_filters)) }
+            }
+            ListItem(colors = sheetItemColors(), headlineContent = { Text(stringResource(R.string.show_completed)) },
+                trailingContent = { Switch(checked = showDone, onCheckedChange = onShowDone) }, modifier = Modifier.clickable { onShowDone(!showDone) })
+            ListItem(colors = sheetItemColors(), headlineContent = { Text(stringResource(R.string.only_mine)) },
+                trailingContent = { Switch(checked = onlyMine, onCheckedChange = onOnlyMine) }, modifier = Modifier.clickable { onOnlyMine(!onlyMine) })
+            if (board.labels.isNotEmpty()) {
+                Text(stringResource(R.string.labels), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                FlowRow(Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    board.labels.forEach { l ->
+                        val on = l.id in labels
+                        FilterChip(selected = on, onClick = { onLabels(if (on) labels - l.id else labels + l.id) }, label = { Text(l.name) },
+                            leadingIcon = { Box(Modifier.size(10.dp).clip(CircleShape).background(labelColor(l.color))) })
+                    }
+                }
+            }
+            Text(stringResource(R.string.people), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            FlowRow(Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = "" in people, onClick = { onPeople(if ("" in people) people - "" else people + "") }, label = { Text(stringResource(R.string.unassigned)) })
+                state.members.values.sortedBy { it.name }.forEach { m ->
+                    val on = m.user_id in people
+                    FilterChip(selected = on, onClick = { onPeople(if (on) people - m.user_id else people + m.user_id) }, label = { Text(m.name) },
+                        leadingIcon = { Avatar(m.name, 20.dp) })
+                }
+            }
+        }
+    }
+}
+
+/** Saisie d'un nom (colonne, tableau…). */
+@Composable
+fun NameDialog(title: String, label: String, initial: String, onDismiss: () -> Unit, onDone: (String) -> Unit) {
+    var name by remember { mutableStateOf(initial) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(label) }, modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (name.isNotBlank()) onDone(name.trim()) }))
+        },
+        confirmButton = { TextButton(enabled = name.isNotBlank() && name.trim() != initial, onClick = { onDone(name.trim()) }) { Text(stringResource(R.string.save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)

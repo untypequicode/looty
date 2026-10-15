@@ -242,6 +242,17 @@ private fun openLink(ctx: android.content.Context, state: AppState, href: String
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(href)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
+/** HTML de l'éditeur du site affiché en natif (blocs gardés tels quels dans une description, commentaires). */
+@Composable
+fun HtmlBlocks(state: AppState, html: String, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
+    val blocks = remember(html, scheme) {
+        ReaderParser.parse(html, ReaderColors(scheme.primary, scheme.surfaceContainerHighest, Color(0x66FFD54F))) { openLink(ctx, state, it) }
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) { blocks.forEach { BlockView(state, it, "") } }
+}
+
 @Composable
 private fun BlockView(state: AppState, b: Block, pageId: String) {
     val ctx = LocalContext.current
@@ -293,7 +304,7 @@ private fun BlockView(state: AppState, b: Block, pageId: String) {
         is MathBlock -> Surface(color = scheme.surfaceContainerHigh, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
             Text(b.latex, fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, modifier = Modifier.horizontalScroll(rememberScrollState()).padding(12.dp), softWrap = false)
         }
-        is Special -> Surface(color = scheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().clickable { state.ws?.let { openWeb(ctx, Paths.doc(it, pageId)) } }) {
+        is Special -> Surface(color = scheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().clickable(enabled = pageId.isNotEmpty()) { state.ws?.let { openWeb(ctx, Paths.doc(it, pageId)) } }) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(when (b.kind) { "mermaid" -> Icons.Outlined.AccountTree; "excalidraw" -> Icons.Outlined.Draw; "pdf" -> Icons.Outlined.PictureAsPdf; else -> Icons.Outlined.Widgets }, null, tint = scheme.primary)
                 Spacer(Modifier.width(12.dp))

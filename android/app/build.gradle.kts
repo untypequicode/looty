@@ -26,7 +26,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 17
-        versionName = "0.12.2"
+        versionName = "0.13.0"
     }
 
     signingConfigs {
@@ -98,6 +98,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     // Lecture native des documents (HTML de l’éditeur) ; Java pur, sans Google.
     implementation("org.jsoup:jsoup:1.23.2")
+    testImplementation("junit:junit:4.13.2")
     // Widget d’écran d’accueil (Jetpack Glance, sans services Google).
     implementation("androidx.glance:glance-appwidget:1.2.0")
     implementation("androidx.glance:glance-material3:1.2.0")

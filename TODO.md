@@ -8,16 +8,19 @@ Short list, most important first. **(you)** = only you can do it (GitHub setting
    `.deb` / `.exe`; keep only the 0.7.1 files, `looty-0.12.1.apk` and `docker-compose.yml`. The next releases won't add
    old files any more (fixed).
 2. **(you)** Merge `redesign` into `main`. The Release workflow then publishes web 0.16.9, desktop 0.7.2 and
-   Android 0.12.2.
+   Android 0.13.0.
 3. **(you)** In GitHub → Settings → Branches, make the **CI** check required for `main`, so a broken build cannot be
    merged.
 
 ## Android: native screens everywhere
 
-The app is native for home, tasks, inbox, boards, task details, calendar, reading mail and reading documents. These
-still open a web page inside the app: mail writing and folders, drive, projects, Moodle, graph, activity, trash,
-settings, document management and editing. Plan in phases (N1–N6) in the review message; document *editing* stays a
-web view (the live collaborative editor can't be rebuilt natively).
+Done: home, tasks, inbox, calendar, reading mail and documents, and since 0.13.0 (**N1**) boards and tasks completely:
+description editor, attachments, comment editing, history, labels, list view, filters, board settings.
+
+Still a web page inside the app, in the planned order:
+- **N2** mail: writing and replying, folders, account setup.
+- **N3** documents: create, organise, share, comments, history (editing stays the web editor, inside native screens).
+- **N4** drive and projects. **N5** Moodle, activity, trash, graph. **N6** settings.
 
 ## Testing
 
