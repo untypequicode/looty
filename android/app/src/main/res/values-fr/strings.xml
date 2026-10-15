@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="change_server">Changer de serveur</string>
     <string name="setup_title">Se connecter à Looty</string>
     <string name="setup_hint">Saisissez l’adresse de votre serveur Looty.</string>
@@ -251,4 +251,89 @@
     <string name="update_auto">Vérifier automatiquement</string>
     <string name="update_auto_hint">Cherche une nouvelle version une fois par jour et vous prévient.</string>
     <string name="update_no_source">Ce serveur n’indique pas où Looty est publié : il n’y a rien à vérifier. Demandez à son administrateur.</string>
+    <!-- N1 : tableaux et tâches -->
+    <string name="add">Ajouter</string>
+    <string name="rename">Renommer</string>
+    <string name="description_placeholder">Ajouter une description…</string>
+    <string name="fmt_heading">Titre</string>
+    <string name="fmt_bullets">Liste à puces</string>
+    <string name="fmt_numbers">Liste numérotée</string>
+    <string name="fmt_checklist">Liste de cases à cocher</string>
+    <string name="fmt_indent">Augmenter le retrait</string>
+    <string name="fmt_outdent">Diminuer le retrait</string>
+    <string name="fmt_quote">Citation</string>
+    <string name="fmt_code_block">Bloc de code</string>
+    <string name="fmt_bold">Gras</string>
+    <string name="fmt_italic">Italique</string>
+    <string name="fmt_underline">Souligné</string>
+    <string name="fmt_strike">Barré</string>
+    <string name="fmt_code">Code</string>
+    <string name="fmt_link">Lien</string>
+    <string name="link_address">Adresse</string>
+    <string name="per_person">Chaque personne la termine</string>
+    <string name="per_person_hint">Chaque personne assignée la coche de son côté.</string>
+    <string name="require_all">Terminée seulement quand tout le monde a fini</string>
+    <string name="add_labels">Ajouter des étiquettes</string>
+    <string name="new_label">Nouvelle étiquette</string>
+    <string name="label_name">Nom</string>
+    <string name="label_color">Couleur</string>
+    <string name="delete_label_title">Supprimer l’étiquette « %s » ?</string>
+    <string name="delete_label_message">Elle sera retirée de toutes les tâches.</string>
+    <string name="add_file">Ajouter un fichier</string>
+    <plurals name="upload_failed">
+        <item quantity="one">%d fichier n’a pas pu être envoyé.</item>
+        <item quantity="other">%d fichiers n’ont pas pu être envoyés.</item>
+    </plurals>
+    <string name="no_app_for_file">Aucune application de ce téléphone ne peut ouvrir ce fichier.</string>
+    <string name="delete_attachment_title">Supprimer « %s » ?</string>
+    <string name="delete_comment_title">Supprimer ce commentaire ?</string>
+    <string name="edited">modifié</string>
+    <string name="show_history">Afficher les modifications</string>
+    <string name="history_created">a créé la tâche</string>
+    <string name="history_moved">l’a déplacée de %1$s vers %2$s</string>
+    <string name="history_completed">l’a terminée</string>
+    <string name="history_reopened">l’a rouverte</string>
+    <string name="history_assigned">a assigné %s</string>
+    <string name="history_unassigned">a retiré %s</string>
+    <string name="history_label_added">a ajouté l’étiquette %s</string>
+    <string name="history_label_removed">a retiré l’étiquette %s</string>
+    <string name="history_attached">a joint %s</string>
+    <string name="history_renamed">l’a renommée « %s »</string>
+    <string name="history_description">a modifié la description</string>
+    <string name="history_priority">a mis la priorité à %s</string>
+    <string name="history_due">a fixé l’échéance au %s</string>
+    <string name="history_due_removed">a retiré l’échéance</string>
+    <string name="history_updated">a modifié la tâche</string>
+    <string name="history_restore">Rétablir cette version</string>
+    <string name="history_restore_message">La version actuelle sera remplacée par celle d’avant cette modification.</string>
+    <string name="view_columns">Colonnes</string>
+    <string name="view_list">Liste</string>
+    <string name="search_tasks">Rechercher des tâches</string>
+    <string name="people">Personnes</string>
+    <string name="clear_filters">Effacer les filtres</string>
+    <string name="board_settings">Paramètres du tableau</string>
+    <string name="no_columns">Ce tableau n’a pas encore de colonne.</string>
+    <string name="add_column">Ajouter une colonne</string>
+    <string name="column_name">Nom de la colonne</string>
+    <string name="move_up">Monter</string>
+    <string name="move_down">Descendre</string>
+    <string name="delete_column_title">Supprimer la colonne « %s » ?</string>
+    <!-- « one » couvre aussi 0 en français : le message n’est affiché que s’il y a des tâches. -->
+    <plurals name="delete_column_tasks" tools:ignore="ImpliedQuantity">
+        <item quantity="one">Sa tâche sera aussi supprimée.</item>
+        <item quantity="other">Ses %d tâches seront aussi supprimées.</item>
+    </plurals>
+    <string name="board_name">Nom du tableau</string>
+    <string name="columns">Colonnes</string>
+    <string name="automations">Automatisations</string>
+    <string name="done_column">Quand une tâche est terminée, la déplacer vers</string>
+    <string name="done_column_none">Ne pas la déplacer</string>
+    <string name="auto_validate">Terminer les tâches déplacées dans cette colonne</string>
+    <string name="apply_subtasks">Aussi pour les sous-tâches</string>
+    <string name="delete_board">Supprimer le tableau</string>
+    <string name="delete_board_title">Supprimer « %s » ?</string>
+    <string name="delete_board_message">Le tableau, ses colonnes et toutes ses tâches seront supprimés pour tout le monde. C’est définitif.</string>
+    <string name="new_board">Nouveau tableau</string>
+    <string name="error_forbidden">Vous n’avez pas le droit de faire cela.</string>
+    <string name="error_offline">Le serveur est injoignable. Réessayez plus tard.</string>
 </resources>

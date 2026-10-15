@@ -1,6 +1,7 @@
 package io.github.untypequicode.looty.api
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 @Serializable data class User(val id: String, val name: String = "", val email: String = "", val avatar_url: String? = null)
@@ -136,11 +137,13 @@ import kotlinx.serialization.json.JsonObject
     val updated_at: String? = null,
 )
 @Serializable data class ColumnFull(val id: String, val name: String, val position: Double = 0.0, val tasks: List<Task> = emptyList())
-@Serializable data class BoardFull(val id: String, val name: String, val columns: List<ColumnFull> = emptyList(), val labels: List<Label> = emptyList()) {
+@Serializable data class BoardFull(val id: String, val name: String, val columns: List<ColumnFull> = emptyList(), val labels: List<Label> = emptyList(), val automations: JsonObject? = null) {
     val allTasks: List<Task> get() = columns.flatMap { it.tasks }
     fun task(id: String): Task? = columns.firstNotNullOfOrNull { c -> c.tasks.firstOrNull { it.id == id } }
     fun column(id: String): ColumnFull? = columns.firstOrNull { it.id == id }
 }
 @Serializable data class TaskEnvelope(val task: Task, val board_id: String)
 @Serializable data class Comment(val id: String, val task_id: String, val user_id: String, val content: String, val created_at: String, val updated_at: String? = null)
+/** Historique d'une tâche (valeurs avant / après selon le type). */
+@Serializable data class TaskActivity(val id: String, val task_id: String, val user_id: String, val activity_type: String, val old_value: JsonElement? = null, val new_value: JsonElement? = null, val created_at: String)
 @Serializable data class Attachment(val id: String, val filename: String, val file_path: String, val mime_type: String? = null, val size_bytes: Long? = null)

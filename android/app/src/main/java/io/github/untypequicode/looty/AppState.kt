@@ -252,6 +252,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
     /** Terminer / rouvrir une tâche (reste possible en lecture selon le rôle). */
     val canValidate: Boolean get() = allows({ it.boards }, 3)
     val canComment: Boolean get() = allows({ it.boards }, 2)
+    /** Créer et organiser les tableaux : colonnes, étiquettes, automatisations. */
+    val canManageBoards: Boolean get() = allows({ it.boards }, 5)
+    val isAdmin: Boolean get() = access?.permissions?.admin ?: false
     val canEditDocs: Boolean get() = allows({ it.docs }, 4)
     val canEditCalendar: Boolean get() = allows({ it.calendar }, 4)
     /** Document complet (titre + HTML) pour la lecture native ; null si introuvable. */
@@ -601,6 +604,132 @@ class AppState(app: Application) : AndroidViewModel(app) {
         if (queued) comments[taskId] = comments[taskId].orEmpty() + Comment("local-" + java.util.UUID.randomUUID(), taskId, me?.id.orEmpty(), html, Instant.now().toString())
         else loadComments(taskId)
     }.isSuccess
+
+    // -----------------------------------------------------------------------
+    // Gestion des tableaux, pièces jointes, commentaires et historique (N1)
+    // -----------------------------------------------------------------------
+
+    /** Vue d'un tableau : « columns » (une colonne par page) ou « list ». */
+    var boardView by mutableStateOf(prefs.getString("boardView", "columns") ?: "columns"); private set
+    fun setBoardViewMode(v: String) { boardView = v; prefs.edit().putString("boardView", v).apply() }
+
+    private fun fail(e: Throwable) { lastError = (e as? ApiException)?.code ?: "offline" }
+
+    suspend fun createBoard(name: String): String? = runCatching {
+        val w = ws ?: throw ApiException(0, "no_workspace")
+        api.post<BoardSummary>("/api/workspaces/$w/boards", buildJsonObject { put("name", name.trim()); put("with_default_columns", true) })
+    }.onFailure(::fail).getOrNull()?.also { loadBoards(); loadOverview() }?.id
+
+    fun renameBoard(boardId: String, name: String) =
+        mutate(boardId, { it.copy(name = name) }) { write("PUT", "/api/boards/$boardId", buildJsonObject { put("name", name) }, name); loadBoards() }
+
+    fun saveAutomations(boardId: String, a: JsonObject) =
+        mutate(boardId, { it.copy(automations = a) }) { write("PUT", "/api/boards/$boardId", buildJsonObject { put("automations", a) }, "automations") }
+
+    /** Suppression définitive d'un tableau et de ses tâches. */
+    suspend fun deleteBoard(boardId: String): Boolean = runCatching { api.send("DELETE", "/api/boards/$boardId") }.onFailure(::fail).isSuccess.also { ok ->
+        if (ok) { boardData.remove(boardId); loadBoards(); loadOverview(); loadTasks() }
+    }
+
+    suspend fun createColumn(boardId: String, name: String): Boolean =
+        runCatching { api.send("POST", "/api/boards/$boardId/columns", buildJsonObject { put("name", name.trim()) }) }.onFailure(::fail).isSuccess.also { loadBoard(boardId) }
+
+    fun renameColumn(boardId: String, columnId: String, name: String) =
+        mutate(boardId, { b -> b.copy(columns = b.columns.map { if (it.id == columnId) it.copy(name = name) else it }) }) {
+            write("PUT", "/api/boards/columns/$columnId", buildJsonObject { put("name", name) }, name)
+        }
+
+    /** Déplace une colonne d'un cran vers la gauche (-1) ou la droite (+1). */
+    fun moveColumn(boardId: String, columnId: String, delta: Int) {
+        val cols = boardData[boardId]?.data?.columns?.sortedBy { it.position } ?: return
+        val i = cols.indexOfFirst { it.id == columnId }
+        val j = i + delta
+        if (i < 0 || j !in cols.indices) return
+        val target = cols[j].position
+        val beyond = cols.getOrNull(if (delta < 0) j - 1 else j + 1)?.position
+        val pos = when {
+            beyond != null -> (target + beyond) / 2
+            delta < 0 -> target - 65536
+            else -> target + 65536
+        }
+        mutate(boardId, { b -> b.copy(columns = b.columns.map { if (it.id == columnId) it.copy(position = pos) else it }) }) {
+            write("PUT", "/api/boards/columns/$columnId/move", buildJsonObject { put("position", pos) }, "column")
+        }
+    }
+
+    fun deleteColumn(boardId: String, columnId: String) =
+        mutate(boardId, { b -> b.copy(columns = b.columns.filter { it.id != columnId }) }) { write("DELETE", "/api/boards/columns/$columnId", null, "column") }
+
+    suspend fun createLabel(boardId: String, name: String, color: String): Label? =
+        runCatching { api.post<Label>("/api/boards/$boardId/labels", buildJsonObject { put("name", name.trim()); put("color", color) }) }
+            .onFailure(::fail).getOrNull()?.also { l -> patchLocal(boardId) { it.copy(labels = it.labels + l) } }
+
+    fun updateLabel(boardId: String, label: Label) =
+        mutate(boardId, { b ->
+            b.copy(labels = b.labels.map { if (it.id == label.id) label else it },
+                columns = b.columns.map { c -> c.copy(tasks = c.tasks.map { t -> t.copy(labels = t.labels.map { if (it.id == label.id) label else it }) }) })
+        }) { write("PUT", "/api/boards/labels/${label.id}", buildJsonObject { put("name", label.name); put("color", label.color) }, label.name) }
+
+    fun deleteLabel(boardId: String, labelId: String) =
+        mutate(boardId, { b ->
+            b.copy(labels = b.labels.filter { it.id != labelId },
+                columns = b.columns.map { c -> c.copy(tasks = c.tasks.map { t -> t.copy(labels = t.labels.filter { it.id != labelId }) }) })
+        }) { write("DELETE", "/api/boards/labels/$labelId", null, "label") }
+
+    /** Ajoute des fichiers choisis sur l'appareil ; renvoie le nombre d'échecs. */
+    suspend fun addAttachments(taskId: String, files: List<SharedFile>): Int = attachFiles(taskId, files).also { loadComments(taskId); loadActivities(taskId) }
+
+    fun deleteAttachment(taskId: String, a: Attachment) {
+        attachments[taskId] = attachments[taskId].orEmpty().filter { it.id != a.id }
+        viewModelScope.launch {
+            runCatching { write("DELETE", "/api/boards/tasks/$taskId/attachments/${a.id}", null, a.filename) }.onFailure(::fail)
+            loadComments(taskId)
+        }
+    }
+
+    /** Pièce jointe enregistrée dans le cache de l'application (pour l'ouvrir avec une autre application). */
+    suspend fun attachmentFile(a: Attachment): java.io.File? = runCatching {
+        val dir = java.io.File(getApplication<Application>().cacheDir, "attachments/${a.id}")
+        val name = a.filename.replace(Regex("[/\\\\:*?\"<>|]"), "_").ifBlank { "file" }
+        val f = java.io.File(dir, name)
+        if (!f.exists()) {
+            val bytes = api.bytes("/" + a.file_path.trimStart('/'))
+            withContext(Dispatchers.IO) { dir.mkdirs(); f.writeBytes(bytes) }
+        }
+        f
+    }.onFailure(::fail).getOrNull()
+
+    fun editComment(taskId: String, c: Comment, text: String) {
+        val html = io.github.untypequicode.looty.ui.Html.fromPlain(text)
+        comments[taskId] = comments[taskId].orEmpty().map { if (it.id == c.id) it.copy(content = html, updated_at = Instant.now().toString()) else it }
+        viewModelScope.launch {
+            runCatching { write("PUT", "/api/boards/tasks/$taskId/comments/${c.id}", buildJsonObject { put("content", html) }, "comment") }.onFailure(::fail)
+            loadComments(taskId)
+        }
+    }
+
+    fun deleteComment(taskId: String, c: Comment) {
+        comments[taskId] = comments[taskId].orEmpty().filter { it.id != c.id }
+        viewModelScope.launch {
+            runCatching { write("DELETE", "/api/boards/tasks/$taskId/comments/${c.id}", null, "comment") }.onFailure(::fail)
+            loadComments(taskId)
+        }
+    }
+
+    val activities = mutableStateMapOf<String, List<TaskActivity>>()
+
+    fun loadActivities(taskId: String) {
+        viewModelScope.launch { runCatching { api.get<List<TaskActivity>>("/api/boards/tasks/$taskId/activities") }.onSuccess { activities[taskId] = it } }
+    }
+
+    /** Remet le titre ou la description d'avant une modification. */
+    fun restoreActivity(taskId: String, a: TaskActivity) {
+        viewModelScope.launch {
+            runCatching { api.send("POST", "/api/boards/tasks/$taskId/activities/${a.id}/restore") }.onFailure(::fail)
+            taskBoard[taskId]?.let(::loadBoard)
+            loadActivities(taskId)
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Calendrier (G3)
