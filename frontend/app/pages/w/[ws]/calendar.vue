@@ -154,6 +154,8 @@ function move(dir: number) {
 }
 const fmt = (o: Intl.DateTimeFormatOptions, d: Date) => new Intl.DateTimeFormat(locale.value, o).format(d)
 const time = (d: Date) => fmt({ hour: '2-digit', minute: '2-digit' }, d)
+/** Graduation de la vue semaine, au format horaire de la langue (13 h, 1 PM). */
+const hourLabel = (h: number) => fmt({ hour: 'numeric' }, new Date(2024, 0, 1, h))
 const title = computed(() => {
   const c = cursor.value
   if (view.value === 'month') return fmt({ month: 'long', year: 'numeric' }, c)
@@ -365,7 +367,7 @@ useHead({ title: () => t('calendar.title') })
         </div>
         <div ref="grid" class="wk-grid">
           <div class="wk-hours">
-            <div v-for="h in 24" :key="h" class="wk-hour" :style="{ height: `${HOUR}px` }"><span v-if="h > 1">{{ String(h - 1).padStart(2, '0') }}:00</span></div>
+            <div v-for="h in 24" :key="h" class="wk-hour" :style="{ height: `${HOUR}px` }"><span v-if="h > 1">{{ hourLabel(h - 1) }}</span></div>
           </div>
           <div v-for="d in weekDays" :key="+d" class="wk-col" :class="{ add: canWrite }" :style="{ height: `${HOUR * 24}px` }" @click="clickSlot(d, $event)">
             <div v-for="h in 24" :key="h" class="wk-line" :style="{ top: `${(h - 1) * HOUR}px` }" />

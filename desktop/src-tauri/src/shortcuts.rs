@@ -10,7 +10,8 @@
 
 #[cfg(target_os = "linux")]
 mod portal {
-    use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut};
+    use ashpd::desktop::global_shortcuts::{BindShortcutsOptions, GlobalShortcuts, NewShortcut};
+    use ashpd::desktop::CreateSessionOptions;
     use futures_util::StreamExt;
     use tauri::AppHandle;
 
@@ -28,12 +29,12 @@ mod portal {
 
     async fn run(app: AppHandle) -> ashpd::Result<()> {
         let portal = GlobalShortcuts::new().await?;
-        let session = portal.create_session().await?;
+        let session = portal.create_session(CreateSessionOptions::default()).await?;
         let shortcuts = [
             NewShortcut::new("quick-add", tr("Ajouter une tâche", "Add a task")).preferred_trigger("CTRL+ALT+n"),
             NewShortcut::new("show", tr("Ouvrir Looty", "Open Looty")).preferred_trigger("CTRL+ALT+l"),
         ];
-        portal.bind_shortcuts(&session, &shortcuts, None).await?.response()?;
+        portal.bind_shortcuts(&session, &shortcuts, None, BindShortcutsOptions::default()).await?.response()?;
         tracing::info!("global shortcuts registered");
         let mut activated = portal.receive_activated().await?;
         while let Some(a) = activated.next().await {

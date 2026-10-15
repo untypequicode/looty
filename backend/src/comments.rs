@@ -22,7 +22,7 @@ pub fn workspace_routes() -> Router<AppState> {
 }
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/:id", put(update).delete(remove)).route("/:id/resolve", post(resolve))
+    Router::new().route("/{id}", put(update).delete(remove)).route("/{id}/resolve", post(resolve))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -80,7 +80,7 @@ async fn check_target(state: &AppState, user: &AuthUser, ws: Uuid, kind: &str, i
 
 async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<TargetQuery>) -> ApiResult<Json<Vec<CommentDto>>> {
     check_target(&state, &user, ws, &q.kind, q.id).await?;
-    let rows: Vec<CommentDto> = sqlx::query_as(&format!("{SELECT} WHERE c.workspace_id = $1 AND c.target_kind = $2 AND c.target_id = $3 ORDER BY c.created_at"))
+    let rows: Vec<CommentDto> = sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE c.workspace_id = $1 AND c.target_kind = $2 AND c.target_id = $3 ORDER BY c.created_at")))
         .bind(ws)
         .bind(&q.kind)
         .bind(q.id)
@@ -192,7 +192,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
         }
     }
     changed(&state, ws, &p.kind, p.id).await;
-    let row: CommentDto = sqlx::query_as(&format!("{SELECT} WHERE c.id = $1")).bind(id).fetch_one(&state.pool).await?;
+    let row: CommentDto = sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE c.id = $1"))).bind(id).fetch_one(&state.pool).await?;
     Ok(Json(row))
 }
 

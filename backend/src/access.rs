@@ -5,8 +5,7 @@
 //! d'abord à quel workspace il appartient et le rôle de l'utilisateur dedans.
 
 use axum::{
-    async_trait,
-    extract::{FromRef, FromRequestParts},
+    extract::{FromRef, FromRequestParts, OptionalFromRequestParts},
     http::{header::AUTHORIZATION, request::Parts},
 };
 use sha2::{Digest, Sha256};
@@ -30,7 +29,19 @@ pub fn hash_token(raw: &str) -> String {
     hex::encode(Sha256::digest(raw.as_bytes()))
 }
 
-#[async_trait]
+/// `Option<AuthUser>` : utilisateur connecté s'il y en a un (pages publiques, versions…).
+impl<S> OptionalFromRequestParts<S> for AuthUser
+where
+    S: Send + Sync,
+    PgPool: FromRef<S>,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Option<Self>, Self::Rejection> {
+        Ok(<AuthUser as FromRequestParts<S>>::from_request_parts(parts, state).await.ok())
+    }
+}
+
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,

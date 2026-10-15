@@ -76,8 +76,7 @@ struct PendingSso {
 
 fn random_token() -> String {
     use base64::Engine;
-    let mut b = [0u8; 32];
-    rand::Rng::fill(&mut rand::thread_rng(), &mut b);
+    let b: [u8; 32] = rand::random();
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
@@ -134,8 +133,7 @@ pub async fn start(mut config: Config, jar: Jar) -> std::io::Result<Shared> {
         config.port = Some(port);
         let _ = config.save();
     }
-    let mut secret = [0u8; 32];
-    rand::Rng::fill(&mut rand::thread_rng(), &mut secret);
+    let secret: [u8; 32] = rand::random();
     let client = reqwest::Client::builder()
         .cookie_provider(jar.clone())
         .redirect(reqwest::redirect::Policy::none())
@@ -753,7 +751,8 @@ async fn proxy_ws(p: Shared, server: Url, req: Request) -> Response {
         let up = async {
             while let Some(Ok(m)) = c_rx.next().await {
                 let out = match m {
-                    A::Text(t) => T::Text(t),
+                    // axum et tokio-tungstenite ont chacun leur type de texte : conversion.
+                    A::Text(t) => T::Text(t.as_str().into()),
                     A::Binary(b) => T::Binary(b),
                     A::Ping(b) => T::Ping(b),
                     A::Pong(b) => T::Pong(b),
@@ -768,7 +767,7 @@ async fn proxy_ws(p: Shared, server: Url, req: Request) -> Response {
         let down = async {
             while let Some(Ok(m)) = u_rx.next().await {
                 let out = match m {
-                    T::Text(t) => A::Text(t),
+                    T::Text(t) => A::Text(t.as_str().into()),
                     T::Binary(b) => A::Binary(b),
                     T::Ping(b) => A::Ping(b),
                     T::Pong(b) => A::Pong(b),

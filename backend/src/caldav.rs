@@ -657,8 +657,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_accounts).post(create_account))
         .route("/discover", post(discover_handler))
-        .route("/:id", put(update_account).delete(delete_account))
-        .route("/:id/sync", post(sync_now))
+        .route("/{id}", put(update_account).delete(delete_account))
+        .route("/{id}/sync", post(sync_now))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -684,7 +684,7 @@ const ACCOUNT_SELECT: &str = "SELECT a.id, a.name, a.server_url, a.calendar_url,
     FROM caldav_accounts a";
 
 async fn list_accounts(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<Vec<AccountDto>>> {
-    Ok(Json(sqlx::query_as(&format!("{ACCOUNT_SELECT} WHERE a.user_id = $1 ORDER BY a.created_at")).bind(user.id).fetch_all(&pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{ACCOUNT_SELECT} WHERE a.user_id = $1 ORDER BY a.created_at"))).bind(user.id).fetch_all(&pool).await?))
 }
 
 #[derive(Deserialize)]
@@ -750,7 +750,7 @@ async fn create_account(State(state): State<AppState>, user: AuthUser, Json(p): 
     // Première synchronisation en arrière-plan
     let st = state.clone();
     tokio::spawn(async move { let _ = sync_account(&st, id).await; });
-    Ok(Json(sqlx::query_as(&format!("{ACCOUNT_SELECT} WHERE a.id = $1")).bind(id).fetch_one(&state.pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{ACCOUNT_SELECT} WHERE a.id = $1"))).bind(id).fetch_one(&state.pool).await?))
 }
 
 #[derive(Deserialize)]
@@ -797,7 +797,7 @@ async fn update_account(State(state): State<AppState>, user: AuthUser, Path(id):
     }
     let st = state.clone();
     tokio::spawn(async move { let _ = sync_account(&st, id).await; });
-    Ok(Json(sqlx::query_as(&format!("{ACCOUNT_SELECT} WHERE a.id = $1")).bind(id).fetch_one(&state.pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{ACCOUNT_SELECT} WHERE a.id = $1"))).bind(id).fetch_one(&state.pool).await?))
 }
 
 #[derive(Deserialize)]
@@ -836,7 +836,7 @@ async fn sync_now(State(state): State<AppState>, user: AuthUser, Path(id): Path<
         return Err(ApiError::NotFound);
     }
     let report = sync_account(&state, id).await?;
-    let acc: AccountDto = sqlx::query_as(&format!("{ACCOUNT_SELECT} WHERE a.id = $1")).bind(id).fetch_one(&state.pool).await?;
+    let acc: AccountDto = sqlx::query_as(sqlx::AssertSqlSafe(format!("{ACCOUNT_SELECT} WHERE a.id = $1"))).bind(id).fetch_one(&state.pool).await?;
     Ok(Json(serde_json::json!({ "report": report, "account": acc })))
 }
 

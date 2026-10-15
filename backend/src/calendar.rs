@@ -602,7 +602,7 @@ pub fn workspace_routes() -> Router<AppState> {
 }
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/:id", put(update).delete(remove)).route("/:id/sync", post(sync_now))
+    Router::new().route("/{id}", put(update).delete(remove)).route("/{id}/sync", post(sync_now))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -629,7 +629,7 @@ const DTO_SELECT: &str = "SELECT c.id, c.name, c.color, c.kind,
 
 async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<CalendarDto>>> {
     let role = require_member(&state.pool, &user, ws).await?;
-    let mut rows: Vec<CalendarDto> = sqlx::query_as(&format!("{DTO_SELECT} WHERE c.workspace_id = $1 OR c.user_id = $2 ORDER BY c.workspace_id NULLS LAST, c.name"))
+    let mut rows: Vec<CalendarDto> = sqlx::query_as(sqlx::AssertSqlSafe(format!("{DTO_SELECT} WHERE c.workspace_id = $1 OR c.user_id = $2 ORDER BY c.workspace_id NULLS LAST, c.name")))
         .bind(ws)
         .bind(user.id)
         .bind(role.is_admin())
@@ -706,7 +706,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     .await?;
     // Première synchronisation tout de suite : une erreur (lien invalide…) est visible.
     let _ = sync_calendar(&state, id).await;
-    let dto: CalendarDto = sqlx::query_as(&format!("{DTO_SELECT} WHERE c.id = $1")).bind(id).bind(user.id).bind(role.is_admin()).fetch_one(pool).await?;
+    let dto: CalendarDto = sqlx::query_as(sqlx::AssertSqlSafe(format!("{DTO_SELECT} WHERE c.id = $1"))).bind(id).bind(user.id).bind(role.is_admin()).fetch_one(pool).await?;
     Ok(Json(dto))
 }
 

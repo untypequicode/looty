@@ -9,10 +9,12 @@ const { lang } = Astro.props
 const l = t[lang]
 const phones = ['home', 'tasks', 'doc', 'board']
 const platforms = [['android', 'phone'], ['linux', 'monitor'], ['windows', 'monitor']] as const
-const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released, checksum: l.dl.checksum, missing: l.dl.missing, lang, repo: REPO })
+const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released, checksum: l.dl.checksum, missing: l.dl.missing, recommended: l.recommended, lang, repo: REPO })
+// Hauteur affichée des captures (part de la largeur) : le vide sous le contenu est coupé.
+const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
 ---
 <Base lang={lang}>
-  <main>
+  <main id="main">
     <section class="hero" style="padding-bottom:0">
       <div class="wrap">
         <span class="eyebrow reveal"><b>{l.hero.eyebrow}</b> · {l.hero.eyebrow2}</span>
@@ -23,7 +25,10 @@ const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released,
           <a class="btn" href={REPO}><Icon name="github" size={17} />{l.hero.cta2}</a>
         </div>
         <p class="chips">{l.hero.chips.map((c) => <span><Icon name="check" size={15} />{c}</span>)}</p>
-        <div class="hero-shot"><Shot name="board" lang={lang} alt={l.hero.shot} url="looty.example.org/w/acme/board/launch" eager /></div>
+        <div class="hero-shot">
+          <Shot name="home" lang={lang} alt={l.hero.shot} url="looty.example.org/w/acme" eager />
+          <div class="hero-phone"><Phone name="home" lang={lang} alt={l.hero.phone} eager /></div>
+        </div>
       </div>
     </section>
 
@@ -37,7 +42,7 @@ const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released,
               <p>{s.p}</p>
               <ul class="ticks">{s.ticks.map((x) => <li>{x}</li>)}</ul>
             </div>
-            <Shot name={s.shot} lang={lang} alt={s.alt} url={s.url} />
+            <Shot name={s.shot} lang={lang} alt={s.alt} url={s.url} crop={crops[s.shot]} />
           </div>
         ))}
         <div class="center" style="margin-top:80px">
@@ -71,7 +76,7 @@ const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released,
           <ul class="ticks">{l.host.ticks.map((x) => <li>{x}</li>)}</ul>
           <p style="margin-top:22px"><a class="btn" href={`${REPO}#readme`}>{l.host.docs}</a></p>
         </div>
-        <pre><code><span class="c"># docker-compose.yml + .env</span>
+        <pre data-copy><code><span class="c"># docker-compose.yml + .env</span>
 curl -LO {REPO}/releases/latest/download/docker-compose.yml
 <span class="k">docker compose</span> up -d</code></pre>
       </div>
@@ -88,7 +93,7 @@ curl -LO {REPO}/releases/latest/download/docker-compose.yml
           {platforms.map(([p, icon]) => (
             <div class="card" data-platform={p}>
               <span class="ico"><Icon name={icon} /></span>
-              <div><h3>{l.dl[p][0]}</h3><p>{l.dl[p][1]}</p><div class="meta" data-meta>{l.dl.loading}</div></div>
+              <div><h3>{l.dl[p][0]} <span class="badge" data-rec hidden>{l.recommended}</span></h3><p>{l.dl[p][1]}</p><div class="meta" data-meta>{l.dl.loading}</div></div>
               <div class="acts">
                 <a class="btn primary" data-get href={`/download/${p}`} hidden><Icon name="download" size={16} />{l.dl.get}</a>
                 <a class="btn" data-gh href={`${REPO}/releases?q=${p}`} hidden><Icon name="github" size={16} />{l.dl.github}</a>
@@ -98,12 +103,12 @@ curl -LO {REPO}/releases/latest/download/docker-compose.yml
         </div>
         <div class="two">
           <div class="card"><h3>{l.dl.aptH}</h3><p style="margin-bottom:12px">{l.dl.aptP}</p>
-<pre id="apt"><code>sudo install -d /etc/apt/keyrings
+<pre id="apt" data-copy><code>sudo install -d /etc/apt/keyrings
 curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc &gt;/dev/null
 echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
 sudo apt update &amp;&amp; sudo apt install looty</code></pre></div>
           <div class="card"><h3>{l.dl.nixH}</h3><p style="margin-bottom:12px">{l.dl.nixP}</p>
-<pre><code>nix run github:untypequicode/looty#looty-desktop
+<pre data-copy><code>nix run github:untypequicode/looty#looty-desktop
 nix profile install github:untypequicode/looty#looty-desktop</code></pre></div>
         </div>
       </div>
@@ -127,6 +132,10 @@ nix profile install github:untypequicode/looty#looty-desktop</code></pre></div>
           if (p.sha256) { var c = document.createElement('code'); c.textContent = s.checksum + ': ' + p.sha256; meta.appendChild(c); }
         });
       }
+      // Plateforme du visiteur : sa carte passe en premier, avec un badge.
+      var ua = navigator.userAgent, mine = /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows' : /Linux|X11/i.test(ua) && !/CrOS/i.test(ua) ? 'linux' : null;
+      var card = mine && box.querySelector('[data-platform="' + mine + '"]');
+      if (card) { card.classList.add('rec'); card.querySelector('[data-rec]').hidden = false; box.prepend(card); }
       fetch('/latest.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(fill).catch(function () { fill({}); });
     })();
   </script>

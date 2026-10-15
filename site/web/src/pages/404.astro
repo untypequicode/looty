@@ -2,6 +2,6 @@
 import Base from '../layouts/Base.astro'
 import { t } from '../i18n'
 ---
-<Base lang="en" title="Looty — 404">
-  <main><section class="hero"><h1>404</h1><p>{t.en.notFound} · {t.fr.notFound}</p><div class="btns"><a class="btn primary" href="/">{t.en.home}</a><a class="btn" href="/fr/">{t.fr.home}</a></div></section></main>
+<Base lang="en" title="Looty — 404" noindex>
+  <main id="main"><section class="hero"><h1>404</h1><p class="lead">{t.en.notFound} · <span lang="fr">{t.fr.notFound}</span></p><div class="cta"><a class="btn primary" href="/">{t.en.home}</a><a class="btn" href="/fr/" lang="fr">{t.fr.home}</a></div></section></main>
 </Base>

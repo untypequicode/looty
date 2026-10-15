@@ -161,25 +161,25 @@ pub fn workspace_routes() -> Router<AppState> {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/:board_id", get(get_board).put(update_board).delete(delete_board))
-        .route("/:board_id/columns", post(create_column))
-        .route("/:board_id/labels", post(create_label))
-        .route("/labels/:label_id", put(update_label).delete(delete_label))
-        .route("/columns/:column_id", put(update_column).delete(delete_column))
-        .route("/columns/:column_id/move", put(move_column))
-        .route("/columns/:column_id/tasks", post(create_task))
-        .route("/tasks/:task_id", get(get_task).put(update_task).delete(delete_task))
-        .route("/tasks/:task_id/move", put(move_task))
-        .route("/tasks/:task_id/labels/:label_id", post(add_task_label).delete(remove_task_label))
-        .route("/tasks/:task_id/assignees/:user_id", post(add_task_assignee).delete(remove_task_assignee))
-        .route("/tasks/:task_id/subtasks", post(create_subtask))
-        .route("/tasks/:task_id/toggle_validation", put(toggle_task_validation))
-        .route("/tasks/:task_id/attachments", get(get_task_attachments).post(upload_attachment))
-        .route("/tasks/:task_id/attachments/:attachment_id", delete(delete_attachment))
-        .route("/tasks/:task_id/activities", get(get_task_activities))
-        .route("/tasks/:task_id/activities/:activity_id/restore", post(restore_task_activity))
-        .route("/tasks/:task_id/comments", get(get_task_comments).post(add_task_comment))
-        .route("/tasks/:task_id/comments/:comment_id", put(edit_task_comment).delete(delete_task_comment))
+        .route("/{board_id}", get(get_board).put(update_board).delete(delete_board))
+        .route("/{board_id}/columns", post(create_column))
+        .route("/{board_id}/labels", post(create_label))
+        .route("/labels/{label_id}", put(update_label).delete(delete_label))
+        .route("/columns/{column_id}", put(update_column).delete(delete_column))
+        .route("/columns/{column_id}/move", put(move_column))
+        .route("/columns/{column_id}/tasks", post(create_task))
+        .route("/tasks/{task_id}", get(get_task).put(update_task).delete(delete_task))
+        .route("/tasks/{task_id}/move", put(move_task))
+        .route("/tasks/{task_id}/labels/{label_id}", post(add_task_label).delete(remove_task_label))
+        .route("/tasks/{task_id}/assignees/{user_id}", post(add_task_assignee).delete(remove_task_assignee))
+        .route("/tasks/{task_id}/subtasks", post(create_subtask))
+        .route("/tasks/{task_id}/toggle_validation", put(toggle_task_validation))
+        .route("/tasks/{task_id}/attachments", get(get_task_attachments).post(upload_attachment))
+        .route("/tasks/{task_id}/attachments/{attachment_id}", delete(delete_attachment))
+        .route("/tasks/{task_id}/activities", get(get_task_activities))
+        .route("/tasks/{task_id}/activities/{activity_id}/restore", post(restore_task_activity))
+        .route("/tasks/{task_id}/comments", get(get_task_comments).post(add_task_comment))
+        .route("/tasks/{task_id}/comments/{comment_id}", put(edit_task_comment).delete(delete_task_comment))
 }
 
 // ---------------------------------------------------------------------------
@@ -211,7 +211,7 @@ fn check_priority(p: i32) -> ApiResult<i32> {
 }
 
 async fn fetch_task(pool: &PgPool, task_id: Uuid) -> ApiResult<Task> {
-    Ok(sqlx::query_as(&format!("SELECT {TASK_COLUMNS} FROM tasks WHERE id = $1"))
+    Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {TASK_COLUMNS} FROM tasks WHERE id = $1")))
         .bind(task_id)
         .fetch_optional(pool)
         .await?
@@ -449,11 +449,11 @@ async fn get_board(
             .bind(board_id)
             .fetch_all(&pool)
             .await?;
-    let tasks: Vec<Task> = sqlx::query_as(&format!(
+    let tasks: Vec<Task> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {} FROM tasks t WHERE t.column_id IN (SELECT id FROM board_columns WHERE board_id = $1)
          ORDER BY t.position ASC",
         TASK_COLUMNS.split(", ").map(|c| format!("t.{c}")).collect::<Vec<_>>().join(", ")
-    ))
+    )))
     .bind(board_id)
     .fetch_all(&pool)
     .await?;
@@ -903,7 +903,7 @@ async fn update_task(
         return Err(ApiError::bad_request("use_toggle_validation"));
     }
 
-    let task: Task = sqlx::query_as(&format!(
+    let task: Task = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "UPDATE tasks SET
             title = COALESCE($1, title),
             description = CASE WHEN $2 THEN $3 ELSE description END,
@@ -917,7 +917,7 @@ async fn update_task(
             event_start = CASE WHEN $15 THEN $16 WHEN $13 AND $14 IS NULL THEN NULL ELSE event_start END,
             updated_at = NOW()
          WHERE id = $12 RETURNING {TASK_COLUMNS}"
-    ))
+    )))
     .bind(title)
     .bind(req.description.is_some())
     .bind(req.description.clone().flatten())

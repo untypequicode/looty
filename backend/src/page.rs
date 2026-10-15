@@ -94,16 +94,16 @@ pub struct UpdatePage {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_pages).post(create_page))
-        .route("/:page_id", get(get_page).put(update_page).delete(delete_page))
-        .route("/:page_id/favorite", post(toggle_favorite))
-        .route("/:page_id/view", post(record_view))
-        .route("/:page_id/share", post(share_page).delete(revoke_share))
-        .route("/:page_id/permissions", get(get_page_permissions).put(set_page_permission))
+        .route("/{page_id}", get(get_page).put(update_page).delete(delete_page))
+        .route("/{page_id}/favorite", post(toggle_favorite))
+        .route("/{page_id}/view", post(record_view))
+        .route("/{page_id}/share", post(share_page).delete(revoke_share))
+        .route("/{page_id}/permissions", get(get_page_permissions).put(set_page_permission))
 }
 
 /// Routes hors workspace : contrôle d'accès pour le serveur de collaboration.
 pub fn access_routes() -> Router<AppState> {
-    Router::new().route("/:page_id/access", get(page_access_check))
+    Router::new().route("/{page_id}/access", get(page_access_check))
 }
 
 fn check_title(t: &str) -> ApiResult<String> {
@@ -147,7 +147,7 @@ async fn list_pages(
          WHERE p.workspace_id = $1
          ORDER BY p.position ASC, p.created_at ASC"
     );
-    let pages: Vec<Page> = sqlx::query_as(&sql).bind(workspace_id).bind(user.id).fetch_all(&pool).await?;
+    let pages: Vec<Page> = sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str())).bind(workspace_id).bind(user.id).fetch_all(&pool).await?;
     Ok(Json(
         pages
             .into_iter()

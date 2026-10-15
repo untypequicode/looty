@@ -49,7 +49,7 @@ pub fn routes() -> Router<AppState> {
         .route("/.well-known/caldav", any(well_known))
         .route("/dav", any(handle))
         .route("/dav/", any(handle))
-        .route("/dav/*path", any(handle))
+        .route("/dav/{*path}", any(handle))
 }
 
 async fn well_known() -> Response {

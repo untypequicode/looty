@@ -235,7 +235,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
         Some(pages) => guest_view(&snapshot, pages, user_id).unwrap_or_default(),
         None => snapshot,
     };
-    let _ = sender.send(Message::Text(snapshot)).await;
+    let _ = sender.send(Message::Text(snapshot.into())).await;
 
     let mut send_task = tokio::spawn(async move {
         loop {
@@ -252,7 +252,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                         },
                         _ => env.payload.to_string(),
                     };
-                    if sender.send(Message::Text(text)).await.is_err() {
+                    if sender.send(Message::Text(text.into())).await.is_err() {
                         break;
                     }
                 }

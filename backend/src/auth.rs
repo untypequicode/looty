@@ -8,7 +8,6 @@ use base64::Engine;
 use sha2::{Digest, Sha256};
 use openidconnect::{
     core::{CoreClient, CoreProviderMetadata, CoreResponseType, CoreUserInfoClaims},
-    reqwest::async_http_client,
     AuthenticationFlow, AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce,
     OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
 };
@@ -29,8 +28,8 @@ pub struct ProviderDto {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/providers", get(get_active_providers))
-        .route("/login/:provider_id", get(login_handler))
-        .route("/callback/:provider_id", get(callback_handler))
+        .route("/login/{provider_id}", get(login_handler))
+        .route("/callback/{provider_id}", get(callback_handler))
         .route("/me", get(me_handler))
         .route("/logout", get(logout_handler).post(logout_handler))
         .route("/dev-login", get(dev_login_handler))
@@ -54,7 +53,19 @@ struct ProviderConfig {
     client_secret: String,
 }
 
-async fn get_oidc_client(state: &AppState, provider_id: Uuid) -> Result<CoreClient, String> {
+/// Client HTTP des échanges OIDC : sans suivi des redirections (recommandation de la bibliothèque, évite les SSRF).
+fn oidc_http() -> &'static openidconnect::reqwest::Client {
+    static HTTP: std::sync::OnceLock<openidconnect::reqwest::Client> = std::sync::OnceLock::new();
+    HTTP.get_or_init(|| {
+        openidconnect::reqwest::ClientBuilder::new()
+            .redirect(openidconnect::reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .expect("OIDC HTTP client")
+    })
+}
+
+async fn get_oidc_client(state: &AppState, provider_id: Uuid) -> Result<crate::state::OidcClient, String> {
     if let Some(client) = state.oidc_clients.get(&provider_id) {
         return Ok(client.clone());
     }
@@ -70,7 +81,7 @@ async fn get_oidc_client(state: &AppState, provider_id: Uuid) -> Result<CoreClie
     let issuer_url = IssuerUrl::new(provider.issuer_url).map_err(|e| e.to_string())?;
     let redirect_url = RedirectUrl::new(format!("{}/api/auth/callback/{}", state.base_url, provider_id))
         .map_err(|e| e.to_string())?;
-    let metadata = CoreProviderMetadata::discover_async(issuer_url, async_http_client)
+    let metadata = CoreProviderMetadata::discover_async(issuer_url, oidc_http())
         .await
         .map_err(|e| e.to_string())?;
     let client = CoreClient::from_provider_metadata(
@@ -208,8 +219,7 @@ async fn desktop_complete(State(state): State<AppState>, user: Option<AuthUser>,
     let Some(user) = user else {
         return Redirect::to(&format!("/login?redirect={}", urlencode(&p.complete_path()))).into_response();
     };
-    let mut raw = [0u8; 32];
-    rand::Rng::fill(&mut rand::thread_rng(), &mut raw);
+    let raw: [u8; 32] = rand::random();
     let code = hex::encode(raw);
     let _ = sqlx::query("DELETE FROM desktop_login_codes WHERE expires_at < NOW()").execute(&state.pool).await;
     let stored = sqlx::query(
@@ -285,19 +295,17 @@ async fn callback_handler(
         return login_error("provider_error");
     };
 
-    let Ok(token) = client
-        .exchange_code(AuthorizationCode::new(params.code))
-        .set_pkce_verifier(PkceCodeVerifier::new(pkce_secret))
-        .request_async(async_http_client)
-        .await
-    else {
+    let Ok(exchange) = client.exchange_code(AuthorizationCode::new(params.code)) else {
+        return login_error("exchange_failed");
+    };
+    let Ok(token) = exchange.set_pkce_verifier(PkceCodeVerifier::new(pkce_secret)).request_async(oidc_http()).await else {
         return login_error("exchange_failed");
     };
 
     let Ok(req) = client.user_info(token.access_token().clone(), None) else {
         return login_error("userinfo_failed");
     };
-    let userinfo: CoreUserInfoClaims = match req.request_async(async_http_client).await {
+    let userinfo: CoreUserInfoClaims = match req.request_async(oidc_http()).await {
         Ok(u) => u,
         Err(_) => return login_error("userinfo_failed"),
     };

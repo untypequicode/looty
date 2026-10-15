@@ -59,24 +59,24 @@ pub struct WorkspaceMemberResponse {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_workspaces).post(create_workspace))
-        .route("/:workspace_id", get(get_workspace).put(update_workspace).delete(delete_workspace))
-        .route("/:workspace_id/latex", get(get_latex).put(put_latex))
-        .route("/:workspace_id/calendar-color", put(put_calendar_color))
-        .route("/:workspace_id/members", get(list_members))
-        .route("/:workspace_id/guests", get(list_guests))
-        .route("/:workspace_id/members/:member_id", put(update_member_role).delete(remove_member))
-        .route("/:workspace_id/leave", post(leave_workspace))
-        .route("/:workspace_id/invites", get(list_invites).post(create_invite))
-        .route("/:workspace_id/invites/:invite_id", delete(revoke_invite))
-        .route("/:workspace_id/my_tasks", get(get_my_tasks))
-        .route("/:workspace_id/overview", get(get_overview))
-        .route("/:workspace_id/search", get(search_workspace))
+        .route("/{workspace_id}", get(get_workspace).put(update_workspace).delete(delete_workspace))
+        .route("/{workspace_id}/latex", get(get_latex).put(put_latex))
+        .route("/{workspace_id}/calendar-color", put(put_calendar_color))
+        .route("/{workspace_id}/members", get(list_members))
+        .route("/{workspace_id}/guests", get(list_guests))
+        .route("/{workspace_id}/members/{member_id}", put(update_member_role).delete(remove_member))
+        .route("/{workspace_id}/leave", post(leave_workspace))
+        .route("/{workspace_id}/invites", get(list_invites).post(create_invite))
+        .route("/{workspace_id}/invites/{invite_id}", delete(revoke_invite))
+        .route("/{workspace_id}/my_tasks", get(get_my_tasks))
+        .route("/{workspace_id}/overview", get(get_overview))
+        .route("/{workspace_id}/search", get(search_workspace))
 }
 
 pub fn invite_routes() -> Router<AppState> {
     Router::new()
-        .route("/:token", get(preview_invite))
-        .route("/:token/accept", post(accept_invite))
+        .route("/{token}", get(preview_invite))
+        .route("/{token}/accept", post(accept_invite))
 }
 
 fn validate_name(name: &str) -> ApiResult<String> {

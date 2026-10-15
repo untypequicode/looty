@@ -151,10 +151,10 @@ pub fn workspace_routes() -> Router<AppState> {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/tasks/:id/restore", post(restore_task))
-        .route("/tasks/:id", delete(delete_task))
-        .route("/pages/:id/restore", post(restore_page))
-        .route("/pages/:id", delete(delete_page))
+        .route("/tasks/{id}/restore", post(restore_task))
+        .route("/tasks/{id}", delete(delete_task))
+        .route("/pages/{id}/restore", post(restore_page))
+        .route("/pages/{id}", delete(delete_page))
 }
 
 #[derive(Serialize, sqlx::FromRow)]

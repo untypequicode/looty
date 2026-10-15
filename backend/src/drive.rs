@@ -35,13 +35,13 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/upload", post(upload).layer(DefaultBodyLimit::max(MAX_REQUEST)))
         .route("/folders", post(create_folder))
         .route("/settings", put(put_settings))
-        .route("/files/:id", put(update).delete(remove))
-        .route("/files/:id/download", get(download))
-        .route("/files/:id/share", post(share).delete(unshare))
+        .route("/files/{id}", put(update).delete(remove))
+        .route("/files/{id}/download", get(download))
+        .route("/files/{id}/share", post(share).delete(unshare))
 }
 
 pub fn public_routes() -> Router<AppState> {
-    Router::new().route("/:token", get(public_download))
+    Router::new().route("/{token}", get(public_download))
 }
 
 const MAX_REQUEST: usize = 2 * 1024 * 1024 * 1024;

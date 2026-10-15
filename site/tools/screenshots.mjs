@@ -30,7 +30,9 @@ for (const lang of langs) for (const theme of themes) {
   const page = await ctx.newPage()
   await page.goto(`${B}/api/auth/dev-login?email=maya@acme.dev&redirect=/`); await page.waitForTimeout(800)
   const J = (p, m = 'GET', b) => page.evaluate(async ([p, m, b]) => (await fetch(p, { method: m, headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined })).status, [p, m, b])
-  await J('/api/user/releases/seen', 'PUT', { version: process.env.VERSION || '0.16.8' })
+  // Fenêtre « Nouveautés » masquée : version du serveur marquée comme vue.
+  const version = await page.evaluate(async () => (await (await fetch('/api/health')).json()).version)
+  await J('/api/user/releases/seen', 'PUT', { version })
   await J(`/api/workspaces/${WS}/prefs`, 'PATCH', { modes: { docs: 'write', boards: 'write', calendar: 'write' }, modesChosen: true })
   for (const [name, path] of Object.entries(screens)) {
     if (only.length && !only.includes(name)) continue

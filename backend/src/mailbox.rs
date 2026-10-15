@@ -75,14 +75,14 @@ async fn connect(host: &str, port: u16, security: &str, user: &str, pass: &str) 
         let tls = async_native_tls::TlsConnector::new();
         let client = if security == "starttls" {
             let mut plain = async_imap::Client::new(tcp);
-            plain.read_response().await.ok_or_else(|| ApiError::bad_request("mail_unreachable"))?.map_err(imap_err)?;
+            plain.read_response().await.map_err(|_| ApiError::bad_request("mail_unreachable"))?.ok_or_else(|| ApiError::bad_request("mail_unreachable"))?;
             plain.run_command_and_check_ok("STARTTLS", None).await.map_err(|_| ApiError::bad_request("mail_starttls_failed"))?;
             let tcp = plain.into_inner();
             async_imap::Client::new(tls.connect(host, tcp).await.map_err(|_| ApiError::bad_request("mail_tls_failed"))?)
         } else {
             let stream = tls.connect(host, tcp).await.map_err(|_| ApiError::bad_request("mail_tls_failed"))?;
             let mut c = async_imap::Client::new(stream);
-            c.read_response().await.ok_or_else(|| ApiError::bad_request("mail_unreachable"))?.map_err(imap_err)?;
+            c.read_response().await.map_err(|_| ApiError::bad_request("mail_unreachable"))?.ok_or_else(|| ApiError::bad_request("mail_unreachable"))?;
             c
         };
         client.login(user, pass).await.map_err(|_| ApiError::bad_request("mail_auth_failed"))
@@ -251,9 +251,9 @@ async fn sync_and_notify(state: &AppState, a: &Account) -> ApiResult<usize> {
 pub fn start_poll_loop(state: AppState) {
     tokio::spawn(async move {
         loop {
-            let accounts: Vec<Account> = sqlx::query_as(&format!(
+            let accounts: Vec<Account> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
                 "SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE last_check_at IS NULL OR last_check_at < NOW() - interval '110 seconds' ORDER BY last_check_at NULLS FIRST LIMIT 50"
-            ))
+            )))
             .fetch_all(&state.pool)
             .await
             .unwrap_or_default();
@@ -274,12 +274,12 @@ pub fn start_poll_loop(state: AppState) {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/accounts", get(list_accounts).post(create_account))
-        .route("/accounts/:id", axum::routing::put(update_account).delete(delete_account))
-        .route("/accounts/:id/refresh", post(refresh))
-        .route("/accounts/:id/messages", get(list_messages))
-        .route("/accounts/:id/messages/:uid", get(read_message))
-        .route("/accounts/:id/messages/:uid/seen", axum::routing::put(set_seen))
-        .route("/accounts/:id/read-all", post(read_all))
+        .route("/accounts/{id}", axum::routing::put(update_account).delete(delete_account))
+        .route("/accounts/{id}/refresh", post(refresh))
+        .route("/accounts/{id}/messages", get(list_messages))
+        .route("/accounts/{id}/messages/{uid}", get(read_message))
+        .route("/accounts/{id}/messages/{uid}/seen", axum::routing::put(set_seen))
+        .route("/accounts/{id}/read-all", post(read_all))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -314,7 +314,7 @@ const DTO: &str = "SELECT a.id, a.workspace_id, a.label, a.email, a.imap_host, a
      FROM mail_accounts a";
 
 async fn list_accounts(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<Vec<AccountDto>>> {
-    Ok(Json(sqlx::query_as(&format!("{DTO} WHERE a.user_id = $1 ORDER BY a.created_at")).bind(user.id).fetch_all(&state.pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{DTO} WHERE a.user_id = $1 ORDER BY a.created_at"))).bind(user.id).fetch_all(&state.pool).await?))
 }
 
 #[derive(Deserialize)]
@@ -394,13 +394,13 @@ async fn create_account(State(state): State<AppState>, user: AuthUser, Json(p): 
     .bind(smtp.as_ref().and_then(|s| s.password_enc.clone()))
     .fetch_one(&state.pool)
     .await?;
-    let a: Account = sqlx::query_as(&format!("SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE id = $1")).bind(id).fetch_one(&state.pool).await?;
+    let a: Account = sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE id = $1"))).bind(id).fetch_one(&state.pool).await?;
     let _ = sync_and_notify(&state, &a).await;
-    Ok(Json(sqlx::query_as(&format!("{DTO} WHERE a.id = $1")).bind(id).fetch_one(&state.pool).await?))
+    Ok(Json(sqlx::query_as(sqlx::AssertSqlSafe(format!("{DTO} WHERE a.id = $1"))).bind(id).fetch_one(&state.pool).await?))
 }
 
 pub(crate) async fn own_account(state: &AppState, user: &AuthUser, id: Uuid) -> ApiResult<Account> {
-    sqlx::query_as(&format!("SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE id = $1 AND user_id = $2"))
+    sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {ACCOUNT_COLS} FROM mail_accounts WHERE id = $1 AND user_id = $2")))
         .bind(id)
         .bind(user.id)
         .fetch_optional(&state.pool)

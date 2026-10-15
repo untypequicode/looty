@@ -35,6 +35,7 @@ mod roles;
 mod planning;
 mod analytics;
 mod backup;
+mod session_store;
 mod state;
 mod upload;
 mod user_settings;
@@ -51,7 +52,6 @@ use std::{net::SocketAddr, sync::Arc};
 use time::Duration;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_sessions::{Expiry, SessionManagerLayer};
-use tower_sessions_sqlx_store::PostgresStore;
 
 async fn health_handler() -> Json<serde_json::Value> {
     // `desktop_sso` / `android_sso` : les applications peuvent se connecter via le navigateur système.
@@ -77,8 +77,9 @@ async fn main() {
     let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
     let secure_cookies = base_url.starts_with("https://");
 
-    let session_store = PostgresStore::new(pool.clone());
+    let session_store = session_store::PgSessionStore::new(pool.clone());
     session_store.migrate().await.expect("Failed to migrate session store");
+    session_store.start_cleanup();
     let session_layer = SessionManagerLayer::new(session_store)
         .with_name("looty_session")
         .with_secure(secure_cookies)
@@ -106,7 +107,7 @@ async fn main() {
         .route("/settings", get(admin::get_public_settings))
         .route("/ws", get(ws::ws_handler))
         .route("/upload", post(upload::upload_file))
-        .route("/public/pages/:token", get(page::get_public_page))
+        .route("/public/pages/{token}", get(page::get_public_page))
         .nest("/auth", auth::routes())
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes().merge(prefs::user_routes()))
@@ -120,37 +121,37 @@ async fn main() {
         .nest("/admin/storage", storage::routes())
         .nest("/admin/insights", analytics::admin_routes())
         .nest("/admin/backups", backup::routes())
-        .route("/boards/tasks/:task_id/caldav", get(caldav::task_links))
+        .route("/boards/tasks/{task_id}/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
         .nest("/pages", page::access_routes().merge(revisions::routes()))
         .nest("/comments", comments::routes())
         .nest("/workspaces", workspace::routes())
-        .nest("/workspaces/:workspace_id/boards", board::workspace_routes())
-        .nest("/workspaces/:workspace_id/pages", page::routes())
-        .nest("/workspaces/:workspace_id/calendars", calendar::workspace_routes())
+        .nest("/workspaces/{workspace_id}/boards", board::workspace_routes())
+        .nest("/workspaces/{workspace_id}/pages", page::routes())
+        .nest("/workspaces/{workspace_id}/calendars", calendar::workspace_routes())
         .nest("/calendars", calendar::routes())
         .nest("/mail", mailbox::routes().merge(mailclient::routes()))
-        .nest("/workspaces/:workspace_id/trash", trash::workspace_routes())
-        .nest("/workspaces/:workspace_id/events", events::workspace_routes())
-        .nest("/workspaces/:workspace_id/activity", activity::workspace_routes())
-        .nest("/workspaces/:workspace_id/prefs", prefs::workspace_routes())
-        .nest("/workspaces/:workspace_id/comments", comments::workspace_routes())
-        .nest("/workspaces/:workspace_id/access", roles::workspace_routes())
-        .nest("/workspaces/:workspace_id/planning", planning::workspace_routes())
-        .nest("/workspaces/:workspace_id", classes::workspace_routes())
-        .nest("/workspaces/:workspace_id/moodle", moodle::workspace_routes())
-        .nest("/workspaces/:workspace_id/projects", projects::workspace_routes())
-        .nest("/workspaces/:workspace_id/drive", drive::workspace_routes())
+        .nest("/workspaces/{workspace_id}/trash", trash::workspace_routes())
+        .nest("/workspaces/{workspace_id}/events", events::workspace_routes())
+        .nest("/workspaces/{workspace_id}/activity", activity::workspace_routes())
+        .nest("/workspaces/{workspace_id}/prefs", prefs::workspace_routes())
+        .nest("/workspaces/{workspace_id}/comments", comments::workspace_routes())
+        .nest("/workspaces/{workspace_id}/access", roles::workspace_routes())
+        .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
+        .nest("/workspaces/{workspace_id}", classes::workspace_routes())
+        .nest("/workspaces/{workspace_id}/moodle", moodle::workspace_routes())
+        .nest("/workspaces/{workspace_id}/projects", projects::workspace_routes())
+        .nest("/workspaces/{workspace_id}/drive", drive::workspace_routes())
         .nest("/projects", projects::routes())
         .nest("/drive/public", drive::public_routes())
-        .nest("/workspaces/:workspace_id/admin", analytics::workspace_routes())
-        .nest("/workspaces/:workspace_id", graph::workspace_routes())
+        .nest("/workspaces/{workspace_id}/admin", analytics::workspace_routes())
+        .nest("/workspaces/{workspace_id}", graph::workspace_routes())
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
 
     let app = Router::new()
-        .route("/uploads/:name", get(upload::serve_upload))
+        .route("/uploads/{name}", get(upload::serve_upload))
         .merge(projects::public_routes())
         .nest("/api", api)
         .merge(dav::routes())

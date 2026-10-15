@@ -24,8 +24,8 @@ pub fn admin_routes() -> Router<AppState> {
     Router::new()
         .route("/analytics", get(instance_analytics))
         .route("/public-links", get(instance_links))
-        .route("/public-links/:page_id", delete(revoke_link))
-        .route("/invites/:invite_id", delete(revoke_invite))
+        .route("/public-links/{page_id}", delete(revoke_link))
+        .route("/invites/{invite_id}", delete(revoke_invite))
 }
 
 pub fn workspace_routes() -> Router<AppState> {
@@ -93,23 +93,23 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
     let since = Utc::now() - chrono::Duration::days(days);
     let pool = &state.pool;
 
-    let totals: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(&format!(
+    let totals: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "{EVENTS} SELECT count(DISTINCT user_id),
             count(*) FILTER (WHERE k = 'view'), count(*) FILTER (WHERE k = 'edit'),
             count(*) FILTER (WHERE k = 'task'), count(*) FILTER (WHERE k = 'comment'), count(*) FILTER (WHERE k = 'session')
          FROM e"
-    ))
+    )))
     .bind(since)
     .bind(ws)
     .fetch_one(pool)
     .await?;
 
-    let daily: Vec<(NaiveDate, i64, i64, i64)> = sqlx::query_as(&format!(
+    let daily: Vec<(NaiveDate, i64, i64, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "{EVENTS} SELECT d::date, count(DISTINCT e.user_id), count(e.*) FILTER (WHERE e.k = 'view'), count(e.*) FILTER (WHERE e.k IN ('edit', 'task', 'comment'))
          FROM generate_series(date_trunc('day', $1::timestamptz), date_trunc('day', NOW()), interval '1 day') d
          LEFT JOIN e ON date_trunc('day', e.created_at) = d
          GROUP BY d ORDER BY d"
-    ))
+    )))
     .bind(since)
     .bind(ws)
     .fetch_all(pool)
@@ -117,10 +117,10 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
 
     // Heures d'activité : jour de la semaine (1 = lundi) × heure, fuseau du serveur de base.
     let tz = std::env::var("CALENDAR_DEFAULT_TZ").unwrap_or_else(|_| "UTC".into());
-    let heat: Vec<(i32, i32, i64)> = sqlx::query_as(&format!(
+    let heat: Vec<(i32, i32, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "{EVENTS} SELECT extract(isodow FROM created_at AT TIME ZONE $3)::int, extract(hour FROM created_at AT TIME ZONE $3)::int, count(*)
          FROM e GROUP BY 1, 2"
-    ))
+    )))
     .bind(since)
     .bind(ws)
     .bind(&tz)
@@ -144,26 +144,26 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
     .fetch_all(pool)
     .await?;
 
-    let top_users: Vec<(Uuid, String, Option<String>, i64, i64, i64, Option<DateTime<Utc>>)> = sqlx::query_as(&format!(
+    let top_users: Vec<(Uuid, String, Option<String>, i64, i64, i64, Option<DateTime<Utc>>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "{EVENTS} SELECT u.id, u.name, u.avatar_url,
             count(*) FILTER (WHERE e.k = 'view'), count(*) FILTER (WHERE e.k IN ('edit', 'task', 'comment')),
             count(DISTINCT date_trunc('day', e.created_at)), max(e.created_at)
          FROM e JOIN users u ON u.id = e.user_id
          GROUP BY u.id, u.name, u.avatar_url
          ORDER BY count(*) FILTER (WHERE e.k IN ('edit', 'task', 'comment')) * 3 + count(*) DESC LIMIT 15"
-    ))
+    )))
     .bind(since)
     .bind(ws)
     .fetch_all(pool)
     .await?;
 
     let workspaces: Vec<(Uuid, String, i64, i64, i64, i64)> = if instance {
-        sqlx::query_as(&format!(
+        sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "{EVENTS} SELECT w.id, w.name, (SELECT count(*) FROM workspace_members m WHERE m.workspace_id = w.id),
                 count(DISTINCT e.user_id), count(e.*) FILTER (WHERE e.k = 'view'), count(e.*) FILTER (WHERE e.k IN ('edit', 'task', 'comment'))
              FROM workspaces w LEFT JOIN e ON e.workspace_id = w.id
              GROUP BY w.id, w.name ORDER BY count(e.*) DESC"
-        ))
+        )))
         .bind(since)
         .bind(ws)
         .fetch_all(pool)
@@ -191,7 +191,7 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
     let active_guests: i64 = if guest_ids.is_empty() {
         0
     } else {
-        sqlx::query_scalar(&format!("{EVENTS} SELECT count(DISTINCT user_id) FROM e WHERE user_id = ANY($3)"))
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!("{EVENTS} SELECT count(DISTINCT user_id) FROM e WHERE user_id = ANY($3)")))
             .bind(since)
             .bind(ws)
             .bind(&guest_ids)

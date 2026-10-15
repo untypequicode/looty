@@ -1,6 +1,6 @@
 [package]
 name = "looty-desktop"
-version = "0.7.1"
+version = "0.7.2"
 description = "Looty desktop app"
 edition = "2021"
 license = "MIT"
@@ -18,29 +18,29 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-opener = "2"
-axum = { version = "0.7", features = ["ws"] }
+axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "cookies", "json"] }
-reqwest_cookie_store = "0.8"
-cookie_store = "0.21"
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "cookies", "json"] }
+reqwest_cookie_store = "0.10"
+cookie_store = "0.22"
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 futures-util = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
-dirs = "5"
+dirs = "7"
 url = "2"
-rand = "0.8"
+rand = "0.10"
 hex = "0.4"
-sha2 = "0.10"
+sha2 = "0.11"
 notify-rust = "4"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["clock", "serde"] }
-base64 = "0.22"
+base64 = "0.23"
 bytes = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 
 # --- Linux ---------------------------------------------------------------------
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -49,7 +49,7 @@ keyring = { version = "3", features = ["async-secret-service", "tokio", "crypto-
 gtk = "0.18"
 webkit2gtk = { version = "2.0", features = ["v2_40"] }
 # Raccourcis globaux (portail XDG GlobalShortcuts : GNOME, KDE, Hyprland, sous Wayland comme X11).
-ashpd = { version = "0.11", default-features = false, features = ["tokio"] }
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "global_shortcuts"] }
 
 # --- Windows -------------------------------------------------------------------
 [target.'cfg(windows)'.dependencies]
@@ -59,7 +59,7 @@ keyring = { version = "3", features = ["windows-native"] }
 tauri-winrt-notification = "0.8"
 tauri-plugin-global-shortcut = "2"
 # Fenêtre « Enregistrer sous » native.
-rfd = { version = "0.15", default-features = false }
+rfd = { version = "0.17", default-features = false }
 
 [profile.release]
 # LTO « thin » : presque le même binaire qu'en LTO complet, construit bien plus vite.

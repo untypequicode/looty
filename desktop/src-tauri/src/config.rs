@@ -110,8 +110,7 @@ fn keyring_key() -> Option<[u8; 32]> {
     match entry.get_password() {
         Ok(s) => decode(&s),
         Err(keyring::Error::NoEntry) => {
-            let mut k = [0u8; 32];
-            rand::Rng::fill(&mut rand::thread_rng(), &mut k);
+            let k: [u8; 32] = rand::random();
             match entry.set_password(&hex::encode(k)) {
                 Ok(()) => Some(k),
                 Err(e) => {
@@ -136,9 +135,9 @@ fn enc_path() -> PathBuf {
 }
 
 fn encrypt(key: &[u8; 32], plain: &[u8]) -> Option<Vec<u8>> {
-    use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
+    use aes_gcm::aead::{Aead, KeyInit};
     let cipher = aes_gcm::Aes256Gcm::new(key.into());
-    let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+    let nonce = aes_gcm::Nonce::from(rand::random::<[u8; 12]>());
     let mut out = nonce.to_vec();
     out.extend(cipher.encrypt(&nonce, plain).ok()?);
     Some(out)
@@ -150,7 +149,8 @@ fn decrypt(key: &[u8; 32], data: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let cipher = aes_gcm::Aes256Gcm::new(key.into());
-    cipher.decrypt(aes_gcm::Nonce::from_slice(&data[..12]), &data[12..]).ok()
+    let nonce: [u8; 12] = data[..12].try_into().ok()?;
+    cipher.decrypt(&aes_gcm::Nonce::from(nonce), &data[12..]).ok()
 }
 
 pub fn load_jar() -> Jar {

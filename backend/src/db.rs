@@ -35,7 +35,7 @@ async fn repair_replayable(pool: &PgPool, migrator: &sqlx::migrate::Migrator) ->
         }
         tracing::warn!("migration {} ({}) : version provisoire détectée, rejouée", m.version, m.description);
         let mut tx = pool.begin().await?;
-        sqlx::raw_sql(&m.sql).execute(&mut *tx).await?;
+        sqlx::raw_sql(m.sql.clone()).execute(&mut *tx).await?;
         sqlx::query("UPDATE _sqlx_migrations SET checksum = $1 WHERE version = $2")
             .bind(m.checksum.as_ref())
             .bind(m.version)

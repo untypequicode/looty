@@ -37,28 +37,28 @@ pub fn workspace_routes() -> Router<AppState> {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/:id", get(get_project).put(update_project).delete(delete_project))
-        .route("/:id/files", post(create_file))
-        .route("/:id/files/:fid", put(update_file).delete(delete_file))
-        .route("/:id/files/:fid/raw", get(raw_file))
-        .route("/:id/upload", post(upload).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
-        .route("/:id/download", get(download_zip))
-        .route("/:id/bundle", get(bundle))
-        .route("/:id/preview-token", post(preview_token))
-        .route("/:id/compile", post(crate::latex::compile))
-        .route("/:id/output.pdf", get(crate::latex::output_pdf))
-        .route("/files/:fid/access", get(file_access))
+        .route("/{id}", get(get_project).put(update_project).delete(delete_project))
+        .route("/{id}/files", post(create_file))
+        .route("/{id}/files/{fid}", put(update_file).delete(delete_file))
+        .route("/{id}/files/{fid}/raw", get(raw_file))
+        .route("/{id}/upload", post(upload).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
+        .route("/{id}/download", get(download_zip))
+        .route("/{id}/bundle", get(bundle))
+        .route("/{id}/preview-token", post(preview_token))
+        .route("/{id}/compile", post(crate::latex::compile))
+        .route("/{id}/output.pdf", get(crate::latex::output_pdf))
+        .route("/files/{fid}/access", get(file_access))
 }
 
 /// Sites publiés et aperçus (hors /api : adresses publiques).
 pub fn public_routes() -> Router<AppState> {
     Router::new()
-        .route("/pages/_preview/:id/:token", get(serve_preview_root))
-        .route("/pages/_preview/:id/:token/", get(serve_preview_index))
-        .route("/pages/_preview/:id/:token/*path", get(serve_preview))
-        .route("/pages/:slug", get(serve_site_root))
-        .route("/pages/:slug/", get(serve_site_index))
-        .route("/pages/:slug/*path", get(serve_site))
+        .route("/pages/_preview/{id}/{token}", get(serve_preview_root))
+        .route("/pages/_preview/{id}/{token}/", get(serve_preview_index))
+        .route("/pages/_preview/{id}/{token}/{*path}", get(serve_preview))
+        .route("/pages/{slug}", get(serve_site_root))
+        .route("/pages/{slug}/", get(serve_site_index))
+        .route("/pages/{slug}/{*path}", get(serve_site))
 }
 
 const MAX_UPLOAD: usize = 50 * 1024 * 1024;
@@ -126,7 +126,7 @@ async fn require_ws(state: &AppState, user: &AuthUser, ws: Uuid, need: Need) -> 
 }
 
 pub(crate) async fn project_for(state: &AppState, user: &AuthUser, id: Uuid, need: Need) -> ApiResult<(Project, Perms)> {
-    let p: Project = sqlx::query_as(&format!("SELECT {PROJECT_COLS} FROM projects WHERE id = $1"))
+    let p: Project = sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {PROJECT_COLS} FROM projects WHERE id = $1")))
         .bind(id)
         .fetch_optional(&state.pool)
         .await?
@@ -307,9 +307,9 @@ async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws):
         _ => json!({ "entry": "index.html" }),
     };
     let mut tx = state.pool.begin().await?;
-    let project: Project = sqlx::query_as(&format!(
+    let project: Project = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "INSERT INTO projects (workspace_id, kind, name, settings, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING {PROJECT_COLS}"
-    ))
+    )))
     .bind(ws)
     .bind(&p.kind)
     .bind(name)

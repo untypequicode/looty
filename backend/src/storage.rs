@@ -24,7 +24,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(overview))
         .route("/orphans", delete(delete_orphans))
-        .route("/files/:name", delete(delete_file))
+        .route("/files/{name}", delete(delete_file))
 }
 
 /// Où un fichier est utilisé.
