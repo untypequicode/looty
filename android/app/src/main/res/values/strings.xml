@@ -479,4 +479,68 @@
     <string name="delete_version_title">Delete this version?</string>
     <string name="version_auto">Editing session</string>
     <string name="version_restore">Before a restore</string>
+    <!-- N4 : drive et projets -->
+    <string name="drive">Drive</string>
+    <string name="projects">Projects</string>
+    <string name="ok">OK</string>
+    <string name="upload">Upload</string>
+    <string name="files">Files</string>
+    <string name="search_files">Search files</string>
+    <string name="no_results">No results.</string>
+    <string name="drive_empty">This folder is empty.</string>
+    <string name="drive_usage">%1$s used of %2$s · files are kept up to %3$d days</string>
+    <plurals name="n_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="n_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <plurals name="n_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="expires_in_days">
+        <item quantity="one">deleted in %d day</item>
+        <item quantity="other">deleted in %d days</item>
+    </plurals>
+    <string name="keep_files_for">Keep the files for</string>
+    <string name="keep_longer">Keep longer</string>
+    <string name="create_link">Create a download link</string>
+    <string name="remove_link">Remove the link</string>
+    <string name="drive_link_hint">The link is copied. Anyone with it can download the file until it’s deleted.</string>
+    <string name="delete_drive_folder_hint">Everything inside it is deleted too.</string>
+    <string name="move_here">Move here</string>
+    <string name="new_project">New project</string>
+    <string name="no_projects">No projects yet.</string>
+    <string name="published">Published</string>
+    <string name="build_ok">Last build OK</string>
+    <string name="build_failed">Last build failed</string>
+    <string name="kind_site">Website</string>
+    <string name="kind_latex">LaTeX</string>
+    <string name="kind_notebook">Notebook</string>
+    <string name="template">Template</string>
+    <string name="tpl_starter">Starter</string>
+    <string name="tpl_blank">Blank</string>
+    <string name="tpl_article">Article</string>
+    <string name="tpl_report">Report</string>
+    <string name="tpl_beamer">Slides (Beamer)</string>
+    <string name="tpl_letter">Letter</string>
+    <string name="tpl_data">Data analysis</string>
+    <string name="new_file">New file</string>
+    <string name="file_path">Path (e.g. css/style.css)</string>
+    <string name="rename_move">Rename or move</string>
+    <string name="download_zip">Download as ZIP</string>
+    <string name="compile">Compile</string>
+    <string name="open_pdf">Open the PDF</string>
+    <string name="compile_ok">Compiled in %.1f s</string>
+    <string name="compile_failed">Compilation failed</string>
+    <string name="show_log">Show the log</string>
+    <string name="preview">Preview</string>
+    <string name="publish_site">Publish the site</string>
+    <string name="site_address">Address</string>
+    <string name="notebook_hint">Open the editor to run the notebook’s cells.</string>
+    <string name="delete_project_title">Delete the project “%s”?</string>
+    <string name="delete_project_message">All its files are deleted. This can’t be undone.</string>
 </resources>

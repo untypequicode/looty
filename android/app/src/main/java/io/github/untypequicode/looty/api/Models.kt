@@ -188,3 +188,30 @@ import kotlinx.serialization.json.JsonObject
 /** Historique d'une tâche (valeurs avant / après selon le type). */
 @Serializable data class TaskActivity(val id: String, val task_id: String, val user_id: String, val activity_type: String, val old_value: JsonElement? = null, val new_value: JsonElement? = null, val created_at: String)
 @Serializable data class Attachment(val id: String, val filename: String, val file_path: String, val mime_type: String? = null, val size_bytes: Long? = null)
+
+// --- Drive (fichiers temporaires de l'espace) ---
+@Serializable data class DriveItem(
+    val id: String, val folder: String = "", val name: String, val is_dir: Boolean = false, val mime: String? = null, val size: Long = 0,
+    val created_at: String? = null, val expires_at: String? = null, val uploaded_by: String? = null, val uploaded_by_name: String? = null,
+    val shared: Boolean = false, val children: Long = 0,
+)
+@Serializable data class DriveList(
+    val folder: String = "", val items: List<DriveItem> = emptyList(), val max_days: Int = 30, val quota_bytes: Long = 0, val used_bytes: Long = 0,
+    val day_choices: List<Int> = emptyList(), val can_upload: Boolean = false, val can_manage: Boolean = false, val user_id: String = "",
+)
+@Serializable data class ShareLink(val url: String, val expires_at: String? = null)
+
+// --- Projets (mini-sites, LaTeX, notebooks) ---
+@Serializable data class ProjectSummary(
+    val id: String, val kind: String = "site", val name: String = "", val slug: String? = null, val published: Boolean = false,
+    val updated_at: String? = null, val last_build_ok: Boolean? = null, val files: Long = 0, val created_by_name: String? = null,
+)
+@Serializable data class ProjectInfo(val id: String, val kind: String = "site", val name: String = "", val slug: String? = null, val published: Boolean = false, val settings: JsonObject? = null)
+@Serializable data class ProjectFile(val id: String, val path: String, val is_dir: Boolean = false, val text: Boolean = false, val mime: String? = null, val size: Long = 0,
+    val updated_at: String? = null, val updated_by_name: String? = null)
+@Serializable data class ProjectFull(val project: ProjectInfo, val files: List<ProjectFile> = emptyList(), val public_url: String? = null,
+    val can_write: Boolean = false, val can_manage: Boolean = false, val can_publish: Boolean = false)
+@Serializable data class CompileIssue(val file: String? = null, val line: Int? = null, val message: String = "", val level: String = "error")
+@Serializable data class CompileResult(val ok: Boolean = false, val pdf: Boolean = false, val engine: String? = null, val duration_ms: Long = 0,
+    val issues: List<CompileIssue> = emptyList(), val log: String = "")
+@Serializable data class PreviewBase(val base: String)

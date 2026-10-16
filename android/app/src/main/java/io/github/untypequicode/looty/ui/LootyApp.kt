@@ -85,6 +85,9 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             seg.getOrNull(2) == "board" && seg.size > 3 -> "board/${seg[3]}"
             seg.getOrNull(2) == "doc" && seg.size > 3 && uri.getQueryParameter("comment") != null -> "doc/${seg[3]}/comments"
             seg.getOrNull(2) == "doc" && seg.size > 3 -> "doc/${seg[3]}"
+            seg.getOrNull(2) == "drive" -> "drive"
+            seg.getOrNull(2) == "projects" && seg.size > 3 -> "project/${seg[3]}"
+            seg.getOrNull(2) == "projects" -> "projects"
             seg.getOrNull(2) == "inbox" -> "inbox"
             seg.getOrNull(2) == "calendar" -> "calendar"
             seg.getOrNull(2) == "mail" && seg.size == 3 -> "mail"
@@ -182,6 +185,10 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                 ComposeScreen(state, e.arguments?.getString("mode") ?: "new", e.arguments?.getString("to").orEmpty(), onClose = { nav.popBackStack() },
                     onSetupSending = { id -> nav.navigate("mailaccount?id=$id") })
             }
+            composable("drive") { DriveScreen(state, onBack = { nav.popBackStack() }) }
+            composable("projects") { ProjectsScreen(state, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("project/$it") }) }
+            composable("project/{id}") { e -> val id = e.arguments?.getString("id") ?: ""; ProjectScreen(state, id, onBack = { nav.popBackStack() }, onFile = { nav.navigate("project/$id/file/$it") }) }
+            composable("project/{id}/file/{fid}") { e -> ProjectFileScreen(state, e.arguments?.getString("id") ?: "", e.arguments?.getString("fid") ?: "", onBack = { nav.popBackStack() }) }
             composable("mailaccounts") { MailAccountsScreen(state, onBack = { nav.popBackStack() }, onEdit = { id -> nav.navigate("mailaccount?id=$id") }) }
             composable("mailaccount?id={id}") { e -> MailAccountScreen(state, e.arguments?.getString("id").orEmpty(), onDone = { nav.popBackStack() }) }
             composable("task/{id}") { e -> TaskScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
