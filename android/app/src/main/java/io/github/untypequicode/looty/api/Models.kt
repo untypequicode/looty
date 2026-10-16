@@ -44,9 +44,26 @@ import kotlinx.serialization.json.JsonObject
     val updated_at: String? = null,
     val last_viewed_at: String? = null,
     val can_edit: Boolean? = null,
+    /** La personne peut ajouter des sous-pages ici (droit accordé sur la page). */
+    val can_add_child: Boolean? = null,
+    val share_token: String? = null,
+    val is_public: Boolean? = null,
+    val updated_by: String? = null,
     /** HTML du document (lecture seule dans l’application). */
     val content: String? = null,
 )
+/** Commentaire d'un document (fil : parent_id null ; réponses : parent_id du fil). */
+@Serializable data class DocComment(
+    val id: String, val parent_id: String? = null, val user_id: String? = null, val user_name: String? = null,
+    val content: String = "", val quote: String? = null, val resolved_at: String? = null, val created_at: String, val updated_at: String? = null,
+)
+/** Version d'un document (instantané de l'éditeur collaboratif). */
+@Serializable data class Revision(val id: String, val kind: String = "auto", val label: String? = null, val title: String = "", val created_by: String? = null,
+    val author_name: String? = null, val created_at: String, val updated_at: String? = null, val size: Int = 0)
+@Serializable data class PageRef(val id: String, val title: String = "")
+/** Accès particulier d'une personne à une page (viewer, editor, blocked). */
+@Serializable data class PagePerm(val user_id: String, val name: String = "", val email: String = "", val role: String = "viewer", val inherit: Boolean = true,
+    val allow_subpages: Boolean = false, val is_member: Boolean = true, val inherited_from: PageRef? = null)
 
 @Serializable data class Notification(
     val id: String,

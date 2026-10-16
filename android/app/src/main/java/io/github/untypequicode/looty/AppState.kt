@@ -221,7 +221,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun refreshAll() {
         prefetchDocs()
-        loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
+        loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadDocCommentCounts(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
     }
 
     /** Charge une liste : copie gardée affichée d'abord, puis réponse du serveur ; hors ligne, la copie reste. */
@@ -431,13 +431,123 @@ class AppState(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun createPage(title: String = "", content: String? = null): Result<String> = runCatching {
+    suspend fun createPage(title: String = "", content: String? = null, parentId: String? = null): Result<String> = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
         val id = java.util.UUID.randomUUID().toString()
-        val queued = write("POST", "/api/workspaces/$w/pages", buildJsonObject { put("id", id); put("title", title); if (content != null) put("content", content) }, title.ifBlank { "document" })
+        val queued = write("POST", "/api/workspaces/$w/pages", buildJsonObject { put("id", id); put("title", title); if (content != null) put("content", content); if (parentId != null) put("parent_id", parentId) }, title.ifBlank { "document" })
         if (!queued) loadPages()
         id
     }
+
+    // -----------------------------------------------------------------------
+    // Documents (N3) : organisation, partage, commentaires, versions. La
+    // modification du contenu reste dans l'éditeur collaboratif du site.
+    // -----------------------------------------------------------------------
+
+    /** Commentaires non résolus par document. */
+    var docCommentCounts by mutableStateOf<Map<String, Int>>(emptyMap()); private set
+
+    fun loadDocCommentCounts() {
+        val w = ws ?: return
+        viewModelScope.launch { runCatching { api.get<Map<String, Int>>("/api/workspaces/$w/comments/counts?kind=page") }.onSuccess { docCommentCounts = it } }
+    }
+
+    private fun patchPage(id: String, f: (Page) -> Page) { pages = pages.copy(data = pages.data?.map { if (it.id == id) f(it) else it }) }
+
+    /** Modification d'un document (titre, icône, emplacement) : appliquée tout de suite, envoyée, puis la liste rechargée. */
+    fun updatePage(id: String, body: JsonObject, label: String, local: (Page) -> Page) {
+        val w = ws ?: return
+        patchPage(id, local)
+        viewModelScope.launch {
+            runCatching { write("PUT", "/api/workspaces/$w/pages/$id", body, label) }.onFailure(::fail)
+            loadPages()
+        }
+    }
+
+    fun renamePage(p: Page, title: String) = updatePage(p.id, buildJsonObject { put("title", title) }, title) { it.copy(title = title) }
+    fun setPageIcon(p: Page, icon: String?) = updatePage(p.id, buildJsonObject { put("icon", icon) }, p.title) { it.copy(icon = icon) }
+
+    /** Déplace un document sous un autre (ou à la racine), à la fin de ses nouvelles sœurs. */
+    fun movePage(p: Page, parentId: String?) {
+        val pos = (pages.data.orEmpty().filter { it.parent_id == parentId && it.id != p.id }.maxOfOrNull { it.position } ?: 0.0) + 65536
+        updatePage(p.id, buildJsonObject { put("parent_id", parentId); put("position", pos) }, p.title) { it.copy(parent_id = parentId, position = pos) }
+    }
+
+    fun toggleFavorite(p: Page) {
+        val w = ws ?: return
+        patchPage(p.id) { it.copy(is_favorite = it.is_favorite != true) }
+        viewModelScope.launch { runCatching { write("POST", "/api/workspaces/$w/pages/${p.id}/favorite", null, p.title) }.onFailure(::fail); loadPages() }
+    }
+
+    /** Ouverture d'un document (section « Récents »). */
+    fun recordView(id: String) {
+        val w = ws ?: return
+        viewModelScope.launch { runCatching { api.send("POST", "/api/workspaces/$w/pages/$id/view") } }
+    }
+
+    /** Document (et sous-pages) placé dans la corbeille ; [restorePage] l'en sort. */
+    suspend fun deletePage(p: Page): Boolean {
+        val w = ws ?: return false
+        val gone = buildSet { add(p.id); var added = true; while (added) { added = false; pages.data.orEmpty().forEach { if (it.parent_id in this && add(it.id)) added = true } } }
+        val before = pages
+        pages = pages.copy(data = pages.data?.filter { it.id !in gone })
+        return runCatching { api.send("DELETE", "/api/workspaces/$w/pages/${p.id}") }.onFailure { pages = before; fail(it) }.isSuccess.also { loadPages() }
+    }
+
+    fun restorePage(id: String) {
+        viewModelScope.launch { runCatching { api.send("POST", "/api/trash/pages/$id/restore") }.onFailure(::fail); loadPages() }
+    }
+
+    /** Lien public : activé (renvoie le document avec son jeton) ou désactivé. */
+    suspend fun setPagePublic(id: String, on: Boolean): Page? {
+        val w = ws ?: return null
+        return runCatching { if (on) api.post<Page>("/api/workspaces/$w/pages/$id/share") else api.json.decodeFromString<Page>(api.raw("DELETE", "/api/workspaces/$w/pages/$id/share")) }
+            .onFailure(::fail).getOrNull()?.also { r -> patchPage(id) { it.copy(share_token = r.share_token, is_public = r.is_public) } }
+    }
+
+    suspend fun pagePermissions(id: String): List<PagePerm>? = ws?.let { w -> runCatching { api.get<List<PagePerm>>("/api/workspaces/$w/pages/$id/permissions") }.onFailure(::fail).getOrNull() }
+
+    suspend fun setPagePermission(id: String, userId: String, role: String, inherit: Boolean, allowSubpages: Boolean): Boolean {
+        val w = ws ?: return false
+        return runCatching {
+            api.send("PUT", "/api/workspaces/$w/pages/$id/permissions", buildJsonObject { put("user_id", userId); put("role", role); put("inherit", inherit); put("allow_subpages", allowSubpages) })
+        }.onFailure(::fail).isSuccess
+    }
+
+    // Commentaires d'un document
+    suspend fun docComments(id: String): List<DocComment>? = ws?.let { w ->
+        runCatching { api.get<List<DocComment>>("/api/workspaces/$w/comments?kind=page&id=$id") }.onFailure(::fail).getOrNull()
+    }
+
+    suspend fun addDocComment(pageId: String, text: String, parentId: String?): Boolean {
+        val w = ws ?: return false
+        return runCatching {
+            api.send("POST", "/api/workspaces/$w/comments", buildJsonObject {
+                put("kind", "page"); put("id", pageId); put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)); parentId?.let { put("parent_id", it) }
+            })
+        }.onFailure(::fail).isSuccess.also { if (it) loadDocCommentCounts() }
+    }
+
+    suspend fun editDocComment(id: String, text: String): Boolean =
+        runCatching { api.send("PUT", "/api/comments/$id", buildJsonObject { put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)) }) }.onFailure(::fail).isSuccess
+
+    suspend fun deleteDocComment(id: String): Boolean =
+        runCatching { api.send("DELETE", "/api/comments/$id") }.onFailure(::fail).isSuccess.also { if (it) loadDocCommentCounts() }
+
+    suspend fun resolveDocComment(id: String, resolved: Boolean): Boolean =
+        runCatching { api.send("POST", "/api/comments/$id/resolve", buildJsonObject { put("resolved", resolved) }) }.onFailure(::fail).isSuccess.also { if (it) loadDocCommentCounts() }
+
+    // Versions
+    suspend fun revisions(pageId: String): List<Revision>? = runCatching { api.get<List<Revision>>("/api/pages/$pageId/revisions") }.onFailure(::fail).getOrNull()
+
+    suspend fun createRevision(pageId: String, label: String?): Boolean =
+        runCatching { api.send("POST", "/api/pages/$pageId/revisions", buildJsonObject { put("kind", "manual"); put("label", label) }) }.onFailure(::fail).isSuccess
+
+    suspend fun renameRevision(pageId: String, revId: String, label: String?): Boolean =
+        runCatching { api.send("PATCH", "/api/pages/$pageId/revisions/$revId", buildJsonObject { put("label", label) }) }.onFailure(::fail).isSuccess
+
+    suspend fun deleteRevision(pageId: String, revId: String): Boolean =
+        runCatching { api.send("DELETE", "/api/pages/$pageId/revisions/$revId") }.onFailure(::fail).isSuccess
 
     // -----------------------------------------------------------------------
     // Tableaux et tâches (écrans natifs G2). Changement appliqué tout de suite à
@@ -613,7 +723,11 @@ class AppState(app: Application) : AndroidViewModel(app) {
     var boardView by mutableStateOf(prefs.getString("boardView", "columns") ?: "columns"); private set
     fun setBoardViewMode(v: String) { boardView = v; prefs.edit().putString("boardView", v).apply() }
 
-    private fun fail(e: Throwable) { lastError = (e as? ApiException)?.code ?: "offline" }
+    /** Erreur d'une écriture, signalée à l'écran (une annulation, elle, n'est pas une erreur). */
+    private fun fail(e: Throwable) { if (e is kotlinx.coroutines.CancellationException) return; lastError = (e as? ApiException)?.code ?: "offline" }
+
+    /** Action qui doit aller au bout même si l'écran ou la feuille qui l'a lancée se ferme. */
+    fun launch(block: suspend () -> Unit) { viewModelScope.launch { block() } }
 
     suspend fun createBoard(name: String): String? = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")

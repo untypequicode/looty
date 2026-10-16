@@ -83,6 +83,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             seg.getOrNull(2) == "task" && seg.size > 3 -> "task/${seg[3]}"
             seg.getOrNull(2) == "board" && uri.getQueryParameter("task") != null -> "task/${uri.getQueryParameter("task")}"
             seg.getOrNull(2) == "board" && seg.size > 3 -> "board/${seg[3]}"
+            seg.getOrNull(2) == "doc" && seg.size > 3 && uri.getQueryParameter("comment") != null -> "doc/${seg[3]}/comments"
             seg.getOrNull(2) == "doc" && seg.size > 3 -> "doc/${seg[3]}"
             seg.getOrNull(2) == "inbox" -> "inbox"
             seg.getOrNull(2) == "calendar" -> "calendar"
@@ -145,7 +146,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
         NavHost(nav, startDestination = "home", modifier = if (isTab) Modifier else Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
             composable("home") { HomeScreen(state, padding) { nav.navigate("tasks") { launchSingleTop = true } } }
             composable("tasks") { TasksScreen(state, padding, snackbar) }
-            composable("docs") { DocsScreen(state, padding) }
+            composable("docs") { DocsScreen(state, padding, snackbar) }
             composable("inbox") { InboxScreen(state, padding) }
             composable("more") { MoreScreen(state, padding, onSignedOut) }
             composable("board/{id}") { e ->
@@ -156,7 +157,9 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                 BoardSettingsScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() },
                     onDeleted = { nav.popBackStack("board/{id}", inclusive = true) })
             }
-            composable("doc/{id}") { e -> ReaderScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
+            composable("doc/{id}") { e -> ReaderScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
+            composable("doc/{id}/comments") { e -> DocCommentsScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
+            composable("doc/{id}/history") { e -> DocHistoryScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("notifications") { NotificationsScreen(state, onBack = { nav.popBackStack() }) }
             composable("updates") { UpdatesScreen(state, onBack = { nav.popBackStack() }) }
             composable("calendar") { CalendarScreen(state, onBack = { nav.popBackStack() }, onEdit = { id, date -> nav.navigate("event?id=${id.orEmpty()}&date=$date") }) }
