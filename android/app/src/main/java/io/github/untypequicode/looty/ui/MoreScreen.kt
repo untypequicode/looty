@@ -78,6 +78,8 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
                 modifier = Modifier.clickable { opener.route("mail") },
             )
         }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.drive)) }, leadingContent = { Icon(Icons.Outlined.Cloud, null) }, modifier = Modifier.clickable { opener.route("drive") }) }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.projects)) }, leadingContent = { Icon(Icons.Outlined.Code, null) }, modifier = Modifier.clickable { opener.route("projects") }) }
         item {
             SectionTitle(stringResource(R.string.boards), action = if (state.canManageBoards) { {
                 IconButton(onClick = { newBoard = true }) { Icon(Icons.Outlined.Add, stringResource(R.string.new_board)) }

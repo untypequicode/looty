@@ -479,4 +479,69 @@
     <string name="delete_version_title">Supprimer cette version ?</string>
     <string name="version_auto">Séance d’édition</string>
     <string name="version_restore">Avant une restauration</string>
+    <!-- N4 : drive et projets -->
+    <string name="drive">Drive</string>
+    <string name="projects">Projets</string>
+    <string name="ok">OK</string>
+    <string name="upload">Envoyer</string>
+    <string name="files">Fichiers</string>
+    <string name="search_files">Rechercher des fichiers</string>
+    <string name="no_results">Aucun résultat.</string>
+    <string name="drive_empty">Ce dossier est vide.</string>
+    <string name="drive_usage">%1$s utilisés sur %2$s · fichiers gardés %3$d jours au plus</string>
+    <plurals name="n_items">
+        <item quantity="one">%d élément</item>
+        <item quantity="other">%d éléments</item>
+    </plurals>
+    <plurals name="n_files">
+        <item quantity="one">%d fichier</item>
+        <item quantity="other">%d fichiers</item>
+    </plurals>
+    <plurals name="n_days">
+        <item quantity="one">%d jour</item>
+        <item quantity="other">%d jours</item>
+    </plurals>
+    <!-- « one » couvre aussi 0 en français. -->
+    <plurals name="expires_in_days" tools:ignore="ImpliedQuantity">
+        <item quantity="one">effacé dans %d jour</item>
+        <item quantity="other">effacé dans %d jours</item>
+    </plurals>
+    <string name="keep_files_for">Garder les fichiers pendant</string>
+    <string name="keep_longer">Garder plus longtemps</string>
+    <string name="create_link">Créer un lien de téléchargement</string>
+    <string name="remove_link">Supprimer le lien</string>
+    <string name="drive_link_hint">Le lien est copié. Toute personne qui l’a peut télécharger le fichier jusqu’à son effacement.</string>
+    <string name="delete_drive_folder_hint">Tout ce qu’il contient est supprimé aussi.</string>
+    <string name="move_here">Déplacer ici</string>
+    <string name="new_project">Nouveau projet</string>
+    <string name="no_projects">Aucun projet pour l’instant.</string>
+    <string name="published">Publié</string>
+    <string name="build_ok">Dernière compilation réussie</string>
+    <string name="build_failed">Dernière compilation échouée</string>
+    <string name="kind_site">Site web</string>
+    <string name="kind_latex">LaTeX</string>
+    <string name="kind_notebook">Notebook</string>
+    <string name="template">Modèle</string>
+    <string name="tpl_starter">De départ</string>
+    <string name="tpl_blank">Vide</string>
+    <string name="tpl_article">Article</string>
+    <string name="tpl_report">Rapport</string>
+    <string name="tpl_beamer">Diapositives (Beamer)</string>
+    <string name="tpl_letter">Lettre</string>
+    <string name="tpl_data">Analyse de données</string>
+    <string name="new_file">Nouveau fichier</string>
+    <string name="file_path">Chemin (ex. css/style.css)</string>
+    <string name="rename_move">Renommer ou déplacer</string>
+    <string name="download_zip">Télécharger en ZIP</string>
+    <string name="compile">Compiler</string>
+    <string name="open_pdf">Ouvrir le PDF</string>
+    <string name="compile_ok">Compilé en %.1f s</string>
+    <string name="compile_failed">La compilation a échoué</string>
+    <string name="show_log">Afficher le journal</string>
+    <string name="preview">Aperçu</string>
+    <string name="publish_site">Publier le site</string>
+    <string name="site_address">Adresse</string>
+    <string name="notebook_hint">Ouvrez l’éditeur pour exécuter les cellules du notebook.</string>
+    <string name="delete_project_title">Supprimer le projet « %s » ?</string>
+    <string name="delete_project_message">Tous ses fichiers sont supprimés. C’est définitif.</string>
 </resources>

@@ -846,6 +846,116 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
 
     // -----------------------------------------------------------------------
+    // Drive et projets (N4). Les gros fichiers passent en flux, sans tout garder en mémoire.
+    // -----------------------------------------------------------------------
+
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+
+    /** Fichier choisi sur le téléphone : nom, type, taille et ouverture du contenu. */
+    private fun picked(uri: android.net.Uri): Triple<String, String, Long> {
+        val cr = getApplication<Application>().contentResolver
+        var name = uri.lastPathSegment ?: "file"
+        var size = -1L
+        runCatching {
+            cr.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) { c.getString(0)?.let { name = it }; if (!c.isNull(1)) size = c.getLong(1) }
+            }
+        }
+        return Triple(name, cr.getType(uri) ?: "application/octet-stream", size)
+    }
+
+    private suspend fun streamUpload(path: String, fields: Map<String, String>, uri: android.net.Uri) {
+        val (name, mime, size) = picked(uri)
+        val cr = getApplication<Application>().contentResolver
+        api.uploadStream(path, fields, name, mime, size) { cr.openInputStream(uri) ?: throw java.io.FileNotFoundException(name) }
+    }
+
+    suspend fun driveList(folder: String, q: String = ""): DriveList? = ws?.let { w ->
+        runCatching { api.get<DriveList>("/api/workspaces/$w/drive?folder=${enc(folder)}" + if (q.isNotBlank()) "&q=${enc(q)}" else "") }.onFailure(::fail).getOrNull()
+    }
+
+    /** Envoi de fichiers dans un dossier du drive, gardés [days] jours. Renvoie le nombre d'échecs. */
+    suspend fun driveUpload(folder: String, days: Int, uris: List<android.net.Uri>): Int {
+        val w = ws ?: return uris.size
+        var failed = 0
+        for (u in uris) runCatching { streamUpload("/api/workspaces/$w/drive/upload", mapOf("folder" to folder, "days" to days.toString()), u) }.onFailure { failed++; fail(it) }
+        return failed
+    }
+
+    suspend fun driveCreateFolder(folder: String, name: String): Boolean = ws?.let { w ->
+        runCatching { api.send("POST", "/api/workspaces/$w/drive/folders", buildJsonObject { put("folder", folder); put("name", name.trim()) }) }.onFailure(::fail).isSuccess
+    } ?: false
+
+    /** Renommer, déplacer (dossier de destination) ou prolonger ([days] à partir de maintenant). */
+    suspend fun driveUpdate(id: String, name: String? = null, folder: String? = null, days: Int? = null): Boolean = ws?.let { w ->
+        runCatching {
+            api.send("PUT", "/api/workspaces/$w/drive/files/$id", buildJsonObject { name?.let { put("name", it.trim()) }; folder?.let { put("folder", it) }; days?.let { put("days", it) } })
+        }.onFailure(::fail).isSuccess
+    } ?: false
+
+    suspend fun driveDelete(id: String): Boolean = ws?.let { w -> runCatching { api.send("DELETE", "/api/workspaces/$w/drive/files/$id") }.onFailure(::fail).isSuccess } ?: false
+
+    suspend fun driveShare(id: String, on: Boolean): ShareLink? = ws?.let { w ->
+        runCatching { if (on) api.post<ShareLink>("/api/workspaces/$w/drive/files/$id/share") else { api.send("DELETE", "/api/workspaces/$w/drive/files/$id/share"); null } }.onFailure(::fail).getOrNull()
+    }
+
+    /** Fichier du serveur enregistré dans le cache (pour l'ouvrir avec une autre application). */
+    suspend fun cachedDownload(key: String, name: String, path: String): java.io.File? = runCatching {
+        val f = java.io.File(getApplication<Application>().cacheDir, "attachments/$key/" + name.replace(Regex("[/\\\\:*?\"<>|]"), "_").ifBlank { "file" })
+        if (!f.exists()) api.downloadTo(path, f)
+        f
+    }.onFailure(::fail).getOrNull()
+
+    suspend fun driveFile(item: DriveItem): java.io.File? = ws?.let { w -> cachedDownload("drive-${item.id}", item.name, "/api/workspaces/$w/drive/files/${item.id}/download") }
+
+    // Projets
+    suspend fun projects(): List<ProjectSummary>? = ws?.let { w -> runCatching { api.get<List<ProjectSummary>>("/api/workspaces/$w/projects") }.onFailure(::fail).getOrNull() }
+
+    suspend fun createProject(kind: String, name: String, template: String): String? = ws?.let { w ->
+        runCatching { api.post<ProjectInfo>("/api/workspaces/$w/projects", buildJsonObject { put("kind", kind); put("name", name.trim()); put("template", template) }) }.onFailure(::fail).getOrNull()?.id
+    }
+
+    suspend fun project(id: String): ProjectFull? = runCatching { api.get<ProjectFull>("/api/projects/$id") }.onFailure(::fail).getOrNull()
+
+    suspend fun updateProject(id: String, body: JsonObject): Boolean = runCatching { api.send("PUT", "/api/projects/$id", body) }.onFailure(::fail).isSuccess
+
+    suspend fun deleteProject(id: String): Boolean = runCatching { api.send("DELETE", "/api/projects/$id") }.onFailure(::fail).isSuccess
+
+    suspend fun createProjectFile(id: String, path: String, isDir: Boolean): Boolean =
+        runCatching { api.send("POST", "/api/projects/$id/files", buildJsonObject { put("path", path.trim()); put("is_dir", isDir) }) }.onFailure(::fail).isSuccess
+
+    suspend fun moveProjectFile(id: String, fid: String, path: String): Boolean =
+        runCatching { api.send("PUT", "/api/projects/$id/files/$fid", buildJsonObject { put("path", path.trim()) }) }.onFailure(::fail).isSuccess
+
+    suspend fun deleteProjectFile(id: String, fid: String): Boolean = runCatching { api.send("DELETE", "/api/projects/$id/files/$fid") }.onFailure(::fail).isSuccess
+
+    suspend fun projectFileText(id: String, fid: String): String? = runCatching { api.raw("GET", "/api/projects/$id/files/$fid/raw") }.onFailure(::fail).getOrNull()
+
+    suspend fun projectFileDownload(id: String, f: ProjectFile): java.io.File? =
+        cachedDownload("project-$id-${f.id}-${f.updated_at.hashCode()}", f.path.substringAfterLast('/'), "/api/projects/$id/files/${f.id}/raw")
+
+    suspend fun projectUpload(id: String, folder: String, uris: List<android.net.Uri>): Int {
+        var failed = 0
+        for (u in uris) runCatching { streamUpload("/api/projects/$id/upload", mapOf("folder" to folder), u) }.onFailure { failed++; fail(it) }
+        return failed
+    }
+
+    suspend fun compileProject(id: String): CompileResult? = runCatching { api.post<CompileResult>("/api/projects/$id/compile") }.onFailure(::fail).getOrNull()
+
+    /** PDF compilé : toujours téléchargé à nouveau (il change à chaque compilation). */
+    suspend fun projectPdf(id: String, name: String): java.io.File? = runCatching {
+        val f = java.io.File(getApplication<Application>().cacheDir, "attachments/pdf-$id/" + name.replace(Regex("[^\\p{L}\\p{N}_-]"), "_").ifBlank { "document" } + ".pdf")
+        f.delete(); api.downloadTo("/api/projects/$id/output.pdf", f); f
+    }.onFailure(::fail).getOrNull()
+
+    suspend fun projectZip(id: String, name: String): java.io.File? = runCatching {
+        val f = java.io.File(getApplication<Application>().cacheDir, "attachments/zip-$id/" + name.replace(Regex("[^\\p{L}\\p{N}_-]"), "_").ifBlank { "project" } + ".zip")
+        f.delete(); api.downloadTo("/api/projects/$id/download", f); f
+    }.onFailure(::fail).getOrNull()
+
+    suspend fun projectPreview(id: String): String? = runCatching { api.post<PreviewBase>("/api/projects/$id/preview-token").base }.onFailure(::fail).getOrNull()
+
+    // -----------------------------------------------------------------------
     // Calendrier (G3)
     // -----------------------------------------------------------------------
 

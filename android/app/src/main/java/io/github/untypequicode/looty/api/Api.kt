@@ -19,6 +19,7 @@ import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
+import okio.source
 
 /** Erreur de l'API Looty (`{ "error": "code" }`). */
 class ApiException(val status: Int, val code: String) : Exception("$status $code")
@@ -85,6 +86,43 @@ class Api(private val ctx: Context) {
             text
         }
     }
+
+/**
+     * Envoi en flux (gros fichiers du drive, d'un projet) : champs texte puis le fichier, lu au fur
+     * et à mesure. Renvoie la réponse du serveur.
+     */
+    suspend fun uploadStream(path: String, fields: Map<String, String>, filename: String, mime: String, size: Long, open: () -> java.io.InputStream) = withContext(Dispatchers.IO) {
+        val file = object : okhttp3.RequestBody() {
+            override fun contentType() = mime.toMediaType()
+            override fun contentLength() = if (size > 0) size else -1L
+            override fun writeTo(sink: okio.BufferedSink) { open().use { sink.writeAll(it.source()) } }
+        }
+        val b = MultipartBody.Builder().setType(MultipartBody.FORM)
+        fields.forEach { (k, v) -> b.addFormDataPart(k, v) }
+        b.addFormDataPart("file", filename, file)
+        val req = Request.Builder().url(server + path).post(b.build()).build()
+        // Envoi long : pas de délai de lecture tant que le serveur reçoit.
+        client.newBuilder().writeTimeout(0, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build().newCall(req).execute().use { res ->
+            val text = res.body.string()
+            if (!res.isSuccessful) {
+                val code = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+                throw ApiException(res.code, code ?: "http_${res.code}")
+            }
+            text
+        }
+    }
+
+    /** Téléchargement écrit directement dans un fichier (sans tout garder en mémoire). */
+    suspend fun downloadTo(path: String, target: java.io.File) = withContext(Dispatchers.IO) {
+        client.newBuilder().readTimeout(120, TimeUnit.SECONDS).build().newCall(Request.Builder().url(server + path).build()).execute().use { res ->
+            if (!res.isSuccessful) throw ApiException(res.code, "http_${res.code}")
+            target.parentFile?.mkdirs()
+            val tmp = java.io.File(target.path + ".part")
+            tmp.outputStream().use { out -> res.body.byteStream().copyTo(out) }
+            tmp.renameTo(target)
+        }
+    }
+
 
     /** Fichier du serveur (image d’un document…), avec la session. */
     suspend fun bytes(path: String): ByteArray = withContext(Dispatchers.IO) {

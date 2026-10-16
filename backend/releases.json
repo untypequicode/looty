@@ -4,6 +4,28 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.16.0",
+      "date": "2026-10-16",
+      "title": { "en": "Drive and projects in the app", "fr": "Drive et projets dans l’application" },
+      "notes": {
+        "en": [
+          "Drive (in More): browse folders, search, upload files from your phone and choose how long they’re kept, open them, create a download link, rename, move, keep longer or delete. Large files are sent without filling the phone’s memory.",
+          "Projects (in More): create a website, LaTeX or notebook project from a template, see its files, add files and folders, upload, rename or delete them, and download the whole project as a ZIP.",
+          "LaTeX: compile on the server, see errors and warnings with the log, and open the PDF.",
+          "Websites: open the preview, choose an address and publish or unpublish the site.",
+          "Editing a project’s text still opens the live editor; you can read any text file in the app."
+        ],
+        "fr": [
+          "Drive (dans Plus) : parcourez les dossiers, cherchez, envoyez des fichiers du téléphone en choisissant combien de temps les garder, ouvrez-les, créez un lien de téléchargement, renommez, déplacez, prolongez ou supprimez. Les gros fichiers partent sans remplir la mémoire du téléphone.",
+          "Projets (dans Plus) : créez un site web, un projet LaTeX ou un notebook à partir d’un modèle, voyez ses fichiers, ajoutez fichiers et dossiers, envoyez, renommez ou supprimez-les, et téléchargez tout le projet en ZIP.",
+          "LaTeX : compilez sur le serveur, voyez les erreurs et avertissements avec le journal, et ouvrez le PDF.",
+          "Sites : ouvrez l’aperçu, choisissez une adresse et publiez ou dépubliez le site.",
+          "Modifier le texte d’un projet ouvre toujours l’éditeur en direct ; tout fichier texte se lit dans l’application."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.15.0",
       "date": "2026-10-16",
       "title": { "en": "Documents: organise, share, discuss", "fr": "Documents : organiser, partager, discuter" },
