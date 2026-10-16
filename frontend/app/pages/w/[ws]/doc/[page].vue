@@ -156,6 +156,8 @@ const commentCss = computed(() => commentThreads.value
 
 // --- Historique ---
 const historyOpen = ref(false)
+// ?history=1 (lien de l’application Android) : ouvre l’historique des versions.
+watch(() => route.query.history, (h) => { if (h) historyOpen.value = true }, { immediate: true })
 
 // --- Interface ---
 const fullWidth = useLocalStorage<boolean>('looty.doc.fullWidth', false)

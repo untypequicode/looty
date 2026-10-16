@@ -180,29 +180,51 @@ object ReaderParser {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReaderScreen(state: AppState, pageId: String, onBack: () -> Unit) {
+fun ReaderScreen(state: AppState, pageId: String, onBack: () -> Unit, onRoute: (String) -> Unit) {
     val ctx = LocalContext.current
     val ws = state.ws ?: return
     var page by remember(pageId) { mutableStateOf<Page?>(null) }
     var failed by remember(pageId) { mutableStateOf(false) }
+    var actions by remember { mutableStateOf(false) }
     LaunchedEffect(pageId, ws) {
         failed = false
         page = state.pageDoc(pageId)
-        if (page == null) failed = true
+        if (page == null) failed = true else state.recordView(pageId)
     }
+    // La liste fait foi pour ce qui change ici (titre, icône, favori, emplacement).
+    val listed = state.pages.data?.firstOrNull { it.id == pageId }
+    val p = page?.let { d -> listed?.let { l -> d.copy(title = l.title, icon = l.icon, is_favorite = l.is_favorite, parent_id = l.parent_id, share_token = l.share_token, is_public = l.is_public) } ?: d }
+    val canEdit = p?.can_edit == true || listed?.can_edit == true
+    val comments = state.docCommentCounts[pageId] ?: 0
     val colors = ReaderColors(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.surfaceContainerHighest, Color(0x66FFD54F))
     val blocks = remember(page?.content, colors.link) {
         page?.content?.takeIf { it.isNotBlank() }?.let { html -> ReaderParser.parse(html, colors) { href -> openLink(ctx, state, href) } }.orEmpty()
     }
+    // Chemin (pages parentes) et sous-pages, d'après la liste des documents.
+    val all = state.pages.data.orEmpty()
+    val path = remember(all, p?.parent_id) {
+        buildList { var cur = p?.parent_id; var guard = 0; while (cur != null && guard++ < 20) { val x = all.firstOrNull { it.id == cur } ?: break; add(0, x); cur = x.parent_id } }
+    }
+    val children = remember(all, pageId) { all.filter { it.parent_id == pageId }.sortedBy { it.position } }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(page?.let { listOfNotNull(it.icon, it.title.ifBlank { null }).joinToString(" ") }.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium) },
+                title = {},
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
-                    IconButton(onClick = { openWeb(ctx, Paths.doc(ws, pageId)) }) {
-                        Icon(if (page?.can_edit == true) Icons.Outlined.Edit else Icons.Outlined.OpenInNew, stringResource(if (page?.can_edit == true) R.string.edit else R.string.open_in_browser_view))
+                    if (p != null) {
+                        IconButton(onClick = { state.toggleFavorite(listed ?: p) }) {
+                            Icon(if (p.is_favorite == true) Icons.Filled.Star else Icons.Outlined.StarOutline, stringResource(if (p.is_favorite == true) R.string.remove_favorite else R.string.add_favorite),
+                                tint = if (p.is_favorite == true) Color(0xFFEDA100) else LocalContentColor.current)
+                        }
+                        IconButton(onClick = { onRoute("doc/$pageId/comments") }) {
+                            BadgedBox(badge = { if (comments > 0) Badge { Text("$comments") } }) { Icon(Icons.Outlined.ChatBubbleOutline, stringResource(R.string.comments)) }
+                        }
                     }
+                    IconButton(onClick = { openWeb(ctx, Paths.doc(ws, pageId)) }) {
+                        Icon(if (canEdit) Icons.Outlined.Edit else Icons.Outlined.OpenInNew, stringResource(if (canEdit) R.string.edit else R.string.open_in_browser_view))
+                    }
+                    if (p != null) IconButton(onClick = { actions = true }) { Icon(Icons.Outlined.MoreVert, null) }
                 },
             )
         },
@@ -214,20 +236,46 @@ fun ReaderScreen(state: AppState, pageId: String, onBack: () -> Unit) {
                     TextButton(onClick = { openWeb(ctx, Paths.doc(ws, pageId)) }) { Text(stringResource(R.string.edit_in_editor)) }
                 }
             }
-            page == null -> Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicatorCompat() }
+            p == null -> Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicatorCompat() }
             else -> SelectionContainer {
                 LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item { Text(page!!.title.ifBlank { stringResource(R.string.untitled) }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold) }
+                    if (path.isNotEmpty()) item {
+                        Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                            path.forEachIndexed { i, a ->
+                                if (i > 0) Text(" › ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(listOfNotNull(a.icon, a.title.ifBlank { stringResource(R.string.untitled) }).joinToString(" "), style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary, maxLines = 1, modifier = Modifier.clickable { onRoute("doc/${a.id}") })
+                            }
+                        }
+                    }
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!p.icon.isNullOrBlank()) { Text(p.icon, style = MaterialTheme.typography.headlineMedium); Spacer(Modifier.width(10.dp)) }
+                            Text(p.title.ifBlank { stringResource(R.string.untitled) }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                     if (blocks.isEmpty()) item {
                         Text(stringResource(R.string.reader_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick = { openWeb(ctx, Paths.doc(ws, pageId)) }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.edit_in_editor)) }
+                        if (canEdit) TextButton(onClick = { openWeb(ctx, Paths.doc(ws, pageId)) }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.edit_in_editor)) }
                     }
                     items(blocks) { BlockView(state, it, pageId) }
+                    if (children.isNotEmpty()) {
+                        item { HorizontalDivider(Modifier.padding(top = 16.dp)); Text(stringResource(R.string.subpages_title), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp)) }
+                        items(children, key = { it.id }) { c ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onRoute("doc/${c.id}") }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                DocIcon(c); Spacer(Modifier.width(10.dp))
+                                Text(c.title.ifBlank { stringResource(R.string.untitled) }, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                     item { Spacer(Modifier.height(48.dp)) }
                 }
             }
         }
     }
+    if (actions && p != null) DocActionsSheet(state, listed ?: p, onDismiss = { actions = false }, onOpen = null,
+        onComments = { onRoute("doc/$pageId/comments") }, onHistory = { onRoute("doc/$pageId/history") }, onDeleted = { onBack() })
 }
 
 /** Lien du document : page de Looty (écran natif si possible), sinon le navigateur. */

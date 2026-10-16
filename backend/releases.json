@@ -4,6 +4,32 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.15.0",
+      "date": "2026-10-16",
+      "title": { "en": "Documents: organise, share, discuss", "fr": "Documents : organiser, partager, discuter" },
+      "notes": {
+        "en": [
+          "Long-press a document (or tap ⋮) to rename it, change its icon, add it to favourites, move it under another page, add a subpage or put it in the trash (with Undo).",
+          "A “Recent” section in Documents, and the number of open comments next to each document.",
+          "Comments on documents: read the threads with the quoted passage, reply, resolve, edit or delete your own.",
+          "Share a document with a public link (copy it or send it), and for admins, give a person more or less access to a page.",
+          "Version history: see who edited and when, name a version, and open the editor to see or restore an old one.",
+          "When reading a document: its parent pages above the title and its subpages below.",
+          "Editing a document still opens the live editor."
+        ],
+        "fr": [
+          "Appui long sur un document (ou ⋮) pour le renommer, changer son icône, l’ajouter aux favoris, le déplacer sous une autre page, ajouter une sous-page ou le mettre à la corbeille (avec Annuler).",
+          "Une section « Récents » dans Documents, et le nombre de commentaires ouverts à côté de chaque document.",
+          "Commentaires des documents : lisez les fils avec le passage cité, répondez, résolvez, modifiez ou supprimez les vôtres.",
+          "Partagez un document par un lien public (à copier ou envoyer) et, pour les admins, donnez à une personne plus ou moins d’accès à une page.",
+          "Historique des versions : qui a modifié et quand, nommer une version, et ouvrir l’éditeur pour voir ou rétablir une ancienne version.",
+          "En lisant un document : ses pages parentes au-dessus du titre et ses sous-pages en dessous.",
+          "Modifier un document ouvre toujours l’éditeur en direct."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.14.0",
       "date": "2026-10-16",
       "title": { "en": "Mail, fully in the app", "fr": "La messagerie, entièrement dans l’application" },
@@ -82,6 +108,7 @@
           "iPhone and iPad (installed app): notifications keep arriving after you used Looty with it open.",
           "A few labels that only existed in French are translated, and unused texts were removed.",
           "Calendar week view: the hours follow your language (1 PM in English, 13 h in French).",
+          "Adding ?history=1 to a document’s address opens its version history (used by the Android app).",
           "Up-to-date foundations: Nuxt 4, Mermaid 12, pdf.js 6, KaTeX 0.19 and the latest server libraries. Expired sign-in sessions are now cleaned up automatically."
         ],
         "fr": [
@@ -90,6 +117,7 @@
           "iPhone et iPad (application installée) : les notifications continuent d’arriver après avoir utilisé Looty ouvert.",
           "Quelques textes qui n’existaient qu’en français sont traduits, et les textes inutilisés ont été retirés.",
           "Vue semaine du calendrier : les heures suivent votre langue (13 h en français, 1 PM en anglais).",
+          "Ajouter ?history=1 à l’adresse d’un document ouvre son historique des versions (utilisé par l’application Android).",
           "Fondations à jour : Nuxt 4, Mermaid 12, pdf.js 6, KaTeX 0.19 et les dernières bibliothèques du serveur. Les sessions de connexion expirées sont désormais nettoyées automatiquement."
         ]
       }
