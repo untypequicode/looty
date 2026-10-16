@@ -800,18 +800,27 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
 
     // -----------------------------------------------------------------------
-    // Mail en lecture seule (G3)
+    // Mail (G3, N2). La boîte de réception passe par la copie du serveur (rapide,
+    // hors ligne) ; les autres dossiers, la recherche et les suivis sont lus en direct.
     // -----------------------------------------------------------------------
 
     var mailAccounts by mutableStateOf(Loadable<List<MailAccount>>()); private set
     var mailAccount by mutableStateOf(prefs.getString("mailAccount", null)); private set
     var mailUnreadOnly by mutableStateOf(false); private set
+    var mailFlaggedOnly by mutableStateOf(false); private set
+    var mailFolder by mutableStateOf("INBOX"); private set
+    var mailSearch by mutableStateOf(""); private set
+    var mailFolders by mutableStateOf<MailFolders?>(null); private set
     var mailList by mutableStateOf(Loadable<List<MailSummary>>()); private set
     var mailHasMore by mutableStateOf(false); private set
     var mailLoadingMore by mutableStateOf(false); private set
+    /** Dernier message ouvert (réponse, transfert). */
+    var openMail by mutableStateOf<MailMessage?>(null)
 
     val currentMailAccount: MailAccount? get() = mailAccounts.data?.let { l -> l.firstOrNull { it.id == mailAccount } ?: l.firstOrNull() }
     val mailUnread: Int get() = mailAccounts.data?.sumOf { it.unread } ?: 0
+    val currentFolder: MailFolder? get() = mailFolders?.folders?.firstOrNull { it.name == mailFolder }
+    private val mailLive: Boolean get() = !mailFolder.equals("INBOX", true) || mailSearch.isNotBlank() || mailFlaggedOnly
 
     fun loadMailAccounts() {
         load({ mailAccounts }, { mailAccounts = it }, "mail-accounts") { api.get<List<MailAccount>>("/api/mail/accounts") }
@@ -820,19 +829,41 @@ class AppState(app: Application) : AndroidViewModel(app) {
     fun selectMailAccount(id: String) {
         mailAccount = id
         prefs.edit().putString("mailAccount", id).apply()
-        loadMail()
+        mailFolder = "INBOX"; mailSearch = ""; mailFolders = null
+        loadMail(); loadMailFolders()
     }
 
-    fun setMailFilter(unread: Boolean) { mailUnreadOnly = unread; loadMail() }
+    fun setMailFilter(unread: Boolean, flagged: Boolean = false) { mailUnreadOnly = unread; mailFlaggedOnly = flagged; loadMail() }
+    fun selectMailFolder(name: String) { mailFolder = name; mailSearch = ""; mailFlaggedOnly = false; mailUnreadOnly = false; loadMail() }
+    fun searchMail(q: String) { mailSearch = q.trim(); loadMail() }
+
+    private fun folderQuery(acc: String, before: Long?): String {
+        val p = mutableListOf("name=" + java.net.URLEncoder.encode(mailFolder, "UTF-8"))
+        if (before != null) p += "before=$before"
+        if (mailSearch.isNotBlank()) p += "q=" + java.net.URLEncoder.encode(mailSearch, "UTF-8")
+        if (mailUnreadOnly) p += "unread=true"
+        if (mailFlaggedOnly) p += "flagged=true"
+        return "/api/mail/accounts/$acc/folder?" + p.joinToString("&")
+    }
 
     fun loadMail() {
         val acc = currentMailAccount?.id ?: return
-        load({ mailList }, { mailList = it }, "mail-${acc}-${mailUnreadOnly}") {
-            val page = api.get<MailPage>("/api/mail/accounts/$acc/messages${if (mailUnreadOnly) "?unread=true" else ""}")
+        val live = mailLive
+        load({ mailList }, { mailList = it }, if (live) "mailf-$acc-$mailFolder-$mailUnreadOnly-$mailFlaggedOnly-$mailSearch" else "mail-${acc}-${mailUnreadOnly}") {
+            val page = if (live) api.get<MailPage>(folderQuery(acc, null)) else api.get<MailPage>("/api/mail/accounts/$acc/messages${if (mailUnreadOnly) "?unread=true" else ""}")
             mailHasMore = page.has_more
-            page.messages
+            if (live) page.messages else page.messages.map { it.copy(flagged = it.uid in starredInbox) }
+        }
+        // La copie de la boîte de réception ne connaît pas les suivis : ils sont demandés à part.
+        if (!live) viewModelScope.launch {
+            val starred = runCatching { api.get<MailPage>("/api/mail/accounts/$acc/folder?name=INBOX&flagged=true") }.getOrNull()?.messages?.map { it.uid }?.toSet() ?: return@launch
+            starredInbox = starred
         }
     }
+
+    /** Messages suivis de la boîte de réception (la copie du serveur ne les connaît pas). */
+    private var starredInbox: Set<Long> = emptySet()
+        set(v) { field = v; if (!mailLive) mailList = mailList.copy(data = mailList.data?.map { it.copy(flagged = it.uid in v) }) }
 
     fun loadMoreMail() {
         val acc = currentMailAccount?.id ?: return
@@ -840,12 +871,20 @@ class AppState(app: Application) : AndroidViewModel(app) {
         if (mailLoadingMore) return
         mailLoadingMore = true
         viewModelScope.launch {
-            runCatching { api.get<MailPage>("/api/mail/accounts/$acc/messages?before=$last${if (mailUnreadOnly) "&unread=true" else ""}") }.onSuccess { p ->
-                mailList = mailList.copy(data = mailList.data.orEmpty() + p.messages)
+            runCatching {
+                if (mailLive) api.get<MailPage>(folderQuery(acc, last))
+                else api.get<MailPage>("/api/mail/accounts/$acc/messages?before=$last${if (mailUnreadOnly) "&unread=true" else ""}")
+            }.onSuccess { p ->
+                mailList = mailList.copy(data = mailList.data.orEmpty() + if (mailLive) p.messages else p.messages.map { it.copy(flagged = it.uid in starredInbox) })
                 mailHasMore = p.has_more
             }
             mailLoadingMore = false
         }
+    }
+
+    fun loadMailFolders() {
+        val acc = currentMailAccount?.id ?: return
+        fetchCached("mail-folders-$acc", { f: MailFolders -> if (currentMailAccount?.id == acc) mailFolders = f }) { api.get<MailFolders>("/api/mail/accounts/$acc/folders") }
     }
 
     /** Relève la boîte maintenant (serveur IMAP), puis recharge. */
@@ -854,35 +893,143 @@ class AppState(app: Application) : AndroidViewModel(app) {
         mailList = mailList.copy(loading = true)
         viewModelScope.launch {
             runCatching { api.send("POST", "/api/mail/accounts/$acc/refresh") }
-            loadMailAccounts(); loadMail()
+            loadMailAccounts(); loadMail(); loadMailFolders()
         }
     }
 
-    private fun localSeen(uid: Long, seen: Boolean) {
+    private fun isInbox(folder: String) = folder.equals("INBOX", true)
+
+    private fun localSeen(uid: Long, seen: Boolean, folder: String = mailFolder) {
+        if (folder != mailFolder) return
         val was = mailList.data?.firstOrNull { it.uid == uid }?.seen ?: return
         mailList = mailList.copy(data = mailList.data?.map { if (it.uid == uid) it.copy(seen = seen) else it })
-        if (was != seen) mailAccounts = mailAccounts.copy(data = mailAccounts.data?.map { if (it.id == currentMailAccount?.id) it.copy(unread = (it.unread + if (seen) -1 else 1).coerceAtLeast(0)) else it })
+        if (was != seen && isInbox(folder)) mailAccounts = mailAccounts.copy(data = mailAccounts.data?.map { if (it.id == currentMailAccount?.id) it.copy(unread = (it.unread + if (seen) -1 else 1).coerceAtLeast(0)) else it })
+        if (was != seen) mailFolders = mailFolders?.let { f -> f.copy(folders = f.folders.map { if (it.name == folder) it.copy(unread = (it.unread + if (seen) -1 else 1).coerceAtLeast(0)) else it }) }
     }
 
-    fun setSeen(uid: Long, seen: Boolean) {
+    fun setSeen(uid: Long, seen: Boolean, folder: String = mailFolder) {
         val acc = currentMailAccount?.id ?: return
-        localSeen(uid, seen)
+        localSeen(uid, seen, folder)
         viewModelScope.launch {
-            runCatching { write("PUT", "/api/mail/accounts/$acc/messages/$uid/seen", buildJsonObject { put("seen", seen) }, "mail") }.onFailure { localSeen(uid, !seen) }
+            runCatching {
+                if (isInbox(folder)) write("PUT", "/api/mail/accounts/$acc/messages/$uid/seen", buildJsonObject { put("seen", seen) }, "mail")
+                else api.send("POST", "/api/mail/accounts/$acc/folder/flags", buildJsonObject { put("name", folder); putJsonArray("uids") { add(uid) }; put("seen", seen) })
+            }.onFailure { localSeen(uid, !seen, folder); fail(it) }
         }
+    }
+
+    fun setFlagged(uid: Long, flagged: Boolean, folder: String = mailFolder) {
+        val acc = currentMailAccount?.id ?: return
+        fun local(on: Boolean) {
+            if (isInbox(folder)) starredInbox = if (on) starredInbox + uid else starredInbox - uid
+            if (folder == mailFolder) mailList = mailList.copy(data = mailList.data?.map { if (it.uid == uid) it.copy(flagged = on) else it })
+            openMail = openMail?.let { if (it.uid == uid && it.folder == folder) it.copy(flagged = on) else it }
+        }
+        local(flagged)
+        viewModelScope.launch {
+            runCatching { api.send("POST", "/api/mail/accounts/$acc/folder/flags", buildJsonObject { put("name", folder); putJsonArray("uids") { add(uid) }; put("flagged", flagged) }) }
+                .onFailure { local(!flagged); fail(it) }
+        }
+    }
+
+    private fun removeLocal(uid: Long, folder: String) {
+        if (folder == mailFolder) mailList = mailList.copy(data = mailList.data?.filter { it.uid != uid })
+    }
+
+    /** Déplace un message ; la liste et les compteurs sont rechargés ensuite. */
+    fun moveMail(uid: Long, from: String, to: String) {
+        val acc = currentMailAccount?.id ?: return
+        removeLocal(uid, from)
+        viewModelScope.launch {
+            runCatching { api.send("POST", "/api/mail/accounts/$acc/folder/move", buildJsonObject { put("name", from); putJsonArray("uids") { add(uid) }; put("to", to) }) }.onFailure(::fail)
+            loadMail(); loadMailFolders(); loadMailAccounts()
+        }
+    }
+
+    /** Vers la corbeille (ou définitivement depuis la corbeille). Renvoie true si c'est définitif. */
+    suspend fun deleteMail(uid: Long, folder: String): Boolean? {
+        val acc = currentMailAccount?.id ?: return null
+        removeLocal(uid, folder)
+        val r = runCatching { api.post<DeleteResult>("/api/mail/accounts/$acc/folder/delete", buildJsonObject { put("name", folder); putJsonArray("uids") { add(uid) } }) }.onFailure(::fail).getOrNull()
+        loadMail(); loadMailFolders(); loadMailAccounts()
+        return r?.permanent
     }
 
     fun readAllMail() {
         val acc = currentMailAccount?.id ?: return
-        viewModelScope.launch { runCatching { api.send("POST", "/api/mail/accounts/$acc/read-all") }; loadMailAccounts(); loadMail() }
+        viewModelScope.launch { runCatching { api.send("POST", "/api/mail/accounts/$acc/read-all") }; loadMailAccounts(); loadMail(); loadMailFolders() }
     }
 
-    /** Lecture d'un message (marqué lu par le serveur). */
-    suspend fun readMail(uid: Long): MailMessage? {
+    /** Lecture d'un message (marqué lu par le serveur) ; hors ligne, la copie de la boîte de réception. */
+    suspend fun readMail(uid: Long, folder: String = mailFolder): MailMessage? {
         val acc = currentMailAccount?.id ?: return null
-        localSeen(uid, true)
-        return runCatching { api.get<MailMessage>("/api/mail/accounts/$acc/messages/$uid") }.getOrNull()
+        localSeen(uid, true, folder)
+        val m = runCatching { api.get<MailMessage>("/api/mail/accounts/$acc/folder/message?name=${java.net.URLEncoder.encode(folder, "UTF-8")}&uid=$uid") }.getOrNull()
+            ?: if (isInbox(folder)) runCatching { api.get<MailMessage>("/api/mail/accounts/$acc/messages/$uid") }.getOrNull() else null
+        if (m != null) openMail = m.copy(folder = folder)
+        return openMail?.takeIf { m != null }
     }
+
+    /** Pièce jointe d'un message, enregistrée dans le cache de l'application pour l'ouvrir. */
+    suspend fun mailAttachmentFile(m: MailMessage, a: MailAttachment): java.io.File? = runCatching {
+        val acc = currentMailAccount?.id ?: throw ApiException(0, "no_account")
+        val dir = java.io.File(getApplication<Application>().cacheDir, "attachments/mail-$acc-${m.folder.hashCode()}-${m.uid}-${a.index}")
+        val f = java.io.File(dir, a.name.replace(Regex("[/\\\\:*?\"<>|]"), "_").ifBlank { "attachment" })
+        if (!f.exists()) {
+            val bytes = api.bytes("/api/mail/accounts/$acc/folder/attachment?name=${java.net.URLEncoder.encode(m.folder, "UTF-8")}&uid=${m.uid}&index=${a.index}")
+            withContext(Dispatchers.IO) { dir.mkdirs(); f.writeBytes(bytes) }
+        }
+        f
+    }.onFailure(::fail).getOrNull()
+
+    suspend fun mailContacts(q: String): List<Contact> =
+        runCatching { api.get<List<Contact>>("/api/mail/contacts?q=" + java.net.URLEncoder.encode(q, "UTF-8")) }.getOrDefault(emptyList())
+
+    /** Fichier envoyé sur Looty (pièce jointe d'un message). */
+    suspend fun uploadFile(f: SharedFile): Result<Uploaded> = runCatching { api.json.decodeFromString<Uploaded>(api.upload("/api/upload", f.name, f.mime, f.bytes)) }
+
+    /** Envoi ; renvoie un avertissement éventuel (copie non enregistrée dans « Envoyés »). */
+    suspend fun sendMail(accountId: String, body: JsonObject): Result<SendResult> =
+        runCatching { api.post<SendResult>("/api/mail/accounts/$accountId/send", body) }.also { if (it.isSuccess) { loadMailFolders(); if (mailLive) loadMail() } }
+
+    // Dossiers
+    suspend fun createMailFolder(label: String, parent: String?): String? {
+        val acc = currentMailAccount?.id ?: return null
+        return runCatching { api.post<FolderCreated>("/api/mail/accounts/$acc/folders", buildJsonObject { put("label", label.trim()); parent?.let { put("parent", it) } }) }
+            .onFailure(::fail).getOrNull()?.name.also { loadMailFolders() }
+    }
+
+    suspend fun renameMailFolder(name: String, label: String) {
+        val acc = currentMailAccount?.id ?: return
+        val r = runCatching { api.post<FolderCreated>("/api/mail/accounts/$acc/folders/rename", buildJsonObject { put("name", name); put("label", label.trim()) }) }.onFailure(::fail).getOrNull()
+        if (r != null && mailFolder == name) selectMailFolder(r.name)
+        loadMailFolders()
+    }
+
+    suspend fun deleteMailFolder(name: String) {
+        val acc = currentMailAccount?.id ?: return
+        val ok = runCatching { api.send("POST", "/api/mail/accounts/$acc/folders/delete", buildJsonObject { put("name", name) }) }.onFailure(::fail).isSuccess
+        if (ok && (mailFolder == name || mailFolder.startsWith(name + (mailFolders?.delimiter ?: "/")))) selectMailFolder("INBOX")
+        loadMailFolders()
+    }
+
+    suspend fun emptyMailFolder(name: String) {
+        val acc = currentMailAccount?.id ?: return
+        runCatching { api.send("POST", "/api/mail/accounts/$acc/folders/empty", buildJsonObject { put("name", name) }) }.onFailure(::fail)
+        loadMailFolders(); if (mailFolder == name) loadMail()
+    }
+
+    // Comptes : l'erreur est renvoyée (affichée dans le formulaire).
+    suspend fun createMailAccount(body: JsonObject): Result<MailAccount> =
+        runCatching { api.post<MailAccount>("/api/mail/accounts", body) }.onSuccess { selectMailAccount(it.id); loadMailAccounts() }
+
+    suspend fun updateMailAccount(id: String, body: JsonObject): Result<Unit> =
+        runCatching { api.send("PUT", "/api/mail/accounts/$id", body) }.onSuccess { loadMailAccounts() }
+
+    suspend fun deleteMailAccount(id: String): Boolean =
+        runCatching { api.send("DELETE", "/api/mail/accounts/$id") }.onFailure(::fail).isSuccess.also {
+            if (it) { if (mailAccount == id) { mailAccount = null; prefs.edit().remove("mailAccount").apply(); mailList = Loadable(); mailFolders = null }; loadMailAccounts() }
+        }
 
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {

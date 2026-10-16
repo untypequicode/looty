@@ -3,6 +3,30 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "android",
+      "version": "0.14.0",
+      "date": "2026-10-16",
+      "title": { "en": "Mail, fully in the app", "fr": "La messagerie, entièrement dans l’application" },
+      "notes": {
+        "en": [
+          "Write, reply, reply to all and forward messages, with formatting, attachments from your phone, your signature and suggested recipients.",
+          "All your folders: switch between them, create, rename and delete folders, and empty the trash or spam.",
+          "Search messages, show only unread or starred ones, star a message, move it to another folder or delete it (swipe left).",
+          "Open a message’s attachments with the right app.",
+          "Add and edit mailboxes in the app, including the sending server. Errors (wrong password, server unreachable…) are explained.",
+          "A very heavy message can no longer close the app."
+        ],
+        "fr": [
+          "Écrivez, répondez, répondez à tous et transférez des messages, avec mise en forme, pièces jointes du téléphone, votre signature et des destinataires suggérés.",
+          "Tous vos dossiers : passez de l’un à l’autre, créez, renommez et supprimez des dossiers, videz la corbeille ou les indésirables.",
+          "Recherchez dans les messages, affichez seulement les non lus ou les suivis, suivez un message, déplacez-le ou supprimez-le (glisser vers la gauche).",
+          "Ouvrez les pièces jointes d’un message avec la bonne application.",
+          "Ajoutez et modifiez vos boîtes mail dans l’application, y compris le serveur d’envoi. Les erreurs (mot de passe refusé, serveur injoignable…) sont expliquées.",
+          "Un message très lourd ne peut plus fermer l’application."
+        ]
+      }
+    },
+    {
       "platform": "desktop",
       "version": "0.7.2",
       "date": "2026-10-15",
