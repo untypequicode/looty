@@ -71,13 +71,18 @@ class Api(private val ctx: Context) {
         }
     }
 
-    /** Envoie un fichier (champ « file », comme l'interface web). */
+    /** Envoie un fichier (champ « file », comme l'interface web) ; renvoie la réponse du serveur. */
     suspend fun upload(path: String, filename: String, mime: String, bytes: ByteArray) = withContext(Dispatchers.IO) {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", filename, bytes.toRequestBody(mime.toMediaType()))
             .build()
         client.newCall(Request.Builder().url(server + path).post(body).build()).execute().use { res ->
-            if (!res.isSuccessful) throw ApiException(res.code, "http_${res.code}")
+            val text = res.body.string()
+            if (!res.isSuccessful) {
+                val code = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+                throw ApiException(res.code, code ?: "http_${res.code}")
+            }
+            text
         }
     }
 

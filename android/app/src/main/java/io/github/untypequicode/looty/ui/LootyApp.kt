@@ -58,11 +58,10 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
         }
     }
     // Écriture refusée ou impossible (droits, serveur injoignable) : dite une fois.
-    val errors = mapOf("forbidden" to stringResource(R.string.error_forbidden), "offline" to stringResource(R.string.error_offline), "" to stringResource(R.string.error_generic))
     LaunchedEffect(Unit) {
         snapshotFlow { state.lastError }.filterNotNull().collect { e ->
             state.lastError = null
-            snackbar.showSnackbar(errors[if (e == "http_403" || e == "forbidden") "forbidden" else if (e == "offline") "offline" else ""]!!)
+            snackbar.showSnackbar(errorText(ctx, e))
         }
     }
     val isTab = TABS.any { it.route == route }
@@ -166,8 +165,22 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                 val date = e.arguments?.getString("date")?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now()
                 EventEditor(state, id, date, onDone = { nav.popBackStack() })
             }
-            composable("mail") { MailScreen(state, onBack = { nav.popBackStack() }, onMessage = { nav.navigate("mail/$it") }) }
-            composable("mail/{uid}") { e -> MessageScreen(state, e.arguments?.getString("uid")?.toLongOrNull() ?: 0L, onBack = { nav.popBackStack() }) }
+            composable("mail") {
+                MailScreen(state, onBack = { nav.popBackStack() },
+                    onMessage = { uid, folder -> nav.navigate("mail/$uid?folder=" + android.net.Uri.encode(folder)) },
+                    onCompose = { nav.navigate("mailcompose?mode=new") },
+                    onAccounts = { id -> if (id == null) nav.navigate("mailaccounts") else nav.navigate("mailaccount?id=$id") })
+            }
+            composable("mail/{uid}?folder={folder}") { e ->
+                MessageScreen(state, e.arguments?.getString("uid")?.toLongOrNull() ?: 0L, e.arguments?.getString("folder") ?: "INBOX", onBack = { nav.popBackStack() },
+                    onCompose = { mode -> nav.navigate("mailcompose?mode=$mode") })
+            }
+            composable("mailcompose?mode={mode}&to={to}") { e ->
+                ComposeScreen(state, e.arguments?.getString("mode") ?: "new", e.arguments?.getString("to").orEmpty(), onClose = { nav.popBackStack() },
+                    onSetupSending = { id -> nav.navigate("mailaccount?id=$id") })
+            }
+            composable("mailaccounts") { MailAccountsScreen(state, onBack = { nav.popBackStack() }, onEdit = { id -> nav.navigate("mailaccount?id=$id") }) }
+            composable("mailaccount?id={id}") { e -> MailAccountScreen(state, e.arguments?.getString("id").orEmpty(), onDone = { nav.popBackStack() }) }
             composable("task/{id}") { e -> TaskScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onTask = { nav.navigate("task/$it") }) }
         }
     }

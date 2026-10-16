@@ -97,23 +97,47 @@ import kotlinx.serialization.json.JsonObject
     val complex_recurrence: Boolean = false,
 )
 
-// --- Mail (lecture seule) ---
-@Serializable data class MailAccount(val id: String, val label: String, val email: String = "", val webmail_url: String? = null, val unread: Int = 0, val last_error: String? = null, val last_check_at: String? = null)
-@Serializable data class MailSummary(val uid: Long, val from_name: String = "", val from_addr: String = "", val subject: String = "", val snippet: String = "", val sent_at: String? = null, val seen: Boolean = false, val has_attachments: Boolean = false)
+// --- Mail ---
+@Serializable data class MailAccount(
+    val id: String, val label: String, val email: String = "", val webmail_url: String? = null, val unread: Int = 0,
+    val last_error: String? = null, val last_check_at: String? = null,
+    val imap_host: String = "", val imap_port: Int = 993, val security: String = "tls", val username: String = "", val notify: Boolean = true,
+    val display_name: String? = null, val signature: String? = null,
+    val smtp_host: String? = null, val smtp_port: Int? = null, val smtp_security: String? = null, val smtp_username: String? = null,
+    /** Envoi configuré (SMTP). */
+    val can_send: Boolean = false,
+)
+/** Message d'une liste ; `to`, `flagged`, `answered` seulement pour les dossiers lus en direct. */
+@Serializable data class MailSummary(
+    val uid: Long, val from_name: String = "", val from_addr: String = "", val to: List<String> = emptyList(), val subject: String = "", val snippet: String = "",
+    val sent_at: String? = null, val seen: Boolean = false, val flagged: Boolean = false, val answered: Boolean = false, val has_attachments: Boolean = false,
+)
 @Serializable data class MailPage(val messages: List<MailSummary> = emptyList(), val has_more: Boolean = false)
+@Serializable data class MailFolder(val name: String, val label: String = "", val parent: String? = null, val role: String? = null, val selectable: Boolean = true, val total: Int = 0, val unread: Int = 0)
+@Serializable data class MailFolders(val delimiter: String = "/", val folders: List<MailFolder> = emptyList())
 @Serializable data class MailAddress(val name: String? = null, val address: String? = null)
-@Serializable data class MailAttachment(val name: String = "", val size: Long = 0, val type: String? = null)
+@Serializable data class MailAttachment(val index: Int = -1, val name: String = "", val size: Long = 0, val type: String? = null)
 @Serializable data class MailMessage(
     val uid: Long,
+    val folder: String = "INBOX",
     val subject: String? = null,
     val from: List<MailAddress> = emptyList(),
     val to: List<MailAddress> = emptyList(),
     val cc: List<MailAddress> = emptyList(),
+    val reply_to: List<MailAddress> = emptyList(),
     val date: String? = null,
+    val message_id: String? = null,
+    val references: List<String> = emptyList(),
+    val flagged: Boolean = false,
     val html: String? = null,
     val text: String? = null,
     val attachments: List<MailAttachment> = emptyList(),
 )
+@Serializable data class Contact(val name: String? = null, val address: String)
+@Serializable data class Uploaded(val url: String, val name: String = "", val mime: String? = null, val size: Long = 0)
+@Serializable data class SendResult(val warning: String? = null)
+@Serializable data class DeleteResult(val permanent: Boolean = false)
+@Serializable data class FolderCreated(val name: String = "")
 @Serializable data class Created(val id: String)
 
 // --- Tableaux et tâches (G2) ---

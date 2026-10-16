@@ -459,7 +459,7 @@ private fun fileIcon(mime: String?) = when {
 }
 
 /** Ouvre un fichier téléchargé avec l'application choisie par le téléphone. */
-private fun openFile(ctx: android.content.Context, file: java.io.File, mime: String?) {
+fun openFile(ctx: android.content.Context, file: java.io.File, mime: String?) {
     val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", file)
     val type = mime?.takeIf { it.isNotBlank() } ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream"
     val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)

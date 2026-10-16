@@ -131,3 +131,45 @@ fun NoNavScrim() {
 /** Lignes de liste dans une feuille modale : fond de la feuille, pas celui de l'écran. */
 @Composable
 fun sheetItemColors() = ListItemDefaults.colors(containerColor = Color.Transparent)
+
+/** Code d'erreur du serveur → phrase pour l'utilisateur (les codes inconnus donnent un message général). */
+fun errorText(ctx: Context, code: String?): String {
+    val c = code.orEmpty().substringBefore(':').trim()
+    val res = when (c) {
+        "forbidden", "http_403" -> R.string.error_forbidden
+        "offline" -> R.string.error_offline
+        "mail_unreachable" -> R.string.err_mail_unreachable
+        "mail_private_address" -> R.string.err_mail_private_address
+        "mail_tls_failed" -> R.string.err_mail_tls_failed
+        "mail_starttls_failed" -> R.string.err_mail_starttls_failed
+        "mail_auth_failed" -> R.string.err_mail_auth_failed
+        "mail_timeout" -> R.string.err_mail_timeout
+        "mail_imap_error" -> R.string.err_mail_imap_error
+        "mail_secret_unreadable" -> R.string.err_mail_secret_unreadable
+        "mail_invalid_host" -> R.string.err_mail_invalid_host
+        "mail_invalid_webmail" -> R.string.err_mail_invalid_webmail
+        "mail_too_many" -> R.string.err_mail_too_many
+        "mail_unreadable" -> R.string.err_mail_unreadable
+        "mail_smtp_auth_failed" -> R.string.err_mail_smtp_auth_failed
+        "mail_smtp_unreachable" -> R.string.err_mail_smtp_unreachable
+        "mail_smtp_error" -> R.string.err_mail_smtp_error
+        "mail_no_smtp" -> R.string.err_mail_no_smtp
+        "mail_no_recipient" -> R.string.err_mail_no_recipient
+        "mail_too_many_recipients" -> R.string.err_mail_too_many_recipients
+        "mail_invalid_address" -> R.string.err_mail_invalid_address
+        "mail_invalid_from" -> R.string.err_mail_invalid_from
+        "mail_too_large" -> R.string.err_mail_too_large
+        "mail_invalid_attachment" -> R.string.err_mail_invalid_attachment
+        "mail_invalid_message" -> R.string.err_mail_invalid_message
+        "mail_invalid_folder" -> R.string.err_mail_invalid_folder
+        "mail_folder_failed" -> R.string.err_mail_folder_failed
+        "mail_move_failed" -> R.string.err_mail_move_failed
+        else -> R.string.error_generic
+    }
+    val detail = code.orEmpty().substringAfter(':', "").trim()
+    return ctx.getString(res) + if (c == "mail_invalid_address" && detail.isNotEmpty()) " : $detail" else ""
+}
+
+/** Message d'erreur d'une exception (code du serveur, ou serveur injoignable). */
+fun errorText(ctx: Context, e: Throwable?): String =
+    errorText(ctx, (e as? io.github.untypequicode.looty.api.ApiException)?.code ?: "offline")

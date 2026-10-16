@@ -201,11 +201,10 @@ fun rememberDescEditor(key: String, html: String?, onSave: (String?) -> Unit): D
 /** Description d'une tâche, modifiable sur place, bloc par bloc. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun DescriptionEditor(state: AppState, st: DescEditorState, modifier: Modifier = Modifier) {
+fun DescriptionEditor(state: AppState, st: DescEditorState, modifier: Modifier = Modifier, placeholder: String = stringResource(R.string.description_placeholder)) {
     val scheme = MaterialTheme.colorScheme
     val markup = remember(scheme) { RichDoc.Markup(scheme.outline, scheme.primary, scheme.surfaceContainerHighest) }
     val body = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface)
-    val placeholder = stringResource(R.string.description_placeholder)
     var rawMenu by remember { mutableStateOf<Long?>(null) }
 
     // Clavier fermé (retour) : fin de l'édition, la barre de mise en forme disparaît.
