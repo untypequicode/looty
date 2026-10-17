@@ -993,6 +993,77 @@ class AppState(app: Application) : AndroidViewModel(app) {
     suspend fun moodleOpen(url: String?): String? = runCatching { api.get<OpenUrl>(moodle("/open") + (url?.let { "?url=${enc(it)}" } ?: "")).url }.onFailure(::fail).getOrNull()
 
     // -----------------------------------------------------------------------
+    // Réglages (N6)
+    // -----------------------------------------------------------------------
+
+    /** Rôle dans l'espace : owner, admin, member, viewer, guest. */
+    val wsRole: String get() = access?.role ?: "member"
+
+    private suspend fun refreshMe() {
+        runCatching { api.get<Me>("/api/auth/me") }.getOrNull()?.user?.let { u -> (session as? Session.Ready)?.let { session = it.copy(me = u) } }
+    }
+
+    suspend fun saveProfile(name: String, avatarUrl: String?): Boolean =
+        runCatching { api.send("PUT", "/api/user/profile", buildJsonObject { put("name", name.trim()); put("avatar_url", avatarUrl) }) }.onFailure(::fail).isSuccess.also { if (it) { refreshMe(); loadMembers() } }
+
+    suspend fun savePreference(key: String, value: String): Boolean =
+        runCatching { api.send("PUT", "/api/user/preferences", buildJsonObject { put(key, value) }) }.onFailure(::fail).isSuccess
+
+    suspend fun notifPrefs(): NotifPrefs? = runCatching { api.get<NotifPrefs>("/api/user/notifications") }.onFailure(::fail).getOrNull()
+    suspend fun saveNotifPrefs(body: JsonObject): NotifPrefs? = runCatching { api.json.decodeFromString<NotifPrefs>(api.raw("PUT", "/api/user/notifications", body.toString())) }.onFailure(::fail).getOrNull()
+    suspend fun pushDevices(): List<PushDevice>? = runCatching { api.get<List<PushDevice>>("/api/user/push/subscriptions") }.onFailure(::fail).getOrNull()
+    suspend fun removePushDevice(id: String): Boolean = runCatching { api.send("DELETE", "/api/user/push/subscriptions/$id") }.onFailure(::fail).isSuccess
+
+    suspend fun apiTokens(): List<ApiToken>? = runCatching { api.get<List<ApiToken>>("/api/user/tokens") }.onFailure(::fail).getOrNull()
+    suspend fun createApiToken(name: String): String? = runCatching { api.post<NewToken>("/api/user/tokens", buildJsonObject { put("name", name.trim()) }).token }.onFailure(::fail).getOrNull()
+    suspend fun revokeApiToken(id: String): Boolean = runCatching { api.send("DELETE", "/api/user/tokens/$id") }.onFailure(::fail).isSuccess
+    suspend fun identities(): List<Identity>? = runCatching { api.get<List<Identity>>("/api/user/identities") }.onFailure(::fail).getOrNull()
+    suspend fun unlinkIdentity(provider: String): Boolean = runCatching { api.send("DELETE", "/api/user/identities/$provider") }.onFailure(::fail).isSuccess
+
+    // Espace
+    suspend fun renameWorkspace(name: String): Boolean = ws?.let { w ->
+        runCatching { api.send("PUT", "/api/workspaces/$w", buildJsonObject { put("name", name.trim()) }) }.onFailure(::fail).isSuccess.also { if (it) start() }
+    } ?: false
+    suspend fun leaveWorkspace(): Boolean = ws?.let { w -> runCatching { api.send("POST", "/api/workspaces/$w/leave") }.onFailure(::fail).isSuccess } ?: false
+    suspend fun deleteWorkspace(): Boolean = ws?.let { w -> runCatching { api.send("DELETE", "/api/workspaces/$w") }.onFailure(::fail).isSuccess } ?: false
+    suspend fun setGroupTasks(on: Boolean): Boolean = ws?.let { w ->
+        runCatching { api.send("PATCH", "/api/workspaces/$w/access/me", buildJsonObject { put("group_tasks", on) }) }.onFailure(::fail).isSuccess.also { if (it) loadAccess() }
+    } ?: false
+    suspend fun trashRetention(): Int? = trash()?.retention_days
+    suspend fun setTrashRetention(days: Int): Boolean = ws?.let { w -> runCatching { api.send("PUT", "/api/workspaces/$w/trash/settings", buildJsonObject { put("retention_days", days) }) }.onFailure(::fail).isSuccess } ?: false
+    suspend fun driveSettings(): WorkspaceDrive? = ws?.let { w -> runCatching { api.get<WorkspaceDrive>("/api/workspaces/$w/drive") }.getOrNull() }
+    suspend fun setDriveSettings(days: Int, quotaMb: Int): Boolean = ws?.let { w ->
+        runCatching { api.send("PUT", "/api/workspaces/$w/drive/settings", buildJsonObject { put("max_days", days); put("quota_mb", quotaMb) }) }.onFailure(::fail).isSuccess
+    } ?: false
+    suspend fun setMoodleUrl(url: String?): Boolean = ws?.let { w -> runCatching { api.send("PUT", "/api/workspaces/$w/moodle/settings", buildJsonObject { put("url", url) }) }.onFailure(::fail).isSuccess } ?: false
+
+    // Membres
+    suspend fun roles(): List<WsRole>? = ws?.let { w -> runCatching { api.get<List<WsRole>>("/api/workspaces/$w/access/roles") }.onFailure(::fail).getOrNull() }
+    suspend fun setMemberRole(userId: String, roleId: String): Boolean = ws?.let { w ->
+        runCatching { api.send("PUT", "/api/workspaces/$w/members/$userId", buildJsonObject { put("role_id", roleId) }) }.onFailure(::fail).isSuccess.also { if (it) loadMembers() }
+    } ?: false
+    suspend fun removeMember(userId: String): Boolean = ws?.let { w ->
+        runCatching { api.send("DELETE", "/api/workspaces/$w/members/$userId") }.onFailure(::fail).isSuccess.also { if (it) loadMembers() }
+    } ?: false
+    suspend fun searchUsers(q: String): List<UserHit> = ws?.let { w -> runCatching { api.get<List<UserHit>>("/api/users/search?q=${enc(q)}&exclude_ws=$w") }.getOrNull() }.orEmpty()
+    suspend fun addMember(userId: String?, email: String?, roleId: String?): Result<AddResult> = runCatching {
+        val w = ws ?: throw ApiException(0, "no_workspace")
+        api.post<AddResult>("/api/workspaces/$w/access/members/add", buildJsonObject { userId?.let { put("user_id", it) }; email?.let { put("email", it.trim()) }; roleId?.let { put("role_id", it) } })
+    }.also { if (it.isSuccess) loadMembers() }
+    suspend fun invites(): List<Invite>? = ws?.let { w -> runCatching { api.get<List<Invite>>("/api/workspaces/$w/invites") }.getOrNull() }
+    suspend fun revokeInvite(id: String): Boolean = ws?.let { w -> runCatching { api.send("DELETE", "/api/workspaces/$w/invites/$id") }.onFailure(::fail).isSuccess } ?: false
+
+    // Synchronisation CalDAV des tâches
+    suspend fun calDavAccounts(): List<CalDavAccount>? = runCatching { api.get<List<CalDavAccount>>("/api/user/caldav") }.onFailure(::fail).getOrNull()
+    suspend fun discoverCalDav(server: String, user: String, password: String): Result<List<DiscoveredCalendar>> = runCatching {
+        api.json.decodeFromString<List<DiscoveredCalendar>>(api.raw("POST", "/api/user/caldav/discover", buildJsonObject { put("server_url", server.trim()); put("username", user.trim()); put("password", password) }.toString()))
+    }
+    suspend fun createCalDav(body: JsonObject): Result<Unit> = runCatching { api.send("POST", "/api/user/caldav", body) }
+    suspend fun updateCalDav(id: String, body: JsonObject): Boolean = runCatching { api.send("PUT", "/api/user/caldav/$id", body) }.onFailure(::fail).isSuccess
+    suspend fun deleteCalDav(id: String): Boolean = runCatching { api.send("DELETE", "/api/user/caldav/$id") }.onFailure(::fail).isSuccess
+    suspend fun syncCalDav(id: String): SyncReport? = runCatching { api.post<SyncResult>("/api/user/caldav/$id/sync").report }.onFailure(::fail).getOrNull()
+
+    // -----------------------------------------------------------------------
     // Calendrier (G3)
     // -----------------------------------------------------------------------
 

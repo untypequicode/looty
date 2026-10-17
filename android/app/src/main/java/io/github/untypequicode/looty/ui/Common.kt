@@ -176,6 +176,19 @@ fun errorText(ctx: Context, code: String?): String {
         "moodle_http_error" -> R.string.err_moodle_http_error
         "moodle_no_calendar_export" -> R.string.err_moodle_no_calendar_export
         "moodle_timeout" -> R.string.err_moodle_timeout
+        "caldav_invalid_url" -> R.string.err_caldav_invalid_url
+        "caldav_https_required" -> R.string.err_caldav_https_required
+        "caldav_private_address" -> R.string.err_caldav_private_address
+        "caldav_unreachable" -> R.string.err_caldav_unreachable
+        "caldav_auth_failed" -> R.string.err_caldav_auth_failed
+        "caldav_bad_xml" -> R.string.err_caldav_bad_xml
+        "caldav_no_principal" -> R.string.err_caldav_no_principal
+        "caldav_no_calendar_home" -> R.string.err_caldav_no_calendar_home
+        "caldav_too_many_redirects" -> R.string.err_caldav_too_many_redirects
+        "caldav_secret_unreadable" -> R.string.err_caldav_secret_unreadable
+        "caldav_too_many" -> R.string.err_caldav_too_many
+        "caldav_unexpected_status" -> R.string.err_caldav_unexpected_status
+        "caldav_put_failed" -> R.string.err_caldav_put_failed
         else -> R.string.error_generic
     }
     val detail = code.orEmpty().substringAfter(':', "").trim()

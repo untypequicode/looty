@@ -86,6 +86,9 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             seg.getOrNull(2) == "doc" && seg.size > 3 && uri.getQueryParameter("comment") != null -> "doc/${seg[3]}/comments"
             seg.getOrNull(2) == "doc" && seg.size > 3 -> "doc/${seg[3]}"
             seg.getOrNull(2) == "drive" -> "drive"
+            seg.getOrNull(2) == "settings" && seg.getOrNull(3) == "notifications" -> "notifications"
+            seg.getOrNull(2) == "settings" && seg.getOrNull(3) in setOf("profile", "preferences", "security", "calendars", "workspace", "members") -> "settings/${seg[3]}"
+            seg.getOrNull(2) == "settings" && seg.size == 3 -> "settings"
             seg.getOrNull(2) == "moodle" -> "moodle"
             seg.getOrNull(2) == "activity" -> "activity"
             seg.getOrNull(2) == "trash" -> "trash"
@@ -194,6 +197,13 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("activity") { ActivityScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("trash") { TrashScreen(state, onBack = { nav.popBackStack() }) }
             composable("graph") { GraphScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
+            composable("settings") { SettingsScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
+            composable("settings/profile") { ProfileSettingsScreen(state, onBack = { nav.popBackStack() }) }
+            composable("settings/preferences") { PreferencesScreen(state, onBack = { nav.popBackStack() }) }
+            composable("settings/security") { SecurityScreen(state, onBack = { nav.popBackStack() }) }
+            composable("settings/calendars") { CalendarSyncScreen(state, onBack = { nav.popBackStack() }) }
+            composable("settings/workspace") { WorkspaceSettingsScreen(state, onBack = { nav.popBackStack() }, onLeft = { nav.popBackStack("home", inclusive = false) }) }
+            composable("settings/members") { MembersScreen(state, onBack = { nav.popBackStack() }) }
             composable("drive") { DriveScreen(state, onBack = { nav.popBackStack() }) }
             composable("projects") { ProjectsScreen(state, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("project/$it") }) }
             composable("project/{id}") { e -> val id = e.arguments?.getString("id") ?: ""; ProjectScreen(state, id, onBack = { nav.popBackStack() }, onFile = { nav.navigate("project/$id/file/$it") }) }
