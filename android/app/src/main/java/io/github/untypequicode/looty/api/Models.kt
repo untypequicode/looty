@@ -215,3 +215,40 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class CompileResult(val ok: Boolean = false, val pdf: Boolean = false, val engine: String? = null, val duration_ms: Long = 0,
     val issues: List<CompileIssue> = emptyList(), val log: String = "")
 @Serializable data class PreviewBase(val base: String)
+
+// --- Activité de l'espace ---
+@Serializable data class FeedItem(
+    val id: String, val source: String = "task", val type: String = "", val created_at: String, val user_id: String = "", val user_name: String? = null,
+    val target_id: String = "", val title: String = "", val icon: String? = null, val board_id: String? = null, val board_name: String? = null,
+    val new_value: JsonElement? = null, val snippet: String? = null,
+)
+@Serializable data class Feed(val items: List<FeedItem> = emptyList(), val has_more: Boolean = false)
+
+// --- Corbeille ---
+@Serializable data class TrashedTask(val id: String, val title: String = "", val board_id: String = "", val board_name: String = "", val deleted_at: String,
+    val deleted_by: String? = null, val deleted_by_name: String? = null, val subtasks: Long = 0, val expires_at: String? = null)
+@Serializable data class TrashedPage(val id: String, val title: String = "", val icon: String? = null, val parent_title: String? = null, val deleted_at: String,
+    val deleted_by: String? = null, val deleted_by_name: String? = null, val subpages: Long = 0, val expires_at: String? = null)
+@Serializable data class Trash(val retention_days: Int = 30, val can_manage: Boolean = false, val tasks: List<TrashedTask> = emptyList(), val pages: List<TrashedPage> = emptyList())
+
+// --- Graphe des liens ---
+@Serializable data class GraphNode(val id: String, val kind: String = "page", val label: String = "", val icon: String? = null, val done: Boolean = false, val board_id: String? = null)
+@Serializable data class GraphEdge(val source: String, val target: String, val kind: String = "link", val id: String? = null)
+@Serializable data class Graph(val nodes: List<GraphNode> = emptyList(), val edges: List<GraphEdge> = emptyList())
+
+// --- Moodle ---
+@Serializable data class MoodleConnection(val base_url: String = "", val full_name: String? = null, val site_name: String? = null, val last_error: String? = null,
+    val last_sync_at: String? = null, val calendar_id: String? = null, val notify: Boolean = true)
+@Serializable data class MoodleOverview(val url: String? = null, val default_url: String = "", val can_configure: Boolean = false, val connection: MoodleConnection? = null)
+@Serializable data class MoodleSite(val base_url: String = "", val site_name: String? = null, val sso: Boolean = true, val launch_url: String? = null, val tokens_url: String? = null)
+@Serializable data class MoodleCourse(val id: Long, val fullname: String? = null, val shortname: String? = null, val category: String? = null, val progress: Double? = null,
+    val favourite: Boolean = false, val url: String? = null)
+@Serializable data class MoodleDeadline(val id: Long, val name: String? = null, val course: String? = null, val module: String? = null, val due: String? = null,
+    val overdue: Boolean = false, val url: String? = null, val action: String? = null)
+@Serializable data class MoodleNotif(val id: Long, val subject: String? = null, val text: String? = null, val url: String? = null, val read: Boolean = false, val time: String? = null)
+@Serializable data class MoodleNotifs(val notifications: List<MoodleNotif> = emptyList(), val unread: Int = 0)
+@Serializable data class MoodleConversation(val id: Long, val name: String = "", val group: Boolean = false, val unread: Int = 0, val last_text: String? = null,
+    val last_from_me: Boolean? = null, val last_time: String? = null)
+@Serializable data class MoodleMessage(val id: Long, val mine: Boolean = false, val from: String = "", val html: String = "", val time: String? = null)
+@Serializable data class MoodleThread(val id: Long, val messages: List<MoodleMessage> = emptyList())
+@Serializable data class OpenUrl(val url: String)

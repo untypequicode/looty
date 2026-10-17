@@ -35,10 +35,7 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
         boardScope.launch { state.createBoard(name)?.let { opener.board(it) } }
     }
     val links: List<Triple<ImageVector, Int, String>> = listOf(
-        Triple(Icons.Outlined.Hub, R.string.graph, "graph"),
-        Triple(Icons.Outlined.History, R.string.activity, "activity"),
         Triple(Icons.Outlined.AutoAwesome, R.string.whats_new, "whats-new"),
-        Triple(Icons.Outlined.Delete, R.string.trash, "trash"),
         Triple(Icons.Outlined.Settings, R.string.settings, "settings"),
     )
     LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -78,6 +75,10 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
                 modifier = Modifier.clickable { opener.route("mail") },
             )
         }
+        item { ListItem(headlineContent = { Text("Moodle") }, leadingContent = { Icon(Icons.Outlined.School, null) }, modifier = Modifier.clickable { opener.route("moodle") }) }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.activity)) }, leadingContent = { Icon(Icons.Outlined.History, null) }, modifier = Modifier.clickable { opener.route("activity") }) }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.graph)) }, leadingContent = { Icon(Icons.Outlined.Hub, null) }, modifier = Modifier.clickable { opener.route("graph") }) }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.trash)) }, leadingContent = { Icon(Icons.Outlined.Delete, null) }, modifier = Modifier.clickable { opener.route("trash") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.drive)) }, leadingContent = { Icon(Icons.Outlined.Cloud, null) }, modifier = Modifier.clickable { opener.route("drive") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.projects)) }, leadingContent = { Icon(Icons.Outlined.Code, null) }, modifier = Modifier.clickable { opener.route("projects") }) }
         item {
