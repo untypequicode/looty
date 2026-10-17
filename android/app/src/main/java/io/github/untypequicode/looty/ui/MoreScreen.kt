@@ -36,7 +36,6 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
     }
     val links: List<Triple<ImageVector, Int, String>> = listOf(
         Triple(Icons.Outlined.AutoAwesome, R.string.whats_new, "whats-new"),
-        Triple(Icons.Outlined.Settings, R.string.settings, "settings"),
     )
     LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -75,6 +74,7 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
                 modifier = Modifier.clickable { opener.route("mail") },
             )
         }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.settings)) }, leadingContent = { Icon(Icons.Outlined.Settings, null) }, modifier = Modifier.clickable { opener.route("settings") }) }
         item { ListItem(headlineContent = { Text("Moodle") }, leadingContent = { Icon(Icons.Outlined.School, null) }, modifier = Modifier.clickable { opener.route("moodle") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.activity)) }, leadingContent = { Icon(Icons.Outlined.History, null) }, modifier = Modifier.clickable { opener.route("activity") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.graph)) }, leadingContent = { Icon(Icons.Outlined.Hub, null) }, modifier = Modifier.clickable { opener.route("graph") }) }

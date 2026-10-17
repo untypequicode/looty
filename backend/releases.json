@@ -4,6 +4,26 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.18.0",
+      "date": "2026-10-17",
+      "title": { "en": "Settings in the app: the app is fully native", "fr": "Les réglages dans l’application : l’application est entièrement native" },
+      "notes": {
+        "en": [
+          "Settings (in More): profile with photo, light or dark theme, app language, notifications (what you receive, by push or email, and your devices), calendar sync with Nextcloud, iCloud and others, security (sign-in accounts, API tokens).",
+          "Workspace settings: name, group approvals, how long the trash keeps items, drive limits, Moodle address, leave or delete the workspace.",
+          "Members: change roles, remove people, add someone with a Looty account or invite an email address, see and revoke pending invitations.",
+          "Every screen is now native. Only editing a document or a project’s files still opens the live editor, and role management and server administration open the website."
+        ],
+        "fr": [
+          "Réglages (dans Plus) : profil avec photo, thème clair ou sombre, langue de l’application, notifications (ce que vous recevez, en push ou par e-mail, et vos appareils), synchronisation du calendrier avec Nextcloud, iCloud et d’autres, sécurité (comptes de connexion, jetons d’API).",
+          "Réglages de l’espace : nom, validations collectives, durée de la corbeille, limites du drive, adresse de Moodle, quitter ou supprimer l’espace.",
+          "Membres : changez les rôles, retirez des personnes, ajoutez quelqu’un qui a un compte Looty ou invitez une adresse e-mail, voyez et révoquez les invitations en attente.",
+          "Tous les écrans sont maintenant natifs. Seule la modification d’un document ou des fichiers d’un projet ouvre l’éditeur en direct, et la gestion des rôles et l’administration du serveur ouvrent le site."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.17.0",
       "date": "2026-10-17",
       "title": { "en": "Moodle, activity, trash and graph in the app", "fr": "Moodle, activité, corbeille et graphe dans l’application" },

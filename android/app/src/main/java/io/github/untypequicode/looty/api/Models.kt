@@ -4,14 +4,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-@Serializable data class User(val id: String, val name: String = "", val email: String = "", val avatar_url: String? = null)
+@Serializable data class User(val id: String, val name: String = "", val email: String = "", val avatar_url: String? = null, val theme: String? = null, val locale: String? = null, val is_super_admin: Boolean = false)
 @Serializable data class Me(val authenticated: Boolean = false, val user: User? = null)
 @Serializable data class Workspace(val id: String, val name: String, val role: String = "member")
 @Serializable data class Workspaces(val workspaces: List<Workspace> = emptyList())
-@Serializable data class Member(val user_id: String, val name: String = "", val email: String = "", val avatar_url: String? = null, val role: String = "")
+@Serializable data class Member(val user_id: String, val name: String = "", val email: String = "", val avatar_url: String? = null, val role: String = "", val role_id: String? = null, val role_name: String? = null, val role_color: String? = null, val joined_at: String? = null)
 /** Droits du rôle dans l’espace (GET access/me) : none < read < comment < validate < edit < manage. */
 @Serializable data class Permissions(val docs: String = "edit", val boards: String = "edit", val calendar: String = "edit", val invite: Boolean = false, val share: Boolean = false, val admin: Boolean = false)
-@Serializable data class MyAccess(val role: String = "member", val permissions: Permissions = Permissions())
+@Serializable data class MyAccess(val role: String = "member", val role_name: String? = null, val permissions: Permissions = Permissions(), val group_tasks: Boolean = true)
 @Serializable data class Members(val members: List<Member> = emptyList())
 
 @Serializable data class MyCounts(val open: Int = 0, val overdue: Int = 0, val due_week: Int = 0, val completed_week: Int = 0)
@@ -252,3 +252,22 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class MoodleMessage(val id: Long, val mine: Boolean = false, val from: String = "", val html: String = "", val time: String? = null)
 @Serializable data class MoodleThread(val id: Long, val messages: List<MoodleMessage> = emptyList())
 @Serializable data class OpenUrl(val url: String)
+
+// --- Réglages ---
+@Serializable data class EventPref(val event: String, val email: Boolean = false, val push: Boolean = true)
+@Serializable data class NotifPrefs(val email_enabled: Boolean = false, val events: List<EventPref> = emptyList(), val email_available: Boolean = false, val email: String = "")
+@Serializable data class PushDevice(val id: String, val device: String? = null, val endpoint_host: String = "", val created_at: String? = null, val last_used_at: String? = null)
+@Serializable data class ApiToken(val id: String, val name: String = "", val scope: String = "api", val created_at: String, val last_used_at: String? = null)
+@Serializable data class NewToken(val token: String)
+@Serializable data class Identity(val provider: String, val provider_name: String? = null, val created_at: String)
+@Serializable data class WsRole(val id: String, val name: String = "", val color: String = "#8a8f98", val preset: String? = null, val member_count: Long = 0, val permissions: Permissions = Permissions())
+@Serializable data class Invite(val id: String, val role: String = "", val created_by_name: String? = null, val expires_at: String? = null, val max_uses: Int? = null, val uses: Int = 0, val created_at: String)
+@Serializable data class UserHit(val id: String, val name: String = "", val email: String = "", val avatar_url: String? = null)
+@Serializable data class AddResult(val added: String? = null, val invited: String? = null, val email_sent: Boolean = false, val link: String? = null)
+@Serializable data class CalDavAccount(val id: String, val name: String = "", val server_url: String = "", val calendar_url: String = "", val calendar_name: String? = null,
+    val calendar_color: String? = null, val username: String = "", val board_ids: List<String>? = null, val include_completed: Boolean = false, val enabled: Boolean = true,
+    val last_sync_at: String? = null, val last_error: String? = null, val task_count: Long = 0)
+@Serializable data class DiscoveredCalendar(val url: String, val name: String = "", val color: String? = null, val supports_todo: Boolean = true)
+@Serializable data class SyncReport(val pushed: Int = 0, val pulled: Int = 0, val deleted: Int = 0)
+@Serializable data class SyncResult(val report: SyncReport = SyncReport())
+@Serializable data class WorkspaceDrive(val max_days: Int = 30, val quota_bytes: Long = 0)

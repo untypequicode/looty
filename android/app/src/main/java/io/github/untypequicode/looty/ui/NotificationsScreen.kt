@@ -157,12 +157,7 @@ fun NotificationsScreen(state: AppState, onBack: () -> Unit) {
             }
             if (ws != null) item {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.push_events)) },
-                    supportingContent = { Text(stringResource(R.string.push_events_hint)) },
-                    trailingContent = { Icon(Icons.AutoMirrored.Outlined.OpenInNew, null) },
-                    modifier = Modifier.clickable { openWeb(ctx, Paths.screen(ws, "settings/notifications")) },
-                )
+                NotificationPrefsSection(state)
             }
         }
     }
