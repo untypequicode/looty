@@ -164,6 +164,18 @@ fun errorText(ctx: Context, code: String?): String {
         "mail_invalid_folder" -> R.string.err_mail_invalid_folder
         "mail_folder_failed" -> R.string.err_mail_folder_failed
         "mail_move_failed" -> R.string.err_mail_move_failed
+        "moodle_invalid_url" -> R.string.err_moodle_invalid_url
+        "moodle_unreachable" -> R.string.err_moodle_unreachable
+        "moodle_not_moodle" -> R.string.err_moodle_not_moodle
+        "moodle_ws_disabled" -> R.string.err_moodle_ws_disabled
+        "moodle_auth_failed" -> R.string.err_moodle_auth_failed
+        "moodle_invalid_token" -> R.string.err_moodle_invalid_token
+        "moodle_not_connected" -> R.string.err_moodle_not_connected
+        "moodle_bad_response" -> R.string.err_moodle_bad_response
+        "moodle_error" -> R.string.err_moodle_error
+        "moodle_http_error" -> R.string.err_moodle_http_error
+        "moodle_no_calendar_export" -> R.string.err_moodle_no_calendar_export
+        "moodle_timeout" -> R.string.err_moodle_timeout
         else -> R.string.error_generic
     }
     val detail = code.orEmpty().substringAfter(':', "").trim()

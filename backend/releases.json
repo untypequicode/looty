@@ -4,6 +4,26 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.17.0",
+      "date": "2026-10-17",
+      "title": { "en": "Moodle, activity, trash and graph in the app", "fr": "Moodle, activité, corbeille et graphe dans l’application" },
+      "notes": {
+        "en": [
+          "Moodle: connect your account with your university sign-in (or a Moodle password), then see your deadlines, courses with progress, notifications and messages, and reply to conversations. Add Moodle’s calendar, turn message notifications on or off, or disconnect.",
+          "Activity: what happened in the workspace, day by day, for everyone or one person. Tap an entry to open the task or document.",
+          "Trash: restore deleted tasks and documents, delete them for good, or empty the trash (admins).",
+          "Graph: see how documents, tasks, boards and events are linked. Pinch to zoom, tap a point to see its links and open it, and filter by type."
+        ],
+        "fr": [
+          "Moodle : connectez votre compte avec la connexion de l’université (ou un mot de passe Moodle), puis retrouvez vos échéances, vos cours et leur progression, vos notifications et vos messages, et répondez aux conversations. Ajoutez le calendrier Moodle, activez ou coupez les notifications de messages, ou déconnectez le compte.",
+          "Activité : ce qui s’est passé dans l’espace, jour par jour, pour tout le monde ou une personne. Touchez une ligne pour ouvrir la tâche ou le document.",
+          "Corbeille : restaurez les tâches et documents supprimés, supprimez-les définitivement ou videz la corbeille (admins).",
+          "Graphe : voyez comment documents, tâches, tableaux et événements sont reliés. Pincez pour zoomer, touchez un point pour voir ses liens et l’ouvrir, et filtrez par type."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.16.0",
       "date": "2026-10-16",
       "title": { "en": "Drive and projects in the app", "fr": "Drive et projets dans l’application" },

@@ -956,6 +956,43 @@ class AppState(app: Application) : AndroidViewModel(app) {
     suspend fun projectPreview(id: String): String? = runCatching { api.post<PreviewBase>("/api/projects/$id/preview-token").base }.onFailure(::fail).getOrNull()
 
     // -----------------------------------------------------------------------
+    // Activité, corbeille, graphe, Moodle (N5)
+    // -----------------------------------------------------------------------
+
+    suspend fun feed(user: String?, before: String?): Feed? = ws?.let { w ->
+        val q = listOfNotNull(user?.let { "user=$it" }, before?.let { "before=${enc(it)}" }, "limit=50").joinToString("&")
+        runCatching { api.get<Feed>("/api/workspaces/$w/activity?$q") }.onFailure(::fail).getOrNull()
+    }
+
+    suspend fun trash(): Trash? = ws?.let { w -> runCatching { api.get<Trash>("/api/workspaces/$w/trash") }.onFailure(::fail).getOrNull() }
+
+    suspend fun restoreTrashed(kind: String, id: String): Boolean =
+        runCatching { api.send("POST", "/api/trash/$kind/$id/restore") }.onFailure(::fail).isSuccess.also { if (it) { if (kind == "pages") loadPages() else { loadTasks(); loadOverview() } } }
+
+    suspend fun deleteTrashed(kind: String, id: String): Boolean = runCatching { api.send("DELETE", "/api/trash/$kind/$id") }.onFailure(::fail).isSuccess
+
+    suspend fun emptyTrash(): Boolean = ws?.let { w -> runCatching { api.send("DELETE", "/api/workspaces/$w/trash") }.onFailure(::fail).isSuccess } ?: false
+
+    suspend fun graph(): Graph? = ws?.let { w -> runCatching { api.get<Graph>("/api/workspaces/$w/graph") }.onFailure(::fail).getOrNull() }
+
+    // Moodle : l'erreur est renvoyée telle quelle (affichée dans l'écran).
+    private fun moodle(path: String) = "/api/workspaces/${ws}/moodle$path"
+    suspend fun moodleOverview(): MoodleOverview? = runCatching { api.get<MoodleOverview>(moodle("")) }.onFailure(::fail).getOrNull()
+    suspend fun moodleSite(): Result<MoodleSite> = runCatching { api.get<MoodleSite>(moodle("/site")) }
+    suspend fun moodleConnect(body: JsonObject): Result<Unit> = runCatching { api.send("POST", moodle("/connect"), body) }
+    suspend fun moodleDisconnect(): Boolean = runCatching { api.send("DELETE", moodle("/connect")) }.onFailure(::fail).isSuccess
+    suspend fun moodleNotify(on: Boolean): Boolean = runCatching { api.send("PUT", moodle("/preferences"), buildJsonObject { put("notify", on) }) }.onFailure(::fail).isSuccess
+    suspend fun moodleSyncCalendar(): Boolean = runCatching { api.send("POST", moodle("/calendar/sync")) }.onFailure(::fail).isSuccess.also { if (it) loadCalendars() }
+    suspend fun moodleCourses(): Result<List<MoodleCourse>> = runCatching { api.get<List<MoodleCourse>>(moodle("/courses")) }
+    suspend fun moodleDeadlines(): Result<List<MoodleDeadline>> = runCatching { api.get<List<MoodleDeadline>>(moodle("/deadlines")) }
+    suspend fun moodleNotifications(): Result<MoodleNotifs> = runCatching { api.get<MoodleNotifs>(moodle("/notifications")) }
+    suspend fun moodleConversations(): Result<List<MoodleConversation>> = runCatching { api.get<List<MoodleConversation>>(moodle("/conversations")) }
+    suspend fun moodleThread(id: Long): Result<MoodleThread> = runCatching { api.get<MoodleThread>(moodle("/conversations/$id")) }
+    suspend fun moodleSend(id: Long, text: String): Boolean = runCatching { api.send("POST", moodle("/conversations/$id"), buildJsonObject { put("text", text) }) }.onFailure(::fail).isSuccess
+    /** Lien Moodle ouvert déjà connecté (si la plateforme le permet). */
+    suspend fun moodleOpen(url: String?): String? = runCatching { api.get<OpenUrl>(moodle("/open") + (url?.let { "?url=${enc(it)}" } ?: "")).url }.onFailure(::fail).getOrNull()
+
+    // -----------------------------------------------------------------------
     // Calendrier (G3)
     // -----------------------------------------------------------------------
 

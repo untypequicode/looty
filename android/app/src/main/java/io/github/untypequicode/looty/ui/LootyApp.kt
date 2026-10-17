@@ -86,6 +86,10 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             seg.getOrNull(2) == "doc" && seg.size > 3 && uri.getQueryParameter("comment") != null -> "doc/${seg[3]}/comments"
             seg.getOrNull(2) == "doc" && seg.size > 3 -> "doc/${seg[3]}"
             seg.getOrNull(2) == "drive" -> "drive"
+            seg.getOrNull(2) == "moodle" -> "moodle"
+            seg.getOrNull(2) == "activity" -> "activity"
+            seg.getOrNull(2) == "trash" -> "trash"
+            seg.getOrNull(2) == "graph" -> "graph"
             seg.getOrNull(2) == "projects" && seg.size > 3 -> "project/${seg[3]}"
             seg.getOrNull(2) == "projects" -> "projects"
             seg.getOrNull(2) == "inbox" -> "inbox"
@@ -185,6 +189,11 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                 ComposeScreen(state, e.arguments?.getString("mode") ?: "new", e.arguments?.getString("to").orEmpty(), onClose = { nav.popBackStack() },
                     onSetupSending = { id -> nav.navigate("mailaccount?id=$id") })
             }
+            composable("moodle") { MoodleScreen(state, onBack = { nav.popBackStack() }, onConversation = { id, name -> nav.navigate("moodle/$id?name=" + android.net.Uri.encode(name)) }) }
+            composable("moodle/{id}?name={name}") { e -> MoodleConversationScreen(state, e.arguments?.getString("id")?.toLongOrNull() ?: 0L, e.arguments?.getString("name").orEmpty(), onBack = { nav.popBackStack() }) }
+            composable("activity") { ActivityScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
+            composable("trash") { TrashScreen(state, onBack = { nav.popBackStack() }) }
+            composable("graph") { GraphScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("drive") { DriveScreen(state, onBack = { nav.popBackStack() }) }
             composable("projects") { ProjectsScreen(state, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("project/$it") }) }
             composable("project/{id}") { e -> val id = e.arguments?.getString("id") ?: ""; ProjectScreen(state, id, onBack = { nav.popBackStack() }, onFile = { nav.navigate("project/$id/file/$it") }) }
