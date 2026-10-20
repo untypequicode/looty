@@ -34,3 +34,8 @@ Done (0.13.0 to 0.18.0, phases N1 to N6): every screen is native. Still opened i
 - PostgreSQL 15 → 18 on your server: needs a dump and restore, plan a maintenance window **(you)**.
 - Node 26 once it becomes the LTS version (end of October 2026).
 - Collaborative editing without Traefik (`docker compose up` alone): the `/collab` WebSocket needs a proxy.
+- The local Docker Compose stack (`looty-2-backend-1`, built on 2026-10-08) restarts in a loop with
+  `Migrate(VersionMismatch(20261020120000))`: its database holds a migration whose file changed since the image was
+  built. Rebuild the images (`docker compose build`) or reset that database **(you)**, once the Moodle dashboard work is done.
+- Moodle: the course personalization (short name, colour, icon) is not applied to the Looty calendar events imported
+  from Moodle (the ICS feed does not reliably link an event to its course).
