@@ -22,8 +22,9 @@ Done (0.13.0 to 0.18.0, phases N1 to N6): every screen is native. Still opened i
 
 - The automatic browser tests live in `/tmp/pw` on this machine and disappear when `/tmp` is cleaned. Move them into the
   repository (`e2e/`) and run a few in CI.
-- **(you)** Windows: install the app on a real Windows 10/11 PC once and try notifications, tray, shortcuts and
-  links. It has only been compiled, never run.
+- **(you)** Windows: the **Windows installer test** job (desktop.yml) now installs and runs the app on a clean
+  Windows runner. What a runner cannot see (notification clicks, tray menu, shortcuts) is in
+  [desktop/tests/windows/CHECKLIST.md](desktop/tests/windows/CHECKLIST.md): go through it once on a real PC.
 - **(you)** iPhone: check that notifications keep coming after using the installed web app.
 
 ## Later
