@@ -20,6 +20,16 @@ permissions:
   contents: read
 
 jobs:
+  # Après le push sur main : prouve que le cache suffit, sans rien compiler.
+  verify:
+    name: Cache check
+    needs: build
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/nix-verify.yml
+
   build:
     name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
