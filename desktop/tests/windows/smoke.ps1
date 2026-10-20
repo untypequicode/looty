@@ -92,9 +92,12 @@ Screenshot '2-looty-link'
 
 # --- Session gardée après redémarrage, et chiffrée sur le disque ---
 Stop-Looty
-$session = Join-Path $env:APPDATA 'looty\session.json'
-Check 'session saved' (Test-Path $session)
-if (Test-Path $session) { Check 'session not stored in clear text' (-not ((Get-Content $session -Raw) -match 'fake-session-7f3a')) }
+# Clé de chiffrement dans le gestionnaire d'identifiants Windows : session.enc ; session.json
+# (en clair) n'est que le repli sans trousseau.
+$session = Join-Path $env:APPDATA 'looty\session.enc'
+Check 'session saved, encrypted' (Test-Path $session)
+Check 'no clear-text session file' (-not (Test-Path (Join-Path $env:APPDATA 'looty\session.json')))
+if (Test-Path $session) { Check 'session token not readable on disk' (-not ((Get-Content $session -Raw) -match 'fake-session-7f3a')) }
 $before = (Server-Log).Length
 Start-Process $exe.FullName -ArgumentList '--hidden' | Out-Null
 Check 'hidden start (login launch) runs without a window' ((Wait-Until { Looty-Processes } 20) -and -not (Looty-Processes | Where-Object { $_.MainWindowHandle -ne 0 }))
