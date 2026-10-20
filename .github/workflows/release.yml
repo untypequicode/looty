@@ -2,8 +2,8 @@
 # version de backend/releases.json n'a pas encore de tag (<plateforme>-v<version>) est
 # construite puis publiée sur GitHub :
 #   web      → images Docker (amd64 + arm64) sur ghcr.io, docker-compose.yml épinglé
-#   desktop  → paquet .deb et installateur Windows (le paquet Nix part dans le cache binaire
-#              avec le workflow « Nix cache », lancé par la modification de desktop/)
+#   desktop  → paquet .deb et installateur Windows ; le paquet Nix est épinglé dans le cache binaire
+#              puis vérifié (job nix-pin, workflow « Nix cache check »)
 #   android  → APK
 # puis le site de téléchargement et le dépôt apt (scripts/publish-apps.sh).
 # Les notes viennent de releases.json (anglais, français dépliable).
@@ -69,6 +69,55 @@ jobs:
     if: needs.plan.outputs.desktop != ''
     uses: ./.github/workflows/desktop.yml
     secrets: inherit
+
+  # Paquet Nix de la release : épinglé dans le cache binaire (jamais évincé), puis vérifié.
+  # Ne bloque pas la publication : un souci de cache ouvre une issue, il n'annule pas la release.
+  nix-pin:
+    name: Nix pin ${{ matrix.system }}
+    needs: [plan, desktop]
+    if: needs.plan.outputs.desktop != '' && needs.desktop.result == 'success'
+    runs-on: ${{ matrix.runner }}
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: cachix/cachix-action@v17
+        if: env.CACHIX_AUTH_TOKEN != ''
+        with:
+          name: ${{ vars.CACHIX_CACHE || 'looty' }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
+      - name: Pin the release package
+        if: env.CACHIX_AUTH_TOKEN != ''
+        env:
+          CACHE: ${{ vars.CACHIX_CACHE || 'looty' }}
+          VERSION: ${{ needs.plan.outputs.desktop }}
+        run: |
+          out=$(nix build .#packages.${{ matrix.system }}.looty-desktop --no-link --print-out-paths --accept-flake-config)
+          cachix push "$CACHE" "$out"
+          cachix pin "$CACHE" "release-$VERSION-${{ matrix.system }}" "$out"
+
+  nix-verify:
+    name: Nix cache check
+    needs: nix-pin
+    if: needs.nix-pin.result == 'success'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/nix-verify.yml
+    with:
+      ref: ${{ github.sha }}
 
   android:
     name: Android
