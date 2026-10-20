@@ -1,0 +1,80 @@
+# Vérification du cache : sur un runner vierge, construit les sorties du flake sans rien
+# compiler (--max-jobs 0 : tout ce qui n'est ni dans le cache binaire ni dans cache.nixos.org
+# fait échouer le job). Prouve qu'un utilisateur Nix télécharge au lieu de compiler.
+# Lancée après chaque push sur main (par « Nix cache »), pour chaque release de bureau
+# (par « Release »), chaque semaine (entrées évincées ou expirées) et à la main.
+# Un échec ouvre une issue « nix-cache » (une seule à la fois), refermée au retour au vert.
+name: Nix cache check
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Révision à vérifier (par défaut celle de l''appelant)'
+        type: string
+        required: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      # Le cache binaire vient du flake (nixConfig) ; --max-jobs 0 interdit toute compilation.
+      - name: Package and dev shells come from the cache
+        run: |
+          for out in packages.${{ matrix.system }}.looty-desktop \
+                     devShells.${{ matrix.system }}.default \
+                     devShells.${{ matrix.system }}.desktop; do
+            nix build ".#$out" -L --no-link --max-jobs 0 --accept-flake-config
+          done
+
+  report:
+    name: Report
+    needs: verify
+    if: always() && needs.verify.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Open or close the nix-cache issue
+        env:
+          RESULT: ${{ needs.verify.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          open=$(gh issue list --label nix-cache --state open --json number --jq '.[0].number')
+          if [ "$RESULT" = success ]; then
+            [ -n "$open" ] && gh issue close "$open" --comment "Cache check passing again: $RUN_URL"
+            exit 0
+          fi
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Still failing: $RUN_URL"
+          else
+            gh label create nix-cache --color 5319e7 --description "Nix binary cache check failed" 2>/dev/null || true
+            gh label create needs-triage 2>/dev/null || true
+            gh issue create --label nix-cache --label needs-triage \
+              --title "Nix cache check failed: users would compile locally" \
+              --body "The **Nix cache check** could not build the flake outputs from the binary cache alone ($RUN_URL). Likely causes: entries evicted from Cachix, the push did not finish, or \`flake.lock\` changed without a push on main. See RELEASING.md (Nix binary cache)."
+          fi

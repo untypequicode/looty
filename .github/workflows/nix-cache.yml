@@ -11,15 +11,25 @@ name: Nix cache
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/nix-cache.yml']
+    paths: ['desktop/**', 'flake.nix', 'flake.lock', 'shell.nix', '.github/workflows/nix-cache.yml', '.github/workflows/nix-verify.yml']
   pull_request:
-    paths: ['desktop/**', 'flake.nix', 'flake.lock', '.github/workflows/nix-cache.yml']
+    paths: ['desktop/**', 'flake.nix', 'flake.lock', 'shell.nix', '.github/workflows/nix-cache.yml', '.github/workflows/nix-verify.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  # Après le push sur main : prouve que le cache suffit, sans rien compiler.
+  verify:
+    name: Cache check
+    needs: build
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/nix-verify.yml
+
   build:
     name: ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
@@ -54,5 +64,23 @@ jobs:
         run: nix build .#packages.${{ matrix.system }}.looty-desktop -L --accept-flake-config
       - name: Desktop dev shell
         run: nix build .#devShells.${{ matrix.system }}.desktop -L --no-link --accept-flake-config
+      - name: Server dev shell
+        run: nix build .#devShells.${{ matrix.system }}.default -L --no-link --accept-flake-config
       - name: Smoke test
         run: test -x result/bin/looty && test -f result/share/applications/looty.desktop
+      # Épingles : protègent de l'éviction les 3 dernières révisions de main (le cache efface
+      # sinon les chemins les moins récemment utilisés quand il est plein). Le chemin est
+      # poussé d'abord : une épingle exige qu'il soit déjà dans le cache.
+      - name: Pin main
+        if: env.CACHIX_AUTH_TOKEN != '' && github.event_name != 'pull_request'
+        env:
+          CACHE: ${{ vars.CACHIX_CACHE || 'looty' }}
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          pin() { # <nom> <chemin>
+            cachix push "$CACHE" "$2"
+            cachix pin "$CACHE" "$1-$SYSTEM" "$2" --keep-revisions 3
+          }
+          pin main "$(readlink -f result)"
+          pin main-shell-desktop "$(nix build ".#devShells.$SYSTEM.desktop" --no-link --print-out-paths --accept-flake-config)"
+          pin main-shell-default "$(nix build ".#devShells.$SYSTEM.default" --no-link --print-out-paths --accept-flake-config)"

@@ -70,6 +70,24 @@ The apt repository is signed: run `desktop/scripts/apt-key.sh` once, commit the 
   are already declared in `flake.nix` (`nixConfig`): Nix offers to trust it the first time,
   or pass `--accept-flake-config`.
 
+  **Goal: Nix users on x86_64/aarch64 Linux never compile.** Covered: `looty-desktop`,
+  `nix develop` and `nix develop .#desktop`. Not covered: `.#android` (the Android SDK is not
+  redistributable).
+  - **Pins:** each push on `main` pins `main`, `main-shell-desktop` and `main-shell-default`
+    per system (last 3 revisions). Each desktop release pins `release-<version>-<system>`
+    forever. Pinned paths are never evicted.
+  - **Eviction:** when the cache is full, Cachix deletes the least recently used *unpinned*
+    paths (emails at 85 % and 100 %). Plan: free. Usage on 2026-10-20: 277 MiB. Check the
+    storage on app.cachix.org now and then; above 80 % of the limit, remove old release pins
+    in the cache's *Pins* page (or `cachix pin` with `--keep-revisions`).
+  - **Check:** the **Nix cache check** workflow builds everything with `--max-jobs 0` (any
+    compilation fails it). It runs after each push on `main`, for each desktop release, every
+    Monday and by hand. A failure opens one issue labelled `nix-cache`; it is closed by the
+    next green run. To fix: run **Nix cache** by hand on `main` (it rebuilds and pushes), then
+    **Nix cache check**.
+  - A pull request that changes `desktop/` or `flake.lock` fills the cache only once merged,
+    so the cache check right after the merge is what covers that short window.
+
 - **Docker images** are public packages of the repository on ghcr.io; nothing to set up
   (the workflow uses `GITHUB_TOKEN`). Make the packages public once in the GitHub package
   settings if you want to pull them without logging in.
@@ -93,6 +111,7 @@ workflow (run it by hand with `force` to rebuild one).
 | **Docker** | called by Release, or by hand | multi-arch images on ghcr.io |
 | **Desktop** | pull requests touching `desktop/`, called by Release | `.deb` (install-tested) and Windows installer |
 | **Android** | pull requests touching `android/`, called by Release | APK |
-| **Nix cache** | pull requests and `main` touching `desktop/` or the flake | Nix package for x86_64 and aarch64, pushed to Cachix from `main` |
+| **Nix cache** | pull requests and `main` touching `desktop/` or the flake | desktop package and dev shells for x86_64 and aarch64, pushed and pinned in Cachix from `main` |
+| **Nix cache check** | after **Nix cache** on `main`, called by Release, every Monday, by hand | builds everything from the cache only; opens an issue if something would be compiled |
 | **Site** | `site/` changes, tags `site-v*` | site tests and its Docker image |
 | **Site sync** | by hand | refills the download site from the latest GitHub releases |
