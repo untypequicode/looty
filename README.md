@@ -43,6 +43,19 @@ Download them from **<https://looty.untypequicode.fr>** (or the [GitHub releases
 | Windows 10/11 | Installer for the current user (unsigned: Windows may warn about an unknown publisher) |
 | iPhone / iPad | Open Looty in Safari and add it to the home screen (installable web app) |
 
+### Nix: use the binary cache
+
+The desktop app and the dev shells are prebuilt for x86_64 and aarch64 Linux in the `looty` Cachix cache, so Nix downloads instead of compiling. The flake declares the cache; Nix only honours that if your user is trusted, so on NixOS add it to your configuration once:
+
+```nix
+nix.settings = {
+  extra-substituters = [ "https://looty.cachix.org" ];
+  extra-trusted-public-keys = [ "looty.cachix.org-1:xEEH96rXQvBMpS4Flzu1yAfe1Wt4Pz2nKssc1ga5eYc=" ];
+};
+```
+
+Elsewhere, put the same two lines in `/etc/nix/nix.conf`. Without this, Nix warns *ignoring the client-specified setting 'trusted-public-keys'* and builds locally. Then `nix run github:untypequicode/looty#looty-desktop`.
+
 ## Self-hosting
 
 Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 and arm64):
