@@ -3,6 +3,22 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.16.10",
+      "date": "2026-10-20",
+      "title": { "en": "Clicking in formulas works again", "fr": "Le clic fonctionne à nouveau dans les formules" },
+      "notes": {
+        "en": [
+          "Firefox: clicking or selecting with the mouse inside a block formula or a Mermaid diagram places the cursor again (only the arrow keys worked).",
+          "Clicking an inline formula always opens it for editing (it sometimes closed again straight away)."
+        ],
+        "fr": [
+          "Firefox : cliquer ou sélectionner à la souris dans une formule en bloc ou un diagramme Mermaid place à nouveau le curseur (seules les flèches du clavier fonctionnaient).",
+          "Cliquer sur une formule en ligne l’ouvre toujours pour la modifier (elle se refermait parfois aussitôt)."
+        ]
+      }
+    },
+    {
       "platform": "android",
       "version": "0.18.0",
       "date": "2026-10-17",

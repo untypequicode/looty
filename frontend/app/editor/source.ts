@@ -31,8 +31,25 @@ export function sourceNodeView(component: Component) {
   return (props: Parameters<typeof render>[0]) => {
     const view = render(props)
     Object.defineProperty(view, 'contentDOM', { get: () => null })
+    keepFieldsClickable(view.dom as HTMLElement)
     return view
   }
+}
+
+/**
+ * Firefox ne place pas le curseur à la souris (ni ne sélectionne) dans un champ dont un
+ * parent est `draggable` : on ne pouvait s'y déplacer qu'aux flèches. Tant que le bloc
+ * affiche son champ, il ne se déplace donc plus par son contenu (la poignée reste).
+ */
+function keepFieldsClickable(dom: HTMLElement) {
+  let disabled = false
+  const sync = () => {
+    const field = !!dom.querySelector('input, textarea')
+    if (field && dom.draggable) { dom.draggable = false; disabled = true }
+    else if (!field && disabled) { dom.draggable = true; disabled = false }
+  }
+  new MutationObserver(sync).observe(dom, { childList: true, subtree: true })
+  queueMicrotask(sync)
 }
 
 /** Source d'un nœud (texte, ou ancien attribut tant que le document n'est pas converti). */

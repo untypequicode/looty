@@ -30,6 +30,13 @@ function start() {
   editing.value = true
   nextTick(() => input.value?.focus())
 }
+/**
+ * Le clic ouvre la formule lui-même : laissé à ProseMirror, il sélectionnait le nœud (champ
+ * ouvert), puis reprenait le focus au relâchement et le champ se refermait aussitôt.
+ */
+function press(e: MouseEvent) {
+  if (props.editor.isEditable) e.preventDefault()
+}
 function commit() {
   if (!editing.value) return
   editing.value = false
@@ -76,9 +83,9 @@ function onKey(e: KeyboardEvent) {
       <EditorLatexSuggest :items="latex.items.value" :active="latex.active.value" @pick="latex.pick" />
       <EditorSourceCursors :carets="carets" />
     </span>
-    <span v-else-if="preambleOnly" class="mi-render mi-preamble" :title="definesTitle" @click="start">ƒ</span>
-    <span v-else-if="html" class="mi-render" @click="start" v-html="html" />
-    <span v-else class="mi-render mi-error" :title="result.error" @click="start">{{ draft || '$…$' }}</span>
+    <span v-else-if="preambleOnly" class="mi-render mi-preamble" :title="definesTitle" @mousedown="press" @click="start">ƒ</span>
+    <span v-else-if="html" class="mi-render" @mousedown="press" @click="start" v-html="html" />
+    <span v-else class="mi-render mi-error" :title="result.error" @mousedown="press" @click="start">{{ draft || '$…$' }}</span>
   </NodeViewWrapper>
 </template>
 
