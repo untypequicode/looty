@@ -24,7 +24,7 @@ export default {
     webStep1: 'Sign in with your university portal', webStep1Hint: 'A window opens on the usual login (CAS). Once you’re signed in it stays blank: that’s expected, the app key has just been created.',
     webStep2: 'Copy your key', webStep2Hint: 'On Moodle’s “Security keys” page, copy the key on the “Moodle mobile web service” line.',
     webStep3: 'Paste it here', webStep3Hint: 'The key, or a moodlemobile://token=… link if you got one another way.',
-    tabs: { overview: 'Overview', messages: 'Messages', notifications: 'Notifications', site: 'Moodle site' },
+    tabs: { overview: 'Dashboard', messages: 'Messages', notifications: 'Notifications', site: 'Moodle site' },
     portalLogin: 'Sign in with {site}', portalHintDesktop: 'The official Moodle login page opens in a Looty window; sign in as usual (CAS) and Looty picks up the connection by itself.',
     waitingDesktop: 'Finish signing in in the Moodle window…',
     otherWays: 'Other ways to sign in',
@@ -46,5 +46,10 @@ export default {
       done: 'Done', notDone: 'To do',
     },
     autologinHint: 'To open Moodle already signed in, sign in again once through the official portal or with your username.', autologinAction: 'Sign in again',
+    board: {
+      add: 'Add a panel', reset: 'Reset the dashboard', resetTitle: 'Go back to the default dashboard?', resetHint: 'Your panels, their sizes and their titles are replaced by the suggested layout.',
+      kinds: { deadlines: 'Deadlines', courses: 'My courses', messages: 'Recent messages', notifications: 'Notifications', course: 'Pinned course', progress: 'Progress' },
+      changeCourse: 'Change course', openCourse: 'Open the course', pickCourse: 'Choose the course to show in this panel.', noProgress: 'No course tracks completion.',
+    },
   },
 }

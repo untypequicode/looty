@@ -27,3 +27,35 @@ _Avoid_: équipe, rôle, liste
 **Connexion automatique**:
 Ouverture du site Moodle déjà connecté avec le compte relié à Looty, sans ressaisir ses identifiants.
 _Avoid_: SSO, autologin
+
+**Cours Moodle**:
+Un cours du site Moodle auquel le membre est inscrit. À ne pas confondre avec une séance de cours du calendrier.
+_Avoid_: classe, matière, module
+
+**Tableau de bord Moodle**:
+Écran d'accueil de Moodle dans Looty, composé de panneaux que chaque membre dispose librement sur une grille. Il ne s'agit pas d'un tableau de tâches.
+_Avoid_: board, aperçu, dashboard
+
+**Panneau**:
+Bloc du tableau de bord Moodle (échéances, cours, dossier, cours épinglé…) que le membre place, redimensionne et règle à son goût.
+_Avoid_: widget, carte, bloc
+
+**Cours favori**:
+Cours Moodle marqué d'une étoile ; la marque est la même dans Looty et sur le site Moodle.
+_Avoid_: favori (seul), épinglé
+
+**Cours masqué**:
+Cours Moodle que le membre a retiré de ses listes, de la même manière dans Looty et sur le site Moodle.
+_Avoid_: archivé, caché
+
+**Catégorie Moodle**:
+Classement des cours défini par l'établissement sur le site Moodle ; le membre ne peut pas la modifier.
+_Avoid_: dossier, filière
+
+**Dossier de cours**:
+Regroupement de cours Moodle créé par le membre dans Looty, qui n'existe pas sur le site Moodle.
+_Avoid_: catégorie, collection, groupe
+
+**Personnalisation d'un cours**:
+Nom court, couleur et icône qu'un membre donne à un cours Moodle ; elle remplace la présentation du site partout dans Looty, pour ce membre seulement.
+_Avoid_: alias, surnom, thème

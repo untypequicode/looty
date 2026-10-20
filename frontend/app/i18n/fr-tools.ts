@@ -78,6 +78,7 @@ export default {
     event: 'Événement', linkEvent: 'Lier à un événement…', openEvent: 'Ouvrir l’événement', searchEvent: 'Rechercher un événement…', noEvents: 'Aucun événement à venir.', unlink: 'Délier l’événement',
     boardCalendar: 'Calendrier', createBoardCalendar: 'Créer un calendrier pour ce tableau',
   },
+  panelGrid: { move: 'Glisser pour déplacer', rename: 'Renommer', remove: 'Retirer le panneau' },
   dashboard: {
     title: 'Personnaliser votre accueil', customize: 'Personnaliser', save: 'Enregistrer mon accueil', saved: 'Accueil enregistré',
     hint: 'Choisissez les widgets, leur ordre et leur largeur (pour vous seul, dans cet espace).',

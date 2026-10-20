@@ -24,7 +24,7 @@ export default {
     webStep1: 'Connectez-vous avec le portail de l’université', webStep1Hint: 'Une fenêtre s’ouvre sur la connexion habituelle (CAS). Une fois connecté, elle reste blanche : c’est normal, la clé de l’application vient d’être créée.',
     webStep2: 'Copiez votre clé', webStep2Hint: 'Sur la page « Clés de sécurité » de Moodle, copiez la clé de la ligne « Moodle mobile web service ».',
     webStep3: 'Collez-la ici', webStep3Hint: 'La clé, ou un lien moodlemobile://token=… si vous l’avez récupéré autrement.',
-    tabs: { overview: 'Aperçu', messages: 'Messages', notifications: 'Notifications', site: 'Site Moodle' },
+    tabs: { overview: 'Tableau de bord', messages: 'Messages', notifications: 'Notifications', site: 'Site Moodle' },
     portalLogin: 'Se connecter avec {site}', portalHintDesktop: 'La page de connexion officielle de Moodle s’ouvre dans une fenêtre de Looty ; connectez-vous comme d’habitude (CAS), Looty récupère la connexion tout seul.',
     waitingDesktop: 'Terminez la connexion dans la fenêtre Moodle…',
     otherWays: 'Autres façons de se connecter',
@@ -46,5 +46,10 @@ export default {
       done: 'Terminé', notDone: 'À faire',
     },
     autologinHint: 'Pour ouvrir Moodle déjà connecté, reconnectez-vous une fois par le portail officiel ou avec votre identifiant.', autologinAction: 'Se reconnecter',
+    board: {
+      add: 'Ajouter un panneau', reset: 'Réinitialiser le tableau de bord', resetTitle: 'Revenir au tableau de bord par défaut ?', resetHint: 'Vos panneaux, leurs tailles et leurs titres sont remplacés par la disposition proposée.',
+      kinds: { deadlines: 'Échéances', courses: 'Mes cours', messages: 'Messages récents', notifications: 'Notifications', course: 'Cours épinglé', progress: 'Progression' },
+      changeCourse: 'Changer de cours', openCourse: 'Ouvrir le cours', pickCourse: 'Choisissez le cours à afficher dans ce panneau.', noProgress: 'Aucun cours ne suit l’avancement.',
+    },
   },
 }

@@ -78,6 +78,7 @@ export default {
     event: 'Event', linkEvent: 'Link to an event…', openEvent: 'Open the event', searchEvent: 'Search an event…', noEvents: 'No upcoming event.', unlink: 'Unlink the event',
     boardCalendar: 'Calendar', createBoardCalendar: 'Create a calendar for this board',
   },
+  panelGrid: { move: 'Drag to move', rename: 'Rename', remove: 'Remove the panel' },
   dashboard: {
     title: 'Customize your home', customize: 'Customize', save: 'Save my home', saved: 'Home saved',
     hint: 'Choose the widgets, their order and width (only for you, in this workspace).',

@@ -4,6 +4,26 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.19.0",
+      "date": "2026-10-21",
+      "title": { "en": "Your own Moodle dashboard", "fr": "Votre tableau de bord Moodle" },
+      "notes": {
+        "en": [
+          "The Moodle dashboard is now made of panels you arrange freely: drag a panel by its header, resize it by its corner, the others make room. Your layout is saved as you go.",
+          "Add the panels you want, as many times as you like: deadlines, my courses, recent messages, notifications, progress, and a pinned course that shows its content right on the dashboard.",
+          "Rename a panel with a double-click on its title, remove it from its menu, and reset the dashboard from the Moodle menu.",
+          "On a narrow window, panels stack in reading order without changing your layout."
+        ],
+        "fr": [
+          "Le tableau de bord Moodle est maintenant fait de panneaux que vous disposez librement : glissez un panneau par son en-tête, redimensionnez-le par son coin, les autres se poussent. Votre disposition est enregistrée au fur et à mesure.",
+          "Ajoutez les panneaux que vous voulez, autant de fois que vous voulez : échéances, mes cours, messages récents, notifications, progression, et un cours épinglé qui affiche son contenu directement sur le tableau de bord.",
+          "Renommez un panneau d’un double-clic sur son titre, retirez-le depuis son menu, et réinitialisez le tableau de bord depuis le menu Moodle.",
+          "Dans une fenêtre étroite, les panneaux s’empilent dans l’ordre de lecture, sans changer votre disposition."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.18.0",
       "date": "2026-10-20",
       "title": { "en": "Moodle courses in Looty", "fr": "Les cours Moodle dans Looty" },
