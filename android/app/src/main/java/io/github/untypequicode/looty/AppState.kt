@@ -987,6 +987,14 @@ class AppState(app: Application) : AndroidViewModel(app) {
     suspend fun moodleNotify(on: Boolean): Boolean = runCatching { api.send("PUT", moodle("/preferences"), buildJsonObject { put("notify", on) }) }.onFailure(::fail).isSuccess
     suspend fun moodleSyncCalendar(): Boolean = runCatching { api.send("POST", moodle("/calendar/sync")) }.onFailure(::fail).isSuccess.also { if (it) loadCalendars() }
     suspend fun moodleCourses(): Result<List<MoodleCourse>> = runCatching { api.get<List<MoodleCourse>>(moodle("/courses")) }
+    suspend fun moodleCourse(id: Long): Result<MoodleCourseContent> = runCatching { api.get<MoodleCourseContent>(moodle("/courses/$id")) }
+    suspend fun moodleAssignment(course: Long, cmid: Long): Result<MoodleAssignment> = runCatching { api.get<MoodleAssignment>(moodle("/courses/$course/assign/$cmid")) }
+    suspend fun moodlePage(source: String): Result<String> = runCatching { api.get<MoodleHtml>(moodle("/html?url=${enc(source)}")).html }
+    /** Fichier d'un cours (servi par Looty) téléchargé dans le cache, pour l'ouvrir. */
+    suspend fun moodleFile(path: String, name: String): Result<java.io.File> = runCatching {
+        val f = java.io.File(getApplication<Application>().cacheDir, "attachments/moodle/" + name.replace(Regex("[/\\\\:*?\"<>|]"), "_").ifBlank { "file" })
+        api.downloadTo(path, f); f
+    }
     suspend fun moodleDeadlines(): Result<List<MoodleDeadline>> = runCatching { api.get<List<MoodleDeadline>>(moodle("/deadlines")) }
     suspend fun moodleNotifications(): Result<MoodleNotifs> = runCatching { api.get<MoodleNotifs>(moodle("/notifications")) }
     suspend fun moodleConversations(): Result<List<MoodleConversation>> = runCatching { api.get<List<MoodleConversation>>(moodle("/conversations")) }

@@ -16,6 +16,7 @@ mod mail;
 mod mailbox;
 mod mailclient;
 mod moodle;
+mod moodle_content;
 mod projects;
 mod latex;
 mod drive;

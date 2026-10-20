@@ -768,4 +768,23 @@
         <item quantity="one">Ajoute %d membre</item>
         <item quantity="other">Ajoute ses %d membres</item>
     </plurals>
+    <string name="moodle_open_on_site">Ouvrir sur Moodle</string>
+    <string name="moodle_course_empty">Ce cours est vide pour vous.</string>
+    <string name="moodle_due">À rendre</string>
+    <string name="moodle_cutoff">Dernier délai</string>
+    <string name="moodle_submission">Remise</string>
+    <string name="moodle_grading">Évaluation</string>
+    <string name="moodle_grade">Note</string>
+    <string name="moodle_submit">Remettre sur Moodle</string>
+    <string name="moodle_attachments">Fichiers joints</string>
+    <string name="moodle_status_new">Rien de remis</string>
+    <string name="moodle_status_draft">Brouillon (pas encore remis)</string>
+    <string name="moodle_status_submitted">Remis</string>
+    <string name="moodle_status_reopened">Rouvert</string>
+    <string name="moodle_notgraded">Pas encore évalué</string>
+    <string name="moodle_graded">Évalué</string>
+    <string name="moodle_on_site">Sur Moodle</string>
+    <string name="moodle_autologin_hint">Pour ouvrir Moodle déjà connecté, reconnectez-vous une fois.</string>
+    <string name="moodle_reconnect">Se reconnecter</string>
+    <string name="close">Fermer</string>
 </resources>

@@ -163,6 +163,9 @@ export function parseLatexLog(log: string): LatexIssue[] {
 export const fileSize = (n: number) => (n < 1024 ? `${n} o` : n < 1048576 ? `${Math.round(n / 1024)} Ko` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} Mo` : `${(n / 1073741824).toFixed(2)} Go`)
 
 // --- Drive ---
+/** Fichier affichable dans l'aperçu (drive, cours Moodle). */
+export interface PreviewItem { id: string; name: string; is_dir: boolean; mime: string | null; size: number; expires_at?: string | null }
+
 export interface DriveItem {
   id: string
   folder: string

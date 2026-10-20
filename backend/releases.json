@@ -4,6 +4,42 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.18.0",
+      "date": "2026-10-20",
+      "title": { "en": "Moodle courses in Looty", "fr": "Les cours Moodle dans Looty" },
+      "notes": {
+        "en": [
+          "Open a Moodle course in Looty: its sections and activities, files (PDF, images, videos previewed), pages read in place, folders, and assignments with their brief, due date, submission status and grade.",
+          "Quizzes, forums and submitting an assignment open in Moodle, already signed in: Looty uses your connected account instead of asking you to sign in again.",
+          "If your connection cannot sign you in automatically yet, a banner offers to sign in again once (without disconnecting).",
+          "Course files go through Looty: your Moodle key never reaches the browser."
+        ],
+        "fr": [
+          "Ouvrez un cours Moodle dans Looty : ses sections et activités, les fichiers (PDF, images, vidéos en aperçu), les pages lues sur place, les dossiers, et les devoirs avec leur consigne, leur échéance, l’état de la remise et la note.",
+          "Les tests, forums et la remise d’un devoir s’ouvrent sur Moodle déjà connecté : Looty utilise votre compte relié au lieu de vous redemander de vous connecter.",
+          "Si votre connexion ne permet pas encore la connexion automatique, un bandeau propose de vous reconnecter une fois (sans déconnecter).",
+          "Les fichiers des cours passent par Looty : votre clé Moodle n’arrive jamais dans le navigateur."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.20.0",
+      "date": "2026-10-20",
+      "title": { "en": "Moodle courses in the app", "fr": "Les cours Moodle dans l’application" },
+      "notes": {
+        "en": [
+          "Tap a course to browse it natively: sections, files opened on your phone, pages read in the app, assignments with their status and grade.",
+          "Moodle pages now open inside the app, already signed in, and stay signed in; files downloaded there go to your Downloads."
+        ],
+        "fr": [
+          "Touchez un cours pour le parcourir en natif : sections, fichiers ouverts sur le téléphone, pages lues dans l’application, devoirs avec leur état et leur note.",
+          "Les pages Moodle s’ouvrent maintenant dans l’application, déjà connecté, et le restent ; les fichiers qui y sont téléchargés vont dans vos Téléchargements."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.17.0",
       "date": "2026-10-20",
       "title": { "en": "Member groups", "fr": "Groupes de membres" },
