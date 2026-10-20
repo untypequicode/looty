@@ -758,4 +758,14 @@
     <string name="err_caldav_too_many">Limite de 10 calendriers atteinte.</string>
     <string name="err_caldav_unexpected_status">Réponse inattendue du serveur de calendrier.</string>
     <string name="err_caldav_put_failed">Le serveur a refusé d’enregistrer une tâche.</string>
+    <string name="member_groups">Groupes</string>
+    <string name="group_all_in">Tous déjà ajoutés</string>
+    <plurals name="group_members">
+        <item quantity="one">%d membre</item>
+        <item quantity="other">%d membres</item>
+    </plurals>
+    <plurals name="group_adds">
+        <item quantity="one">Ajoute %d membre</item>
+        <item quantity="other">Ajoute ses %d membres</item>
+    </plurals>
 </resources>

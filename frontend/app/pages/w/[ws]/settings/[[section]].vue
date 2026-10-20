@@ -14,6 +14,7 @@ import AdminStorage from '~/components/settings/AdminStorage.vue'
 import Workspace from '~/components/settings/Workspace.vue'
 import Members from '~/components/settings/Members.vue'
 import Roles from '~/components/settings/Roles.vue'
+import Groups from '~/components/settings/Groups.vue'
 import MySpace from '~/components/settings/MySpace.vue'
 import SpaceOverview from '~/components/settings/SpaceOverview.vue'
 import AdminInsightsPage from '~/components/settings/AdminInsights.vue'
@@ -38,6 +39,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   calendars: { comp: Calendars, title: 'settings.nav.calendars' },
   workspace: { comp: Workspace, title: 'settings.nav.general' },
   members: { comp: Members, title: 'settings.nav.members' },
+  groups: { comp: Groups, title: 'memberGroups.title' },
   roles: { comp: Roles, title: 'rolesUi.title' },
   'my-space': { comp: MySpace, title: 'access.mySpace' },
   'space-overview': { comp: SpaceOverview, title: 'insights.spaceOverview' },

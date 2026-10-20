@@ -13,6 +13,8 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class Permissions(val docs: String = "edit", val boards: String = "edit", val calendar: String = "edit", val invite: Boolean = false, val share: Boolean = false, val admin: Boolean = false)
 @Serializable data class MyAccess(val role: String = "member", val role_name: String? = null, val permissions: Permissions = Permissions(), val group_tasks: Boolean = true)
 @Serializable data class Members(val members: List<Member> = emptyList())
+/** Groupe de membres (sans droit) : mentions @groupe, ajout de tous ses membres d’un coup. */
+@Serializable data class MemberGroup(val id: String, val name: String, val color: String = "#5e6ad2", val members: List<String> = emptyList())
 
 @Serializable data class MyCounts(val open: Int = 0, val overdue: Int = 0, val due_week: Int = 0, val completed_week: Int = 0)
 @Serializable data class BoardStats(val id: String, val name: String, val total: Int = 0, val done: Int = 0, val overdue: Int = 0, val due_soon: Int = 0)

@@ -46,7 +46,7 @@ export default {
     title: 'Roles', description: 'Each member has one role. Presets can be customized like the roles you create.', new: 'New role', preset: 'Preset',
     editTitle: 'Role: {name}', namePlaceholder: 'Role name (e.g. Teaching assistant)', members: '{n} member(s)',
     deleteTitle: 'Delete the role “{name}”?', deleteHint: 'Its members go back to the preset matching their access.',
-    flags: { invite: 'Invite people', inviteHint: 'Add members and create invitation links.', share: 'Public links', shareHint: 'Publish documents on the web.', admin: 'Administration', adminHint: 'Settings, roles, page permissions and members (owner only).' },
+    flags: { invite: 'Invite people', inviteHint: 'Add members and create invitation links.', share: 'Public links', shareHint: 'Publish documents on the web.', groups: 'Manage groups', groupsHint: 'Create, rename and delete member groups, and choose who is in them.', admin: 'Administration', adminHint: 'Settings, roles, page permissions and members (owner only).' },
     levelHint: {
       docs: { none: 'Documents are hidden.', read: 'Read documents.', comment: 'Read and comment.', edit: 'Create, edit, move and delete documents.' },
       boards: { none: 'Boards are hidden.', read: 'See boards and tasks.', comment: 'See and comment on tasks.', validate: 'Comment and approve / complete tasks, without editing them.', edit: 'Create and edit tasks.', manage: 'Also create boards, columns and labels.' },
@@ -120,5 +120,13 @@ export default {
     frequency: 'Frequency', off: 'Off', daily: 'Every day', weekly: 'Every week', hour: 'Time', keep: 'Keep', keepHint: 'Number of scheduled backups kept.', lastAt: 'Last backup {time}',
     errors: { backup_invalid: 'This file is not a Looty backup.', invalid_upload: 'Upload failed.' },
   },
-  errors: { backup_newer: 'This backup comes from a newer version of Looty: update the server first.', backup_invalid: 'This file is not a Looty backup.' },
+  memberGroups: {
+    title: 'Groups', description: 'Sets of members with no rights of their own: mention them all at once with @group, or add them together to a task or an event. A person can be in several groups.',
+    new: 'New group', editTitle: 'Edit “{name}”', namePlaceholder: 'Group name (e.g. Design)', members: 'Members', addMembers: 'Add members',
+    count: { zero: 'No members', one: '{count} member', other: '{count} members' }, empty: 'No groups yet.', emptyHint: 'Create a group to mention or assign several people at once.',
+    noMembers: 'No members', deleteTitle: 'Delete the group “{name}”?', deleteBody: 'Tasks and events keep their participants; only future mentions of the group go away.',
+    created: 'Group created', saved: 'Group saved', deleted: 'Group deleted', readOnly: 'Only people with the “Manage groups” permission can change them.',
+    section: 'Groups', people: 'People', addGroup: { one: 'Adds {count} member', other: 'Adds its {count} members' }, allIn: 'All already added',
+  },
+  errors: { name_taken: 'A group already has this name.', name_required: 'Give the group a name.', backup_newer: 'This backup comes from a newer version of Looty: update the server first.', backup_invalid: 'This file is not a Looty backup.' },
 }

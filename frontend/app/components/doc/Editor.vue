@@ -18,6 +18,7 @@ import { resolveEmbed } from '~/editor/embeds'
 import { toast } from '~/composables/useToast'
 import { translate } from '~/composables/useI18n'
 import { DOC_SCHEMA } from '~/editor/source'
+import { useGroups } from '~/composables/useGroups'
 
 /**
  * Éditeur de document collaboratif (Yjs + Hocuspocus).
@@ -42,6 +43,7 @@ const emit = defineEmits<{
 }>()
 
 const { members, wsId, pages } = useWorkspace()
+const { data: groups } = useGroups(wsId)
 const config = useRuntimeConfig()
 const router = useRouter()
 
@@ -84,6 +86,7 @@ const editor = useEditor({
     provider,
     user: props.user,
     getMembers: () => members.data.value ?? [],
+    getGroups: () => groups.value ?? [],
     pages: { wsId: () => wsId.value, pages: () => (pages.data.value ?? []).filter((p) => p.id !== props.pageId) },
     onMention: (id) => sendMention(id, `page:${props.pageId}`),
     slash: {

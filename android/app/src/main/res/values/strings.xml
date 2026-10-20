@@ -756,4 +756,14 @@
     <string name="err_caldav_too_many">Limit of 10 calendars reached.</string>
     <string name="err_caldav_unexpected_status">Unexpected answer from the calendar server.</string>
     <string name="err_caldav_put_failed">The server refused to save a task.</string>
+    <string name="member_groups">Groups</string>
+    <string name="group_all_in">All already added</string>
+    <plurals name="group_members">
+        <item quantity="one">%d member</item>
+        <item quantity="other">%d members</item>
+    </plurals>
+    <plurals name="group_adds">
+        <item quantity="one">Adds %d member</item>
+        <item quantity="other">Adds its %d members</item>
+    </plurals>
 </resources>

@@ -24,6 +24,7 @@ mod storage;
 mod events;
 mod activity;
 mod graph;
+mod groups;
 mod releases;
 mod notifications;
 mod push;
@@ -138,6 +139,7 @@ async fn main() {
         .nest("/workspaces/{workspace_id}/prefs", prefs::workspace_routes())
         .nest("/workspaces/{workspace_id}/comments", comments::workspace_routes())
         .nest("/workspaces/{workspace_id}/access", roles::workspace_routes())
+        .nest("/workspaces/{workspace_id}/groups", groups::workspace_routes())
         .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
         .nest("/workspaces/{workspace_id}", classes::workspace_routes())
         .nest("/workspaces/{workspace_id}/moodle", moodle::workspace_routes())

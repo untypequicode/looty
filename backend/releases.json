@@ -4,6 +4,44 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.17.0",
+      "date": "2026-10-20",
+      "title": { "en": "Member groups", "fr": "Groupes de membres" },
+      "notes": {
+        "en": [
+          "**Groups**: in Settings → Groups, gather members under a name (a person can be in several groups). Groups give no rights; they save time.",
+          "Mention a whole group with **@group** in comments and documents: each of its members is notified once.",
+          "Choose a group when assigning a task or tagging people on an event: its current members are added.",
+          "New role permission “Manage groups” (owners and administrators have it by default); everyone sees the groups.",
+          "Searching for people, labels or groups ignores accents (“equ” finds “Équipe”)."
+        ],
+        "fr": [
+          "**Groupes** : dans Réglages → Groupes, rassemblez des membres sous un nom (une personne peut faire partie de plusieurs groupes). Les groupes ne donnent aucun droit : ils font gagner du temps.",
+          "Mentionnez tout un groupe avec **@groupe** dans les commentaires et les documents : chacun de ses membres est notifié une fois.",
+          "Choisissez un groupe pour assigner une tâche ou mentionner des personnes sur un événement : ses membres du moment sont ajoutés.",
+          "Nouvelle permission de rôle « Gérer les groupes » (propriétaires et administrateurs l’ont par défaut) ; tout le monde voit les groupes.",
+          "La recherche de personnes, d’étiquettes ou de groupes ignore les accents (« equ » trouve « Équipe »)."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.19.0",
+      "date": "2026-10-20",
+      "title": { "en": "Mentions and member groups", "fr": "Mentions et groupes de membres" },
+      "notes": {
+        "en": [
+          "Type **@** in a task or document comment to mention a member or a whole group; they are notified.",
+          "When assigning a task, choose a group to add all its members at once."
+        ],
+        "fr": [
+          "Tapez **@** dans un commentaire de tâche ou de document pour mentionner un membre ou tout un groupe : ils sont notifiés.",
+          "Pour assigner une tâche, choisissez un groupe pour ajouter tous ses membres d’un coup."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.16.10",
       "date": "2026-10-20",
       "title": { "en": "Clicking in formulas works again", "fr": "Le clic fonctionne à nouveau dans les formules" },

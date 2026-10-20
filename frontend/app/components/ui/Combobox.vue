@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends string | number | null">
 import type { Placement } from '@floating-ui/vue'
 import { Check, Search } from 'lucide-vue-next'
+import { fold } from '~/utils/fold'
 
 export interface ComboItem<V> {
   value: V
@@ -9,6 +10,8 @@ export interface ComboItem<V> {
   color?: string
   keywords?: string
   shortcut?: string
+  /** Titre de section, affiché avant le premier élément de chaque section. */
+  section?: string
 }
 
 const open = defineModel<boolean>('open', { default: false })
@@ -34,9 +37,9 @@ const active = ref(0)
 const input = ref<HTMLInputElement | null>(null)
 
 const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase()
+  const q = fold(query.value.trim())
   if (!q) return props.items
-  return props.items.filter((i) => `${i.label} ${i.keywords ?? ''}`.toLowerCase().includes(q))
+  return props.items.filter((i) => fold(`${i.label} ${i.keywords ?? ''}`).includes(q))
 })
 const showCreate = computed(() => props.creatable && query.value.trim() && !props.items.some((i) => i.label.toLowerCase() === query.value.trim().toLowerCase()))
 const total = computed(() => filtered.value.length + (showCreate.value ? 1 : 0))
@@ -92,9 +95,9 @@ function onKey(e: KeyboardEvent) {
         <input ref="input" v-model="query" :placeholder="placeholder" @keydown="onKey" />
       </div>
       <div class="combo-list">
+        <template v-for="(it, i) in filtered" :key="String(it.value)">
+        <div v-if="it.section && it.section !== filtered[i - 1]?.section" class="combo-section">{{ it.section }}</div>
         <button
-          v-for="(it, i) in filtered"
-          :key="String(it.value)"
           class="combo-item"
           :class="{ active: active === i }"
           @mouseenter="active = i"
@@ -109,6 +112,7 @@ function onKey(e: KeyboardEvent) {
           <Check v-if="!multiple && isSelected(it.value)" :size="14" class="combo-selected" />
           <span v-else-if="it.shortcut" class="combo-hint">{{ it.shortcut }}</span>
         </button>
+        </template>
         <button v-if="showCreate" class="combo-item" :class="{ active: active === filtered.length }" @mouseenter="active = filtered.length" @click="create">
           <span class="faint">+</span>
           <span class="truncate">{{ createLabel }} « {{ query.trim() }} »</span>
@@ -145,6 +149,7 @@ function onKey(e: KeyboardEvent) {
 }
 .combo-item.active { background: var(--bg-active); }
 .combo-label { flex: 1; }
+.combo-section { padding: 8px 8px 3px; font-size: 11px; font-weight: 600; color: var(--text-3); }
 .combo-hint { color: var(--text-3); font-size: var(--fs-sm); }
 .combo-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .combo-check {

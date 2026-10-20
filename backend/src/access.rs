@@ -184,19 +184,21 @@ pub struct Perms {
     pub invite: bool,
     pub share: bool,
     pub admin: bool,
+    /// Créer, modifier et supprimer les groupes de membres.
+    pub groups: bool,
 }
 
 impl Perms {
     pub fn all() -> Perms {
-        Perms { docs: level::EDIT, boards: level::MANAGE, calendar: level::EDIT, invite: true, share: true, admin: true }
+        Perms { docs: level::EDIT, boards: level::MANAGE, calendar: level::EDIT, invite: true, share: true, admin: true, groups: true }
     }
     /// Permissions par défaut d'un préréglage (si le rôle n'existe pas en base).
     pub fn preset(role: Role) -> Perms {
         match role {
             Role::Owner | Role::Admin => Perms::all(),
-            Role::Member => Perms { docs: level::EDIT, boards: level::MANAGE, calendar: level::EDIT, invite: false, share: true, admin: false },
-            Role::Viewer => Perms { docs: level::COMMENT, boards: level::COMMENT, calendar: level::READ, invite: false, share: false, admin: false },
-            Role::Guest => Perms { docs: level::NONE, boards: level::NONE, calendar: level::NONE, invite: false, share: false, admin: false },
+            Role::Member => Perms { docs: level::EDIT, boards: level::MANAGE, calendar: level::EDIT, invite: false, share: true, admin: false, groups: false },
+            Role::Viewer => Perms { docs: level::COMMENT, boards: level::COMMENT, calendar: level::READ, invite: false, share: false, admin: false, groups: false },
+            Role::Guest => Perms { docs: level::NONE, boards: level::NONE, calendar: level::NONE, invite: false, share: false, admin: false, groups: false },
         }
     }
     /// Lecture du JSON stocké ; les clés absentes prennent la valeur du préréglage `base`.
@@ -210,12 +212,13 @@ impl Perms {
             invite: b("invite", base.invite),
             share: b("share", base.share),
             admin: b("admin", base.admin),
+            groups: b("groups", base.groups),
         }
     }
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
             "docs": level::name(self.docs), "boards": level::name(self.boards), "calendar": level::name(self.calendar),
-            "invite": self.invite, "share": self.share, "admin": self.admin,
+            "invite": self.invite, "share": self.share, "admin": self.admin, "groups": self.groups,
         })
     }
     /// Rôle de base équivalent (anciens contrôles « écriture » / « admin »).
