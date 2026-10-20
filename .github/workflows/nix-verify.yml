@@ -12,7 +12,7 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: Révision à vérifier (par défaut : celle de l'appelant)
+        description: 'Révision à vérifier (par défaut celle de l''appelant)'
         type: string
         required: false
   workflow_dispatch:

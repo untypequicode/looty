@@ -82,5 +82,5 @@ jobs:
             cachix pin "$CACHE" "$1-$SYSTEM" "$2" --keep-revisions 3
           }
           pin main "$(readlink -f result)"
-          pin main-shell-desktop "$(nix build .#devShells.$SYSTEM.desktop --no-link --print-out-paths --accept-flake-config)"
-          pin main-shell-default "$(nix build .#devShells.$SYSTEM.default --no-link --print-out-paths --accept-flake-config)"
+          pin main-shell-desktop "$(nix build ".#devShells.$SYSTEM.desktop" --no-link --print-out-paths --accept-flake-config)"
+          pin main-shell-default "$(nix build ".#devShells.$SYSTEM.default" --no-link --print-out-paths --accept-flake-config)"
