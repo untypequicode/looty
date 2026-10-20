@@ -13,5 +13,5 @@ Nom persistant donné à un chemin du cache binaire pour le protéger de l'évic
 _Avoid_: pin, verrou
 
 **Vérification du cache**:
-Contrôle qui construit les sorties du flake en n'autorisant que le cache binaire comme source, et échoue si quoi que ce soit doit être compilé. Elle tourne après chaque push sur `main`, chaque release desktop et chaque semaine.
+Contrôle qui construit le paquet et les entrées des shells du flake en n'autorisant que le cache binaire comme source, et échoue si quoi que ce soit doit être compilé. Elle tourne après chaque push sur `main`, chaque release desktop et chaque semaine.
 _Avoid_: test du cache, smoke test
