@@ -3,6 +3,96 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.18.0",
+      "date": "2026-10-20",
+      "title": { "en": "Moodle courses in Looty", "fr": "Les cours Moodle dans Looty" },
+      "notes": {
+        "en": [
+          "Open a Moodle course in Looty: its sections and activities, files (PDF, images, videos previewed), pages read in place, folders, and assignments with their brief, due date, submission status and grade.",
+          "Quizzes, forums and submitting an assignment open in Moodle, already signed in: Looty uses your connected account instead of asking you to sign in again.",
+          "If your connection cannot sign you in automatically yet, a banner offers to sign in again once (without disconnecting).",
+          "Course files go through Looty: your Moodle key never reaches the browser."
+        ],
+        "fr": [
+          "Ouvrez un cours Moodle dans Looty : ses sections et activités, les fichiers (PDF, images, vidéos en aperçu), les pages lues sur place, les dossiers, et les devoirs avec leur consigne, leur échéance, l’état de la remise et la note.",
+          "Les tests, forums et la remise d’un devoir s’ouvrent sur Moodle déjà connecté : Looty utilise votre compte relié au lieu de vous redemander de vous connecter.",
+          "Si votre connexion ne permet pas encore la connexion automatique, un bandeau propose de vous reconnecter une fois (sans déconnecter).",
+          "Les fichiers des cours passent par Looty : votre clé Moodle n’arrive jamais dans le navigateur."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.20.0",
+      "date": "2026-10-20",
+      "title": { "en": "Moodle courses in the app", "fr": "Les cours Moodle dans l’application" },
+      "notes": {
+        "en": [
+          "Tap a course to browse it natively: sections, files opened on your phone, pages read in the app, assignments with their status and grade.",
+          "Moodle pages now open inside the app, already signed in, and stay signed in; files downloaded there go to your Downloads."
+        ],
+        "fr": [
+          "Touchez un cours pour le parcourir en natif : sections, fichiers ouverts sur le téléphone, pages lues dans l’application, devoirs avec leur état et leur note.",
+          "Les pages Moodle s’ouvrent maintenant dans l’application, déjà connecté, et le restent ; les fichiers qui y sont téléchargés vont dans vos Téléchargements."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.17.0",
+      "date": "2026-10-20",
+      "title": { "en": "Member groups", "fr": "Groupes de membres" },
+      "notes": {
+        "en": [
+          "**Groups**: in Settings → Groups, gather members under a name (a person can be in several groups). Groups give no rights; they save time.",
+          "Mention a whole group with **@group** in comments and documents: each of its members is notified once.",
+          "Choose a group when assigning a task or tagging people on an event: its current members are added.",
+          "New role permission “Manage groups” (owners and administrators have it by default); everyone sees the groups.",
+          "Searching for people, labels or groups ignores accents (“equ” finds “Équipe”)."
+        ],
+        "fr": [
+          "**Groupes** : dans Réglages → Groupes, rassemblez des membres sous un nom (une personne peut faire partie de plusieurs groupes). Les groupes ne donnent aucun droit : ils font gagner du temps.",
+          "Mentionnez tout un groupe avec **@groupe** dans les commentaires et les documents : chacun de ses membres est notifié une fois.",
+          "Choisissez un groupe pour assigner une tâche ou mentionner des personnes sur un événement : ses membres du moment sont ajoutés.",
+          "Nouvelle permission de rôle « Gérer les groupes » (propriétaires et administrateurs l’ont par défaut) ; tout le monde voit les groupes.",
+          "La recherche de personnes, d’étiquettes ou de groupes ignore les accents (« equ » trouve « Équipe »)."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.19.0",
+      "date": "2026-10-20",
+      "title": { "en": "Mentions and member groups", "fr": "Mentions et groupes de membres" },
+      "notes": {
+        "en": [
+          "Type **@** in a task or document comment to mention a member or a whole group; they are notified.",
+          "When assigning a task, choose a group to add all its members at once."
+        ],
+        "fr": [
+          "Tapez **@** dans un commentaire de tâche ou de document pour mentionner un membre ou tout un groupe : ils sont notifiés.",
+          "Pour assigner une tâche, choisissez un groupe pour ajouter tous ses membres d’un coup."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.16.10",
+      "date": "2026-10-20",
+      "title": { "en": "Clicking in formulas works again", "fr": "Le clic fonctionne à nouveau dans les formules" },
+      "notes": {
+        "en": [
+          "Firefox: clicking or selecting with the mouse inside a block formula or a Mermaid diagram places the cursor again (only the arrow keys worked).",
+          "Clicking an inline formula always opens it for editing (it sometimes closed again straight away)."
+        ],
+        "fr": [
+          "Firefox : cliquer ou sélectionner à la souris dans une formule en bloc ou un diagramme Mermaid place à nouveau le curseur (seules les flèches du clavier fonctionnaient).",
+          "Cliquer sur une formule en ligne l’ouvre toujours pour la modifier (elle se refermait parfois aussitôt)."
+        ]
+      }
+    },
+    {
       "platform": "android",
       "version": "0.18.0",
       "date": "2026-10-17",

@@ -12,6 +12,7 @@ import { mentionExtension } from '~/editor/mention'
 import { PageMention, pageMentionSuggest, type PageSource } from '~/editor/pageMention'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { uploadFile } from '~/composables/api'
+import { useGroups } from '~/composables/useGroups'
 
 /**
  * Éditeur riche léger (descriptions de tâches, commentaires) : raccourcis
@@ -28,6 +29,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ (e: 'blur'): void; (e: 'submit'): void; (e: 'mention', id: string): void }>()
 
 const { members, pages, wsId } = useWorkspace()
+const { data: groups } = useGroups(wsId)
 const pageSource: PageSource = { wsId: () => wsId.value, pages: () => pages.data.value ?? [] }
 
 async function insertImage(file: File, pos?: number) {
@@ -53,7 +55,7 @@ const editor = useEditor({
     TaskList,
     TaskItem.configure({ nested: true }),
     Image.configure({ HTMLAttributes: { loading: 'lazy' } }),
-    mentionExtension(() => members.data.value ?? [], (id) => emit('mention', id), pageSource),
+    mentionExtension(() => members.data.value ?? [], (id) => emit('mention', id), pageSource, () => groups.value ?? []),
     PageMention,
     pageMentionSuggest(pageSource),
   ],

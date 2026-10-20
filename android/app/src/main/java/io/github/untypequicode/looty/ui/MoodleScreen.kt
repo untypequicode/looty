@@ -39,14 +39,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-private fun openExternal(ctx: android.content.Context, url: String) {
-    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-}
-
 /** Moodle : échéances, cours, messages, notifications ; connexion du compte. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, String) -> Unit) {
+fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, String) -> Unit, onCourse: (Long, String) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var overview by remember { mutableStateOf<MoodleOverview?>(null) }
@@ -59,8 +55,10 @@ fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, Str
     fun reload() { scope.launch { val o = state.moodleOverview(); if (o != null) overview = o else failed = true } }
     LaunchedEffect(Unit) { reload() }
     val conn = overview?.connection
-    /** Lien Moodle ouvert dans le navigateur, déjà connecté si possible. */
-    fun open(url: String?) = state.launch { state.moodleOpen(url)?.let { openExternal(ctx, it) } }
+    /** Page du site Moodle ouverte dans l'application, déjà connecté si possible. */
+    fun open(url: String?) = openMoodleSite(state, ctx, url)
+    /** Reconnexion volontaire (sans déconnecter) : pour ouvrir le site déjà connecté. */
+    var reconnecting by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -94,8 +92,14 @@ fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, Str
             when {
                 overview == null && !failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicatorCompat() }
                 overview == null -> EmptyState(Icons.Outlined.CloudOff, stringResource(R.string.error_generic))
-                conn == null -> MoodleConnect(state, overview!!) { reload() }
+                conn == null || reconnecting -> MoodleConnect(state, overview!!) { reconnecting = false; reload() }
                 else -> {
+                    if (!conn.autologin && conn.last_error == null) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp)) {
+                        Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.moodle_autologin_hint), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            TextButton(onClick = { reconnecting = true }) { Text(stringResource(R.string.moodle_reconnect)) }
+                        }
+                    }
                     conn.last_error?.let { e ->
                         Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp)) {
                             Text(if (e.startsWith("moodle_")) errorText(ctx, e) else e, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
@@ -129,7 +133,7 @@ fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, Str
                                         }
                                     },
                                     leadingContent = { Icon(if (c.favourite) Icons.Outlined.Star else Icons.Outlined.School, null, tint = MaterialTheme.colorScheme.primary) },
-                                    modifier = Modifier.clickable { open(c.url) },
+                                    modifier = Modifier.clickable { onCourse(c.id, c.fullname.orEmpty()) },
                                 )
                             }
                         }

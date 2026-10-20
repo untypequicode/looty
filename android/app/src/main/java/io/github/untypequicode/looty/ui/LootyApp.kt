@@ -192,7 +192,8 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                 ComposeScreen(state, e.arguments?.getString("mode") ?: "new", e.arguments?.getString("to").orEmpty(), onClose = { nav.popBackStack() },
                     onSetupSending = { id -> nav.navigate("mailaccount?id=$id") })
             }
-            composable("moodle") { MoodleScreen(state, onBack = { nav.popBackStack() }, onConversation = { id, name -> nav.navigate("moodle/$id?name=" + android.net.Uri.encode(name)) }) }
+            composable("moodle") { MoodleScreen(state, onBack = { nav.popBackStack() }, onConversation = { id, name -> nav.navigate("moodle/$id?name=" + android.net.Uri.encode(name)) }, onCourse = { id, name -> nav.navigate("moodle/course/$id?name=" + android.net.Uri.encode(name)) }) }
+            composable("moodle/course/{id}?name={name}") { e -> MoodleCourseScreen(state, e.arguments?.getString("id")?.toLongOrNull() ?: 0L, e.arguments?.getString("name").orEmpty(), onBack = { nav.popBackStack() }) }
             composable("moodle/{id}?name={name}") { e -> MoodleConversationScreen(state, e.arguments?.getString("id")?.toLongOrNull() ?: 0L, e.arguments?.getString("name").orEmpty(), onBack = { nav.popBackStack() }) }
             composable("activity") { ActivityScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("trash") { TrashScreen(state, onBack = { nav.popBackStack() }) }

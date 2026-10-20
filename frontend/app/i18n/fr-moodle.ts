@@ -1,5 +1,6 @@
 export default {
   errors: {
+    moodle_bad_file: 'Ce fichier ne vient pas de votre plateforme Moodle.', moodle_too_large: 'Cette page est trop grande pour être affichée.',
     moodle_invalid_url: 'Adresse Moodle invalide', moodle_unreachable: 'Impossible de joindre Moodle', moodle_not_moodle: 'Cette adresse ne répond pas comme un Moodle',
     moodle_ws_disabled: 'Les services web (application mobile) ne sont pas activés sur ce Moodle', moodle_auth_failed: 'Moodle a refusé l’identifiant ou le mot de passe',
     moodle_invalid_token: 'Jeton Moodle invalide ou expiré', moodle_not_connected: 'Compte Moodle non connecté', moodle_bad_response: 'Réponse inattendue de Moodle',
@@ -36,5 +37,14 @@ export default {
     syncCalendar: 'Synchroniser le calendrier', calendarSynced: { one: '1 événement Moodle', other: '{count} événements Moodle' },
     notifyOn: 'Activer les notifications', notifyOff: 'Couper les notifications', platformSettings: 'Réglages de la plateforme',
     disconnect: 'Déconnecter Moodle', disconnectTitle: 'Déconnecter votre compte Moodle ?', disconnectHint: 'Looty oublie votre clé et retire le calendrier Moodle importé. Rien n’est supprimé sur Moodle.',
+    course: {
+      back: 'Cours', openOnSite: 'Ouvrir sur Moodle', empty: 'Ce cours est vide pour vous.', loading: 'Chargement du cours…',
+      read: 'Lire', files: { one: '1 fichier', other: '{count} fichiers' }, openLink: 'Ouvrir le lien', onSite: 'Sur Moodle', download: 'Télécharger',
+      due: 'À rendre', opens: 'Ouvert depuis', cutoff: 'Dernier délai', status: 'Remise', grading: 'Évaluation', grade: 'Note', submit: 'Remettre sur Moodle', attachments: 'Fichiers joints',
+      statuses: { new: 'Rien de remis', draft: 'Brouillon (pas encore remis)', submitted: 'Remis', reopened: 'Rouvert' },
+      gradings: { notgraded: 'Pas encore évalué', graded: 'Évalué' },
+      done: 'Terminé', notDone: 'À faire',
+    },
+    autologinHint: 'Pour ouvrir Moodle déjà connecté, reconnectez-vous une fois par le portail officiel ou avec votre identifiant.', autologinAction: 'Se reconnecter',
   },
 }

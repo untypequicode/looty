@@ -159,6 +159,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     var session by mutableStateOf<Session>(Session.Loading); private set
     var members by mutableStateOf<Map<String, Member>>(emptyMap()); private set
+    /** Groupes de membres de l’espace (mentions, ajout groupé des assignés). */
+    var groups by mutableStateOf<List<MemberGroup>>(emptyList()); private set
     var overview by mutableStateOf(Loadable<Overview>()); private set
     var tasks by mutableStateOf(Loadable<List<MyTask>>()); private set
     var taskScope by mutableStateOf(prefs.getString("taskScope", "mine") ?: "mine"); private set
@@ -265,6 +267,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     fun loadMembers() {
         val w = ws ?: return
         fetchCached("${w}/members", { m: Members -> members = m.members.associateBy { it.user_id } }) { api.get<Members>("/api/workspaces/$w/members") }
+        fetchCached("${w}/groups", { g: List<MemberGroup> -> groups = g }) { api.get<List<MemberGroup>>("/api/workspaces/$w/groups") }
     }
     fun loadOverview() { val w = ws ?: return; load({ overview }, { overview = it }, "${w}/overview") { api.get<Overview>("/api/workspaces/$w/overview") } }
     fun loadTasks() {
@@ -519,17 +522,17 @@ class AppState(app: Application) : AndroidViewModel(app) {
         runCatching { api.get<List<DocComment>>("/api/workspaces/$w/comments?kind=page&id=$id") }.onFailure(::fail).getOrNull()
     }
 
-    suspend fun addDocComment(pageId: String, text: String, parentId: String?): Boolean {
+    suspend fun addDocComment(pageId: String, text: String, parentId: String?, mentions: List<io.github.untypequicode.looty.ui.Html.Mention> = emptyList()): Boolean {
         val w = ws ?: return false
         return runCatching {
             api.send("POST", "/api/workspaces/$w/comments", buildJsonObject {
-                put("kind", "page"); put("id", pageId); put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)); parentId?.let { put("parent_id", it) }
+                put("kind", "page"); put("id", pageId); put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text, mentions)); parentId?.let { put("parent_id", it) }
             })
         }.onFailure(::fail).isSuccess.also { if (it) loadDocCommentCounts() }
     }
 
-    suspend fun editDocComment(id: String, text: String): Boolean =
-        runCatching { api.send("PUT", "/api/comments/$id", buildJsonObject { put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text)) }) }.onFailure(::fail).isSuccess
+    suspend fun editDocComment(id: String, text: String, mentions: List<io.github.untypequicode.looty.ui.Html.Mention> = emptyList()): Boolean =
+        runCatching { api.send("PUT", "/api/comments/$id", buildJsonObject { put("content", io.github.untypequicode.looty.ui.Html.fromPlain(text, mentions)) }) }.onFailure(::fail).isSuccess
 
     suspend fun deleteDocComment(id: String): Boolean =
         runCatching { api.send("DELETE", "/api/comments/$id") }.onFailure(::fail).isSuccess.also { if (it) loadDocCommentCounts() }
@@ -707,8 +710,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun addComment(taskId: String, text: String): Boolean = runCatching {
-        val html = io.github.untypequicode.looty.ui.Html.fromPlain(text)
+    suspend fun addComment(taskId: String, text: String, mentions: List<io.github.untypequicode.looty.ui.Html.Mention> = emptyList()): Boolean = runCatching {
+        val html = io.github.untypequicode.looty.ui.Html.fromPlain(text, mentions)
         val queued = write("POST", "/api/boards/tasks/$taskId/comments", buildJsonObject { put("content", html) }, "comment")
         // Hors ligne : le commentaire apparaît tout de suite ; il sera envoyé avec le reste.
         if (queued) comments[taskId] = comments[taskId].orEmpty() + Comment("local-" + java.util.UUID.randomUUID(), taskId, me?.id.orEmpty(), html, Instant.now().toString())
@@ -814,7 +817,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }.onFailure(::fail).getOrNull()
 
     fun editComment(taskId: String, c: Comment, text: String) {
-        val html = io.github.untypequicode.looty.ui.Html.fromPlain(text)
+        val html = io.github.untypequicode.looty.ui.Html.let { it.fromPlain(text, it.mentionsOf(c.content)) }
         comments[taskId] = comments[taskId].orEmpty().map { if (it.id == c.id) it.copy(content = html, updated_at = Instant.now().toString()) else it }
         viewModelScope.launch {
             runCatching { write("PUT", "/api/boards/tasks/$taskId/comments/${c.id}", buildJsonObject { put("content", html) }, "comment") }.onFailure(::fail)
@@ -984,6 +987,14 @@ class AppState(app: Application) : AndroidViewModel(app) {
     suspend fun moodleNotify(on: Boolean): Boolean = runCatching { api.send("PUT", moodle("/preferences"), buildJsonObject { put("notify", on) }) }.onFailure(::fail).isSuccess
     suspend fun moodleSyncCalendar(): Boolean = runCatching { api.send("POST", moodle("/calendar/sync")) }.onFailure(::fail).isSuccess.also { if (it) loadCalendars() }
     suspend fun moodleCourses(): Result<List<MoodleCourse>> = runCatching { api.get<List<MoodleCourse>>(moodle("/courses")) }
+    suspend fun moodleCourse(id: Long): Result<MoodleCourseContent> = runCatching { api.get<MoodleCourseContent>(moodle("/courses/$id")) }
+    suspend fun moodleAssignment(course: Long, cmid: Long): Result<MoodleAssignment> = runCatching { api.get<MoodleAssignment>(moodle("/courses/$course/assign/$cmid")) }
+    suspend fun moodlePage(source: String): Result<String> = runCatching { api.get<MoodleHtml>(moodle("/html?url=${enc(source)}")).html }
+    /** Fichier d'un cours (servi par Looty) téléchargé dans le cache, pour l'ouvrir. */
+    suspend fun moodleFile(path: String, name: String): Result<java.io.File> = runCatching {
+        val f = java.io.File(getApplication<Application>().cacheDir, "attachments/moodle/" + name.replace(Regex("[/\\\\:*?\"<>|]"), "_").ifBlank { "file" })
+        api.downloadTo(path, f); f
+    }
     suspend fun moodleDeadlines(): Result<List<MoodleDeadline>> = runCatching { api.get<List<MoodleDeadline>>(moodle("/deadlines")) }
     suspend fun moodleNotifications(): Result<MoodleNotifs> = runCatching { api.get<MoodleNotifs>(moodle("/notifications")) }
     suspend fun moodleConversations(): Result<List<MoodleConversation>> = runCatching { api.get<List<MoodleConversation>>(moodle("/conversations")) }

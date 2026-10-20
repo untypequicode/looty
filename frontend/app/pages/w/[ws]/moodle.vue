@@ -36,6 +36,13 @@ const { data: overview, isLoading } = useMoodle(wsId)
 const conn = computed(() => overview.value?.connection ?? null)
 const connected = computed(() => !!conn.value)
 const tokenBroken = computed(() => !!conn.value?.last_error?.startsWith('moodle_invalid_token'))
+/** Reconnexion volontaire (sans déconnecter) : pour obtenir la connexion automatique au site. */
+const reconnecting = ref(false)
+const showConnect = computed(() => !connected.value || reconnecting.value)
+// Cours ouvert dans Looty (?course=…) : le bouton Retour du navigateur revient à la liste.
+const route = useRoute()
+const courseId = computed(() => Number(route.query.course) || null)
+const openCourse = (id: number | null) => navigateTo({ query: { ...route.query, course: id ?? undefined } })
 
 // --- Connexion ---
 const site = ref<MoodleSite | null>(null)
@@ -61,6 +68,7 @@ async function connect(body?: Record<string, string>) {
     if (!r.calendar) toast(t('moodle.calendarUnavailable'))
     Object.assign(form, { token: '', username: '', password: '' })
     waiting.value = false
+    reconnecting.value = false
     tab.value = 'overview'
     invalidate()
     qc.invalidateQueries({ queryKey: ['calendars'] })
@@ -259,8 +267,9 @@ useHead({ title: () => t('moodle.title') })
     </div>
 
     <!-- Connexion du compte -->
-    <div v-else-if="!connected" class="md-center">
+    <div v-else-if="showConnect" class="md-center">
       <div class="md-card wide">
+        <UiButton v-if="reconnecting" class="md-cancel" size="sm" variant="ghost" :icon="ArrowLeft" @click="reconnecting = false">{{ t('common.cancel') }}</UiButton>
         <img v-if="site?.logo" :src="site.logo" alt="" class="md-logo" referrerpolicy="no-referrer" />
         <GraduationCap v-else :size="28" class="md-hero" />
         <h2>{{ t('moodle.connectTitle', { site: site?.site_name || overview.url }) }}</h2>
@@ -317,6 +326,12 @@ useHead({ title: () => t('moodle.title') })
         <AlertTriangle :size="14" /><span>{{ t('moodle.tokenExpired') }}</span>
         <UiButton size="xs" variant="ghost" @click="disconnect">{{ t('moodle.reconnect') }}</UiButton>
       </div>
+      <div v-else-if="!conn!.autologin" class="md-banner info">
+        <LogIn :size="14" /><span>{{ t('moodle.autologinHint') }}</span>
+        <UiButton size="xs" variant="ghost" @click="reconnecting = true">{{ t('moodle.autologinAction') }}</UiButton>
+      </div>
+      <MoodleCourse v-if="courseId" :ws="wsId" :course-id="courseId" :course="courses.data.value?.find((c) => c.id === courseId) ?? null" @back="openCourse(null)" @open="openSite" />
+      <template v-else>
       <div class="md-tabs">
         <UiSegmented v-model="tab" size="md" :options="[
           { value: 'overview', label: t('moodle.tabs.overview') },
@@ -348,7 +363,7 @@ useHead({ title: () => t('moodle.title') })
           <div v-if="courses.isLoading.value" class="md-skel"><div v-for="i in 4" :key="i" class="skeleton" style="height: 44px; margin: 4px 0" /></div>
           <p v-else-if="courses.error.value" class="md-err">{{ errorMessage(courses.error.value) }}</p>
           <p v-else-if="!courses.data.value?.length" class="muted md-empty">{{ t('moodle.noCourses') }}</p>
-          <a v-for="c in courses.data.value" :key="c.id" :href="c.url" target="_blank" rel="noopener" class="crs" @click.prevent="openSite(c.url)">
+          <a v-for="c in courses.data.value" :key="c.id" :href="`?course=${c.id}`" class="crs" @click.prevent="openCourse(c.id)">
             <span class="crs-badge" :style="{ background: `hsl(${(c.id * 67) % 360} 55% 92%)`, color: `hsl(${(c.id * 67) % 360} 45% 32%)` }">{{ (c.shortname || c.fullname).slice(0, 3).toUpperCase() }}</span>
             <span class="crs-body">
               <span class="crs-name truncate">{{ c.fullname }} <Star v-if="c.favourite" :size="11" class="crs-fav" /></span>
@@ -412,6 +427,7 @@ useHead({ title: () => t('moodle.title') })
           <time>{{ relativeTime(n.time) }}</time>
         </component>
       </div>
+      </template>
     </div>
   </div>
 </template>
@@ -445,6 +461,8 @@ useHead({ title: () => t('moodle.title') })
 .md-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 20px 20px; gap: 12px; overflow-y: auto; }
 .md-banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); font-size: var(--fs-sm); }
 .md-banner span { flex: 1; }
+.md-banner.info { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text-2); }
+.md-cancel { align-self: flex-start; }
 .md-tabs { display: flex; align-items: center; gap: 12px; }
 .md-who { margin-left: auto; font-size: var(--fs-sm); }
 .md-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }

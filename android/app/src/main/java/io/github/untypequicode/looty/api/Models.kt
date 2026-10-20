@@ -13,6 +13,8 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class Permissions(val docs: String = "edit", val boards: String = "edit", val calendar: String = "edit", val invite: Boolean = false, val share: Boolean = false, val admin: Boolean = false)
 @Serializable data class MyAccess(val role: String = "member", val role_name: String? = null, val permissions: Permissions = Permissions(), val group_tasks: Boolean = true)
 @Serializable data class Members(val members: List<Member> = emptyList())
+/** Groupe de membres (sans droit) : mentions @groupe, ajout de tous ses membres d’un coup. */
+@Serializable data class MemberGroup(val id: String, val name: String, val color: String = "#5e6ad2", val members: List<String> = emptyList())
 
 @Serializable data class MyCounts(val open: Int = 0, val overdue: Int = 0, val due_week: Int = 0, val completed_week: Int = 0)
 @Serializable data class BoardStats(val id: String, val name: String, val total: Int = 0, val done: Int = 0, val overdue: Int = 0, val due_soon: Int = 0)
@@ -238,13 +240,27 @@ import kotlinx.serialization.json.JsonObject
 
 // --- Moodle ---
 @Serializable data class MoodleConnection(val base_url: String = "", val full_name: String? = null, val site_name: String? = null, val last_error: String? = null,
-    val last_sync_at: String? = null, val calendar_id: String? = null, val notify: Boolean = true)
+    val last_sync_at: String? = null, val calendar_id: String? = null, val notify: Boolean = true,
+    /** Site ouvert déjà connecté (sinon : se reconnecter une fois). Vrai par défaut pour les anciens serveurs. */
+    val autologin: Boolean = true)
 @Serializable data class MoodleOverview(val url: String? = null, val default_url: String = "", val can_configure: Boolean = false, val connection: MoodleConnection? = null)
 @Serializable data class MoodleSite(val base_url: String = "", val site_name: String? = null, val sso: Boolean = true, val launch_url: String? = null, val tokens_url: String? = null)
 @Serializable data class MoodleCourse(val id: Long, val fullname: String? = null, val shortname: String? = null, val category: String? = null, val progress: Double? = null,
     val favourite: Boolean = false, val url: String? = null)
 @Serializable data class MoodleDeadline(val id: Long, val name: String? = null, val course: String? = null, val module: String? = null, val due: String? = null,
     val overdue: Boolean = false, val url: String? = null, val action: String? = null)
+@Serializable data class MoodleFile(val name: String = "", val path: String = "/", val size: Long = 0, val mime: String? = null, val time: String? = null,
+    val url: String? = null, val html: Boolean = false, val source: String = "")
+@Serializable data class MoodleDate(val label: String? = null, val time: String? = null)
+@Serializable data class MoodleModule(val id: Long, val name: String = "", val type: String = "", val type_name: String? = null, val url: String = "",
+    val description: String = "", val files: List<MoodleFile> = emptyList(), val link: String? = null, val dates: List<MoodleDate> = emptyList(), val done: Boolean? = null)
+@Serializable data class MoodleSection(val id: Long, val name: String? = null, val summary: String = "", val modules: List<MoodleModule> = emptyList())
+@Serializable data class MoodleCourseContent(val id: Long, val url: String = "", val sections: List<MoodleSection> = emptyList())
+@Serializable data class MoodleAttachment(val name: String = "", val size: Long = 0, val mime: String? = null, val url: String? = null)
+@Serializable data class MoodleAssignment(val id: Long, val cmid: Long, val name: String = "", val intro: String = "", val url: String = "",
+    val attachments: List<MoodleAttachment> = emptyList(), val due: String? = null, val cutoff: String? = null,
+    val status: String? = null, val grading: String? = null, val grade: String? = null)
+@Serializable data class MoodleHtml(val html: String = "")
 @Serializable data class MoodleNotif(val id: Long, val subject: String? = null, val text: String? = null, val url: String? = null, val read: Boolean = false, val time: String? = null)
 @Serializable data class MoodleNotifs(val notifications: List<MoodleNotif> = emptyList(), val unread: Int = 0)
 @Serializable data class MoodleConversation(val id: Long, val name: String = "", val group: Boolean = false, val unread: Int = 0, val last_text: String? = null,

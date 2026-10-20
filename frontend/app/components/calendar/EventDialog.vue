@@ -8,6 +8,7 @@ import { useWorkspace, useMyTasks } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { useCalendarInvalidate, useLootyCalendars, type EventDetail } from '~/composables/useCalendar'
+import { useGroupChoices } from '~/composables/useGroups'
 
 const open = defineModel<boolean>('open', { default: false })
 /** Événement à modifier, ou valeurs initiales d'une création (début, journée entière). */
@@ -48,7 +49,14 @@ const labelItems = computed(() => boardLabels.value.map((l) => ({ value: l.id, l
 // Autre tableau : ses étiquettes seulement.
 watch(boardLabels, (ls) => { if (ls.length) labelIds.value = labelIds.value.filter((id) => ls.some((l) => l.id === id)) })
 const calItems = computed(() => (lootyCals.value ?? []).map((c) => ({ value: c.id, label: c.name, hint: c.board_name ?? undefined })))
-const memberItems = computed(() => (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email })))
+// Groupes : les choisir ajoute leurs membres du moment.
+const groupChoices = useGroupChoices(wsId, () => tagged.value)
+const memberItems = computed(() => {
+  const people = (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email }))
+  const groups = groupChoices.items.value
+  return groups.length ? [...people.map((p) => ({ ...p, section: t('memberGroups.people') })), ...groups] : people
+})
+const taggedModel = computed({ get: () => tagged.value, set: (v: string[]) => { tagged.value = groupChoices.expand(v) } })
 const calOpen = ref(false)
 const memberOpen = ref(false)
 watch(() => [props.event, props.defaults, lootyCals.value] as const, () => {
@@ -214,7 +222,7 @@ async function save() {
       </div>
       <div class="evf-row">
         <Users :size="15" class="evf-ic" />
-        <UiCombobox v-model:open="memberOpen" v-model="tagged" multiple :items="memberItems" :width="280">
+        <UiCombobox v-model:open="memberOpen" v-model="taggedModel" multiple :items="memberItems" :width="280">
           <button type="button" class="evf-select">{{ tagged.length ? tagged.map((id) => members.data.value?.find((m) => m.user_id === id)?.name).filter(Boolean).join(', ') : t('planning.tagMembers') }}</button>
         </UiCombobox>
       </div>

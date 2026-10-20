@@ -1,5 +1,6 @@
 export default {
   errors: {
+    moodle_bad_file: 'This file does not come from your Moodle platform.', moodle_too_large: 'This page is too large to be shown.',
     moodle_invalid_url: 'Invalid Moodle address', moodle_unreachable: 'Can’t reach Moodle', moodle_not_moodle: 'This address doesn’t answer like a Moodle site',
     moodle_ws_disabled: 'Web services (mobile app) aren’t enabled on this Moodle', moodle_auth_failed: 'Moodle refused the username or password',
     moodle_invalid_token: 'Invalid or expired Moodle key', moodle_not_connected: 'Moodle account not connected', moodle_bad_response: 'Unexpected answer from Moodle',
@@ -36,5 +37,14 @@ export default {
     syncCalendar: 'Sync calendar', calendarSynced: { one: '1 Moodle event', other: '{count} Moodle events' },
     notifyOn: 'Turn notifications on', notifyOff: 'Turn notifications off', platformSettings: 'Site settings',
     disconnect: 'Disconnect Moodle', disconnectTitle: 'Disconnect your Moodle account?', disconnectHint: 'Looty forgets your key and removes the imported Moodle calendar. Nothing is deleted on Moodle.',
+    course: {
+      back: 'Courses', openOnSite: 'Open in Moodle', empty: 'This course is empty for you.', loading: 'Loading the course…',
+      read: 'Read', files: { one: '1 file', other: '{count} files' }, openLink: 'Open the link', onSite: 'In Moodle', download: 'Download',
+      due: 'Due', opens: 'Open since', cutoff: 'Cut-off', status: 'Submission', grading: 'Grading', grade: 'Grade', submit: 'Submit in Moodle', attachments: 'Attached files',
+      statuses: { new: 'Nothing submitted', draft: 'Draft (not submitted yet)', submitted: 'Submitted', reopened: 'Reopened' },
+      gradings: { notgraded: 'Not graded yet', graded: 'Graded' },
+      done: 'Done', notDone: 'To do',
+    },
+    autologinHint: 'To open Moodle already signed in, sign in again once through the official portal or with your username.', autologinAction: 'Sign in again',
   },
 }

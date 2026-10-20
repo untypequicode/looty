@@ -46,7 +46,7 @@ export default {
     title: 'Rôles', description: 'Chaque membre a un rôle. Les préréglages se personnalisent comme les rôles que vous créez.', new: 'Nouveau rôle', preset: 'Préréglage',
     editTitle: 'Rôle : {name}', namePlaceholder: 'Nom du rôle (ex. Chargé de TD)', members: '{n} membre(s)',
     deleteTitle: 'Supprimer le rôle « {name} » ?', deleteHint: 'Ses membres reviennent au préréglage correspondant à leurs droits.',
-    flags: { invite: 'Inviter des personnes', inviteHint: 'Ajouter des membres et créer des liens d’invitation.', share: 'Liens publics', shareHint: 'Publier des documents sur le web.', admin: 'Administration', adminHint: 'Réglages, rôles, permissions de page et membres (propriétaire uniquement).' },
+    flags: { invite: 'Inviter des personnes', inviteHint: 'Ajouter des membres et créer des liens d’invitation.', share: 'Liens publics', shareHint: 'Publier des documents sur le web.', groups: 'Gérer les groupes', groupsHint: 'Créer, renommer et supprimer les groupes de membres, et choisir qui en fait partie.', admin: 'Administration', adminHint: 'Réglages, rôles, permissions de page et membres (propriétaire uniquement).' },
     levelHint: {
       docs: { none: 'Les documents sont masqués.', read: 'Lire les documents.', comment: 'Lire et commenter.', edit: 'Créer, modifier, déplacer et supprimer des documents.' },
       boards: { none: 'Les tableaux sont masqués.', read: 'Voir les tableaux et les tâches.', comment: 'Voir et commenter les tâches.', validate: 'Commenter et valider / terminer les tâches, sans les modifier.', edit: 'Créer et modifier des tâches.', manage: 'Créer aussi les tableaux, colonnes et étiquettes.' },
@@ -120,5 +120,13 @@ export default {
     frequency: 'Fréquence', off: 'Désactivées', daily: 'Tous les jours', weekly: 'Toutes les semaines', hour: 'Heure', keep: 'Conserver', keepHint: 'Nombre de sauvegardes programmées gardées.', lastAt: 'Dernière sauvegarde {time}',
     errors: { backup_invalid: 'Ce fichier n’est pas une sauvegarde Looty.', invalid_upload: 'Échec de l’envoi.' },
   },
-  errors: { backup_newer: 'Cette sauvegarde vient d’une version plus récente de Looty : mettez d’abord le serveur à jour.', backup_invalid: 'Ce fichier n’est pas une sauvegarde Looty.' },
+  memberGroups: {
+    title: 'Groupes', description: 'Des ensembles de membres, sans aucun droit : mentionnez-les d’un coup avec @groupe, ou ajoutez-les ensemble à une tâche ou un événement. Une personne peut faire partie de plusieurs groupes.',
+    new: 'Nouveau groupe', editTitle: 'Modifier « {name} »', namePlaceholder: 'Nom du groupe (ex. Design)', members: 'Membres', addMembers: 'Ajouter des membres',
+    count: { zero: 'Aucun membre', one: '{count} membre', other: '{count} membres' }, empty: 'Aucun groupe pour l’instant.', emptyHint: 'Créez un groupe pour mentionner ou assigner plusieurs personnes d’un coup.',
+    noMembers: 'Aucun membre', deleteTitle: 'Supprimer le groupe « {name} » ?', deleteBody: 'Les tâches et événements gardent leurs participants ; seules les mentions futures du groupe disparaissent.',
+    created: 'Groupe créé', saved: 'Groupe enregistré', deleted: 'Groupe supprimé', readOnly: 'Seules les personnes qui ont la permission « Gérer les groupes » peuvent les modifier.',
+    section: 'Groupes', people: 'Personnes', addGroup: { one: 'Ajoute {count} membre', other: 'Ajoute ses {count} membres' }, allIn: 'Tous déjà ajoutés',
+  },
+  errors: { name_taken: 'Un groupe porte déjà ce nom.', name_required: 'Donnez un nom au groupe.', backup_newer: 'Cette sauvegarde vient d’une version plus récente de Looty : mettez d’abord le serveur à jour.', backup_invalid: 'Ce fichier n’est pas une sauvegarde Looty.' },
 }

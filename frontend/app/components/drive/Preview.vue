@@ -1,20 +1,20 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends PreviewItem">
 import { ChevronLeft, ChevronRight, Download, X, FileQuestion } from 'lucide-vue-next'
-import type { DriveItem } from '~/composables/useProjects'
-import { fileSize } from '~/composables/useProjects'
+import { fileSize, type PreviewItem } from '~/composables/useProjects'
 import { useI18n } from '~/composables/useI18n'
 
 /**
  * Aperçu d'un fichier du drive : images, PDF, vidéo, audio et texte, avec navigation
- * (flèches du clavier) parmi les fichiers du dossier.
+ * (flèches du clavier) parmi les fichiers du dossier. `href` : adresse d'un fichier venu
+ * d'ailleurs (cours Moodle).
  */
-const props = defineProps<{ items: DriveItem[]; ws: string }>()
-const current = defineModel<DriveItem | null>({ default: null })
+const props = defineProps<{ items: T[]; ws: string; href?: (i: T, inline: boolean) => string }>()
+const current = defineModel<T | null>({ default: null })
 const { t, formatDateTime } = useI18n()
 
 type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | null
 const TEXT_EXT = /\.(txt|md|csv|tsv|json|xml|yaml|yml|toml|ini|log|tex|bib|py|js|ts|html|css|sql|sh|rs|c|h|cpp|java|kt|go|rb|php)$/i
-const kindOf = (i: DriveItem): PreviewKind => {
+const kindOf = (i: T): PreviewKind => {
   const m = i.mime ?? ''
   if (m.startsWith('image/') && !m.includes('svg')) return 'image'
   if (m === 'application/pdf') return 'pdf'
@@ -27,7 +27,7 @@ const kindOf = (i: DriveItem): PreviewKind => {
 const files = computed(() => props.items.filter((i) => !i.is_dir))
 const index = computed(() => files.value.findIndex((i) => i.id === current.value?.id))
 const kind = computed(() => (current.value ? kindOf(current.value) : null))
-const url = (i: DriveItem, inline = true) => `/api/workspaces/${props.ws}/drive/files/${i.id}/download${inline ? '?inline=1' : ''}`
+const url = (i: T, inline = true) => props.href?.(i, inline) ?? `/api/workspaces/${props.ws}/drive/files/${i.id}/download${inline ? '?inline=1' : ''}`
 const text = ref('')
 const loadingText = ref(false)
 watch([current, kind], async ([c, k]) => {

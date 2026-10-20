@@ -96,3 +96,33 @@ jobs:
         with:
           name: looty-windows
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+
+  # Test de l'installateur sur un Windows propre : installation, lancement, proxy local,
+  # session chiffrée gardée, lien looty://, lancement caché, hors ligne, désinstallation.
+  # Ce qu'un runner ne voit pas est dans desktop/tests/windows/CHECKLIST.md.
+  windows-smoke:
+    name: Windows installer test
+    needs: windows
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: desktop/tests
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: looty-windows
+          path: installer
+      - name: Install, run and uninstall Looty
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installer -Filter *-setup.exe | Select-Object -First 1
+          ./desktop/tests/windows/smoke.ps1 -Installer $setup.FullName -Out smoke-out
+      - name: Screenshots and server log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-smoke
+          path: smoke-out

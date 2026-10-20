@@ -287,27 +287,22 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                     let Some(target) = json["target_user_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) else {
                         continue;
                     };
-                    if target == user_id {
-                        continue;
-                    }
-                    let ok = crate::access::is_member(&pool, workspace_id, &target.to_string())
-                        .await
-                        .unwrap_or(false);
-                    if !ok {
-                        continue;
-                    }
+                    // Un membre, ou un groupe de l'espace : chacun de ses membres est notifié.
+                    let people = crate::groups::mentioned_people(&pool, workspace_id, &[target]).await.unwrap_or_default();
                     let loc = sanitize_location(json["location"].as_str().unwrap_or("home"));
-                    crate::notifications::notify(
-                        &pool,
-                        &hub_rx,
-                        workspace_id,
-                        target,
-                        Some(user_id),
-                        "mention",
-                        &loc,
-                        serde_json::json!({}),
-                    )
-                    .await;
+                    for person in people {
+                        crate::notifications::notify(
+                            &pool,
+                            &hub_rx,
+                            workspace_id,
+                            person,
+                            Some(user_id),
+                            "mention",
+                            &loc,
+                            serde_json::json!({}),
+                        )
+                        .await;
+                    }
                 }
                 _ => {} // Tout autre message client est ignoré (pas de relais arbitraire).
             }

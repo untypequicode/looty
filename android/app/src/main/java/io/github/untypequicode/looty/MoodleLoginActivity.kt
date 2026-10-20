@@ -28,11 +28,20 @@ import androidx.core.view.WindowInsetsCompat
  * Moodle termine la connexion en redirigeant vers `moodlemobile://token=…`, le lien de
  * sa propre application : on l'intercepte ici et on le renvoie à Looty, qui l'échange
  * contre une clé d'accès. Le mot de passe ne passe jamais par Looty.
+ *
+ * Mode « site » (`EXTRA_BROWSE`) : le site Moodle dans l'application, ouvert déjà connecté
+ * par le lien de connexion automatique ; la session (cookies) reste pour les fois suivantes.
  */
 class MoodleLoginActivity : ComponentActivity() {
     companion object {
         const val EXTRA_URL = "url"
         const val EXTRA_LINK = "link"
+        const val EXTRA_BROWSE = "browse"
+
+        /** Ouvre une page du site Moodle dans l'application. */
+        fun browse(ctx: android.content.Context, url: String) {
+            ctx.startActivity(Intent(ctx, MoodleLoginActivity::class.java).putExtra(EXTRA_URL, url).putExtra(EXTRA_BROWSE, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     private lateinit var web: WebView
@@ -47,6 +56,7 @@ class MoodleLoginActivity : ComponentActivity() {
             finish()
             return
         }
+        val browsing = intent.getBooleanExtra(EXTRA_BROWSE, false)
         enableEdgeToEdge()
         val dp = resources.displayMetrics.density
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -57,7 +67,7 @@ class MoodleLoginActivity : ComponentActivity() {
         val close = ImageButton(this).apply {
             setImageResource(R.drawable.ic_close)
             setBackgroundColor(0)
-            contentDescription = getString(R.string.cancel)
+            contentDescription = getString(if (browsing) R.string.close else R.string.cancel)
             setOnClickListener { finish() }
         }
         title = TextView(this).apply {
@@ -91,8 +101,9 @@ class MoodleLoginActivity : ComponentActivity() {
                 val uri = request.url
                 return when (uri.scheme?.lowercase()) {
                     "http", "https" -> false
-                    "moodlemobile" -> { done(uri.toString()); true }
-                    else -> true
+                    "moodlemobile" -> { if (!browsing) done(uri.toString()); true }
+                    // mailto:, tel:… : application du téléphone (mode site seulement).
+                    else -> { if (browsing) runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }; true }
                 }
             }
 
@@ -101,6 +112,21 @@ class MoodleLoginActivity : ComponentActivity() {
             override fun onPageFinished(view: WebView, url: String?) {
                 progress.visibility = android.view.View.INVISIBLE
                 title.text = view.title?.takeIf { it.isNotBlank() } ?: Uri.parse(url ?: "").host
+            }
+        }
+        // Fichiers du site : gestionnaire de téléchargements, avec la session Moodle.
+        if (browsing) web.setDownloadListener { url, userAgent, disposition, mime, _ ->
+            runCatching {
+                val name = android.webkit.URLUtil.guessFileName(url, disposition, mime)
+                val req = android.app.DownloadManager.Request(Uri.parse(url))
+                    .addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url) ?: "")
+                    .addRequestHeader("User-Agent", userAgent)
+                    .setMimeType(mime)
+                    .setTitle(name)
+                    .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name)
+                (getSystemService(DOWNLOAD_SERVICE) as android.app.DownloadManager).enqueue(req)
+                android.widget.Toast.makeText(this, name, android.widget.Toast.LENGTH_SHORT).show()
             }
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {

@@ -23,19 +23,19 @@ const LEVELS: Record<Area, LevelName[]> = {
   boards: ['none', 'read', 'comment', 'validate', 'edit', 'manage'],
   calendar: ['none', 'read', 'edit'],
 }
-const FLAGS = ['invite', 'share', 'admin'] as const
+const FLAGS = ['invite', 'share', 'groups', 'admin'] as const
 const COLORS = ['#e2a03f', '#eb5757', '#5e6ad2', '#8a8f98', '#4cb782', '#26b5ce', '#bb87fc', '#e87ba4', '#f2994a', '#2a78d6']
 const label = (r: WorkspaceRole) => (r.preset ? t(`roles.${r.preset}`) : r.name)
 const editable = (r: WorkspaceRole) => can.value.admin && r.preset !== 'owner' && (role.value === 'owner' || !r.permissions.admin)
 
 const open = ref(false)
 const editing = ref<WorkspaceRole | null>(null)
-const form = reactive<{ name: string; color: string; permissions: Permissions }>({ name: '', color: COLORS[2]!, permissions: { docs: 'read', boards: 'read', calendar: 'read', invite: false, share: false, admin: false } })
+const form = reactive<{ name: string; color: string; permissions: Permissions }>({ name: '', color: COLORS[2]!, permissions: { docs: 'read', boards: 'read', calendar: 'read', invite: false, share: false, admin: false, groups: false } })
 function edit(r: WorkspaceRole | null) {
   editing.value = r
   form.name = r ? label(r) : ''
   form.color = r?.color ?? COLORS[Math.floor(Math.random() * COLORS.length)]!
-  form.permissions = r ? { ...r.permissions } : { docs: 'read', boards: 'read', calendar: 'read', invite: false, share: false, admin: false }
+  form.permissions = r ? { ...r.permissions } : { docs: 'read', boards: 'read', calendar: 'read', invite: false, share: false, admin: false, groups: false }
   open.value = true
 }
 const saving = ref(false)

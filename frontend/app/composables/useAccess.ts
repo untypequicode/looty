@@ -20,7 +20,7 @@ import { useMemberPrefs } from './usePrefs'
 export type Area = 'docs' | 'boards' | 'calendar'
 export type AreaMode = 'write' | 'read' | 'restricted'
 export type LevelName = 'none' | 'read' | 'comment' | 'validate' | 'edit' | 'manage'
-export interface Permissions { docs: LevelName; boards: LevelName; calendar: LevelName; invite: boolean; share: boolean; admin: boolean }
+export interface Permissions { docs: LevelName; boards: LevelName; calendar: LevelName; invite: boolean; share: boolean; admin: boolean; groups: boolean }
 export interface MyAccess { role: string; role_id: string | null; role_name: string | null; permissions: Permissions; group_tasks: boolean }
 export interface AccessPrefs { modes?: Partial<Record<Area, AreaMode>>; modesChosen?: boolean; [k: string]: unknown }
 
@@ -118,6 +118,8 @@ export function useAccess(wsId: Ref<string>) {
     invite: !!perms.value?.invite,
     share: !!perms.value?.share,
     admin: !!perms.value?.admin,
+    /** Groupes de membres : créer, modifier, supprimer. */
+    groups: !!perms.value?.groups || !!perms.value?.admin,
   }))
 
   return { access: query.data, perms, allows, mode, editing, setEditing, toggleEditing, reading, setReading, editableAreas, setMode, chooseAreas, can, prefsLoaded: prefs.loaded, modesChosen: computed(() => !!prefs.prefs.value?.modesChosen) }

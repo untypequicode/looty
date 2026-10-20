@@ -1520,11 +1520,10 @@ async fn add_task_comment(
     let title: String = sqlx::query_scalar("SELECT title FROM tasks WHERE id = $1").bind(task_id).fetch_one(pool).await?;
     let target = format!("task:{task_id}");
     let data = serde_json::json!({ "title": title, "board_id": ctx.board_id, "comment_id": comment.id });
-    let mentioned = extract_mentions(&content);
+    // Membres et groupes mentionnés (chaque membre du groupe, une seule fois).
+    let mentioned = crate::groups::mentioned_people(pool, ctx.workspace_id, &extract_mentions(&content)).await?;
     for m in &mentioned {
-        if is_member(pool, ctx.workspace_id, &m.to_string()).await? {
-            crate::notifications::notify(pool, &state.hub, ctx.workspace_id, *m, Some(user.id), "mention", &target, data.clone()).await;
-        }
+        crate::notifications::notify(pool, &state.hub, ctx.workspace_id, *m, Some(user.id), "mention", &target, data.clone()).await;
     }
     let assignees: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_assignees WHERE task_id = $1")
         .bind(task_id)

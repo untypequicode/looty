@@ -756,4 +756,33 @@
     <string name="err_caldav_too_many">Limit of 10 calendars reached.</string>
     <string name="err_caldav_unexpected_status">Unexpected answer from the calendar server.</string>
     <string name="err_caldav_put_failed">The server refused to save a task.</string>
+    <string name="member_groups">Groups</string>
+    <string name="group_all_in">All already added</string>
+    <plurals name="group_members">
+        <item quantity="one">%d member</item>
+        <item quantity="other">%d members</item>
+    </plurals>
+    <plurals name="group_adds">
+        <item quantity="one">Adds %d member</item>
+        <item quantity="other">Adds its %d members</item>
+    </plurals>
+    <string name="moodle_open_on_site">Open in Moodle</string>
+    <string name="moodle_course_empty">This course is empty for you.</string>
+    <string name="moodle_due">Due</string>
+    <string name="moodle_cutoff">Cut-off</string>
+    <string name="moodle_submission">Submission</string>
+    <string name="moodle_grading">Grading</string>
+    <string name="moodle_grade">Grade</string>
+    <string name="moodle_submit">Submit in Moodle</string>
+    <string name="moodle_attachments">Attached files</string>
+    <string name="moodle_status_new">Nothing submitted</string>
+    <string name="moodle_status_draft">Draft (not submitted yet)</string>
+    <string name="moodle_status_submitted">Submitted</string>
+    <string name="moodle_status_reopened">Reopened</string>
+    <string name="moodle_notgraded">Not graded yet</string>
+    <string name="moodle_graded">Graded</string>
+    <string name="moodle_on_site">In Moodle</string>
+    <string name="moodle_autologin_hint">To open Moodle already signed in, sign in again once.</string>
+    <string name="moodle_reconnect">Sign in again</string>
+    <string name="close">Close</string>
 </resources>

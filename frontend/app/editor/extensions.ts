@@ -27,6 +27,7 @@ import { CollaborativeUndo } from './undo'
 import { StablePluginState } from './pluginState'
 import { SOURCE_NODES } from './source'
 import { translate as t } from '~/composables/useI18n'
+import type { MemberGroup } from '~/composables/useGroups'
 
 /** Schéma commun : identique en édition et en lecture pour un rendu fidèle. */
 function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
@@ -74,6 +75,8 @@ export interface DocEditorOptions {
   provider?: HocuspocusProvider
   user?: { name: string; color: string }
   getMembers: () => WorkspaceMember[]
+  /** Groupes de membres (mentions @groupe). */
+  getGroups?: () => MemberGroup[]
   onMention?: (userId: string) => void
   slash?: SlashContext
   /** Pages de l'espace : mentions `[[` et `@`. */
@@ -97,7 +100,7 @@ export function docExtensions(o: DocEditorOptions): Extensions {
         return t('editor.emptyLine')
       },
     }),
-    mentionExtension(o.getMembers, o.onMention, o.pages),
+    mentionExtension(o.getMembers, o.onMention, o.pages, o.getGroups),
     ...(o.pages ? [pageMentionSuggest(o.pages)] : []),
     slashCommands(o.slash),
     EmojiSuggestion,

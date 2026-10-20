@@ -7,6 +7,7 @@ import { useAccess } from '~/composables/useAccess'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { useLootyCalendars, useCalendarInvalidate, type CalEvent, type EventDetail } from '~/composables/useCalendar'
+import { useGroupChoices } from '~/composables/useGroups'
 
 /**
  * Planification d'un événement Looty (détail) : membres mentionnés, calendrier (déplacer),
@@ -30,7 +31,13 @@ const refresh = () => { qc.invalidateQueries({ queryKey: key.value }); invalidat
 
 // Membres mentionnés
 const tagged = computed(() => detail.value?.members ?? props.event.members ?? [])
-const memberItems = computed(() => (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email })))
+// Groupes : les choisir ajoute leurs membres du moment.
+const groupChoices = useGroupChoices(wsId, () => tagged.value)
+const memberItems = computed(() => {
+  const people = (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email }))
+  const groups = groupChoices.items.value
+  return groups.length ? [...people.map((p) => ({ ...p, section: t('memberGroups.people') })), ...groups] : people
+})
 const memberOpen = ref(false)
 async function setMembers(ids: string[]) {
   await api(`/api/workspaces/${wsId.value}/events/${props.event.event_id}/members`, { method: 'PUT', body: { members: ids } })
@@ -106,7 +113,7 @@ async function addTask() {
         <UiTooltip v-for="id in tagged" :key="id" :text="member(id)?.name ?? ''"><UiAvatar :name="member(id)?.name" :src="member(id)?.avatar_url" :size="20" /></UiTooltip>
         <span v-if="!tagged.length" class="faint ep-none">{{ t('planning.noMembers') }}</span>
       </div>
-      <UiCombobox v-if="canWrite" v-model:open="memberOpen" multiple :items="memberItems" :model-value="tagged" :width="280" placement="bottom-end" @update:model-value="(v) => setMembers(v as string[])">
+      <UiCombobox v-if="canWrite" v-model:open="memberOpen" multiple :items="memberItems" :model-value="tagged" :width="280" placement="bottom-end" @update:model-value="(v) => setMembers(groupChoices.expand(v as string[]))">
         <button class="ep-link">{{ t('planning.tag') }}</button>
       </UiCombobox>
     </div>

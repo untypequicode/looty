@@ -170,7 +170,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let text = crate::ical::html_to_text(&content);
     let snippet: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(140).collect();
     let data = serde_json::json!({ "title": title, "snippet": snippet, "comment_id": id });
-    let mentioned = extract_mentions(&content);
+    let mentioned = crate::groups::mentioned_people(&state.pool, ws, &extract_mentions(&content)).await?;
     for m in &mentioned {
         crate::notifications::notify(&state.pool, &state.hub, ws, *m, Some(user.id), "mention", &target, data.clone()).await;
     }

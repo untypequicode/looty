@@ -45,13 +45,14 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/conversations/{id}", get(conversation).post(send_message))
         .route("/calendar/sync", post(sync_calendar))
         .route("/open", get(open_link))
+        .merge(crate::moodle_content::routes())
 }
 
 // ---------------------------------------------------------------------------
 // Client des services web
 // ---------------------------------------------------------------------------
 
-fn http() -> &'static reqwest::Client {
+pub(crate) fn http() -> &'static reqwest::Client {
     static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     C.get_or_init(|| {
         reqwest::Client::builder()
@@ -79,14 +80,14 @@ async fn clean_base(raw: &str) -> ApiResult<String> {
 }
 
 #[derive(Clone)]
-struct Ws {
-    base: String,
-    token: String,
+pub(crate) struct Ws {
+    pub(crate) base: String,
+    pub(crate) token: String,
 }
 
 impl Ws {
     /// Appel REST ; les erreurs Moodle (renvoyées avec un statut 200) deviennent des codes.
-    async fn call(&self, function: &str, params: &[(String, String)]) -> ApiResult<Value> {
+    pub(crate) async fn call(&self, function: &str, params: &[(String, String)]) -> ApiResult<Value> {
         let mut form: Vec<(String, String)> = vec![
             ("wstoken".into(), self.token.clone()),
             ("wsfunction".into(), function.into()),
@@ -114,7 +115,7 @@ impl Ws {
     }
 }
 
-fn p(k: &str, v: impl ToString) -> (String, String) {
+pub(crate) fn p(k: &str, v: impl ToString) -> (String, String) {
     (k.to_string(), v.to_string())
 }
 
@@ -143,7 +144,7 @@ fn parse_token(raw: &str) -> Option<(String, Option<String>)> {
     valid_token(&token).then_some((token, private))
 }
 
-fn pct_decode(s: &str) -> String {
+pub(crate) fn pct_decode(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
@@ -166,15 +167,15 @@ fn pct_decode(s: &str) -> String {
 // ---------------------------------------------------------------------------
 
 #[derive(sqlx::FromRow)]
-struct Conn {
-    id: Uuid,
-    base_url: String,
+pub(crate) struct Conn {
+    pub(crate) id: Uuid,
+    pub(crate) base_url: String,
     token_enc: String,
     moodle_user_id: Option<i64>,
     calendar_id: Option<Uuid>,
 }
 
-async fn conn_of(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<(Conn, Ws, i64)> {
+pub(crate) async fn conn_of(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<(Conn, Ws, i64)> {
     require_member(&state.pool, user, ws).await?;
     let c: Conn = sqlx::query_as("SELECT id, base_url, token_enc, moodle_user_id, calendar_id FROM moodle_connections WHERE workspace_id = $1 AND user_id = $2")
         .bind(ws)
@@ -189,7 +190,7 @@ async fn conn_of(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<(Conn
 }
 
 /// Mémorise l'erreur (jeton révoqué…) pour l'afficher, puis la renvoie.
-async fn track<T>(state: &AppState, id: Uuid, r: ApiResult<T>) -> ApiResult<T> {
+pub(crate) async fn track<T>(state: &AppState, id: Uuid, r: ApiResult<T>) -> ApiResult<T> {
     let err = match &r {
         Err(ApiError::BadRequest(m)) => Some(m.clone()),
         Err(_) => None,
@@ -209,13 +210,15 @@ struct ConnDto {
     last_sync_at: Option<DateTime<Utc>>,
     calendar_id: Option<Uuid>,
     notify: bool,
+    /// Connexion automatique au site possible (jeton privé reçu à la connexion).
+    autologin: bool,
 }
 
 async fn overview(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Value>> {
     let role = require_member(&state.pool, &user, ws).await?;
     let url: Option<String> = sqlx::query_scalar("SELECT moodle_url FROM workspaces WHERE id = $1").bind(ws).fetch_one(&state.pool).await?;
     let conn: Option<ConnDto> = sqlx::query_as(
-        "SELECT base_url, moodle_user_id, full_name, site_name, last_error, last_sync_at, calendar_id, notify FROM moodle_connections WHERE workspace_id = $1 AND user_id = $2",
+        "SELECT base_url, moodle_user_id, full_name, site_name, last_error, last_sync_at, calendar_id, notify, private_token_enc IS NOT NULL AS autologin FROM moodle_connections WHERE workspace_id = $1 AND user_id = $2",
     )
     .bind(ws)
     .bind(user.id)

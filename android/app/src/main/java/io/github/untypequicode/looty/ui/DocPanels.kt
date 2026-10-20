@@ -44,7 +44,7 @@ fun DocCommentsScreen(state: AppState, pageId: String, onBack: () -> Unit) {
     var list by remember { mutableStateOf<List<DocComment>?>(null) }
     var showResolved by remember { mutableStateOf(false) }
     var replyTo by remember { mutableStateOf<String?>(null) }
-    var text by remember { mutableStateOf("") }
+    val input = remember { MentionInput() }
     var sending by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<DocComment?>(null) }
     var deleting by remember { mutableStateOf<DocComment?>(null) }
@@ -78,14 +78,15 @@ fun DocCommentsScreen(state: AppState, pageId: String, onBack: () -> Unit) {
                             IconButton(onClick = { replyTo = null }) { Icon(Icons.Outlined.Close, stringResource(R.string.cancel), Modifier.size(18.dp)) }
                         }
                     }
+                    MentionSuggestions(state, input, Modifier.padding(horizontal = 12.dp))
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(text, { text = it }, placeholder = { Text(stringResource(if (replyTo != null) R.string.reply_placeholder else R.string.comment_placeholder)) },
+                        OutlinedTextField(input.value, { input.value = it }, placeholder = { Text(stringResource(if (replyTo != null) R.string.reply_placeholder else R.string.comment_placeholder)) },
                             modifier = Modifier.weight(1f).focusRequester(focus), maxLines = 5)
                         Spacer(Modifier.width(8.dp))
-                        FilledIconButton(enabled = text.isNotBlank() && !sending, onClick = {
+                        FilledIconButton(enabled = input.text.isNotBlank() && !sending, onClick = {
                             sending = true
                             scope.launch {
-                                if (state.addDocComment(pageId, text, replyTo)) { text = ""; replyTo = null; reload() }
+                                if (state.addDocComment(pageId, input.text, replyTo, input.mentions.toList())) { input.clear(); replyTo = null; reload() }
                                 sending = false
                             }
                         }) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.send)) }
@@ -134,7 +135,7 @@ fun DocCommentsScreen(state: AppState, pageId: String, onBack: () -> Unit) {
             onDismissRequest = { editing = null },
             title = { Text(stringResource(R.string.edit)) },
             text = { OutlinedTextField(v, { v = it }, modifier = Modifier.fillMaxWidth().focusRequester(f), minLines = 3) },
-            confirmButton = { TextButton(enabled = v.text.isNotBlank(), onClick = { editing = null; scope.launch { if (state.editDocComment(c.id, v.text)) reload() } }) { Text(stringResource(R.string.save)) } },
+            confirmButton = { TextButton(enabled = v.text.isNotBlank(), onClick = { editing = null; scope.launch { if (state.editDocComment(c.id, v.text, Html.mentionsOf(c.content))) reload() } }) { Text(stringResource(R.string.save)) } },
             dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }

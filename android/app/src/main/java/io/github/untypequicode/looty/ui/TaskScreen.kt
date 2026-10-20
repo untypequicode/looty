@@ -332,6 +332,19 @@ private fun AssigneesSheet(state: AppState, task: Task, onDismiss: () -> Unit) {
                     modifier = Modifier.clickable { state.setAssignee(task, m.user_id, !on) },
                 )
             }
+            // Groupes : en choisir un ajoute ses membres du moment (la tâche garde les personnes).
+            val groups = state.groups.filter { g -> g.members.any { it in state.members } }
+            if (groups.isNotEmpty()) Text(stringResource(R.string.member_groups), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp))
+            groups.forEach { g ->
+                val missing = g.members.filter { it in state.members && it !in task.assignees }
+                ListItem(
+                    colors = sheetItemColors(),
+                    headlineContent = { Text("@" + g.name) },
+                    supportingContent = { Text(if (missing.isEmpty()) stringResource(R.string.group_all_in) else pluralStringResource(R.plurals.group_adds, missing.size, missing.size)) },
+                    leadingContent = { GroupBadge(g.color) },
+                    modifier = Modifier.clickable(enabled = missing.isNotEmpty()) { missing.forEach { state.setAssignee(task, it, true) } },
+                )
+            }
         }
     }
 }
@@ -529,14 +542,15 @@ private fun ActivitySection(state: AppState, board: BoardFull, task: Task) {
         }
     }
 
-    var comment by remember(task.id) { mutableStateOf("") }
+    val comment = remember(task.id) { MentionInput() }
     var sending by remember { mutableStateOf(false) }
+    if (state.canComment) MentionSuggestions(state, comment, Modifier.padding(horizontal = 16.dp))
     if (state.canComment) Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = comment, onValueChange = { comment = it }, placeholder = { Text(stringResource(R.string.comment_placeholder)) }, modifier = Modifier.weight(1f), maxLines = 6)
+        OutlinedTextField(value = comment.value, onValueChange = { comment.value = it }, placeholder = { Text(stringResource(R.string.comment_placeholder)) }, modifier = Modifier.weight(1f), maxLines = 6)
         Spacer(Modifier.width(8.dp))
-        FilledIconButton(enabled = comment.isNotBlank() && !sending, onClick = {
+        FilledIconButton(enabled = comment.text.isNotBlank() && !sending, onClick = {
             sending = true
-            scope.launch { if (state.addComment(task.id, comment)) comment = ""; sending = false }
+            scope.launch { if (state.addComment(task.id, comment.text, comment.mentions.toList())) comment.clear(); sending = false }
         }) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.send)) }
     }
 

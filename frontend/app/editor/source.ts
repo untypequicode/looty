@@ -31,8 +31,45 @@ export function sourceNodeView(component: Component) {
   return (props: Parameters<typeof render>[0]) => {
     const view = render(props)
     Object.defineProperty(view, 'contentDOM', { get: () => null })
+    // `dom` n'existe qu'une fois l'éditeur affiché (Tiptap lève une erreur avant) : la
+    // protection s'installe à la première lecture, faite par ProseMirror.
+    const dom = domGetter(view)
+    let watched = false
+    Object.defineProperty(view, 'dom', {
+      get() {
+        const el = dom.call(view)
+        // Éditeur pas encore affiché (aperçu de l'historique…) : pas encore d'élément.
+        if (!watched && el instanceof HTMLElement) { watched = true; keepFieldsClickable(el) }
+        return el
+      },
+    })
     return view
   }
+}
+
+/**
+ * Firefox ne place pas le curseur à la souris (ni ne sélectionne) dans un champ dont un
+ * parent est `draggable` : on ne pouvait s'y déplacer qu'aux flèches. Tant que le bloc
+ * affiche son champ, il ne se déplace donc plus par son contenu (la poignée reste).
+ */
+function domGetter(view: object): () => unknown {
+  for (let o = Object.getPrototypeOf(view); o; o = Object.getPrototypeOf(o)) {
+    const get = Object.getOwnPropertyDescriptor(o, 'dom')?.get
+    if (get) return get
+  }
+  const value = (view as { dom: unknown }).dom
+  return () => value
+}
+
+function keepFieldsClickable(dom: HTMLElement) {
+  let disabled = false
+  const sync = () => {
+    const field = !!dom.querySelector('input, textarea')
+    if (field && dom.draggable) { dom.draggable = false; disabled = true }
+    else if (!field && disabled) { dom.draggable = true; disabled = false }
+  }
+  new MutationObserver(sync).observe(dom, { childList: true, subtree: true })
+  queueMicrotask(sync)
 }
 
 /** Source d'un nœud (texte, ou ancien attribut tant que le document n'est pas converti). */
