@@ -80,8 +80,8 @@ The apt repository is signed: run `desktop/scripts/apt-key.sh` once, commit the 
     paths (emails at 85 % and 100 %). Plan: free. Usage on 2026-10-20: 277 MiB. Check the
     storage on app.cachix.org now and then; above 80 % of the limit, remove old release pins
     in the cache's *Pins* page (or `cachix pin` with `--keep-revisions`).
-  - **Check:** the **Nix cache check** workflow builds everything with `--max-jobs 0` (any
-    compilation fails it). It runs after each push on `main`, for each desktop release, every
+  - **Check:** the **Nix cache check** workflow builds the desktop package and the inputs of both dev shells with `--max-jobs 0` (any
+    compilation fails it; the shell wrapper itself is never downloaded, `mkShell` forbids it). It runs after each push on `main`, for each desktop release, every
     Monday and by hand. A failure opens one issue labelled `nix-cache`; it is closed by the
     next green run. To fix: run **Nix cache** by hand on `main` (it rebuilds and pushes), then
     **Nix cache check**.

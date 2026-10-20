@@ -40,12 +40,22 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       # Le cache binaire vient du flake (nixConfig) ; --max-jobs 0 interdit toute compilation.
-      - name: Package and dev shells come from the cache
+      - name: Desktop package comes from the cache
+        run: nix build ".#packages.${{ matrix.system }}.looty-desktop" -L --no-link --max-jobs 0 --accept-flake-config
+      # Un shell mkShell n'est jamais téléchargé (allowSubstitutes = false : selon la version
+      # de Nix, --max-jobs 0 le refuse). On vérifie donc ses entrées, puis on construit le
+      # petit script du shell, seule chose faite en local.
+      - name: Dev shell inputs come from the cache
+        env:
+          SYSTEM: ${{ matrix.system }}
         run: |
-          for out in packages.${{ matrix.system }}.looty-desktop \
-                     devShells.${{ matrix.system }}.default \
-                     devShells.${{ matrix.system }}.desktop; do
-            nix build ".#$out" -L --no-link --max-jobs 0 --accept-flake-config
+          for shell in default desktop; do
+            drv=$(nix path-info --derivation ".#devShells.$SYSTEM.$shell" --accept-flake-config)
+            inputs=$(nix-store --query --references "$drv" | grep '\.drv$')
+            # shellcheck disable=SC2086
+            nix-store --realise --max-jobs 0 $inputs > /dev/null
+            nix build ".#devShells.$SYSTEM.$shell" --no-link --accept-flake-config
+            echo "devShells.$SYSTEM.$shell: inputs from cache"
           done
 
   report:
