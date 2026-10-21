@@ -3,6 +3,22 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "android",
+      "version": "0.22.0",
+      "date": "2026-10-21",
+      "title": { "en": "Looty in your phone’s calendar", "fr": "Looty dans l’agenda du téléphone" },
+      "notes": {
+        "en": [
+          "**Phone calendar**: in *Settings › Calendar sync*, tap *Connect* to show your Looty calendars and events in your phone’s Calendar app. It uses DAVx⁵, which the app opens already filled in (it offers to install it, or shows the details to copy, if it is missing).",
+          "Subscription feeds created on the website stay out of the API tokens list."
+        ],
+        "fr": [
+          "**Agenda du téléphone** : dans *Réglages › Synchronisation du calendrier*, touchez *Connecter* pour afficher vos calendriers et événements Looty dans l’application Agenda du téléphone. Cela passe par DAVx⁵, que l’application ouvre déjà rempli (elle propose de l’installer, ou affiche les informations à copier, s’il manque).",
+          "Les flux d’abonnement créés sur le site restent hors de la liste des jetons d’API."
+        ]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.22.0",
       "date": "2026-10-21",
