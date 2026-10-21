@@ -8,6 +8,7 @@ mod calendar;
 mod classes;
 mod crypto;
 mod ical;
+mod ics_feed;
 mod dav;
 mod db;
 mod delivery;
@@ -108,6 +109,7 @@ async fn main() {
         .route("/health", get(health_handler))
         .route("/settings", get(admin::get_public_settings))
         .route("/ws", get(ws::ws_handler))
+        .route("/ics/{file}", get(ics_feed::feed))
         .route("/upload", post(upload::upload_file))
         .route("/public/pages/{token}", get(page::get_public_page))
         .nest("/auth", auth::routes())

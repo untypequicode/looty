@@ -10,7 +10,7 @@ const { t, relativeTime, formatDate } = useI18n()
 const qc = useQueryClient()
 const { data: tokens } = useQuery({ queryKey: ['me', 'tokens'], queryFn: () => api<{ id: string; name: string; scope?: string; created_at: string; last_used_at?: string | null }[]>('/api/user/tokens') })
 // Les mots de passe CalDAV sont gérés dans Calendriers.
-const apiTokens = computed(() => (tokens.value ?? []).filter((tk) => tk.scope !== 'caldav'))
+const apiTokens = computed(() => (tokens.value ?? []).filter((tk) => tk.scope !== 'caldav' && tk.scope !== 'ics'))
 const { data: identities } = useQuery({ queryKey: ['me', 'identities'], queryFn: () => api<{ provider: string; provider_name?: string | null; created_at: string }[]>('/api/user/identities') })
 
 const createOpen = ref(false)

@@ -93,11 +93,12 @@ struct ApiTokenDto {
     scope: String,
     created_at: chrono::DateTime<chrono::Utc>,
     last_used_at: Option<chrono::DateTime<chrono::Utc>>,
+    calendar_id: Option<Uuid>,
 }
 
 async fn list_tokens(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<Vec<ApiTokenDto>>> {
     Ok(Json(
-        sqlx::query_as("SELECT id, name, scope, created_at, last_used_at FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC")
+        sqlx::query_as("SELECT id, name, scope, created_at, last_used_at, calendar_id FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC")
             .bind(user.id)
             .fetch_all(&pool)
             .await?,
@@ -107,8 +108,10 @@ async fn list_tokens(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Js
 #[derive(Deserialize)]
 struct CreateTokenRequest {
     name: String,
-    /// 'api' (par défaut) ou 'caldav' (mot de passe d'application CalDAV).
+    /// 'api' (par défaut), 'caldav' (mot de passe d'application CalDAV) ou 'ics' (flux d'abonnement).
     scope: Option<String>,
+    /// Flux 'ics' : calendrier Looty limité (absent : tous les calendriers du membre).
+    calendar_id: Option<Uuid>,
 }
 
 async fn create_token(
@@ -121,15 +124,32 @@ async fn create_token(
         return Err(ApiError::bad_request("invalid_name"));
     }
     let scope = p.scope.as_deref().unwrap_or("api");
-    if !matches!(scope, "api" | "caldav") {
+    if !matches!(scope, "api" | "caldav" | "ics") {
         return Err(ApiError::bad_request("invalid_scope"));
     }
+    if p.calendar_id.is_some() && scope != "ics" {
+        return Err(ApiError::bad_request("invalid_scope"));
+    }
+    if let Some(cal) = p.calendar_id {
+        // Le membre ne peut limiter un flux qu'à un calendrier d'un de ses espaces.
+        let member: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM looty_calendars c JOIN workspace_members wm ON wm.workspace_id = c.workspace_id AND wm.user_id = $2 WHERE c.id = $1)",
+        )
+        .bind(cal)
+        .bind(user.id.to_string())
+        .fetch_one(&pool)
+        .await?;
+        if !member {
+            return Err(ApiError::NotFound);
+        }
+    }
     let raw = format!("looty_{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-    let id: Uuid = sqlx::query_scalar("INSERT INTO api_tokens (user_id, name, token_hash, scope) VALUES ($1, $2, $3, $4) RETURNING id")
+    let id: Uuid = sqlx::query_scalar("INSERT INTO api_tokens (user_id, name, token_hash, scope, calendar_id) VALUES ($1, $2, $3, $4, $5) RETURNING id")
         .bind(user.id)
         .bind(name)
         .bind(hash_token(&raw))
         .bind(scope)
+        .bind(p.calendar_id)
         .fetch_one(&pool)
         .await?;
     // Le jeton brut n'est renvoyé qu'une seule fois : seul son hash est stocké.

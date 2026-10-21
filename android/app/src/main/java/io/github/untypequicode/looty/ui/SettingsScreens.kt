@@ -281,8 +281,8 @@ fun SecurityScreen(state: AppState, onBack: () -> Unit) {
                 SectionTitle(stringResource(R.string.api_tokens), action = { TextButton(onClick = { newToken = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.new_token)) } })
             }
             item { Text(stringResource(R.string.api_tokens_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp)) }
-            if (tokens?.isEmpty() == true) item { Text(stringResource(R.string.none), modifier = Modifier.padding(16.dp)) }
-            items(tokens.orEmpty(), key = { "t" + it.id }) { t ->
+            if (tokens?.none { it.scope != "ics" } == true) item { Text(stringResource(R.string.none), modifier = Modifier.padding(16.dp)) }
+            items(tokens.orEmpty().filter { it.scope != "ics" }, key = { "t" + it.id }) { t ->
                 ListItem(headlineContent = { Text(t.name) },
                     supportingContent = { Text(t.last_used_at?.let { stringResource(R.string.last_used, relativeTime(it, ctx)) } ?: stringResource(R.string.never_used)) },
                     leadingContent = { Icon(if (t.scope == "caldav") Icons.Outlined.EventRepeat else Icons.Outlined.Token, null) },
