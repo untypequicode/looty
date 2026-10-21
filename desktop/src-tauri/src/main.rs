@@ -22,16 +22,6 @@ use url::Url;
 
 use service::{french, Service, TrayState};
 
-/// Mises à jour automatiques : Windows seulement (Linux passe par apt).
-#[cfg(windows)]
-fn windows_updater() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    tauri_plugin_updater::Builder::new().build()
-}
-#[cfg(not(windows))]
-fn windows_updater() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    tauri::plugin::Builder::<tauri::Wry>::new("no-updater").build()
-}
-
 fn tr(fr: &'static str, en: &'static str) -> &'static str {
     if french() { fr } else { en }
 }
@@ -494,12 +484,15 @@ fn main() {
         tracing::info!("session encrypted with a key from the system keyring");
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Une seule instance : relancer l'application ramène la fenêtre existante.
         // Les arguments (lien looty://, --quick-add…) sont transmis à l'instance ouverte.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| run_action(app, action_from(&argv))))
-        .plugin(tauri_plugin_opener::init())
-        .plugin(windows_updater())
+        .plugin(tauri_plugin_opener::init());
+    // Mises à jour automatiques : Windows seulement (Linux passe par apt).
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    builder
         .setup(move |app| {
             let cfg = config::Config::load();
             let notifications = cfg.notifications;
