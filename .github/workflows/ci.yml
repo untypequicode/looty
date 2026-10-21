@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: ['backend/**', 'frontend/**', 'collaboration/**', 'scripts/**', '.github/workflows/ci.yml']
+    paths: ['backend/**', 'frontend/**', 'collaboration/**', 'e2e/**', 'scripts/**', '.github/workflows/ci.yml']
   pull_request:
-    paths: ['backend/**', 'frontend/**', 'collaboration/**', 'scripts/**', '.github/workflows/ci.yml']
+    paths: ['backend/**', 'frontend/**', 'collaboration/**', 'e2e/**', 'scripts/**', '.github/workflows/ci.yml']
   workflow_dispatch:
   workflow_call:
 
@@ -62,3 +62,69 @@ jobs:
           npm ci --omit=dev --no-audit --no-fund
           node --check index.js
           node -e "require('@hocuspocus/server'); require('@hocuspocus/extension-database'); require('pg'); require('yjs')"
+
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: looty_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d looty_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/looty_db
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            collaboration/package-lock.json
+            e2e/package-lock.json
+      - run: cargo build --locked --manifest-path backend/Cargo.toml
+      - working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      # Les cibles du relais /api et /collab sont fixées à la construction.
+      - working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          BACKEND_URL: http://127.0.0.1:8080
+          COLLAB_URL: http://127.0.0.1:8082
+        run: npm run build
+      - working-directory: collaboration
+        run: npm ci --omit=dev --no-audit --no-fund
+      - working-directory: e2e
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps chromium
+      - name: Start the stack
+        run: |
+          (cd backend && PORT=8080 BASE_URL=http://localhost:3000 LOOTY_DEV_LOGIN=true CALDAV_ALLOW_PRIVATE=true CALENDAR_DEFAULT_TZ=Europe/Paris nohup ./target/debug/backend > ../backend.log 2>&1 &)
+          (cd collaboration && PORT=8082 BACKEND_URL=http://127.0.0.1:8080 nohup node index.js > ../collab.log 2>&1 &)
+          (cd frontend && PORT=3000 BACKEND_URL=http://127.0.0.1:8080 COLLAB_URL=http://127.0.0.1:8082 nohup node .output/server/index.mjs > ../front.log 2>&1 &)
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:3000/api/auth/providers >/dev/null 2>&1 && curl -fs -o /dev/null http://127.0.0.1:3000/ && break; sleep 1; done
+      - working-directory: e2e
+        env:
+          E2E_BASE: http://localhost:3000
+        run: node run.mjs
+      - name: Server logs
+        if: failure()
+        run: tail -n 60 backend.log collab.log front.log
+      - name: Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-screenshots
+          path: e2e/out
+          if-no-files-found: ignore
