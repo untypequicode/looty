@@ -25,6 +25,8 @@
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
+        <!-- DAVx⁵ : connexion à l'agenda du téléphone. -->
+        <package android:name="at.bitfire.davdroid" />
     </queries>
 
     <application

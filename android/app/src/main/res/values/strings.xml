@@ -838,4 +838,13 @@
     <string name="moodle_autologin_hint">To open Moodle already signed in, sign in again once.</string>
     <string name="moodle_reconnect">Sign in again</string>
     <string name="close">Close</string>
+    <string name="phone_calendar_title">Phone calendar</string>
+    <string name="phone_calendar_hint">Show your Looty calendars and tasks in your phone’s Calendar app, with DAVx⁵.</string>
+    <string name="phone_calendar_connect">Connect</string>
+    <string name="davx5_missing_title">DAVx⁵ is not installed</string>
+    <string name="davx5_missing_message">DAVx⁵ links your Looty calendars to the phone’s Calendar app. Install it, then come back here. You can also enter the details by hand in another CalDAV app.</string>
+    <string name="davx5_install">Install DAVx⁵</string>
+    <string name="enter_manually">Enter manually</string>
+    <string name="phone_calendar_creds_title">CalDAV details</string>
+    <string name="phone_calendar_creds_message">Enter these in your calendar app (tap to copy). The password is shown only once.</string>
 </resources>
