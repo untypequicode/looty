@@ -64,6 +64,24 @@
     },
     {
       "platform": "android",
+      "version": "0.21.0",
+      "date": "2026-10-21",
+      "title": { "en": "Organize your Moodle courses", "fr": "Rangez vos cours Moodle" },
+      "notes": {
+        "en": [
+          "A new Dashboard tab stacks your Moodle panels in the order you arranged them on the web.",
+          "Courses can be searched, sorted, filtered and grouped by Moodle category or by your own folders; use “Move to…” in a course’s menu to file it.",
+          "Star or hide a course (the same on the Moodle site), and give it a short name, a colour and an icon."
+        ],
+        "fr": [
+          "Un nouvel onglet Tableau de bord empile vos panneaux Moodle dans l’ordre où vous les avez rangés sur le web.",
+          "Les cours se recherchent, se trient, se filtrent et se regroupent par catégorie Moodle ou par vos propres dossiers ; utilisez « Déplacer vers… » dans le menu d’un cours pour le ranger.",
+          "Mettez un cours en favori ou masquez-le (comme sur le site Moodle), et donnez-lui un nom court, une couleur et une icône."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.20.0",
       "date": "2026-10-20",
       "title": { "en": "Moodle courses in the app", "fr": "Les cours Moodle dans l’application" },

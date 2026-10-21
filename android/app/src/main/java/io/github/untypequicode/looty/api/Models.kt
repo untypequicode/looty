@@ -246,8 +246,18 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class MoodleOverview(val url: String? = null, val default_url: String = "", val can_configure: Boolean = false, val connection: MoodleConnection? = null)
 @Serializable data class MoodleSite(val base_url: String = "", val site_name: String? = null, val sso: Boolean = true, val launch_url: String? = null, val tokens_url: String? = null)
 @Serializable data class MoodleCourse(val id: Long, val fullname: String? = null, val shortname: String? = null, val category: String? = null, val progress: Double? = null,
-    val favourite: Boolean = false, val url: String? = null)
-@Serializable data class MoodleDeadline(val id: Long, val name: String? = null, val course: String? = null, val module: String? = null, val due: String? = null,
+    val favourite: Boolean = false, val hidden: Boolean = false, val lastaccess: Long? = null, val startdate: Long? = null, val enddate: Long? = null,
+    val image: String? = null, val url: String? = null)
+// Ce que Looty ajoute aux cours Moodle (préférences de membre, clé `moodleCourses`, même format que le web).
+@Serializable data class CourseFolder(val id: String, val name: String, val parent: String? = null)
+@Serializable data class CourseCustom(val short: String? = null, val color: String? = null, val icon: String? = null)
+@Serializable data class CoursePrefs(val folders: List<CourseFolder> = emptyList(), val assign: Map<String, String> = emptyMap(),
+    val custom: Map<String, CourseCustom> = emptyMap(), val order: List<Long> = emptyList())
+/** Panneau du tableau de bord Moodle (clé `moodleBoard`) : sur Android seuls l'ordre de lecture et le contenu comptent. */
+@Serializable data class BoardPanel(val i: String = "", val kind: String = "", val x: Int = 0, val y: Int = 0, val title: String? = null, val course: Long? = null,
+    val folder: String? = null, val opts: PanelOpts? = null)
+@Serializable data class PanelOpts(val view: String? = null, val sort: String? = null, val filter: String? = null, val group: String? = null, val includeHidden: Boolean? = null)
+@Serializable data class MoodleDeadline(val id: Long, val name: String? = null, val course: String? = null, val course_id: Long? = null, val module: String? = null, val due: String? = null,
     val overdue: Boolean = false, val url: String? = null, val action: String? = null)
 @Serializable data class MoodleFile(val name: String = "", val path: String = "/", val size: Long = 0, val mime: String? = null, val time: String? = null,
     val url: String? = null, val html: Boolean = false, val source: String = "")
