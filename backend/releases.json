@@ -4,6 +4,24 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.22.0",
+      "date": "2026-10-21",
+      "title": { "en": "Your calendars in any calendar app", "fr": "Vos calendriers dans n’importe quelle application d’agenda" },
+      "notes": {
+        "en": [
+          "**Subscription feeds**: in *Settings › Calendars*, create a read-only address and paste it into Infomaniak, Google Calendar, Apple Calendar or Outlook to see your events and task due dates there. One feed per app, each revocable on its own, shown only once.",
+          "One-click subscribe buttons for Google, Apple and Outlook, plus a step-by-step guide for Infomaniak. A feed can cover all your calendars or just one.",
+          "Subscription feeds are separate from API tokens and CalDAV app passwords: they only read your calendars."
+        ],
+        "fr": [
+          "**Flux d’abonnement** : dans *Réglages › Calendriers*, créez une adresse en lecture seule et collez-la dans Infomaniak, Google Agenda, Apple Calendrier ou Outlook pour y voir vos événements et échéances de tâches. Un flux par application, chacun révocable séparément, affiché une seule fois.",
+          "Des boutons d’abonnement en un clic pour Google, Apple et Outlook, et un guide pas à pas pour Infomaniak. Un flux peut couvrir tous vos calendriers ou un seul.",
+          "Les flux d’abonnement sont distincts des jetons d’API et des mots de passe d’application CalDAV : ils ne font que lire vos calendriers."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.21.2",
       "date": "2026-10-21",
       "title": { "en": "PostgreSQL 18", "fr": "PostgreSQL 18" },
