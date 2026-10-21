@@ -46,7 +46,7 @@ export default defineNuxtConfig({
   components: [{ path: '~/components', pathPrefix: true }],
 
   // En production le reverse proxy (Traefik) route /api, /uploads, /pages, /dav et /collab directement.
-  // Ces règles servent de repli si le frontend est exposé seul (le temps réel de /collab exige le proxy).
+  // Ces règles servent de repli si le frontend est exposé seul ; /api/ws et /collab (WebSocket) passent par server/routes.
   routeRules: isDev
     ? {}
     : {
@@ -67,6 +67,8 @@ export default defineNuxtConfig({
       },
 
   nitro: {
+    // Relais WebSocket de /api/ws et /collab (server/routes) quand aucun reverse proxy ne s'en charge.
+    experimental: { websocket: true },
     publicAssets: [{ dir: pyodideDir, baseURL: '/pyodide', maxAge: 86400 }],
     devProxy: {
       '/api': { target: `${backend}/api`, ws: true, changeOrigin: true },

@@ -4,6 +4,20 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.21.1",
+      "date": "2026-10-21",
+      "title": { "en": "Real-time editing without a reverse proxy", "fr": "Édition en temps réel sans reverse proxy" },
+      "notes": {
+        "en": [
+          "Live updates and collaborative editing now work with `docker compose up` alone: the web interface relays the WebSocket connections itself, so Traefik (or another proxy) is no longer required for them."
+        ],
+        "fr": [
+          "Les mises à jour en direct et l’édition collaborative fonctionnent maintenant avec `docker compose up` seul : l’interface web relaie elle-même les connexions WebSocket, un reverse proxy comme Traefik n’est plus nécessaire pour cela."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.21.0",
       "date": "2026-10-21",
       "title": { "en": "A home page you arrange freely", "fr": "Un accueil que vous disposez librement" },

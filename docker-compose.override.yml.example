@@ -1,4 +1,4 @@
-# Sans Traefik : interface sur http://localhost:3000 (elle relaie /api, /uploads, /pages et /dav au backend).
+# Sans Traefik : interface sur http://localhost:3000 (elle relaie /api, /uploads, /pages, /dav et les WebSockets /api/ws et /collab).
 # Copier en docker-compose.override.yml.
 services:
   frontend:
