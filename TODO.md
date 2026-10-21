@@ -30,6 +30,6 @@ Done (0.13.0 to 0.18.0, phases N1 to N6): every screen is native. Still opened i
 
 - Windows automatic updates (Tauri updater: needs a free signing key) and a code-signing certificate **(you)** so
   Windows stops warning about an unknown publisher.
-- PostgreSQL 15 → 18 on your server: needs a dump and restore, plan a maintenance window **(you)**.
+- PostgreSQL 15 → 18 on your server **(you)**: run `scripts/pg-upgrade.sh docker-compose.prod.yml` on the server (dump, new volume, restore; the old volume is kept for rollback). Plan a few minutes of downtime. Tested on a throwaway stack.
 - Node 26 once it becomes the LTS version (end of October 2026).
 - Moodle: the course personalization (short name, colour, icon) is deliberately not applied to the Looty calendar events imported from Moodle, see [docs/adr/0001-moodle-personalization-not-in-looty-calendar.md](docs/adr/0001-moodle-personalization-not-in-looty-calendar.md).
