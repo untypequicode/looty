@@ -3,6 +3,22 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "desktop",
+      "version": "0.8.0",
+      "date": "2026-10-21",
+      "title": { "en": "Windows updates itself", "fr": "Windows se met à jour tout seul" },
+      "notes": {
+        "en": [
+          "On Windows, Looty now checks for a new version in the background (at most every 6 hours), downloads it, checks its signature, installs it and restarts. No need to download the installer again.",
+          "Windows may still show “unknown publisher” the first time you install: the installer is not signed with a paid certificate. Updates themselves are verified with Looty’s own key."
+        ],
+        "fr": [
+          "Sous Windows, Looty cherche maintenant une nouvelle version en arrière-plan (au plus toutes les 6 heures), la télécharge, vérifie sa signature, l’installe et redémarre. Plus besoin de retélécharger l’installateur.",
+          "Windows peut encore afficher « éditeur inconnu » à la première installation : l’installateur n’est pas signé avec un certificat payant. Les mises à jour, elles, sont vérifiées avec la clé propre à Looty."
+        ]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.21.1",
       "date": "2026-10-21",

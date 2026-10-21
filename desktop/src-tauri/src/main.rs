@@ -5,6 +5,8 @@ mod config;
 mod latex;
 mod offline;
 mod proxy;
+#[cfg(windows)]
+mod selfupdate;
 mod service;
 mod shortcuts;
 mod tray;
@@ -482,11 +484,15 @@ fn main() {
         tracing::info!("session encrypted with a key from the system keyring");
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Une seule instance : relancer l'application ramène la fenêtre existante.
         // Les arguments (lien looty://, --quick-add…) sont transmis à l'instance ouverte.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| run_action(app, action_from(&argv))))
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+    // Mises à jour automatiques : Windows seulement (Linux passe par apt).
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    builder
         .setup(move |app| {
             let cfg = config::Config::load();
             let notifications = cfg.notifications;
@@ -625,6 +631,8 @@ fn main() {
                 notifications,
             );
             *app.state::<Native>().service.lock().unwrap() = Some(svc);
+            #[cfg(windows)]
+            selfupdate::start(handle.clone());
             match &first_action {
                 Action::QuickAdd => open_quick_add(&handle, None),
                 Action::NewTask(title) => open_quick_add(&handle, title.as_deref()),

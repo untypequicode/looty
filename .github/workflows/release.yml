@@ -159,6 +159,7 @@ jobs:
             ls out/desktop/*.deb > /dev/null
             # Installateur Windows (peut manquer si cette plateforme a échoué : la release Linux part quand même).
             find artifacts -name "*_${DESKTOP}_*-setup.exe" -exec cp -t out/desktop/ {} + || true
+            find artifacts -name "*_${DESKTOP}_*-setup.exe.sig" -exec cp -t out/desktop/ {} + || true
           fi
           if [ -n "$ANDROID" ]; then
             node scripts/release-notes.mjs android "$ANDROID" > out/android/notes.md
@@ -187,7 +188,27 @@ jobs:
           files: |
             out/desktop/*.deb
             out/desktop/*-setup.exe
+            out/desktop/*-setup.exe.sig
           make_latest: false
+      # Manifeste de la mise à jour automatique Windows : une release fixe « updater » dont latest.json est remplacé
+      # à chaque publication (l'application interroge toujours la même adresse).
+      - name: Windows updater manifest
+        if: needs.plan.outputs.desktop != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP: ${{ needs.plan.outputs.desktop }}
+        run: |
+          sig=$(ls out/desktop/*-setup.exe.sig 2> /dev/null | head -1 || true)
+          if [ -z "$sig" ]; then echo "No updater signature (TAURI_SIGNING_PRIVATE_KEY missing): manifest not updated"; exit 0; fi
+          exe=$(basename "${sig%.sig}")
+          node -e '
+            const fs = require("fs"), [v, exe, sigFile, repo] = process.argv.slice(1)
+            fs.writeFileSync("latest.json", JSON.stringify({
+              version: v, notes: "https://github.com/" + repo + "/releases/tag/desktop-v" + v, pub_date: new Date().toISOString(),
+              platforms: { "windows-x86_64": { signature: fs.readFileSync(sigFile, "utf8").trim(), url: "https://github.com/" + repo + "/releases/download/desktop-v" + v + "/" + exe } },
+            }, null, 2))' "$DESKTOP" "$exe" "$sig" "$GITHUB_REPOSITORY"
+          gh release view updater > /dev/null 2>&1 || gh release create updater --target "$GITHUB_SHA" --prerelease --title "Updater manifest" --notes "Fixed address read by the Windows app to find its updates (latest.json). Do not delete."
+          gh release upload updater latest.json --clobber
       - name: Android release
         if: needs.plan.outputs.android != ''
         uses: softprops/action-gh-release@v3

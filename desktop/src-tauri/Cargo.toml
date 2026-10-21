@@ -1,6 +1,6 @@
 [package]
 name = "looty-desktop"
-version = "0.7.2"
+version = "0.8.0"
 description = "Looty desktop app"
 edition = "2021"
 license = "MIT"
@@ -58,6 +58,8 @@ keyring = { version = "3", features = ["windows-native"] }
 # Notifications (toasts) avec boutons et clic.
 tauri-winrt-notification = "0.8"
 tauri-plugin-global-shortcut = "2"
+# Mises à jour automatiques de l'installateur (signées, gratuites ; voir selfupdate.rs).
+tauri-plugin-updater = "2"
 # Fenêtre « Enregistrer sous » native.
 rfd = { version = "0.17", default-features = false }
 
