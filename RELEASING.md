@@ -115,3 +115,12 @@ workflow (run it by hand with `force` to rebuild one).
 | **Nix cache check** | after **Nix cache** on `main`, called by Release, every Monday, by hand | builds everything from the cache only; opens an issue if something would be compiled |
 | **Site** | `site/` changes, tags `site-v*` | site tests and its Docker image |
 | **Site sync** | by hand | refills the download site from the latest GitHub releases |
+
+## Windows automatic updates
+
+The Windows app updates itself (Tauri updater, free). Setup, once:
+
+1. `cargo tauri signer generate -w updater.key --password ""` (keep the key safe and backed up; never commit it).
+2. Put the public key in `plugins.updater.pubkey` of `desktop/src-tauri/tauri.conf.json` and the private key in the repository secret `TAURI_SIGNING_PRIVATE_KEY`.
+
+When that secret exists, the **Desktop** workflow also produces `*-setup.exe.sig`, and **Release** attaches it and replaces `latest.json` on the fixed `updater` release (`https://github.com/untypequicode/looty/releases/download/updater/latest.json`), which the app reads every 6 hours. The first installation still shows Windows' "unknown publisher" warning (no paid code-signing certificate); updates are checked against the key above.

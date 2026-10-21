@@ -83,19 +83,29 @@ jobs:
           key: windows-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: windows-
       # Installateurs des versions précédentes (dossier target en cache) retirés : seul le nouveau est publié.
+      # Avec le secret TAURI_SIGNING_PRIVATE_KEY, l'installateur est aussi signé pour la mise à jour automatique (.sig).
       - name: Build the NSIS installer
         working-directory: desktop/src-tauri
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           rm -rf target/release/bundle
-          cargo tauri build --bundles nsis
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            echo "::warning title=Updater::TAURI_SIGNING_PRIVATE_KEY is not set: no signature, Windows will not update itself"
+            cargo tauri build --bundles nsis
+          fi
       - name: Installer exists
         shell: bash
         run: ls -l desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
       - uses: actions/upload-artifact@v7
         with:
           name: looty-windows
-          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+            desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig
 
   # Test de l'installateur sur un Windows propre : installation, lancement, proxy local,
   # session chiffrée gardée, lien looty://, lancement caché, hors ligne, désinstallation.

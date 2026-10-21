@@ -4,13 +4,10 @@ Short list, most important first. **(you)** = only you can do it (GitHub setting
 
 ## Now
 
-1. **(you)** Clean the old files on GitHub. Open the `desktop-v0.7.1` and `web-v0.16.8` releases and delete every old
-   `.deb` / `.exe`; keep only the 0.7.1 files, `looty-0.12.1.apk` and `docker-compose.yml`. The next releases won't add
-   old files any more (fixed).
-2. **(you)** Merge `redesign` into `main`. The Release workflow then publishes web 0.16.9, desktop 0.7.2 and
-   Android 0.18.0.
-3. **(you)** In GitHub → Settings → Branches, make the **CI** check required for `main`, so a broken build cannot be
-   merged.
+1. **(you)** Windows updates: add the repository secret `TAURI_SIGNING_PRIVATE_KEY` (the content of the updater private
+   key; the public key is already in `desktop/src-tauri/tauri.conf.json`). Without it the Windows installer is built
+   unsigned and Windows does not update itself. Keep a backup of the key: if it is lost, installed apps can no longer
+   be updated.
 
 ## Android: native app
 
@@ -28,8 +25,6 @@ Done (0.13.0 to 0.18.0, phases N1 to N6): every screen is native. Still opened i
 
 ## Later
 
-- Windows automatic updates (Tauri updater: needs a free signing key) and a code-signing certificate **(you)** so
-  Windows stops warning about an unknown publisher.
 - PostgreSQL 15 → 18 on your server: needs a dump and restore, plan a maintenance window **(you)**.
 - Node 26 once it becomes the LTS version (end of October 2026).
 - Moodle: the course personalization (short name, colour, icon) is deliberately not applied to the Looty calendar events imported from Moodle, see [docs/adr/0001-moodle-personalization-not-in-looty-calendar.md](docs/adr/0001-moodle-personalization-not-in-looty-calendar.md).

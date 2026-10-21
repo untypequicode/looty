@@ -5,6 +5,8 @@ mod config;
 mod latex;
 mod offline;
 mod proxy;
+#[cfg(windows)]
+mod selfupdate;
 mod service;
 mod shortcuts;
 mod tray;
@@ -19,6 +21,16 @@ use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
 use service::{french, Service, TrayState};
+
+/// Mises à jour automatiques : Windows seulement (Linux passe par apt).
+#[cfg(windows)]
+fn windows_updater() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri_plugin_updater::Builder::new().build()
+}
+#[cfg(not(windows))]
+fn windows_updater() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::<tauri::Wry>::new("no-updater").build()
+}
 
 fn tr(fr: &'static str, en: &'static str) -> &'static str {
     if french() { fr } else { en }
@@ -487,6 +499,7 @@ fn main() {
         // Les arguments (lien looty://, --quick-add…) sont transmis à l'instance ouverte.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| run_action(app, action_from(&argv))))
         .plugin(tauri_plugin_opener::init())
+        .plugin(windows_updater())
         .setup(move |app| {
             let cfg = config::Config::load();
             let notifications = cfg.notifications;
@@ -625,6 +638,8 @@ fn main() {
                 notifications,
             );
             *app.state::<Native>().service.lock().unwrap() = Some(svc);
+            #[cfg(windows)]
+            selfupdate::start(handle.clone());
             match &first_action {
                 Action::QuickAdd => open_quick_add(&handle, None),
                 Action::NewTask(title) => open_quick_add(&handle, title.as_deref()),
