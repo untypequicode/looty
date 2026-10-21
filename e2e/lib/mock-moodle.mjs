@@ -1,6 +1,6 @@
 // Faux Moodle (services web REST + export de calendrier) pour les tests e2e. Port fixe : 18300 (lib/mock-moodle.mjs).
 import http from 'node:http'
-const TOKEN = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+import { MOODLE_TOKEN as TOKEN, PRIVATE_TOKEN } from './tokens.mjs'
 const now = () => Math.floor(Date.now() / 1000)
 const day = 86400
 const courses = [
@@ -47,7 +47,7 @@ function ws(fn, a) {
       return [m]
     }
     case 'core_calendar_get_calendar_export_token': return { token: 'exp123', warnings: [] }
-    case 'tool_mobile_get_autologin_key': return a.privatetoken === 'f00dbabe0123456789abcdef00112233'
+    case 'tool_mobile_get_autologin_key': return a.privatetoken === PRIVATE_TOKEN
       ? { key: 'autokey' + now(), autologinurl: 'http://127.0.0.1:18300/admin/tool/mobile/autologin.php', warnings: [] }
       : { exception: 'x', errorcode: 'invalidprivatetoken', message: 'Invalid private token' }
     case 'core_course_get_contents': return a.courseid != 1 ? [] : [
@@ -80,7 +80,7 @@ export const server = http.createServer(async (req, res) => {
   const raw = await body(req)
   const form = Object.fromEntries(new URLSearchParams(raw))
   if (url.pathname === '/lib/ajax/service-nologin.php') return send([{ error: false, data: { sitename: 'Moodle Mock UB', typeoflogin: 2, logourl: '' } }])
-  if (url.pathname === '/login/token.php') return send(form.username === 'alice' && form.password === 'secret' ? { token: TOKEN, privatetoken: 'f00dbabe0123456789abcdef00112233' } : { error: 'Invalid login', errorcode: 'invalidlogin' })
+  if (url.pathname === '/login/token.php') return send(form.username === 'alice' && form.password === 'secret' ? { token: TOKEN, privatetoken: PRIVATE_TOKEN } : { error: 'Invalid login', errorcode: 'invalidlogin' })
   if (url.pathname === '/webservice/rest/server.php') {
     if (form.wstoken !== TOKEN) return send({ exception: 'moodle_exception', errorcode: 'invalidtoken', message: 'Invalid token' })
     return send(ws(form.wsfunction, form))
@@ -91,7 +91,7 @@ export const server = http.createServer(async (req, res) => {
     const scheme = url.searchParams.get('urlscheme') || 'moodlemobile'
     const forced = process.env.FORCED_SCHEME || ''
     if ((req.method === 'POST' && form.password === 'secret') || url.searchParams.get('auto') === '1') {
-      const key = Buffer.from(`sig:::${TOKEN}:::f00dbabe0123456789abcdef00112233`).toString('base64')
+      const key = Buffer.from(`sig:::${TOKEN}:::${PRIVATE_TOKEN}`).toString('base64')
       res.writeHead(303, { Location: `${forced || scheme}://token=${key}` }); return res.end()
     }
     return send(`<!doctype html><html><body><h1>CAS Université (mock)</h1><form method="post"><input name="username" value="alice"><input name="password" type="password" id="pw"><button id="go">Connexion</button></form></body></html>`, 'text/html')

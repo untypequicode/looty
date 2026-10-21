@@ -5,9 +5,9 @@ import { spawn } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { server } from './lib/mock-moodle.mjs'
+import { MOODLE_TOKEN } from './lib/tokens.mjs'
 
 const B = process.env.E2E_BASE || 'http://localhost:3000'
-const MOODLE_TOKEN = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
 
 await new Promise((resolve) => server.listen(18300, '127.0.0.1', resolve))
 
