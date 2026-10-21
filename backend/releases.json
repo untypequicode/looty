@@ -3,6 +3,20 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.21.2",
+      "date": "2026-10-21",
+      "title": { "en": "PostgreSQL 18", "fr": "PostgreSQL 18" },
+      "notes": {
+        "en": [
+          "The Docker Compose files now use PostgreSQL 18 (new volume `postgres_data_18`). **If you already run Looty, do not just pull**: run `scripts/pg-upgrade.sh docker-compose.prod.yml` once first, it dumps your data, restores it into PostgreSQL 18 and keeps the old volume for rollback. New installations need nothing."
+        ],
+        "fr": [
+          "Les fichiers Docker Compose utilisent maintenant PostgreSQL 18 (nouveau volume `postgres_data_18`). **Si Looty tourne déjà chez vous, ne faites pas seulement un pull** : lancez d’abord une fois `scripts/pg-upgrade.sh docker-compose.prod.yml`, qui sauvegarde vos données, les restaure dans PostgreSQL 18 et garde l’ancien volume pour revenir en arrière. Les nouvelles installations n’ont rien à faire."
+        ]
+      }
+    },
+    {
       "platform": "desktop",
       "version": "0.8.0",
       "date": "2026-10-21",
