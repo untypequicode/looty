@@ -4,6 +4,64 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.21.0",
+      "date": "2026-10-21",
+      "title": { "en": "A home page you arrange freely", "fr": "Un accueil que vous disposez librement" },
+      "notes": {
+        "en": [
+          "The home page now works like the Moodle dashboard: drag a widget by its header to move it, resize it from its corner, and the others make room. Everything is saved as you go.",
+          "Your current layout is kept: widgets you already chose stay in the same order, half-width ones side by side.",
+          "“Customize” now shows or hides widgets, or goes back to the suggested layout. On a narrow screen the widgets stack in reading order."
+        ],
+        "fr": [
+          "L’accueil fonctionne désormais comme le tableau de bord Moodle : glissez un widget par son en-tête pour le déplacer, redimensionnez-le par le coin, les autres se poussent. Tout s’enregistre au fur et à mesure.",
+          "Votre disposition actuelle est conservée : les widgets déjà choisis gardent leur ordre, les demi-largeurs restent côte à côte.",
+          "« Personnaliser » sert maintenant à afficher ou masquer des widgets, ou à revenir à la disposition proposée. Sur un écran étroit, les widgets s’empilent dans l’ordre de lecture."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.20.0",
+      "date": "2026-10-21",
+      "title": { "en": "Sort, filter and organize your Moodle courses", "fr": "Triez, filtrez et rangez vos cours Moodle" },
+      "notes": {
+        "en": [
+          "The courses panel shows your courses as cards (with the course image), a list or a compact list, and you can search, sort (last access, name, progress, next deadline, or by hand) and filter (in progress, upcoming, past, favourites, hidden).",
+          "Group courses by Moodle category or in your own folders, nested as deeply as you like: drag a course onto a folder or use “Move to…” in its menu. A new Folder panel shows one folder on the dashboard.",
+          "Stars and hidden courses are the same in Looty and on the Moodle site. Deadlines of hidden courses are left out of the Deadlines panel unless you ask for them.",
+          "Give a course a short name, a colour and an icon; they replace the site’s look everywhere in Looty (except the calendar)."
+        ],
+        "fr": [
+          "Le panneau des cours affiche vos cours en cartes (avec l’image du cours), en liste ou en liste compacte ; vous pouvez rechercher, trier (dernier accès, nom, progression, prochaine échéance, ou à la main) et filtrer (en cours, à venir, passés, favoris, masqués).",
+          "Regroupez les cours par catégorie Moodle ou dans vos propres dossiers, imbriqués autant que vous voulez : glissez un cours sur un dossier ou utilisez « Déplacer vers… » dans son menu. Un nouveau panneau Dossier affiche un dossier sur le tableau de bord.",
+          "Les étoiles et les cours masqués sont les mêmes dans Looty et sur le site Moodle. Les échéances des cours masqués sont écartées du panneau Échéances, sauf si vous les demandez.",
+          "Donnez à un cours un nom court, une couleur et une icône ; ils remplacent l’aspect du site partout dans Looty (sauf dans le calendrier)."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.19.0",
+      "date": "2026-10-21",
+      "title": { "en": "Your own Moodle dashboard", "fr": "Votre tableau de bord Moodle" },
+      "notes": {
+        "en": [
+          "The Moodle dashboard is now made of panels you arrange freely: drag a panel by its header, resize it by its corner, the others make room. Your layout is saved as you go.",
+          "Add the panels you want, as many times as you like: deadlines, my courses, recent messages, notifications, progress, and a pinned course that shows its content right on the dashboard.",
+          "Rename a panel with a double-click on its title, remove it from its menu, and reset the dashboard from the Moodle menu.",
+          "On a narrow window, panels stack in reading order without changing your layout."
+        ],
+        "fr": [
+          "Le tableau de bord Moodle est maintenant fait de panneaux que vous disposez librement : glissez un panneau par son en-tête, redimensionnez-le par son coin, les autres se poussent. Votre disposition est enregistrée au fur et à mesure.",
+          "Ajoutez les panneaux que vous voulez, autant de fois que vous voulez : échéances, mes cours, messages récents, notifications, progression, et un cours épinglé qui affiche son contenu directement sur le tableau de bord.",
+          "Renommez un panneau d’un double-clic sur son titre, retirez-le depuis son menu, et réinitialisez le tableau de bord depuis le menu Moodle.",
+          "Dans une fenêtre étroite, les panneaux s’empilent dans l’ordre de lecture, sans changer votre disposition."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.18.0",
       "date": "2026-10-20",
       "title": { "en": "Moodle courses in Looty", "fr": "Les cours Moodle dans Looty" },
@@ -19,6 +77,24 @@
           "Les tests, forums et la remise d’un devoir s’ouvrent sur Moodle déjà connecté : Looty utilise votre compte relié au lieu de vous redemander de vous connecter.",
           "Si votre connexion ne permet pas encore la connexion automatique, un bandeau propose de vous reconnecter une fois (sans déconnecter).",
           "Les fichiers des cours passent par Looty : votre clé Moodle n’arrive jamais dans le navigateur."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.21.0",
+      "date": "2026-10-21",
+      "title": { "en": "Organize your Moodle courses", "fr": "Rangez vos cours Moodle" },
+      "notes": {
+        "en": [
+          "A new Dashboard tab stacks your Moodle panels in the order you arranged them on the web.",
+          "Courses can be searched, sorted, filtered and grouped by Moodle category or by your own folders; use “Move to…” in a course’s menu to file it.",
+          "Star or hide a course (the same on the Moodle site), and give it a short name, a colour and an icon."
+        ],
+        "fr": [
+          "Un nouvel onglet Tableau de bord empile vos panneaux Moodle dans l’ordre où vous les avez rangés sur le web.",
+          "Les cours se recherchent, se trient, se filtrent et se regroupent par catégorie Moodle ou par vos propres dossiers ; utilisez « Déplacer vers… » dans le menu d’un cours pour le ranger.",
+          "Mettez un cours en favori ou masquez-le (comme sur le site Moodle), et donnez-lui un nom court, une couleur et une icône."
         ]
       }
     },

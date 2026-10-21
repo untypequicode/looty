@@ -106,12 +106,13 @@ fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, Str
                         }
                     }
                     PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 12.dp) {
-                        listOf(R.string.moodle_deadlines, R.string.moodle_courses, R.string.moodle_messages, R.string.notifications).forEachIndexed { i, label ->
+                        listOf(R.string.moodle_dashboard, R.string.moodle_deadlines, R.string.moodle_courses, R.string.moodle_messages, R.string.notifications).forEachIndexed { i, label ->
                             Tab(selected = tab == i, onClick = { tab = i }, text = { Text(stringResource(label), maxLines = 1) })
                         }
                     }
                     when (tab) {
-                        0 -> MoodleList(load = { state.moodleDeadlines() }, empty = R.string.moodle_no_deadlines) { list: List<MoodleDeadline> ->
+                        0 -> MoodleDashboard(state, open = ::open, goTo = { tab = it }, onCourse = onCourse, onConversation = onConversation)
+                        1 -> MoodleList(load = { state.moodleDeadlines() }, empty = R.string.moodle_no_deadlines) { list: List<MoodleDeadline> ->
                             items(list, key = { it.id }) { d ->
                                 ListItem(
                                     headlineContent = { Text(d.name.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis) },
@@ -122,22 +123,8 @@ fun MoodleScreen(state: AppState, onBack: () -> Unit, onConversation: (Long, Str
                                 )
                             }
                         }
-                        1 -> MoodleList(load = { state.moodleCourses() }, empty = R.string.moodle_no_courses) { list: List<MoodleCourse> ->
-                            items(list.sortedWith(compareBy({ !it.favourite }, { it.fullname.orEmpty() })), key = { it.id }) { c ->
-                                ListItem(
-                                    headlineContent = { Text(c.fullname.orEmpty(), maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                                    supportingContent = {
-                                        Column {
-                                            Text(listOfNotNull(c.shortname, c.category).joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            c.progress?.let { p -> LinearProgressIndicator({ (p / 100).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth().padding(top = 6.dp)) }
-                                        }
-                                    },
-                                    leadingContent = { Icon(if (c.favourite) Icons.Outlined.Star else Icons.Outlined.School, null, tint = MaterialTheme.colorScheme.primary) },
-                                    modifier = Modifier.clickable { onCourse(c.id, c.fullname.orEmpty()) },
-                                )
-                            }
-                        }
-                        2 -> MoodleList(load = { state.moodleConversations() }, empty = R.string.moodle_no_messages) { list: List<MoodleConversation> ->
+                        2 -> CoursesTab(state, onCourse)
+                        3 -> MoodleList(load = { state.moodleConversations() }, empty = R.string.moodle_no_messages) { list: List<MoodleConversation> ->
                             items(list, key = { it.id }) { c ->
                                 ListItem(
                                     headlineContent = { Text(c.name, fontWeight = if (c.unread > 0) FontWeight.Bold else null, maxLines = 1, overflow = TextOverflow.Ellipsis) },

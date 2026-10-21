@@ -39,6 +39,8 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/connect", post(connect).delete(disconnect))
         .route("/preferences", put(put_preferences))
         .route("/courses", get(courses))
+        .route("/courses/{course_id}/favourite", put(set_favourite))
+        .route("/courses/{course_id}/hidden", put(set_hidden))
         .route("/deadlines", get(deadlines))
         .route("/notifications", get(notifications))
         .route("/conversations", get(conversations))
@@ -447,15 +449,24 @@ async fn sync_calendar(State(state): State<AppState>, user: AuthUser, Path(ws): 
 // Données
 // ---------------------------------------------------------------------------
 
-async fn courses(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<Value>>> {
+#[derive(Deserialize)]
+struct CoursesQuery {
+    /// Inclut les cours masqués (marqués `hidden`) ; sans, ils sont omis.
+    #[serde(default)]
+    all: bool,
+}
+
+async fn courses(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<CoursesQuery>) -> ApiResult<Json<Vec<Value>>> {
     let (c, client, uid) = conn_of(&state, &user, ws).await?;
     let v = track(&state, c.id, client.call("core_enrol_get_users_courses", &[p("userid", uid)]).await).await?;
+    let hidden = |c: &Value| c["hidden"].as_bool().unwrap_or_else(|| c["hidden"].as_i64().unwrap_or(0) != 0);
     let mut list: Vec<Value> = v
         .as_array()
         .map(|a| {
             a.iter()
-                .filter(|c| c["hidden"].as_i64().unwrap_or(0) == 0)
+                .filter(|c| q.all || !hidden(c))
                 .map(|c| {
+                    let image = c["overviewfiles"][0]["fileurl"].as_str().filter(|u| crate::moodle_content::is_plugin_file(&client.base, u)).map(|u| crate::moodle_content::proxied(ws, u));
                     json!({
                         "id": c["id"],
                         "fullname": c["displayname"].as_str().or(c["fullname"].as_str()),
@@ -463,7 +474,11 @@ async fn courses(State(state): State<AppState>, user: AuthUser, Path(ws): Path<U
                         "category": c["categoryname"],
                         "progress": c["progress"],
                         "favourite": c["isfavourite"].as_bool().unwrap_or(false),
+                        "hidden": hidden(c),
                         "lastaccess": c["lastaccess"],
+                        "startdate": c["startdate"],
+                        "enddate": c["enddate"],
+                        "image": image,
                         "url": format!("{}/course/view.php?id={}", client.base, c["id"]),
                     })
                 })
@@ -473,6 +488,29 @@ async fn courses(State(state): State<AppState>, user: AuthUser, Path(ws): Path<U
     // Favoris, puis derniers consultés.
     list.sort_by_key(|c| (!c["favourite"].as_bool().unwrap_or(false), -c["lastaccess"].as_i64().unwrap_or(0)));
     Ok(Json(list))
+}
+
+#[derive(Deserialize)]
+struct FlagReq {
+    value: bool,
+}
+
+/// Étoile d'un cours : la même dans Looty et sur le site Moodle.
+async fn set_favourite(State(state): State<AppState>, user: AuthUser, Path((ws, course)): Path<(Uuid, i64)>, Json(b): Json<FlagReq>) -> ApiResult<StatusCode> {
+    let (c, client, _) = conn_of(&state, &user, ws).await?;
+    let params = [p("courses[0][id]", course), p("courses[0][favourite]", b.value as i32)];
+    track(&state, c.id, client.call("core_course_set_favourite_courses", &params).await).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Cours masqué : une préférence de l'utilisateur Moodle (celle du bloc « Cours »), vidée
+/// quand le cours n'est plus masqué.
+async fn set_hidden(State(state): State<AppState>, user: AuthUser, Path((ws, course)): Path<(Uuid, i64)>, Json(b): Json<FlagReq>) -> ApiResult<StatusCode> {
+    let (c, client, uid) = conn_of(&state, &user, ws).await?;
+    let name = format!("block_myoverview_hidden_course_{course}");
+    let params = [p("preferences[0][name]", name), p("preferences[0][value]", if b.value { "1" } else { "" }), p("preferences[0][userid]", uid)];
+    track(&state, c.id, client.call("core_user_set_user_preferences", &params).await).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Échéances à venir (et en retard depuis 14 jours) : devoirs, tests, rendez-vous…

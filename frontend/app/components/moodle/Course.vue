@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { fileSize } from '~/composables/useProjects'
+import { useMoodleCourses } from '~/composables/useMoodleCourses'
 import type { MoodleCourse, MoodleCourseContent, MoodleModule, MoodleFile, MoodleAssignment } from '~/composables/useMoodle'
 
 /**
@@ -13,9 +14,10 @@ import type { MoodleCourse, MoodleCourseContent, MoodleModule, MoodleFile, Moodl
  * Ce que Looty n'affiche pas (tests, forums, dépôt d'un devoir) s'ouvre sur le site,
  * connecté automatiquement (`open`).
  */
-const props = defineProps<{ ws: string; course: MoodleCourse | null; courseId: number }>()
+const props = defineProps<{ ws: string; course: MoodleCourse | null; courseId: number; /** Dans un panneau du tableau de bord : sans en-tête. */ embedded?: boolean }>()
 const emit = defineEmits<{ (e: 'back'): void; (e: 'open', url: string): void }>()
 const { t, formatDateTime } = useI18n()
+const mcs = useMoodleCourses(toRef(props, 'ws'))
 
 const base = computed(() => `/api/workspaces/${props.ws}/moodle`)
 const { data, isLoading, error } = useQuery({
@@ -86,10 +88,10 @@ function onContentClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="mc">
-    <header class="mc-head">
+  <div class="mc" :class="{ embedded }">
+    <header v-if="!embedded" class="mc-head">
       <UiButton size="sm" variant="ghost" :icon="ArrowLeft" @click="emit('back')">{{ t('moodle.course.back') }}</UiButton>
-      <h2 class="truncate">{{ course?.fullname ?? '' }}</h2>
+      <h2 class="truncate">{{ course ? mcs.nameOf(course) : '' }}</h2>
       <UiButton size="sm" :icon="ExternalLink" @click="emit('open', data?.url ?? course?.url ?? '')">{{ t('moodle.course.openOnSite') }}</UiButton>
     </header>
 
@@ -161,6 +163,8 @@ function onContentClick(e: MouseEvent) {
 .mc { display: flex; flex-direction: column; gap: 14px; }
 .mc-head { display: flex; align-items: center; gap: 10px; }
 .mc-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-lg, 17px); }
+.mc.embedded { gap: 10px; }
+.mc.embedded .mc-sec { padding: 8px 10px; }
 .mc-center { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 0; }
 .mc-sec { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; background: var(--bg-elevated); }
 .mc-sec h3 { margin: 0 0 8px; font-size: var(--fs-md, 15px); }

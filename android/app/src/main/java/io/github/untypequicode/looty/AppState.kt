@@ -26,6 +26,8 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -986,7 +988,30 @@ class AppState(app: Application) : AndroidViewModel(app) {
     suspend fun moodleDisconnect(): Boolean = runCatching { api.send("DELETE", moodle("/connect")) }.onFailure(::fail).isSuccess
     suspend fun moodleNotify(on: Boolean): Boolean = runCatching { api.send("PUT", moodle("/preferences"), buildJsonObject { put("notify", on) }) }.onFailure(::fail).isSuccess
     suspend fun moodleSyncCalendar(): Boolean = runCatching { api.send("POST", moodle("/calendar/sync")) }.onFailure(::fail).isSuccess.also { if (it) loadCalendars() }
-    suspend fun moodleCourses(): Result<List<MoodleCourse>> = runCatching { api.get<List<MoodleCourse>>(moodle("/courses")) }
+    /** Tous les cours, masqués compris (le filtre « masqués » les montre). */
+    suspend fun moodleCourses(): Result<List<MoodleCourse>> = runCatching { api.get<List<MoodleCourse>>(moodle("/courses?all=true")) }
+    suspend fun moodleSetCourseFlag(id: Long, flag: String, value: Boolean): Boolean =
+        runCatching { api.send("PUT", moodle("/courses/$id/$flag"), buildJsonObject { put("value", value) }) }.onFailure(::fail).isSuccess
+
+    // Dossiers, personnalisation et ordre des cours, tableau de bord : préférences du membre, partagées avec le web.
+    var coursePrefs by mutableStateOf(CoursePrefs()); private set
+    var boardPanels by mutableStateOf<List<BoardPanel>?>(null); private set
+    suspend fun loadCoursePrefs() {
+        val w = ws ?: return
+        runCatching { api.get<JsonObject>("/api/workspaces/$w/prefs") }.onSuccess { p ->
+            coursePrefs = p["moodleCourses"]?.let { runCatching { api.json.decodeFromJsonElement<CoursePrefs>(it) }.getOrNull() } ?: CoursePrefs()
+            boardPanels = p["moodleBoard"]?.jsonObject?.get("panels")?.let { runCatching { api.json.decodeFromJsonElement<List<BoardPanel>>(it) }.getOrNull() }
+        }
+    }
+    /** Enregistre aussitôt en local, puis sur le serveur ; en cas d'échec on revient à l'état d'avant. */
+    suspend fun saveCoursePrefs(next: CoursePrefs): Boolean {
+        val w = ws ?: return false
+        val before = coursePrefs
+        coursePrefs = next
+        val ok = runCatching { api.send("PATCH", "/api/workspaces/$w/prefs", buildJsonObject { put("moodleCourses", api.json.encodeToJsonElement(next)) }) }.onFailure(::fail).isSuccess
+        if (!ok) coursePrefs = before
+        return ok
+    }
     suspend fun moodleCourse(id: Long): Result<MoodleCourseContent> = runCatching { api.get<MoodleCourseContent>(moodle("/courses/$id")) }
     suspend fun moodleAssignment(course: Long, cmid: Long): Result<MoodleAssignment> = runCatching { api.get<MoodleAssignment>(moodle("/courses/$course/assign/$cmid")) }
     suspend fun moodlePage(source: String): Result<String> = runCatching { api.get<MoodleHtml>(moodle("/html?url=${enc(source)}")).html }
