@@ -150,6 +150,7 @@ const host = (u: string) => { try { return new URL(u).host } catch { return u } 
 </script>
 
 <template>
+  <SettingsCalendarFeeds />
   <SettingsCalDavServer />
   <SettingsSection :title="t('settings.caldav.syncTitle')" :description="t('settings.caldav.description')">
     <template #actions><UiButton size="sm" variant="primary" :icon="Plus" @click="openWizard">{{ t('settings.caldav.connect') }}</UiButton></template>

@@ -1052,6 +1052,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     suspend fun apiTokens(): List<ApiToken>? = runCatching { api.get<List<ApiToken>>("/api/user/tokens") }.onFailure(::fail).getOrNull()
     suspend fun createApiToken(name: String): String? = runCatching { api.post<NewToken>("/api/user/tokens", buildJsonObject { put("name", name.trim()) }).token }.onFailure(::fail).getOrNull()
+    /** Mot de passe d'application CalDAV (portée « caldav ») : affiché une seule fois, sert à DAVx⁵. */
+    suspend fun createCalDavPassword(name: String): String? = runCatching { api.post<NewToken>("/api/user/tokens", buildJsonObject { put("name", name.trim()); put("scope", "caldav") }).token }.onFailure(::fail).getOrNull()
     suspend fun revokeApiToken(id: String): Boolean = runCatching { api.send("DELETE", "/api/user/tokens/$id") }.onFailure(::fail).isSuccess
     suspend fun identities(): List<Identity>? = runCatching { api.get<List<Identity>>("/api/user/identities") }.onFailure(::fail).getOrNull()
     suspend fun unlinkIdentity(provider: String): Boolean = runCatching { api.send("DELETE", "/api/user/identities/$provider") }.onFailure(::fail).isSuccess

@@ -73,6 +73,18 @@ pub(crate) async fn list(pool: &sqlx::PgPool, workspace_id: Uuid, calendar: Opti
     .await?)
 }
 
+/// Événements visibles par un membre (tous ses espaces), éventuellement limités à un calendrier Looty.
+pub(crate) async fn list_for_user(pool: &sqlx::PgPool, user_id: Uuid, calendar: Option<Uuid>) -> ApiResult<Vec<EventRow>> {
+    Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {COLS} {FROM} JOIN workspace_members wm ON wm.workspace_id = e.workspace_id AND wm.user_id = $1
+         WHERE ($2::uuid IS NULL OR lc.id = $2) ORDER BY e.created_at"
+    )))
+    .bind(user_id.to_string())
+    .bind(calendar)
+    .fetch_all(pool)
+    .await?)
+}
+
 pub(crate) async fn find_by_name(pool: &sqlx::PgPool, workspace_id: Uuid, name: &str, calendar: Option<Uuid>) -> ApiResult<Option<EventRow>> {
     let by_id = name.strip_suffix(".ics").and_then(|s| Uuid::parse_str(s).ok());
     Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(

@@ -22,6 +22,24 @@ _Avoid_: test du cache, smoke test
 Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup ou à les ajouter ensemble à une tâche ou un événement. Une personne peut appartenir à plusieurs groupes. Ajouter un groupe à une tâche y ajoute ses membres du moment ; la tâche ne suit pas les changements ultérieurs du groupe.
 _Avoid_: équipe, rôle, liste
 
+## Agenda externe
+
+**Flux d'abonnement**:
+Adresse secrète en lecture seule d'un calendrier Looty, que le membre colle dans une autre application d'agenda (Infomaniak, Google, Apple, Outlook…) pour y voir ses événements et échéances. Il se révoque sans toucher au reste du compte.
+_Avoid_: export, lien ICS, lien de partage
+
+**Bouton d'abonnement**:
+Bouton de Looty qui ouvre l'abonnement à un flux d'abonnement dans une application d'agenda donnée, ou en copie l'adresse.
+_Avoid_: raccourci, lien rapide
+
+**Mot de passe d'application**:
+Identifiant généré par Looty pour qu'un appareil ou une application d'agenda lise et modifie les tâches et événements via CalDAV. Il ne donne accès à rien d'autre dans Looty et se révoque appareil par appareil.
+_Avoid_: jeton, clé d'API
+
+**Connexion à l'agenda du téléphone**:
+Configuration, depuis l'app Android de Looty, qui fait apparaître les calendriers de Looty dans l'application Agenda du téléphone, en lecture et écriture, grâce à un mot de passe d'application.
+_Avoid_: compte Android, synchro native
+
 ## Moodle
 
 **Connexion automatique**:

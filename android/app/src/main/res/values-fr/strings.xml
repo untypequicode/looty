@@ -840,4 +840,13 @@
     <string name="moodle_autologin_hint">Pour ouvrir Moodle déjà connecté, reconnectez-vous une fois.</string>
     <string name="moodle_reconnect">Se reconnecter</string>
     <string name="close">Fermer</string>
+    <string name="phone_calendar_title">Agenda du téléphone</string>
+    <string name="phone_calendar_hint">Affichez vos calendriers et tâches Looty dans l’application Agenda du téléphone, avec DAVx⁵.</string>
+    <string name="phone_calendar_connect">Connecter</string>
+    <string name="davx5_missing_title">DAVx⁵ n’est pas installé</string>
+    <string name="davx5_missing_message">DAVx⁵ relie vos calendriers Looty à l’application Agenda du téléphone. Installez-le puis revenez ici. Vous pouvez aussi saisir les informations à la main dans une autre application CalDAV.</string>
+    <string name="davx5_install">Installer DAVx⁵</string>
+    <string name="enter_manually">Saisir à la main</string>
+    <string name="phone_calendar_creds_title">Informations CalDAV</string>
+    <string name="phone_calendar_creds_message">Saisissez-les dans votre application d’agenda (touchez pour copier). Le mot de passe n’est affiché qu’une fois.</string>
 </resources>

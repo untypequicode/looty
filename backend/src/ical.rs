@@ -65,7 +65,7 @@ fn unescape(s: &str) -> String {
 }
 
 /// Repli des lignes à 75 octets maximum (sans couper un caractère UTF-8).
-fn fold(line: &str) -> String {
+pub fn fold(line: &str) -> String {
     if line.len() <= 75 {
         return line.to_string();
     }

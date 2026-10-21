@@ -281,8 +281,8 @@ fun SecurityScreen(state: AppState, onBack: () -> Unit) {
                 SectionTitle(stringResource(R.string.api_tokens), action = { TextButton(onClick = { newToken = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.new_token)) } })
             }
             item { Text(stringResource(R.string.api_tokens_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp)) }
-            if (tokens?.isEmpty() == true) item { Text(stringResource(R.string.none), modifier = Modifier.padding(16.dp)) }
-            items(tokens.orEmpty(), key = { "t" + it.id }) { t ->
+            if (tokens?.none { it.scope != "ics" } == true) item { Text(stringResource(R.string.none), modifier = Modifier.padding(16.dp)) }
+            items(tokens.orEmpty().filter { it.scope != "ics" }, key = { "t" + it.id }) { t ->
                 ListItem(headlineContent = { Text(t.name) },
                     supportingContent = { Text(t.last_used_at?.let { stringResource(R.string.last_used, relativeTime(it, ctx)) } ?: stringResource(R.string.never_used)) },
                     leadingContent = { Icon(if (t.scope == "caldav") Icons.Outlined.EventRepeat else Icons.Outlined.Token, null) },
@@ -547,6 +547,7 @@ fun CalendarSyncScreen(state: AppState, onBack: () -> Unit) {
         ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Outlined.Add, null) }, text = { Text(stringResource(R.string.connect_calendar)) })
     }) { padding ->
         LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+            item { PhoneCalendarSection(state) }
             item { Text(stringResource(R.string.caldav_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
             val l = list
             if (l == null) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) } }
@@ -666,4 +667,84 @@ private fun AddCalDavDialog(state: AppState, onDismiss: () -> Unit, onAdded: () 
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+// ---------------------------------------------------------------------------
+// Agenda du téléphone : les calendriers de Looty dans l'application Agenda, via DAVx⁵
+// ---------------------------------------------------------------------------
+
+private const val DAVX5 = "at.bitfire.davdroid"
+
+private fun davx5Installed(ctx: android.content.Context) = runCatching { ctx.packageManager.getPackageInfo(DAVX5, 0) }.isSuccess
+
+private data class DavCredentials(val server: String, val username: String, val password: String)
+
+/**
+ * Connexion à l'agenda du téléphone : un mot de passe d'application CalDAV est créé, puis DAVx⁵ s'ouvre
+ * sur son écran de connexion déjà rempli. Sans DAVx⁵ : proposition de l'installer, ou des identifiants à copier.
+ */
+@Composable
+private fun PhoneCalendarSection(state: AppState) {
+    val ctx = LocalContext.current
+    var missing by remember { mutableStateOf(false) }
+    var creds by remember { mutableStateOf<DavCredentials?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    // Crée le mot de passe, puis ouvre DAVx⁵ ; en cas d'échec d'ouverture, les identifiants sont montrés.
+    fun connect(openDavx5: Boolean) {
+        busy = true
+        state.launch {
+            val password = state.createCalDavPassword("Android · ${Build.MODEL}")
+            busy = false
+            if (password == null) return@launch
+            val username = state.me?.email ?: return@launch
+            val server = state.api.server.trimEnd('/') + "/dav/"
+            val intent = android.content.Intent().setClassName(DAVX5, "at.bitfire.davdroid.ui.setup.LoginActivity")
+                .putExtra("url", server).putExtra("username", username).putExtra("password", password)
+            if (!openDavx5 || runCatching { ctx.startActivity(intent) }.isFailure) creds = DavCredentials(server, username, password)
+        }
+    }
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.phone_calendar_title)) },
+        supportingContent = { Text(stringResource(R.string.phone_calendar_hint)) },
+        leadingContent = { Icon(Icons.Outlined.PhoneAndroid, null) },
+        trailingContent = {
+            if (busy) CircularProgressIndicator(Modifier.size(24.dp))
+            else OutlinedButton(onClick = { if (davx5Installed(ctx)) connect(true) else missing = true }) { Text(stringResource(R.string.phone_calendar_connect)) }
+        },
+    )
+    HorizontalDivider()
+    if (missing) {
+        AlertDialog(
+            onDismissRequest = { missing = false },
+            title = { Text(stringResource(R.string.davx5_missing_title)) },
+            text = { Text(stringResource(R.string.davx5_missing_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    missing = false
+                    val market = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$DAVX5"))
+                    val web = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://f-droid.org/packages/$DAVX5/"))
+                    if (runCatching { ctx.startActivity(market) }.isFailure) runCatching { ctx.startActivity(web) }
+                }) { Text(stringResource(R.string.davx5_install)) }
+            },
+            dismissButton = { TextButton(onClick = { missing = false; connect(false) }) { Text(stringResource(R.string.enter_manually)) } },
+        )
+    }
+    creds?.let { c ->
+        val copied = stringResource(R.string.link_copied)
+        fun copy(label: String, text: String) { ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(label, text)); Toast.makeText(ctx, copied, Toast.LENGTH_SHORT).show() }
+        AlertDialog(
+            onDismissRequest = { creds = null },
+            title = { Text(stringResource(R.string.phone_calendar_creds_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.phone_calendar_creds_message))
+                    Text(c.server, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { copy("server", c.server) })
+                    Text(c.username, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { copy("username", c.username) })
+                    Text(c.password, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = { copy("password", c.password) }) { Text(stringResource(R.string.copy)) } },
+            dismissButton = { TextButton(onClick = { creds = null }) { Text(stringResource(R.string.ok)) } },
+        )
+    }
 }
