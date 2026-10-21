@@ -80,10 +80,9 @@ export default {
   },
   panelGrid: { move: 'Glisser pour déplacer', rename: 'Renommer', remove: 'Retirer le panneau' },
   dashboard: {
-    title: 'Personnaliser votre accueil', customize: 'Personnaliser', save: 'Enregistrer mon accueil', saved: 'Accueil enregistré',
-    hint: 'Choisissez les widgets, leur ordre et leur largeur (pour vous seul, dans cet espace).',
-    firstHint: 'Choisissez ce que vous voulez voir sur votre accueil. Enregistrez pour le garder — même si vous conservez la disposition proposée.',
-    notSaved: 'Votre accueil utilise la disposition proposée.', half: 'Demi-largeur', full: 'Pleine largeur', unread: '{n} non lu(s)', upToDate: 'À jour',
+    title: 'Personnaliser votre accueil', customize: 'Personnaliser',
+    hint: "Choisissez les widgets affichés (pour vous seul, dans cet espace). Déplacez-les et redimensionnez-les directement sur l'accueil.",
+    unread: '{n} non lu(s)', upToDate: 'À jour',
     widgets: { classes: 'Cours', greeting: 'Salutation', stats: 'Mes chiffres', agenda: 'Prochains événements', myTasks: 'Mes tâches', docs: 'Documents', boards: 'Tableaux', activity: 'Activité',
       overdue: 'Tâches en retard', toApprove: 'En attente de ma validation', favorites: 'Favoris', inbox: 'Notifications non lues', notepad: 'Bloc-notes', online: 'En ligne',
       month: 'Ce mois-ci', mail: 'Mail', myEvents: 'Événements où je suis mentionné' },

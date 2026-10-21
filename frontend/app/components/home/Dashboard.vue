@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useCalendars, useCalendarEvents, useCalendarPrefs, startOfDay, addDays, sameDay } from '~/composables/useCalendar'
-import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange, GraduationCap, Clock, BookOpenText } from 'lucide-vue-next'
+import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange, GraduationCap, Clock, BookOpenText, GripVertical, X } from 'lucide-vue-next'
 import { useTodayClasses, useClassLinks } from '~/composables/useClasses'
 import { useMemberPrefs } from '~/composables/usePrefs'
 import { useDashboard } from '~/composables/useDashboard'
@@ -35,11 +35,10 @@ const { user } = useAuth()
 const { createBoardOpen, openCreateTask } = useUi()
 
 // --- Tableau de bord personnalisable ---
-const { layout, saved: dashSaved, loaded: dashLoaded } = useDashboard(wsId)
+const dash = useDashboard(wsId)
+const { layout } = dash
 const customizeOpen = ref(false)
-// Première visite : la personnalisation s'ouvre ; elle doit être enregistrée au moins une fois.
-watch([dashLoaded, dashSaved], ([l, s]) => { if (l && !s) customizeOpen.value = true }, { immediate: true })
-const has = (id: string) => layout.value.some((w) => w.id === id)
+const has = (id: string) => layout.value.some((w) => w.i === id)
 
 // --- Cours (emploi du temps relié aux documents) ---
 const { current: classNow, next: classNext, now: clock } = useTodayClasses(wsId)
@@ -48,6 +47,8 @@ const { prefs: dashPrefs } = useMemberPrefs<{ dashboard?: { knowsClasses?: boole
 /** Ajouté volontairement : visible même sans cours (indication pour le configurer). */
 const classesChosen = computed(() => !!dashPrefs.value?.dashboard?.knowsClasses)
 const showClasses = computed(() => classNow.value.length > 0 || classNext.value.length > 0 || classesChosen.value)
+/** Les widgets placés sur la grille (celui des cours n'a pas de case tant qu'il n'a rien à montrer). */
+const shown = computed(() => layout.value.filter((w) => w.i !== 'classes' || showClasses.value))
 const hm = (iso: string) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 const classProgress = (e: { starts_at: string; ends_at: string }) => {
   const s = +new Date(e.starts_at), en = +new Date(e.ends_at)
@@ -170,16 +171,18 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
     </AppPageHeader>
   
     <div ref="root" class="home">
-      <div class="grid">
-        <template v-for="w in layout" :key="w.id">
-          <section v-if="w.id === 'greeting'" class="hero full" data-reveal>
+      <AppPanelGrid :items="shown" :row-height="28" @change="dash.move">
+        <template #default="{ item: w, stacked }">
+          <section v-if="w.i === 'greeting'" class="bare hero" data-reveal>
+            <template v-if="!stacked"><span class="pg-handle bare-grip" :title="t('panelGrid.move')"><GripVertical :size="14" /></span><button class="bare-x" :aria-label="t('panelGrid.remove')" :title="t('panelGrid.remove')" @click="dash.remove(w.i)"><X :size="14" /></button></template>
             <div>
               <p class="date">{{ today }}</p>
               <h1>{{ greeting }}</h1>
             </div>
           </section>
 
-          <section v-else-if="w.id === 'classes' && showClasses" class="classes full" data-reveal>
+          <section v-else-if="w.i === 'classes'" class="bare classes" data-reveal>
+            <template v-if="!stacked"><span class="pg-handle bare-grip" :title="t('panelGrid.move')"><GripVertical :size="14" /></span><button class="bare-x" :aria-label="t('panelGrid.remove')" :title="t('panelGrid.remove')" @click="dash.remove(w.i)"><X :size="14" /></button></template>
             <article v-for="c in classNow" :key="c.id + c.starts_at" class="class-now" :style="{ '--cc': c.color || 'var(--accent)' }">
               <div class="cn-head">
                 <span class="cn-badge"><GraduationCap :size="13" /> {{ t('classes.now') }}</span>
@@ -219,7 +222,8 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
             </div>
           </section>
 
-          <section v-else-if="w.id === 'stats'" class="stats full">
+          <section v-else-if="w.i === 'stats'" class="bare stats">
+            <template v-if="!stacked"><span class="pg-handle bare-grip" :title="t('panelGrid.move')"><GripVertical :size="14" /></span><button class="bare-x" :aria-label="t('panelGrid.remove')" :title="t('panelGrid.remove')" @click="dash.remove(w.i)"><X :size="14" /></button></template>
             <NuxtLink v-for="(s, i) in stats" :key="s.key" :to="s.to" class="stat" :class="`tone-${s.tone}`" data-reveal>
               <div class="stat-icon"><component :is="s.icon" :size="16" /></div>
               <div class="stat-value tabular" :ref="(el) => { if (el) statEls[i] = el as HTMLElement }">{{ isLoading ? '–' : s.value }}</div>
@@ -227,11 +231,8 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
             </NuxtLink>
           </section>
 
-          <section v-else-if="w.id === 'agenda'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><CalendarDays :size="15" /> {{ t('home.upcoming') }}</h2>
-              <NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'agenda'" :title="t('home.upcoming')" :icon="CalendarDays" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
             <div v-if="!nextEvents.length" class="panel-empty"><CalendarDays :size="20" /><span>{{ t('home.noEvents') }}</span></div>
             <div v-else class="panel-body">
               <NuxtLink v-for="e in nextEvents" :key="e.id" :to="e.event_id ? `${links.calendar(wsId)}?event=${e.event_id}` : links.calendar(wsId)" class="task-row">
@@ -241,32 +242,26 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <span class="task-due">{{ evTime(e) }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'myTasks' || w.id === 'overdue' || w.id === 'toApprove'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><component :is="w.id === 'overdue' ? AlertTriangle : w.id === 'toApprove' ? BadgeCheck : CircleUserRound" :size="15" /> {{ t(`dashboard.widgets.${w.id}`) }}</h2>
-              <NuxtLink :to="links.myTasks(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'myTasks' || w.i === 'overdue' || w.i === 'toApprove'" :title="t(`dashboard.widgets.${w.i}`)" :icon="w.i === 'overdue' ? AlertTriangle : w.i === 'toApprove' ? BadgeCheck : CircleUserRound" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><NuxtLink :to="links.myTasks(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
             <div v-if="loadingTasks" class="panel-body"><div v-for="i in 3" :key="i" class="skeleton row-skel" /></div>
-            <div v-else-if="!(w.id === 'overdue' ? overdueTasks : w.id === 'toApprove' ? toApprove : upcoming).length" class="panel-empty">
-              <CheckCircle2 :size="20" /><span>{{ t(`dashboard.empty.${w.id}`) }}</span>
+            <div v-else-if="!(w.i === 'overdue' ? overdueTasks : w.i === 'toApprove' ? toApprove : upcoming).length" class="panel-empty">
+              <CheckCircle2 :size="20" /><span>{{ t(`dashboard.empty.${w.i}`) }}</span>
             </div>
             <div v-else class="panel-body">
-              <NuxtLink v-for="tk in (w.id === 'overdue' ? overdueTasks : w.id === 'toApprove' ? toApprove : upcoming)" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="task-row">
+              <NuxtLink v-for="tk in (w.i === 'overdue' ? overdueTasks : w.i === 'toApprove' ? toApprove : upcoming)" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="task-row">
                 <TaskPriorityIcon :priority="tk.priority" :size="14" />
                 <span class="task-title truncate">{{ tk.title }}</span>
                 <span class="task-board truncate">{{ tk.board_name }} · {{ tk.column_name }}</span>
                 <span v-if="tk.due_date" class="task-due" :class="dueClass(tk.due_date)">{{ formatDate(tk.due_date) }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'docs'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><FileText :size="15" /> {{ t('nav.docs') }}</h2>
-              <UiSegmented v-model="docTab" :options="[{ value: 'viewed', label: t('home.recentlyViewed') }, { value: 'updated', label: t('home.recentlyUpdated') }]" @update:model-value="touchedTab = true" />
-            </header>
+          <AppGridPanel v-else-if="w.i === 'docs'" :title="t('nav.docs')" :icon="FileText" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><UiSegmented v-model="docTab" :options="[{ value: 'viewed', label: t('home.recentlyViewed') }, { value: 'updated', label: t('home.recentlyUpdated') }]" @update:model-value="touchedTab = true" /></template>
             <div v-if="!docList.length" class="panel-empty">
               <FileText :size="20" /><span>{{ t('home.noDocs') }}</span>
               <UiButton v-if="can.editDocs" size="sm" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
@@ -281,10 +276,9 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 </span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'favorites'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head"><h2><Star :size="15" /> {{ t('dashboard.widgets.favorites') }}</h2></header>
+          <AppGridPanel v-else-if="w.i === 'favorites'" :title="t('dashboard.widgets.favorites')" :icon="Star" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
             <div v-if="!favoritePages.length" class="panel-empty"><Star :size="20" /><span>{{ t('dashboard.empty.favorites') }}</span></div>
             <div v-else class="panel-body">
               <NuxtLink v-for="p in favoritePages" :key="p.id" :to="links.doc(wsId, p.id)" class="doc-row">
@@ -292,13 +286,10 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <span class="truncate doc-title">{{ p.title || t('docs.untitled') }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'inbox'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><InboxIcon :size="15" /> {{ t('dashboard.widgets.inbox') }}</h2>
-              <NuxtLink :to="links.inbox(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'inbox'" :title="t('dashboard.widgets.inbox')" :icon="InboxIcon" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><NuxtLink :to="links.inbox(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
             <div v-if="!unreadNotifs.length" class="panel-empty"><InboxIcon :size="20" /><span>{{ t('dashboard.empty.inbox') }}</span></div>
             <div v-else class="panel-body">
               <NuxtLink v-for="n in unreadNotifs" :key="n.id" :to="links.inbox(wsId)" class="task-row">
@@ -307,22 +298,16 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <span class="task-due">{{ relativeTime(n.created_at) }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'notepad'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><NotebookPen :size="15" /> {{ t('notepad.title') }}</h2>
-              <button class="panel-link" @click="notepadOpen = true">{{ t('common.open') }} <ArrowRight :size="13" /></button>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'notepad'" :title="t('notepad.title')" :icon="NotebookPen" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><button class="panel-link" @click="notepadOpen = true">{{ t('common.open') }} <ArrowRight :size="13" /></button></template>
             <div v-if="!notepad?.content" class="panel-empty"><NotebookPen :size="20" /><span>{{ t('notepad.placeholder') }}</span></div>
             <DocViewer v-else :html="notepad.content" size="sm" class="np-preview" />
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'mail'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><Mail :size="15" /> {{ t('nav.mail') }}</h2>
-              <NuxtLink :to="links.mail(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'mail'" :title="t('nav.mail')" :icon="Mail" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><NuxtLink :to="links.mail(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
             <div v-if="!mailAccounts?.length" class="panel-empty"><Mail :size="20" /><span>{{ t('dashboard.empty.mail') }}</span></div>
             <div v-else class="panel-body">
               <NuxtLink v-for="a in mailAccounts" :key="a.id" :to="links.mail(wsId, a.id)" class="task-row">
@@ -331,10 +316,9 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <span class="task-due" :class="{ soon: a.unread }">{{ a.unread ? t('dashboard.unread', { n: a.unread }) : t('dashboard.upToDate') }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'online'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head"><h2><Users :size="15" /> {{ t('dashboard.widgets.online') }}</h2></header>
+          <AppGridPanel v-else-if="w.i === 'online'" :title="t('dashboard.widgets.online')" :icon="Users" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
             <div v-if="!onlineMembers.length" class="panel-empty"><Users :size="20" /><span>{{ t('dashboard.empty.online') }}</span></div>
             <div v-else class="panel-body online">
               <NuxtLink v-for="m in onlineMembers" :key="m.user_id" :to="`/w/${wsId}/activity?user=${m.user_id}`" class="task-row">
@@ -343,23 +327,19 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <span class="task-board truncate">{{ presence[m.user_id]?.location }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'month'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><CalendarRange :size="15" /> {{ formatDate(new Date(), { month: 'long', year: 'numeric' }) }}</h2>
-              <NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'month'" :title="formatDate(new Date(), { month: 'long', year: 'numeric' })" :icon="CalendarRange" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><NuxtLink :to="links.calendar(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
             <div class="mini">
               <NuxtLink v-for="d in monthDays" :key="+d" :to="links.calendar(wsId)" class="mini-day" :class="{ out: d.getMonth() !== new Date().getMonth(), today: sameDay(d, new Date()) }">
                 <span>{{ d.getDate() }}</span>
                 <span class="mini-dots"><i v-for="e in dayEvents(d).slice(0, 3)" :key="e.id" :style="{ background: evColor(e.calendar_id) }" /></span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'myEvents'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head"><h2><CalendarHeart :size="15" /> {{ t('dashboard.widgets.myEvents') }}</h2></header>
+          <AppGridPanel v-else-if="w.i === 'myEvents'" :title="t('dashboard.widgets.myEvents')" :icon="CalendarHeart" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
             <div v-if="!myEvents.length" class="panel-empty"><CalendarHeart :size="20" /><span>{{ t('dashboard.empty.myEvents') }}</span></div>
             <div v-else class="panel-body">
               <NuxtLink v-for="e in myEvents" :key="e.id" :to="`${links.calendar(wsId)}?event=${e.event_id}`" class="task-row">
@@ -368,13 +348,10 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <span class="task-due">{{ evTime(e) }}</span>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'boards'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><Kanban :size="15" /> {{ t('nav.boards') }}</h2>
-              <UiButton v-if="can.manageBoards" size="xs" variant="ghost" :icon="Plus" @click="createBoardOpen = true">{{ t('board.new') }}</UiButton>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'boards'" :title="t('nav.boards')" :icon="Kanban" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><UiButton v-if="can.manageBoards" size="xs" variant="ghost" :icon="Plus" @click="createBoardOpen = true">{{ t('board.new') }}</UiButton></template>
             <div v-if="!overview?.boards.length" class="panel-empty"><Kanban :size="20" /><span>{{ t('board.noBoards') }}</span></div>
             <div v-else class="boards">
               <NuxtLink v-for="b in overview.boards" :key="b.id" :to="links.board(wsId, b.id)" class="board-card">
@@ -390,13 +367,10 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 </div>
               </NuxtLink>
             </div>
-          </section>
+          </AppGridPanel>
 
-          <section v-else-if="w.id === 'activity'" class="panel" :class="w.size" data-reveal>
-            <header class="panel-head">
-              <h2><Activity :size="15" /> {{ t('home.activity') }}</h2>
-              <NuxtLink :to="`/w/${wsId}/activity`" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink>
-            </header>
+          <AppGridPanel v-else-if="w.i === 'activity'" :title="t('home.activity')" :icon="Activity" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+              <template #actions><NuxtLink :to="`/w/${wsId}/activity`" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
             <div v-if="!overview?.activity.length" class="panel-empty"><Activity :size="20" /><span>{{ t('home.noActivity') }}</span></div>
             <ol v-else class="feed">
               <li v-for="a in overview.activity" :key="a.id" class="feed-item">
@@ -409,13 +383,9 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
                 <time class="feed-time">{{ relativeTime(a.created_at) }}</time>
               </li>
             </ol>
-          </section>
+          </AppGridPanel>
         </template>
-      </div>
-      <div v-if="dashLoaded && !dashSaved" class="customize-hint">
-        <LayoutGrid :size="15" /> {{ t('dashboard.notSaved') }}
-        <UiButton size="xs" variant="primary" @click="customizeOpen = true">{{ t('dashboard.customize') }}</UiButton>
-      </div>
+      </AppPanelGrid>
     </div>
     <HomeCustomize v-model:open="customizeOpen" />
   </div>
@@ -460,12 +430,17 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 .hero .date { margin: 0; color: var(--text-3); font-size: var(--fs-sm); text-transform: capitalize; }
 .hero h1 { margin: 4px 0 0; font-family: var(--font-display); font-size: 26px; font-weight: 600; letter-spacing: -0.022em; }
 
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.grid > .full, .grid > .panel.full { grid-column: 1 / -1; }
+.bare { position: relative; height: 100%; overflow-y: auto; }
+.bare-grip, .bare-x { position: absolute; top: 2px; opacity: 0; transition: opacity var(--dur-fast); color: var(--text-3); z-index: 1; }
+.bare-grip { right: 30px; cursor: grab; padding: 4px; }
+.bare-x { right: 4px; padding: 4px; border-radius: var(--r-xs); }
+.bare-x:hover { color: var(--text); background: var(--bg-hover); }
+.bare:hover .bare-grip, .bare:hover .bare-x { opacity: 1; }
+@media (pointer: coarse) { .bare-grip, .bare-x { opacity: .6; } }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; align-content: stretch; }
 .hero { padding: 4px 0 4px; }
-.customize-hint { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px; color: var(--text-3); font-size: var(--fs-sm); }
-.np-preview { padding: 0 14px 12px; max-height: 220px; overflow: hidden; }
-.mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 10px 12px; }
+.np-preview { padding: 0; max-height: 220px; overflow: hidden; }
+.mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .mini-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: var(--r-sm); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .mini-day:hover { background: var(--bg-hover); }
 .mini-day.out { color: var(--text-4); }
@@ -490,15 +465,9 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 .stat-value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
 .stat-label { margin-top: 6px; color: var(--text-2); font-size: var(--fs-sm); }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.panel { background: var(--bg-panel); border-radius: var(--r-lg); box-shadow: var(--shadow-card); min-width: 0; display: flex; flex-direction: column; }
-.panel.wide { grid-column: span 1; }
-.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }
-.panel-head h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); font-weight: 600; }
-.panel-head h2 svg { color: var(--text-3); }
 .panel-link { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: var(--fs-sm); }
 .panel-link:hover { color: var(--text); }
-.panel-body { padding: 0 6px 8px; }
+.panel-body { padding: 0; }
 .panel-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 16px 32px; color: var(--text-3); text-align: center; }
 .row-skel { height: 32px; margin: 4px 8px; }
 
@@ -520,7 +489,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 .doc-icon { width: 18px; display: grid; place-items: center; color: var(--text-3); flex: none; }
 .doc-meta { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: var(--fs-sm); flex: none; }
 
-.boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 0 12px 12px; }
+.boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 0 0 4px; }
 .board-card { padding: 12px; border-radius: var(--r-md); background: var(--bg-card); box-shadow: var(--shadow-card); transition: background var(--dur-fast), transform var(--dur) var(--ease-out); }
 .board-card:hover { background: var(--bg-card-hover); transform: translateY(-1px); }
 .board-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -530,7 +499,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 .bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), #b18cff); transition: width 0.8s var(--ease-out); }
 .board-meta { font-size: var(--fs-sm); color: var(--text-3); }
 
-.feed { list-style: none; margin: 0; padding: 0 14px 12px; display: flex; flex-direction: column; }
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .feed-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .feed-item:last-child { border-bottom: none; }
 .feed-text { flex: 1; min-width: 0; color: var(--text-2); line-height: 1.45; }
@@ -541,11 +510,10 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
 
 @media (max-width: 1023px) {
   .home { padding: 24px 20px 48px; }
-  .grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 639px) {
   .home { padding: 18px 14px 32px; }
-  .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stats { gap: 8px; }
   .hero h1 { font-size: 22px; }
   .task-board { display: none; }
 }

@@ -31,7 +31,12 @@ watch(() => props.items, (v) => { layout.value = v.map(({ i, x, y, w, h }) => ({
 const byId = computed(() => new Map(props.items.map((x) => [x.i, x])))
 
 const key = (b: GridBox[]) => b.map(({ i, x, y, w, h }) => `${i}:${x},${y},${w},${h}`).sort().join('|')
+// Seuls un déplacement ou un redimensionnement du membre s'enregistrent : la grille se
+// compacte d'elle-même à l'affichage, sans que cela devienne une disposition choisie.
+let touched = false
 function onUpdated() {
+  if (!touched) return
+  touched = false
   const boxes = layout.value.map(({ i, x, y, w, h }) => ({ i, x, y, w, h }))
   if (key(boxes) !== key(props.items)) emit('change', boxes)
 }
@@ -68,6 +73,8 @@ const px = (h: number) => `${h * props.rowHeight + (h - 1) * props.gap}px`
         drag-allow-from=".pg-handle"
         drag-ignore-from="button, a, input, textarea, select, [contenteditable]"
         class="pg-cell"
+        @move="touched = true"
+        @resize="touched = true"
       >
         <slot v-if="byId.get(b.i)" :item="byId.get(b.i)!" :stacked="false" />
       </GridItem>

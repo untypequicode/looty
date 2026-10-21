@@ -4,6 +4,24 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.21.0",
+      "date": "2026-10-21",
+      "title": { "en": "A home page you arrange freely", "fr": "Un accueil que vous disposez librement" },
+      "notes": {
+        "en": [
+          "The home page now works like the Moodle dashboard: drag a widget by its header to move it, resize it from its corner, and the others make room. Everything is saved as you go.",
+          "Your current layout is kept: widgets you already chose stay in the same order, half-width ones side by side.",
+          "“Customize” now shows or hides widgets, or goes back to the suggested layout. On a narrow screen the widgets stack in reading order."
+        ],
+        "fr": [
+          "L’accueil fonctionne désormais comme le tableau de bord Moodle : glissez un widget par son en-tête pour le déplacer, redimensionnez-le par le coin, les autres se poussent. Tout s’enregistre au fur et à mesure.",
+          "Votre disposition actuelle est conservée : les widgets déjà choisis gardent leur ordre, les demi-largeurs restent côte à côte.",
+          "« Personnaliser » sert maintenant à afficher ou masquer des widgets, ou à revenir à la disposition proposée. Sur un écran étroit, les widgets s’empilent dans l’ordre de lecture."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.20.0",
       "date": "2026-10-21",
       "title": { "en": "Sort, filter and organize your Moodle courses", "fr": "Triez, filtrez et rangez vos cours Moodle" },
