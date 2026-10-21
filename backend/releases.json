@@ -4,6 +4,26 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.20.0",
+      "date": "2026-10-21",
+      "title": { "en": "Sort, filter and organize your Moodle courses", "fr": "Triez, filtrez et rangez vos cours Moodle" },
+      "notes": {
+        "en": [
+          "The courses panel shows your courses as cards (with the course image), a list or a compact list, and you can search, sort (last access, name, progress, next deadline, or by hand) and filter (in progress, upcoming, past, favourites, hidden).",
+          "Group courses by Moodle category or in your own folders, nested as deeply as you like: drag a course onto a folder or use “Move to…” in its menu. A new Folder panel shows one folder on the dashboard.",
+          "Stars and hidden courses are the same in Looty and on the Moodle site. Deadlines of hidden courses are left out of the Deadlines panel unless you ask for them.",
+          "Give a course a short name, a colour and an icon; they replace the site’s look everywhere in Looty (except the calendar)."
+        ],
+        "fr": [
+          "Le panneau des cours affiche vos cours en cartes (avec l’image du cours), en liste ou en liste compacte ; vous pouvez rechercher, trier (dernier accès, nom, progression, prochaine échéance, ou à la main) et filtrer (en cours, à venir, passés, favoris, masqués).",
+          "Regroupez les cours par catégorie Moodle ou dans vos propres dossiers, imbriqués autant que vous voulez : glissez un cours sur un dossier ou utilisez « Déplacer vers… » dans son menu. Un nouveau panneau Dossier affiche un dossier sur le tableau de bord.",
+          "Les étoiles et les cours masqués sont les mêmes dans Looty et sur le site Moodle. Les échéances des cours masqués sont écartées du panneau Échéances, sauf si vous les demandez.",
+          "Donnez à un cours un nom court, une couleur et une icône ; ils remplacent l’aspect du site partout dans Looty (sauf dans le calendrier)."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.19.0",
       "date": "2026-10-21",
       "title": { "en": "Your own Moodle dashboard", "fr": "Votre tableau de bord Moodle" },

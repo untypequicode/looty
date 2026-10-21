@@ -28,7 +28,13 @@ export interface MoodleSite {
   /** Le site accepte d'être affiché dans Looty. */
   frameable: boolean
 }
-export interface MoodleCourse { id: number; fullname: string; shortname: string; category: string | null; progress: number | null; favourite: boolean; url: string }
+export interface MoodleCourse {
+  id: number; fullname: string; shortname: string; category: string | null; progress: number | null; favourite: boolean; hidden: boolean
+  lastaccess: number | null; startdate: number | null; enddate: number | null
+  /** Image du cours (servie par Looty). */
+  image: string | null
+  url: string
+}
 export interface MoodleDeadline { id: number; name: string; event_name: string; course: string; course_id: number; module: string; due: string; overdue: boolean; url: string; action: string | null }
 export interface MoodleConversation { id: number; name: string; group: boolean; unread: number; last_text: string | null; last_from_me: boolean | null; last_time: string | null }
 export interface MoodleMessage { id: number; mine: boolean; from: string; html: string; time: string }

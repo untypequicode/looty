@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
-import { useMoodleData, type MoodleCourse } from '~/composables/useMoodle'
+import { useMoodleCourses } from '~/composables/useMoodleCourses'
 
 /** Panneau « Progression » : l'avancement de chaque cours suivi, du moins avancé au plus avancé. */
 const props = defineProps<{ ws: string }>()
 const emit = defineEmits<{ (e: 'course', id: number): void }>()
 const { t } = useI18n()
-const courses = useMoodleData<MoodleCourse[]>(toRef(props, 'ws'), 'courses', ref(true))
-const tracked = computed(() => (courses.data.value ?? []).filter((c) => c.progress != null).sort((a, b) => a.progress! - b.progress!))
+const mc = useMoodleCourses(toRef(props, 'ws'))
+const courses = { isLoading: mc.query.isLoading, error: mc.query.error }
+const tracked = computed(() => mc.courses.value.filter((c) => c.progress != null).sort((a, b) => a.progress! - b.progress!))
 </script>
 
 <template>
@@ -18,7 +19,7 @@ const tracked = computed(() => (courses.data.value ?? []).filter((c) => c.progre
     <p v-else-if="!tracked.length" class="mp-empty">{{ t('moodle.board.noProgress') }}</p>
     <button v-for="c in tracked" :key="c.id" class="pr" @click="emit('course', c.id)">
       <MoodleCourseBadge :course="c" :size="22" />
-      <span class="pr-name truncate">{{ c.fullname }}</span>
+      <span class="pr-name truncate">{{ mc.nameOf(c) }}</span>
       <MoodleProgressBar :value="c.progress!" :width="80" />
     </button>
   </div>

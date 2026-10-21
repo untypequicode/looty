@@ -31,7 +31,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// Adresse servie par Looty pour un fichier de la plateforme.
-fn proxied(ws: Uuid, url: &str) -> String {
+pub(crate) fn proxied(ws: Uuid, url: &str) -> String {
     format!("/api/workspaces/{ws}/moodle/file?url={}", crate::mailclient::pct(url))
 }
 
@@ -41,6 +41,11 @@ fn plugin_url(base: &str, raw: &str) -> Option<reqwest::Url> {
     let rest = raw.strip_prefix(base)?;
     let rest = if let Some(r) = rest.strip_prefix("/pluginfile.php/") { format!("/webservice/pluginfile.php/{r}") } else if rest.starts_with("/webservice/pluginfile.php/") { rest.to_string() } else { return None };
     reqwest::Url::parse(&format!("{base}{rest}")).ok()
+}
+
+/// Le fichier vient bien de la plateforme `base` (pluginfile).
+pub(crate) fn is_plugin_file(base: &str, raw: &str) -> bool {
+    plugin_url(base, raw).is_some()
 }
 
 /// HTML de la plateforme, nettoyé ; images et fichiers passent par Looty, les adresses

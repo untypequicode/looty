@@ -1,5 +1,5 @@
 import { computed, type Component, type Ref } from 'vue'
-import { Clock, BookOpen, MessageSquare, Bell, BookMarked, BarChart3 } from 'lucide-vue-next'
+import { Clock, BookOpen, MessageSquare, Bell, BookMarked, BarChart3, Folder } from 'lucide-vue-next'
 import { useMemberPrefs } from './usePrefs'
 import { bottomOf, type GridBox } from './usePanelGrid'
 
@@ -8,14 +8,31 @@ import { bottomOf, type GridBox } from './usePanelGrid'
  * colonnes, propres à chaque membre dans chaque espace (préférences de membre, clé
  * `moodleBoard`). Tant que rien n'est enregistré, la disposition par défaut s'affiche.
  */
-export type PanelKind = 'deadlines' | 'courses' | 'messages' | 'notifications' | 'course' | 'progress'
+export type PanelKind = 'deadlines' | 'courses' | 'messages' | 'notifications' | 'course' | 'progress' | 'folder'
 export interface BoardPanel extends GridBox {
   kind: PanelKind
   /** Titre choisi par le membre (sinon le titre du type de panneau). */
   title?: string
   /** Panneau « Cours épinglé » : le cours affiché. */
   course?: number
+  /** Panneau « Dossier » : le dossier de cours affiché. */
+  folder?: string
+  /** Réglages du panneau (cours : affichage, tri, filtre, groupement ; échéances : cours masqués). */
+  opts?: PanelOpts
 }
+export type CoursesView = 'cards' | 'list' | 'compact'
+export type CoursesSort = 'access' | 'name' | 'progress' | 'deadline' | 'manual'
+export type CoursesFilter = 'progress' | 'upcoming' | 'past' | 'favourites' | 'hidden' | 'all'
+export type CoursesGroup = 'category' | 'folders' | 'none'
+export interface PanelOpts {
+  view?: CoursesView
+  sort?: CoursesSort
+  filter?: CoursesFilter
+  group?: CoursesGroup
+  /** Échéances : montrer aussi celles des cours masqués. */
+  includeHidden?: boolean
+}
+export const DEFAULT_COURSES: Required<Pick<PanelOpts, 'view' | 'sort' | 'filter' | 'group'>> = { view: 'cards', sort: 'access', filter: 'progress', group: 'category' }
 export interface MoodleBoardPrefs { panels: BoardPanel[] }
 
 /** Taille d'un panneau ajouté (colonnes × lignes). */
@@ -26,10 +43,11 @@ export const PANEL_KINDS: { kind: PanelKind; w: number; h: number }[] = [
   { kind: 'notifications', w: 6, h: 8 },
   { kind: 'course', w: 6, h: 14 },
   { kind: 'progress', w: 4, h: 8 },
+  { kind: 'folder', w: 6, h: 12 },
 ]
 
 export const PANEL_ICONS: Record<PanelKind, Component> = {
-  deadlines: Clock, courses: BookOpen, messages: MessageSquare, notifications: Bell, course: BookMarked, progress: BarChart3,
+  deadlines: Clock, courses: BookOpen, messages: MessageSquare, notifications: Bell, course: BookMarked, progress: BarChart3, folder: Folder,
 }
 
 export const DEFAULT_BOARD: BoardPanel[] = [

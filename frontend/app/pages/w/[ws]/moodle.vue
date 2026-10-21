@@ -15,8 +15,9 @@ import { toast } from '~/composables/useToast'
 import { isDesktop } from '~/composables/useDesktop'
 import {
   useMoodle, useMoodleData, useMoodleInvalidate, moodleKeys,
-  type MoodleOverview, type MoodleSite, type MoodleCourse, type MoodleDeadline, type MoodleConversation, type MoodleMessage, type MoodleNotification,
+  type MoodleOverview, type MoodleSite, type MoodleDeadline, type MoodleConversation, type MoodleMessage, type MoodleNotification,
 } from '~/composables/useMoodle'
+import { useMoodleCourses } from '~/composables/useMoodleCourses'
 import { useMoodleBoard, PANEL_KINDS, PANEL_ICONS } from '~/composables/useMoodleBoard'
 
 definePageMeta({ layout: 'workspace' })
@@ -157,11 +158,11 @@ async function saveUrl() {
 
 // --- Données ---
 const tab = ref<'overview' | 'messages' | 'notifications' | 'site'>('overview')
-const courses = useMoodleData<MoodleCourse[]>(wsId, 'courses', connected)
+const courses = useMoodleCourses(wsId, connected)
 const deadlines = useMoodleData<MoodleDeadline[]>(wsId, 'deadlines', connected)
 const convs = useMoodleData<MoodleConversation[]>(wsId, 'conversations', computed(() => connected.value && tab.value === 'messages'), 60_000)
 const notifs = useMoodleData<{ notifications: MoodleNotification[]; unread: number }>(wsId, 'notifications', connected, 120_000)
-const loadError = computed(() => courses.error.value ?? deadlines.error.value)
+const loadError = computed(() => courses.query.error.value ?? deadlines.error.value)
 watch(loadError, (e) => { if (e) qc.invalidateQueries({ queryKey: moodleKeys.overview(wsId.value) }) })
 
 const dayFmt = (d: string) => new Date(d).toLocaleDateString(locale.value, { weekday: 'short', day: 'numeric', month: 'short' })
@@ -237,7 +238,7 @@ async function disconnect() {
   if (!(await confirmDialog({ title: t('moodle.disconnectTitle'), message: t('moodle.disconnectHint'), danger: true, confirmLabel: t('moodle.disconnect') }))) return
   await api(`/api/workspaces/${wsId.value}/moodle/connect`, { method: 'DELETE' })
   qc.setQueryData<MoodleOverview>(moodleKeys.overview(wsId.value), (o) => o && { ...o, connection: null })
-  for (const k of ['courses', 'deadlines', 'conversations', 'notifications']) qc.removeQueries({ queryKey: moodleKeys.data(wsId.value, k) })
+  for (const k of ['courses?all=true', 'deadlines', 'conversations', 'notifications']) qc.removeQueries({ queryKey: moodleKeys.data(wsId.value, k) })
   convId.value = null
   qc.invalidateQueries({ queryKey: ['calendars'] })
   invalidate()
@@ -348,7 +349,7 @@ useHead({ title: () => t('moodle.title') })
         <LogIn :size="14" /><span>{{ t('moodle.autologinHint') }}</span>
         <UiButton size="xs" variant="ghost" @click="reconnecting = true">{{ t('moodle.autologinAction') }}</UiButton>
       </div>
-      <MoodleCourse v-if="courseId" :ws="wsId" :course-id="courseId" :course="courses.data.value?.find((c) => c.id === courseId) ?? null" @back="openCourse(null)" @open="openSite" />
+      <MoodleCourse v-if="courseId" :ws="wsId" :course-id="courseId" :course="courses.byId(courseId)" @back="openCourse(null)" @open="openSite" />
       <template v-else>
       <div class="md-tabs">
         <UiSegmented v-model="tab" size="md" :options="[
