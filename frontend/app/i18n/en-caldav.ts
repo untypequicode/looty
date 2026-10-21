@@ -24,6 +24,16 @@ export default {
       how3: 'Title, description, dates, priority and completion edited in the app are applied in Looty, with history.',
       how4: 'Deleting a to-do deletes the task in a board list; in “Assigned to me” it only unassigns you.',
     },
+    feeds: {
+      title: 'Show Looty in another calendar',
+      description: 'Subscribe Infomaniak, Google Calendar, Apple Calendar or Outlook to your events and task due dates. Read-only: edit in Looty.',
+      new: 'New subscription feed', empty: 'No subscription feed yet: create one for each calendar app.',
+      name: 'Name', namePlaceholder: 'e.g. Infomaniak, Google…', calendar: 'Calendar', allCalendars: 'All my calendars and task due dates', otherSpace: 'Calendar of another workspace',
+      calendarHint: 'A feed limited to one calendar does not include task due dates.',
+      copyNow: 'Paste this address into your calendar app. It is shown only once; anyone who has it can see your events, so revoke it if needed.',
+      addTo: 'Add to', infomaniak1: 'In the Infomaniak calendar, add a calendar from an address (subscribe by URL / ICS).', infomaniak2: 'Paste the address above and confirm.',
+      revokeTitle: 'Revoke “{name}”?', revokeMessage: 'Apps subscribed to this feed will stop updating.',
+    },
     nav: { calendars: 'Calendars' },
     caldav: {
       syncTitle: 'Sync with an external calendar',

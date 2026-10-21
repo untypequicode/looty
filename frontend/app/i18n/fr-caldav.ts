@@ -24,6 +24,16 @@ export default {
       how3: 'Titre, description, dates, priorité et achèvement modifiés dans l’application sont appliqués dans Looty, avec l’historique.',
       how4: 'Supprimer une tâche dans la liste d’un tableau la supprime ; dans « Mes tâches », cela vous désassigne seulement.',
     },
+    feeds: {
+      title: 'Afficher Looty dans un autre agenda',
+      description: 'Abonnez Infomaniak, Google Agenda, Apple Calendrier ou Outlook à vos événements et échéances de tâches. Lecture seule : on modifie dans Looty.',
+      new: 'Nouveau flux d’abonnement', empty: 'Aucun flux d’abonnement : créez-en un par application d’agenda.',
+      name: 'Nom', namePlaceholder: 'ex. Infomaniak, Google…', calendar: 'Calendrier', allCalendars: 'Tous mes calendriers et échéances de tâches', otherSpace: 'Calendrier d’un autre espace',
+      calendarHint: 'Un flux limité à un calendrier ne contient pas les échéances de tâches.',
+      copyNow: 'Collez cette adresse dans votre application d’agenda. Elle n’est affichée qu’une fois ; toute personne qui la possède voit vos événements, révoquez-la au besoin.',
+      addTo: 'Ajouter à', infomaniak1: 'Dans l’agenda Infomaniak, ajoutez un agenda à partir d’une adresse (abonnement par URL / ICS).', infomaniak2: 'Collez l’adresse ci-dessus et validez.',
+      revokeTitle: 'Révoquer « {name} » ?', revokeMessage: 'Les applications abonnées à ce flux cesseront de se mettre à jour.',
+    },
     nav: { calendars: 'Calendriers' },
     caldav: {
       syncTitle: 'Synchroniser avec un calendrier externe',
