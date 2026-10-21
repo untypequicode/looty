@@ -37,3 +37,6 @@ desktop/dist/
 *.jks
 *.keystore
 keystore.properties
+
+# Browser tests: screenshots
+e2e/out/
