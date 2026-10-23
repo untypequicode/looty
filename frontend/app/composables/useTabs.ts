@@ -36,13 +36,14 @@ export const tabsEnabled = useLocalStorage('looty.tabs.enabled', true)
 
 const states = new Map<string, Ref<TabState>>()
 /**
- * Navigations lancées par des onglets (pas des navigations « dans » l'onglet actif), dans l'ordre.
- * Plusieurs peuvent être en vol si l'on change d'onglet vite : chacune est reconnue à son chemin
- * quand la route arrive. Elles expirent vite pour qu'une navigation annulée ou redirigée
- * n'avale pas la suivante.
+ * Page que le dernier changement d'onglet veut afficher (une navigation « dans » l'onglet actif n'en a pas).
+ * Si l'on change d'onglet vite, une navigation plus ancienne peut arriver après : on repart alors
+ * vers la dernière destination. `tries` évite de boucler sur une redirection ; l'entrée expire vite.
  */
-let pending: { path: string; at: number }[] = []
-const PENDING_TTL = 1500
+let target: { path: string; at: number; tries: number } | null = null
+const TARGET_TTL = 1500
+let settleTimer: ReturnType<typeof setTimeout> | null = null
+const liveTarget = () => (target && Date.now() - target.at < TARGET_TTL ? target : null)
 /** Onglets fermés récemment, par espace (pour les rouvrir : Ctrl+Maj+T). */
 const closedStacks = new Map<string, string[]>()
 function remember(ws: string, paths: string[]) {
@@ -57,6 +58,7 @@ function remember(ws: string, paths: string[]) {
  */
 export function useTabs(ws: Ref<string>) {
   const route = useRoute()
+  const router = useRouter()
   const state = computed(() => {
     const key = ws.value
     if (!states.has(key)) {
@@ -89,20 +91,53 @@ export function useTabs(ws: Ref<string>) {
   /** Route changée : soit un changement d'onglet, soit l'onglet actif qui change de page. */
   function onNavigate(path: string) {
     ensureOne(path)
-    const now = Date.now()
-    const live = pending.filter((x) => now - x.at < PENDING_TTL)
-    const i = live.findIndex((x) => x.path === path)
-    // Les navigations lancées avant celle-ci sont dépassées.
-    pending = i >= 0 ? live.slice(i + 1) : []
-    if (i >= 0) return
+    const tg = liveTarget()
+    target = null
+    if (tg) {
+      if (path === tg.path) return
+      // Navigation d'un onglet précédent arrivée en retard : on rejoint la page de l'onglet actif.
+      if (tg.tries < 2) {
+        target = { ...tg, tries: tg.tries + 1 }
+        void navigateTo(tg.path)
+        return
+      }
+    }
     const t = state.value.tabs.find((x) => x.id === state.value.active)
     if (t) t.path = path
   }
 
+  /**
+   * Filet de sécurité : peu après la dernière bascule d'onglet, la route et l'adresse du navigateur
+   * doivent être celles de l'onglet actif ; sinon (navigations qui se sont croisées) on les réaligne.
+   */
+  function settleSoon() {
+    if (!import.meta.client) return
+    if (settleTimer) clearTimeout(settleTimer)
+    settleTimer = setTimeout(() => {
+      settleTimer = null
+      const t = state.value.tabs.find((x) => x.id === state.value.active)
+      if (!t) return
+      const want = router.resolve(t.path).fullPath
+      if (router.currentRoute.value.fullPath !== want || router.resolve(location.pathname + location.search + location.hash).fullPath !== want) {
+        target = null
+        void router.replace({ ...router.resolve(t.path), force: true })
+      }
+    }, 250)
+  }
+
   function go(path: string) {
-    if (route.fullPath !== path) pending.push({ path, at: Date.now() })
+    settleSoon()
+    const inflight = !!liveTarget()
+    if (route.fullPath === path && !inflight) return
+    target = { path, at: Date.now(), tries: 0 }
+    // Déjà sur cette page mais une autre navigation est en vol : on la force pour l'annuler.
+    if (route.fullPath === path) {
+      return router.push({ ...router.resolve(path), force: true }).finally(() => { if (target?.path === path && route.fullPath === path) target = null })
+    }
     return navigateTo(path)
   }
+  /** Affiche la page de l'onglet. */
+  const show = (path: string) => go(path)
 
   function activate(id: string) {
     const s = state.value
@@ -117,7 +152,7 @@ export function useTabs(ws: Ref<string>) {
       if (side) { s.split = id; return }
     }
     s.active = id
-    if (route.fullPath !== t.path) go(t.path)
+    show(t.path)
   }
 
   /** Échange les deux volets. */
@@ -220,7 +255,7 @@ export function useTabs(ws: Ref<string>) {
     closeSplit()
     s.active = id
     const t = s.tabs[0]
-    if (t && route.fullPath !== t.path) go(t.path)
+    if (t) show(t.path)
   }
 
   function closeRight(id: string) {
@@ -232,7 +267,7 @@ export function useTabs(ws: Ref<string>) {
     const activeKept = keep.some((t) => t.id === s.active)
     s.tabs = keep
     if (s.split && !keep.some((t) => t.id === s.split)) closeSplit()
-    if (!activeKept) { s.active = id; const t = keep.find((x) => x.id === id); if (t && route.fullPath !== t.path) go(t.path) }
+    if (!activeKept) { s.active = id; const t = keep.find((x) => x.id === id); if (t) show(t.path) }
   }
 
   /** Rouvre le dernier onglet fermé. */
