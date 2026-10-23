@@ -14,11 +14,17 @@ const t1 = await mk('Première tâche'), t2 = await mk('Seconde tâche')
 
 // Mes tâches : un clic ouvre le panneau sans quitter la page.
 await p.goto(`${B}/w/${WS}/my-tasks`, { waitUntil: 'networkidle' })
-await p.locator('.mt-row', { hasText: 'Première tâche' }).click(); await p.waitForTimeout(1200)
+await p.locator('.mt-row', { hasText: 'Première tâche' }).click()
+const mids = []
+for (let i = 0; i < 6; i++) { mids.push(Math.round(await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.mt')).paddingRight)))); await p.waitForTimeout(40) }
+ok('décalage progressif (animé)', new Set(mids).size >= 3, mids.join(','))
+await p.waitForTimeout(1000)
 ok('clic: reste sur Mes tâches', new URL(p.url()).pathname === `/w/${WS}/my-tasks`, p.url())
 ok('clic: ?task= dans l’adresse', new URL(p.url()).searchParams.get('task') === t1)
 ok('panneau visible, liste visible', (await p.locator('.panel').count()) === 1 && (await p.locator('.mt-row').count()) === 2)
 await p.screenshot({ path: OUT + 'my-tasks-panel.png' })
+const pad = () => p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.mt')).paddingRight))
+ok('liste décalée pour le panneau', (await pad()) > 300, String(await pad()))
 // Autre ligne : le panneau passe à l’autre tâche.
 await p.locator('.mt-row', { hasText: 'Seconde tâche' }).click(); await p.waitForTimeout(800)
 ok('autre ligne: panneau sur la 2e tâche', new URL(p.url()).searchParams.get('task') === t2 && (await p.locator('.panel').count()) === 1)
@@ -27,6 +33,8 @@ await p.reload({ waitUntil: 'networkidle' }); await p.waitForTimeout(1200)
 ok('rechargement: panneau rouvert', (await p.locator('.panel').count()) === 1)
 // Fermeture
 await p.keyboard.press('Escape'); await p.waitForTimeout(800)
+await p.waitForTimeout(500)
+ok('Échap: liste revenue en place', (await pad()) < 40, String(await pad()))
 ok('Échap: panneau fermé, adresse nettoyée', (await p.locator('.panel').count()) === 0 && !new URL(p.url()).searchParams.has('task'))
 
 // Onglets : chaque onglet garde sa page après des allers-retours rapides.

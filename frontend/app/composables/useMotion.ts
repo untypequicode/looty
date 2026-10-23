@@ -68,6 +68,12 @@ export const motion = {
     },
   },
 
+  /** La liste cède (ou rend) la place au panneau latéral, avec la même courbe que son glissement. */
+  reserve(el: Element, px: number, animate = true) {
+    if (!animate || reduced()) return void gsap.set(el, { paddingRight: px })
+    gsap.to(el, { paddingRight: px, duration: 0.28, ease: EASE, overwrite: 'auto' })
+  },
+
   /** Feuille montant depuis le bas (mobile). */
   sheet: {
     onEnter(el: Element, done: () => void) {

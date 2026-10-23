@@ -81,6 +81,18 @@ async function complete(tk: MyTask, e: MouseEvent) {
 }
 
 const root = ref<HTMLElement | null>(null)
+// La liste se décale en douceur quand le panneau s'ouvre ou se ferme (pas quand il change de tâche).
+const PANEL_WIDTH = 940
+const PANEL_MARGIN = 80
+const panelOpen = computed(() => !!taskId.value)
+watch([panelOpen, root], ([open, el], old) => {
+  if (!el) return
+  const was = old?.[1] ? old[0] : null
+  if (was === open) return
+  const area = el.parentElement
+  motion.reserve(el, open ? Math.min(PANEL_WIDTH, (area?.clientWidth ?? 0) - PANEL_MARGIN) : 0, was !== null)
+}, { flush: 'post', immediate: true })
+
 watch([groups, root], () => nextTick(() => root.value && motion.stagger(root.value.querySelectorAll('.mt-row'), { y: 4, each: 0.012 })), { once: true })
 useHead({ title: () => t('nav.myTasks') })
 </script>
@@ -91,7 +103,7 @@ useHead({ title: () => t('nav.myTasks') })
       <UiSegmented v-model="scope" :options="[{ value: 'mine', label: t('myTasks.mine') }, { value: 'all', label: t('myTasks.allPending') }]" />
       <UiSegmented v-model="groupBy" :options="[{ value: 'due', label: t('myTasks.byDue') }, { value: 'board', label: t('myTasks.byBoard') }]" />
     </AppPageHeader>
-    <div class="mt-area" :class="{ paneled: !!taskId }">
+    <div class="mt-area">
     <div ref="root" class="mt">
       <div v-if="isLoading" class="mt-inner"><div v-for="i in 6" :key="i" class="skeleton" style="height: 38px; margin: 6px 0" /></div>
       <UiEmpty v-else-if="!tasks?.length" :icon="CheckCircle2" :title="scope === 'all' ? t('myTasks.emptyAll') : t('myTasks.empty')" :description="scope === 'all' ? '' : t('myTasks.emptyHint')" />
@@ -134,7 +146,6 @@ useHead({ title: () => t('nav.myTasks') })
 .mt-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 @media (max-width: 767px) { .mt-labels { display: none; } }
 .mt-area { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.mt-area.paneled .mt { padding-right: min(940px, calc(100% - 80px)); }
 .mt-row.open { background: var(--bg-hover); }
 .mt { flex: 1; overflow-y: auto; padding: 8px 16px 48px; }
 .mt-inner { max-width: 960px; margin: 0 auto; }
