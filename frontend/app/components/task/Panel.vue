@@ -191,7 +191,7 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
     <div v-else class="panel-scroll">
       <div class="panel-grid">
         <div ref="body" class="panel-main">
-          <NuxtLink v-if="parent" :to="links.task(wsId, board.id, parent.id)" class="parent-link"><CornerLeftUp :size="13" /> {{ parent.title }}</NuxtLink>
+          <NuxtLink v-if="parent" :to="links.task(wsId, board.id, parent.id)" class="parent-link" @click.prevent="emit('navigate', parent.id)"><CornerLeftUp :size="13" /> {{ parent.title }}</NuxtLink>
           <div class="title-row">
             <button ref="checkEl" class="big-check" :class="{ on: task.is_completed, partial: myValidated && !task.is_completed }" :disabled="!(canValidate ?? canWrite)" :title="t('task.markDone')" @click="toggleDone">
               <svg v-if="task.is_completed || myValidated" width="12" height="12" viewBox="0 0 10 10"><path d="M2 5.2 4.1 7.2 8 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>

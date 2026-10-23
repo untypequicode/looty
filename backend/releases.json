@@ -20,6 +20,22 @@
     },
     {
       "platform": "web",
+      "version": "0.22.1",
+      "date": "2026-10-23",
+      "title": { "en": "Open a task straight from My tasks", "fr": "Ouvrir une tâche directement depuis Mes tâches" },
+      "notes": {
+        "en": [
+          "**My tasks**: clicking a task now opens its panel on the right of the list instead of jumping to the board.",
+          "**Tabs**: switching tabs quickly no longer leaves a tab on the wrong page."
+        ],
+        "fr": [
+          "**Mes tâches** : un clic sur une tâche ouvre son panneau à droite de la liste au lieu de passer par le tableau.",
+          "**Onglets** : changer d’onglet rapidement ne laisse plus un onglet sur la mauvaise page."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.22.0",
       "date": "2026-10-21",
       "title": { "en": "Your calendars in any calendar app", "fr": "Vos calendriers dans n’importe quelle application d’agenda" },
