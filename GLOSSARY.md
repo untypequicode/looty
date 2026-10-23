@@ -77,3 +77,13 @@ _Avoid_: catégorie, collection, groupe
 **Personnalisation d'un cours**:
 Nom court, couleur et icône qu'un membre donne à un cours Moodle ; elle remplace la présentation du site partout dans Looty, pour ce membre seulement.
 _Avoid_: alias, surnom, thème
+
+## Navigation
+
+**Onglet**:
+Page ouverte dans la barre d'onglets d'un espace, qui garde son propre chemin même quand on en change. Naviguer dans l'onglet actif change sa page, comme dans un navigateur.
+_Avoid_: fenêtre, page ouverte
+
+**Panneau de tâche**:
+Volet latéral qui montre le détail d'une tâche. Il s'ouvre à droite du tableau, ou à droite de la liste dans « Mes tâches ». À ne pas confondre avec un panneau du tableau de bord Moodle.
+_Avoid_: fiche, popup, tiroir
