@@ -35,8 +35,14 @@ export const tabKeyLabel = (key: string) => [tabMod, key]
 export const tabsEnabled = useLocalStorage('looty.tabs.enabled', true)
 
 const states = new Map<string, Ref<TabState>>()
-/** Navigation lancée par un onglet (pas une navigation « dans » l'onglet actif). */
-let pending: string | null = null
+/**
+ * Navigations lancées par des onglets (pas des navigations « dans » l'onglet actif), dans l'ordre.
+ * Plusieurs peuvent être en vol si l'on change d'onglet vite : chacune est reconnue à son chemin
+ * quand la route arrive. Elles expirent vite pour qu'une navigation annulée ou redirigée
+ * n'avale pas la suivante.
+ */
+let pending: { path: string; at: number }[] = []
+const PENDING_TTL = 1500
 /** Onglets fermés récemment, par espace (pour les rouvrir : Ctrl+Maj+T). */
 const closedStacks = new Map<string, string[]>()
 function remember(ws: string, paths: string[]) {
@@ -83,17 +89,18 @@ export function useTabs(ws: Ref<string>) {
   /** Route changée : soit un changement d'onglet, soit l'onglet actif qui change de page. */
   function onNavigate(path: string) {
     ensureOne(path)
-    if (pending === path) {
-      pending = null
-      return
-    }
-    pending = null
+    const now = Date.now()
+    const live = pending.filter((x) => now - x.at < PENDING_TTL)
+    const i = live.findIndex((x) => x.path === path)
+    // Les navigations lancées avant celle-ci sont dépassées.
+    pending = i >= 0 ? live.slice(i + 1) : []
+    if (i >= 0) return
     const t = state.value.tabs.find((x) => x.id === state.value.active)
     if (t) t.path = path
   }
 
   function go(path: string) {
-    pending = path
+    if (route.fullPath !== path) pending.push({ path, at: Date.now() })
     return navigateTo(path)
   }
 

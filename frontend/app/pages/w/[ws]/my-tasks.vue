@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { CircleUserRound, CheckCircle2, Circle } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
-import { useQueryClient } from '@tanstack/vue-query'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MyTask } from '~/types'
-import { useMyTasks, useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
+import { useMyTasks, useWorkspace, wsKeys } from '~/composables/useWorkspace'
+import { useBoardQuery } from '~/composables/useBoard'
+import { useAccess } from '~/composables/useAccess'
 import { useI18n } from '~/composables/useI18n'
 import { api } from '~/composables/api'
 import { motion } from '~/composables/useMotion'
@@ -15,6 +17,9 @@ const { data: tasks, isLoading } = useMyTasks(scope)
 const { wsId, member } = useWorkspace()
 const { t, formatDate } = useI18n()
 const qc = useQueryClient()
+const route = useRoute()
+const router = useRouter()
+const { can } = useAccess(wsId)
 const groupBy = ref<'due' | 'board'>('due')
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -43,6 +48,23 @@ const groups = computed(() => {
   return order.filter((k) => map.has(k)).map((k) => map.get(k)!)
 })
 
+// Panneau de tâche : ouvert à droite de la liste via ?task=…, sans passer par le tableau.
+const taskId = computed(() => (route.query.task as string) || null)
+const order = computed(() => groups.value.flatMap((g) => g.items.map((x) => x.id)))
+const { data: taskBoardId } = useQuery({
+  queryKey: computed(() => ['ws', wsId.value, 'task-board', taskId.value]),
+  queryFn: async () => (await api<{ board_id: string }>(`/api/boards/tasks/${taskId.value}`, { silent: true })).board_id,
+  enabled: computed(() => !!taskId.value && !tasks.value?.some((x) => x.id === taskId.value)),
+})
+const panelBoardId = computed(() => (taskId.value ? tasks.value?.find((x) => x.id === taskId.value)?.board_id ?? taskBoardId.value ?? null : null))
+const { data: panelBoard } = useBoardQuery(panelBoardId)
+/** Clic sur la tâche déjà ouverte : le panneau se referme. */
+const openTaskQuery = (id: string) => ({ query: { ...route.query, task: taskId.value === id ? undefined : id } })
+function closeTask() {
+  const { task: _t, ...rest } = route.query
+  router.push({ query: rest })
+}
+
 const completing = ref<Set<string>>(new Set())
 /** Tâche individuelle d'un autre : je ne peux pas valider à sa place. */
 const canCheck = (tk: MyTask) => tk.assigned_to_me || !tk.is_per_person
@@ -69,13 +91,14 @@ useHead({ title: () => t('nav.myTasks') })
       <UiSegmented v-model="scope" :options="[{ value: 'mine', label: t('myTasks.mine') }, { value: 'all', label: t('myTasks.allPending') }]" />
       <UiSegmented v-model="groupBy" :options="[{ value: 'due', label: t('myTasks.byDue') }, { value: 'board', label: t('myTasks.byBoard') }]" />
     </AppPageHeader>
+    <div class="mt-area" :class="{ paneled: !!taskId }">
     <div ref="root" class="mt">
       <div v-if="isLoading" class="mt-inner"><div v-for="i in 6" :key="i" class="skeleton" style="height: 38px; margin: 6px 0" /></div>
       <UiEmpty v-else-if="!tasks?.length" :icon="CheckCircle2" :title="scope === 'all' ? t('myTasks.emptyAll') : t('myTasks.empty')" :description="scope === 'all' ? '' : t('myTasks.emptyHint')" />
       <div v-else class="mt-inner">
         <section v-for="g in groups" :key="g.key" class="mt-group">
           <h2 class="mt-group-title" :class="g.tone">{{ g.label }} <span class="faint tabular">{{ g.items.length }}</span></h2>
-          <NuxtLink v-for="tk in g.items" :key="tk.id" :to="links.task(wsId, tk.board_id, tk.id)" class="mt-row" :class="{ done: isDone(tk) }">
+          <NuxtLink v-for="tk in g.items" :key="tk.id" :to="openTaskQuery(tk.id)" :data-task-id="tk.id" class="mt-row" :class="{ done: isDone(tk), open: tk.id === taskId }">
             <button v-if="canCheck(tk)" class="mt-check" :aria-label="tk.done_by_me ? t('task.reopen') : t('task.markDone')" @click.prevent.stop="complete(tk, $event)">
               <CheckCircle2 v-if="isDone(tk)" :size="16" class="ok" />
               <Circle v-else :size="16" />
@@ -98,6 +121,10 @@ useHead({ title: () => t('nav.myTasks') })
         </section>
       </div>
     </div>
+    <Transition :css="false" @enter="motion.panelRight.onEnter" @leave="motion.panelRight.onLeave">
+      <TaskPanel v-if="taskId && panelBoard" :key="'panel'" :board="panelBoard" :task-id="taskId" :order="order" :can-write="can.editTasks" :can-validate="can.validate" @close="closeTask" @navigate="(id) => router.replace({ query: { ...route.query, task: id } })" />
+    </Transition>
+    </div>
   </div>
 </template>
 
@@ -106,6 +133,9 @@ useHead({ title: () => t('nav.myTasks') })
 .mt-label { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: var(--r-full); border: 1px solid var(--border); font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap; }
 .mt-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 @media (max-width: 767px) { .mt-labels { display: none; } }
+.mt-area { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.mt-area.paneled .mt { padding-right: min(940px, calc(100% - 80px)); }
+.mt-row.open { background: var(--bg-hover); }
 .mt { flex: 1; overflow-y: auto; padding: 8px 16px 48px; }
 .mt-inner { max-width: 960px; margin: 0 auto; }
 .mt-group { margin-top: 16px; }
