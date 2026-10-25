@@ -324,8 +324,10 @@ export function packageStatus(name: string): PackageStatus {
 
 let mhchem: Promise<unknown> | null = null
 /** Charge l'extension mhchem (\ce, \pu) ; `onReady` déclenche un nouveau rendu. */
-export function ensureMhchem(onReady: () => void) {
-  if (!mhchem) mhchem = import('katex/contrib/mhchem').then(onReady, () => {})
+export function ensureMhchem(onReady?: () => void): Promise<unknown> {
+  if (!mhchem) mhchem = import('katex/contrib/mhchem').catch(() => {})
+  // Chaque appelant est prévenu, même si le chargement était déjà en cours.
+  return onReady ? mhchem.then(onReady) : mhchem
 }
 
 // ---------------------------------------------------------------------------

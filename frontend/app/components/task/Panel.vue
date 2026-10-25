@@ -29,7 +29,7 @@ onClickOutside(panelEl, () => emit('close'), {
   ignore: ['[data-task-id]', '.tl-name', '.tl-bar', '.popover', '.menu', '.combo', '[role="dialog"]', '.dialog-overlay', '.toast', '.toaster'],
 })
 
-const { wsId, member } = useWorkspace()
+const { wsId, member, boards } = useWorkspace()
 const { user } = useAuth()
 const { t, formatDate, relativeTime } = useI18n()
 const { isMobile } = useBreakpoint()
@@ -155,11 +155,28 @@ function copyLink() {
   navigator.clipboard.writeText(link.value)
   toast.success(t('common.linkCopied'))
 }
+// --- Déplacer vers un autre tableau (en bas de sa première colonne, étiquettes reprises) ---
+const otherBoards = computed(() => (boards.data.value ?? []).filter((b) => b.id !== props.board.id).slice(0, 12))
+async function moveToBoard(dest: { id: string; name: string }) {
+  if (!task.value) return
+  const full = await api<Board>(`/api/boards/${dest.id}`)
+  const col = full.columns[0]
+  if (!col) { toast.error(t('task.boardHasNoColumn')); return }
+  const max = col.tasks.reduce((m, x) => Math.max(m, x.position), 0)
+  const id = task.value.id
+  await actions.moveTask(id, col.id, max + 65536)
+  close()
+  toast.success(t('task.movedToBoard', { name: dest.name }), { action: { label: t('common.open'), run: () => navigateTo(links.task(wsId.value, dest.id, id)) } })
+}
+
 const menuOpen = ref(false)
 const menu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, shortcut: ['mod', '.'], onSelect: copyLink },
   { label: t('task.copyId'), icon: Copy, onSelect: () => { navigator.clipboard.writeText(props.taskId); toast.success(t('common.copied')) } },
   ...(isDesktop ? [] : [{ label: t('desktop.openInApp'), icon: AppWindow, onSelect: () => openInDesktop(links.task(wsId.value, props.board.id, props.taskId)) }]),
+  ...(props.canWrite && task.value && otherBoards.value.length
+    ? [{ divider: true }, { heading: t('task.moveToBoard') }, ...otherBoards.value.map((b) => ({ label: b.name, icon: Kanban, onSelect: () => moveToBoard(b) }))]
+    : []),
   ...(props.canWrite && task.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await actions.deleteTask(task.value!)) close() } }] : []),
 ])
 

@@ -52,6 +52,11 @@ function locate(e: MouseEvent) {
   if (hideTimer) clearTimeout(hideTimer)
 }
 
+function cancelHide() {
+  if (hideTimer) clearTimeout(hideTimer)
+  hideTimer = null
+}
+
 function scheduleHide() {
   if (hideTimer) clearTimeout(hideTimer)
   hideTimer = setTimeout(() => { if (!menuOpen.value) visible.value = false }, 300)
@@ -150,7 +155,7 @@ const menuItems = computed<MenuItem[]>(() => {
 </script>
 
 <template>
-  <div v-show="visible && editor.isEditable" class="bh" :style="{ top: `${top}px`, left: `${left}px` }" @mouseenter="hideTimer && clearTimeout(hideTimer)">
+  <div v-show="visible && editor.isEditable" class="bh" :style="{ top: `${top}px`, left: `${left}px` }" @mouseenter="cancelHide">
     <UiTooltip :text="$t('editor.addBlock')" placement="top">
       <button class="bh-btn" @mousedown.prevent @click="insertBelow"><Plus :size="15" /></button>
     </UiTooltip>

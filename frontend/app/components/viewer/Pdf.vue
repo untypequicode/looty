@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ZoomIn, ZoomOut, Maximize, Minimize, Download, ChevronUp, ChevronDown, FileWarning, ScanLine } from 'lucide-vue-next'
-import type { PDFDocumentProxy } from 'pdfjs-dist'
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 
 /**
  * Lecteur PDF intégré (pdf.js) : rendu paresseux des pages visibles,
@@ -20,6 +20,8 @@ const error = ref(false)
 const loading = ref(true)
 const fullscreen = ref(false)
 const rendered = new Map<number, number>() // page -> scale rendue
+const tasks = new Map<number, RenderTask>() // rendus en cours, annulés avant d'en relancer un
+let loadingTask: PDFDocumentLoadingTask | null = null
 let observer: IntersectionObserver | null = null
 let baseWidth = 612
 const ratio = ref(1.294)
@@ -30,8 +32,11 @@ async function load() {
   try {
     const pdfjs = await import('pdfjs-dist')
     pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
-    // Pas d'exécution de JavaScript embarqué, pas d'évaluation dynamique.
-    doc.value = await pdfjs.getDocument({ url: props.src, isEvalSupported: false, enableXfa: false }).promise
+    // Document précédent (changement de fichier) : libère le worker et la mémoire.
+    await release()
+    // Pas de formulaires XFA (contenu dynamique).
+    loadingTask = pdfjs.getDocument({ url: props.src, enableXfa: false })
+    doc.value = await loadingTask.promise
     numPages.value = doc.value.numPages
     const first = await doc.value.getPage(1)
     const vp = first.getViewport({ scale: 1 })
@@ -74,9 +79,28 @@ async function renderPage(n: number) {
   const wrap = pagesEl.value?.querySelector(`[data-page="${n}"]`) as HTMLElement | null
   const canvas = wrap?.querySelector('canvas')
   if (!canvas) return
+  // Un même canvas ne peut pas servir à deux rendus simultanés (zoom pendant un rendu).
+  tasks.get(n)?.cancel()
   canvas.width = viewport.width
   canvas.height = viewport.height
-  await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise
+  const task = page.render({ canvas, viewport })
+  tasks.set(n, task)
+  try {
+    await task.promise
+  } catch (e) {
+    if ((e as Error)?.name !== 'RenderingCancelledException') console.error('PDF render failed', e)
+  } finally {
+    if (tasks.get(n) === task) tasks.delete(n)
+  }
+}
+
+async function release() {
+  for (const t of tasks.values()) t.cancel()
+  tasks.clear()
+  const t = loadingTask
+  loadingTask = null
+  doc.value = null
+  await t?.destroy().catch(() => {})
 }
 
 const pageStyle = computed(() => ({ width: `${baseWidth * scale.value}px`, height: `${baseWidth * scale.value * ratio.value}px` }))
@@ -115,7 +139,7 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   ro?.disconnect()
   document.removeEventListener('fullscreenchange', onFs)
-  doc.value?.destroy()
+  release()
 })
 watch(() => props.src, load)
 </script>

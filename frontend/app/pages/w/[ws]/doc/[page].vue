@@ -94,11 +94,13 @@ const cursorUser = computed(() => {
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0
   return { name, color: PALETTE[h % PALETTE.length] }
 })
-async function saveHtml(html: string) {
+async function saveHtml(html: string, id: string = pageId.value) {
+  // Identifiant fourni par l'éditeur : un éditeur qui se ferme après un changement de page
+  // enregistre bien sa propre page.
   saving.value = true
   try {
-    await api(`/api/workspaces/${wsId.value}/pages/${pageId.value}`, { method: 'PUT', body: { content: html }, silent: true })
-    qc.setQueryData<Page>(['page', pageId.value], (old) => (old ? { ...old, content: html } : old))
+    await api(`/api/workspaces/${wsId.value}/pages/${id}`, { method: 'PUT', body: { content: html }, silent: true })
+    qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, content: html } : old))
   } finally {
     saving.value = false
   }

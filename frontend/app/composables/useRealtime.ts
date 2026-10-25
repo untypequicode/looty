@@ -214,9 +214,14 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       break
 
     case 'PAGE_CREATED':
-      qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) =>
-        old && !old.some((p) => p.id === ev.page.id) ? [...old, { ...ev.page, can_edit: true }] : old,
-      )
+      // Droit d'édition provisoire (celui de la page parente, ou de l'autrice) ; la liste
+      // rechargée donne ensuite le droit exact.
+      qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) => {
+        if (!old || old.some((p) => p.id === ev.page.id)) return old
+        const parent = old.find((p) => p.id === ev.page.parent_id)
+        return [...old, { ...ev.page, can_edit: parent ? parent.can_edit : ev.page.created_by === selfId }]
+      })
+      if (ev.page.created_by !== selfId) qc.invalidateQueries({ queryKey: wsKeys.pages(wsId) })
       break
     case 'PAGE_UPDATED':
       qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) =>

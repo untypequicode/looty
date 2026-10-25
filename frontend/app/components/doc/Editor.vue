@@ -35,7 +35,7 @@ const props = defineProps<{
   user: { name: string; color: string }
 }>()
 const emit = defineEmits<{
-  (e: 'html', html: string): void
+  (e: 'html', html: string, pageId: string): void
   (e: 'headings', h: HeadingInfo[]): void
   (e: 'collaborators', users: { name: string; color: string }[]): void
   (e: 'status', s: 'connecting' | 'synced' | 'offline' | 'denied'): void
@@ -79,6 +79,9 @@ function submitEmbed() {
 
 const docItems = computed(() => (pages.data.value ?? []).filter((p) => p.id !== props.pageId).map((p) => ({ value: p.id, label: `${p.icon ? `${p.icon} ` : ''}${p.title || '…'}` })))
 
+// Avant useEditor : ses propres crochets de démontage détruisent l'éditeur. La dernière
+// modification est envoyée avant la fermeture (sinon perdue avec le délai).
+onBeforeUnmount(() => { if (htmlDirty && props.canEdit && !denied.value) flushHtml() })
 const editor = useEditor({
   editable: false,
   extensions: docExtensions({
@@ -134,7 +137,7 @@ const editor = useEditor({
     emitHeadings(e)
     // Copie HTML : seulement pour les modifications faites ici (pas celles reçues d'un
     // collaborateur ni le chargement de la copie locale), sinon chacun la réenregistre.
-    if (synced.value && props.canEdit && !fromYjs(transaction)) pushHtml()
+    if (synced.value && props.canEdit && !fromYjs(transaction)) { htmlDirty = true; pushHtml() }
   },
 })
 useEditorSpellcheck(editor)
@@ -168,13 +171,17 @@ function emitHeadings(e: TEditor) {
 // Dernière copie HTML connue du serveur : inutile de renvoyer un contenu identique
 // (ajustements automatiques au chargement, page rouverte hors ligne…).
 let lastHtml = props.initialHtml ?? ''
-const pushHtml = useDebounceFn(() => {
-  if (!editor.value) return
+let htmlDirty = false
+function flushHtml() {
+  htmlDirty = false
+  // Éditeur détruit (page fermée ou devenue inaccessible) : plus rien à lire.
+  if (!editor.value || editor.value.isDestroyed) return
   const html = editor.value.getHTML()
   if (html === lastHtml) return
   lastHtml = html
-  emit('html', html)
-}, 1500)
+  emit('html', html, props.pageId)
+}
+const pushHtml = useDebounceFn(flushHtml, 1500)
 
 function scrollToAnchor(id: string) {
   const el = document.getElementById(decodeURIComponent(id))
@@ -204,7 +211,7 @@ function ready(e: TEditor) {
 // Copie locale chargée : si elle a du contenu, on peut éditer sans attendre le serveur.
 local?.on('synced', () => {
   const e = editor.value
-  if (!e || synced.value) return
+  if (!e || e.isDestroyed || synced.value) return
   if (ydoc.getXmlFragment('default').length > 0) {
     ready(e)
     if (!serverSynced.value) emit('status', 'offline')
@@ -213,7 +220,7 @@ local?.on('synced', () => {
   // Rien en local : on attend le serveur ; s'il ne répond pas, page neuve (éditable)
   // ou page jamais ouverte ici (lecture seule, pour ne pas dupliquer son contenu).
   setTimeout(() => {
-    if (serverSynced.value || synced.value || !editor.value) return
+    if (serverSynced.value || synced.value || !editor.value || editor.value.isDestroyed) return
     emit('status', 'offline')
     if (props.initialHtml && props.initialHtml !== '<p></p>') offlineReadonly.value = true
     else ready(editor.value)
@@ -225,7 +232,7 @@ provider.on('synced', () => {
   offlineReadonly.value = false
   emit('status', 'synced')
   const e = editor.value
-  if (!e) return
+  if (!e || e.isDestroyed) return
   // Migration : document Yjs vide mais contenu HTML existant (anciennes pages, duplication).
   // Indépendant du mode lecture : sinon la page reste vide et sa copie HTML serait écrasée.
   const legacy = e.isEmpty && !!props.initialHtml && props.initialHtml !== '<p></p>'
@@ -239,9 +246,18 @@ provider.on('synced', () => {
 provider.on('authenticationFailed', () => {
   denied.value = true
   emit('status', 'denied')
+  const e = editor.value
+  // Éditeur déjà démonté (la page est devenue inaccessible et se ferme) : rien à faire.
+  if (!e || e.isDestroyed) return
+  if (synced.value) {
+    // Accès retiré pendant l'édition : le contenu affiché reste, sans pouvoir le modifier
+    // (le remplacer par le HTML de l'ouverture l'écrirait dans le cache local).
+    e.setEditable(false)
+    return
+  }
   // Lecture seule de secours à partir du HTML enregistré
-  if (editor.value && props.initialHtml) {
-    editor.value.commands.setContent(props.initialHtml)
+  if (props.initialHtml) {
+    e.commands.setContent(props.initialHtml)
     synced.value = true
   }
 })

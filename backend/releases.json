@@ -3,6 +3,34 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.22.2",
+      "date": "2026-10-25",
+      "title": { "en": "Move a task to another board, tighter access rules", "fr": "Déplacer une tâche vers un autre tableau, droits mieux appliqués" },
+      "notes": {
+        "en": [
+          "**Move to another board**: in a task’s *…* menu, pick a board. The task lands in its first column with its sub-tasks, and its labels are created there if needed.",
+          "**Roles**: a role without access to boards or to the calendar no longer sees tasks or events anywhere (search, graph, activity, home, My tasks, CalDAV, subscription feeds, live updates).",
+          "**Removing someone**: a person removed from the workspace, blocked on a page or suspended is disconnected from open documents and live updates right away, and their page shares are removed.",
+          "**Documents**: the last edit made just before leaving a page is no longer lost, and losing access while editing keeps the text on screen as read-only.",
+          "**PDF viewer**: zooming while a page renders no longer breaks it, and closing the viewer frees its memory.",
+          "**Exports**: documents with chemistry formulas (\\ce) export to HTML and PDF again.",
+          "**My tasks**: the list slides smoothly when the task panel opens.",
+          "Background sync (calendars, CalDAV, mail, Moodle) keeps running if one account returns unexpected data."
+        ],
+        "fr": [
+          "**Déplacer vers un autre tableau** : dans le menu *…* d’une tâche, choisissez un tableau. La tâche arrive dans sa première colonne avec ses sous-tâches, et ses étiquettes y sont créées au besoin.",
+          "**Rôles** : un rôle sans accès aux tableaux ou au calendrier ne voit plus de tâches ni d’événements nulle part (recherche, graphe, activité, accueil, Mes tâches, CalDAV, flux d’abonnement, mises à jour en direct).",
+          "**Retirer quelqu’un** : une personne retirée de l’espace, bloquée sur une page ou suspendue est aussitôt déconnectée des documents ouverts et des mises à jour en direct, et ses partages de pages sont supprimés.",
+          "**Documents** : la dernière modification faite juste avant de quitter une page n’est plus perdue, et perdre l’accès pendant l’édition laisse le texte affiché en lecture seule.",
+          "**Lecteur PDF** : zoomer pendant le rendu d’une page ne la casse plus, et fermer le lecteur libère sa mémoire.",
+          "**Exports** : les documents avec des formules de chimie (\\ce) s’exportent de nouveau en HTML et en PDF.",
+          "**Mes tâches** : la liste se décale en douceur à l’ouverture du panneau de tâche.",
+          "La synchronisation en arrière-plan (calendriers, CalDAV, mail, Moodle) continue si un compte renvoie des données inattendues."
+        ]
+      }
+    },
+    {
       "platform": "android",
       "version": "0.22.0",
       "date": "2026-10-21",
