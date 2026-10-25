@@ -30,6 +30,12 @@ pub struct Page {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub share_token: Option<Uuid>,
     pub is_public: Option<bool>,
+    /// Projet porté par la page (LaTeX, site, notebook).
+    #[sqlx(default)]
+    pub project_id: Option<Uuid>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_kind: Option<String>,
     // Champs calculés par utilisateur (absents de la table `pages`).
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -59,6 +65,7 @@ pub struct Page {
 /// Version allégée pour les listes / l'arbre (sans le contenu HTML).
 const PAGE_LIST_COLUMNS: &str = "p.id, p.workspace_id, p.parent_id, p.icon, p.title, NULL::text AS content,
     p.created_by, p.updated_by, p.position, p.created_at, p.updated_at, p.share_token, p.is_public,
+    p.project_id, (SELECT kind FROM projects pr WHERE pr.id = p.project_id) AS project_kind,
     EXISTS(SELECT 1 FROM page_permissions pp WHERE pp.page_id = p.id) AS has_permissions";
 
 /// Distingue un champ absent (`None`) d'un champ explicitement `null` (`Some(None)`).
@@ -78,6 +85,14 @@ pub struct CreatePage {
     pub icon: Option<String>,
     pub parent_id: Option<Uuid>,
     pub content: Option<String>,
+    /// Page qui porte un nouveau projet (LaTeX, site, notebook) créé avec elle.
+    pub project: Option<NewProject>,
+}
+
+#[derive(Deserialize)]
+pub struct NewProject {
+    pub kind: String,
+    pub template: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +114,7 @@ pub fn routes() -> Router<AppState> {
         .route("/{page_id}/view", post(record_view))
         .route("/{page_id}/share", post(share_page).delete(revoke_share))
         .route("/{page_id}/permissions", get(get_page_permissions).put(set_page_permission))
+        .route("/{page_id}/project", post(make_project))
 }
 
 /// Routes hors workspace : contrôle d'accès pour le serveur de collaboration.
@@ -175,7 +191,7 @@ async fn get_page(
         return Err(ApiError::NotFound);
     }
     let mut page: Page = sqlx::query_as(
-        "SELECT p.*,
+        "SELECT p.*, (SELECT kind FROM projects pr WHERE pr.id = p.project_id) AS project_kind,
             (pf.page_id IS NOT NULL) AS is_favorite,
             pv.view_count, pv.last_viewed_at,
             (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) AS total_view_count
@@ -249,7 +265,7 @@ async fn create_page(
     .fetch_one(pool)
     .await?;
 
-    let page: Page = sqlx::query_as(
+    let mut page: Page = sqlx::query_as(
         "INSERT INTO pages (id, workspace_id, parent_id, icon, title, content, created_by, updated_by, position)
          VALUES (COALESCE($8, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $6, $7) RETURNING *",
     )
@@ -275,6 +291,14 @@ async fn create_page(
         .bind(user.id)
         .execute(pool)
         .await?;
+    }
+    // Page qui porte un projet : créé avec elle, au nom de la page.
+    if let Some(np) = &payload.project {
+        let name = if page.title.trim().is_empty() { "Sans titre".to_string() } else { page.title.clone() };
+        let project = crate::projects::insert_project(&state, workspace_id, user.id, &np.kind, &name, np.template.as_deref()).await?;
+        sqlx::query("UPDATE pages SET project_id = $2 WHERE id = $1").bind(page.id).bind(project.id).execute(pool).await?;
+        page.project_id = Some(project.id);
+        page.project_kind = Some(project.kind);
     }
     crate::activity::log_page(pool, page.id, workspace_id, user.id, "create").await;
     let mut lite = page.clone();
@@ -627,4 +651,34 @@ async fn page_access_check(
         .fetch_one(&pool)
         .await?;
     Ok(Json(AccessCheck { user_id: user.id, name, can_write: access == PageAccess::Write }))
+}
+
+/// La page devient un projet (LaTeX, site, notebook) : son texte reste dans l'onglet Notes.
+async fn make_project(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    Json(np): Json<NewProject>,
+) -> ApiResult<Json<Page>> {
+    let pool = &state.pool;
+    let (ws, _) = require_page_write(pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    let (title, current): (String, Option<Uuid>) = sqlx::query_as("SELECT title, project_id FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+    if current.is_some() {
+        return Err(ApiError::Conflict("page_has_project".into()));
+    }
+    let name = if title.trim().is_empty() { "Sans titre".to_string() } else { title };
+    let project = crate::projects::insert_project(&state, workspace_id, user.id, &np.kind, &name, np.template.as_deref()).await?;
+    let mut page: Page = sqlx::query_as("UPDATE pages SET project_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *")
+        .bind(page_id)
+        .bind(project.id)
+        .fetch_one(pool)
+        .await?;
+    page.project_kind = Some(project.kind);
+    let mut lite = page.clone();
+    lite.content = None;
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_UPDATED", "page": lite })).await;
+    Ok(Json(page))
 }

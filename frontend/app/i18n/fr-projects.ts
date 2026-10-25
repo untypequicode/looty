@@ -10,8 +10,12 @@ export default {
   nav: { projects: 'Projets', drive: 'Drive' },
   presence: { screens: { projects: 'Projets', drive: 'Drive' } },
   projects: {
+    pageKinds: { doc: 'Document', projects: 'Projet dans les documents', latex: 'Projet LaTeX', site: 'Site web', notebook: 'Notebook Python' },
+    makeProject: 'Transformer en projet', pageConverted: 'La page porte maintenant un projet', openInProjects: 'Ouvrir dans Projets', viewProject: 'Projet', viewNotes: 'Notes',
+    search: 'Rechercher un projet', startFrom: 'Démarrer à partir d’un modèle', recent: 'Récents', results: 'Résultats', noResults: 'Aucun projet trouvé.', openFull: 'Ouvrir en plein écran', openInDocs: 'Ouvrir dans les documents', addToDocs: 'Ranger dans les documents', inDocs: 'Dans les documents',
+    keepInDocs: 'Ranger dans les documents', keepInDocsHint: 'Le projet devient une page : on le retrouve dans l’arborescence, avec les droits de la page, ses commentaires et ses notes.',
     title: 'Projets', all: 'Tous', sites: 'Sites', site: 'Mini-site', new: 'Nouveau projet', newSite: 'Nouveau site', newLatex: 'Nouveau projet LaTeX', newNotebook: 'Nouveau notebook', notebookNamePlaceholder: 'Nom du notebook',
-    emptyTitle: 'Créez un mini-site ou un document LaTeX', emptyHint: 'Mini-sites HTML/CSS/JS publiables en un clic, documents LaTeX compilés en PDF : édition à plusieurs, en direct.',
+    emptyTitle: 'Aucun projet pour l’instant', emptyHint: 'Documents LaTeX compilés en PDF, mini-sites publiables en un clic, notebooks Python : édition à plusieurs, en direct, rangés dans vos documents.',
     fileCount: { one: '1 fichier', other: '{count} fichiers' }, buildOk: 'Compilé', buildFailed: 'Erreurs de compilation',
     siteNamePlaceholder: 'Nom du site', latexNamePlaceholder: 'Titre du document', template: 'Modèle',
     templates: {

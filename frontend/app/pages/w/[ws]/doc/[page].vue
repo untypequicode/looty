@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
 import type { Page } from '~/types'
@@ -174,6 +174,23 @@ const importOpen = ref(false)
 const menuOpen = ref(false)
 const scroller = ref<HTMLElement | null>(null)
 
+// --- Page projet (LaTeX, site, notebook) : espace du projet, ou ses notes (texte de la page) ---
+const docView = computed<'project' | 'notes'>(() => (route.query.view === 'notes' ? 'notes' : 'project'))
+const showProject = computed(() => !!live.value?.project_id && docView.value === 'project')
+function setDocView(v: string) { navigateTo({ query: { ...route.query, view: v === 'notes' ? 'notes' : undefined } }, { replace: true }) }
+const projectKinds = computed(() => [
+  { kind: 'latex', label: t('projects.pageKinds.latex'), icon: Sigma, template: 'article' },
+  { kind: 'site', label: t('projects.pageKinds.site'), icon: Globe, template: 'starter' },
+  { kind: 'notebook', label: t('projects.pageKinds.notebook'), icon: NotebookText, template: 'starter' },
+] as const)
+async function makeProject(kind: string, template: string) {
+  const p = await api<Page>(`/api/workspaces/${wsId.value}/pages/${pageId.value}/project`, { method: 'POST', body: { kind, template } })
+  qc.setQueryData<Page>(['page', pageId.value], (old) => (old ? { ...old, project_id: p.project_id, project_kind: p.project_kind } : old))
+  qc.invalidateQueries({ queryKey: wsKeys.pages(wsId.value) })
+  setDocView('project')
+  toast.success(t('projects.pageConverted'))
+}
+
 const menu = computed<MenuItem[]>(() => {
   const p = live.value
   if (!p) return []
@@ -184,6 +201,9 @@ const menu = computed<MenuItem[]>(() => {
     { label: t('history.title'), icon: History, onSelect: () => (historyOpen.value = true) },
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },
     { label: fullWidth.value ? t('editor.normalWidth') : t('editor.fullWidthPage'), icon: fullWidth.value ? Minimize2 : Maximize2, onSelect: () => (fullWidth.value = !fullWidth.value) },
+    ...(p.project_id
+      ? [{ divider: true }, { label: t('projects.openInProjects'), icon: FolderCode, onSelect: () => navigateTo(`/w/${wsId.value}/projects/${p.project_id}`) }]
+      : p.can_edit !== false ? [{ divider: true }, { heading: t('projects.makeProject') }, ...projectKinds.value.map((k) => ({ label: k.label, icon: k.icon, onSelect: () => makeProject(k.kind, k.template) }))] : []),
     { divider: true },
     ...(canManage.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },
@@ -215,7 +235,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 <template>
   <div class="page">
     <AppPageHeader :crumbs="crumbs">
-      <span v-if="live" class="status">
+      <span v-if="live && !showProject" class="status">
         <template v-if="status === 'denied' || !canEdit"><Lock :size="13" /> {{ t('editor.readOnly') }}</template>
         <template v-else-if="status === 'offline'"><CloudOff :size="13" /> {{ t('editor.offline') }}</template>
         <template v-else-if="status === 'connecting' || saving"><Loader2 :size="13" class="spin" /> {{ status === 'connecting' ? t('editor.connecting') : t('editor.saving') }}</template>
@@ -246,6 +266,15 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
       <UiButton :to="links.docs(wsId)">{{ t('nav.allDocs') }}</UiButton>
     </UiEmpty>
     <div v-else class="doc-body">
+    <div v-if="showProject && live?.project_id" class="doc-project">
+      <div class="doc-project-head">
+        <span v-if="live.icon" class="doc-project-icon">{{ live.icon }}</span>
+        <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
+        <UiSegmented :model-value="docView" :options="[{ value: 'project', label: t('projects.viewProject'), icon: FolderCode }, { value: 'notes', label: t('projects.viewNotes'), icon: NotebookPen }]" @update:model-value="setDocView" />
+      </div>
+      <ProjectWorkspace :key="live.project_id" :project-id="live.project_id" embedded class="doc-project-ws" />
+    </div>
+    <template v-else>
     <component :is="'style'">{{ commentCss }}</component>
     <div ref="scroller" class="doc-scroll">
       <DocFindBar v-model:open="findOpen" :editor="editorInst ?? undefined" />
@@ -254,6 +283,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
           <div v-if="isLoading || !live" class="doc-skel"><div class="skeleton" style="height: 44px; width: 60%" /><div class="skeleton" style="height: 18px; width: 30%; margin-top: 16px" /></div>
           <template v-else>
             <header ref="head" class="doc-head">
+              <UiSegmented v-if="live.project_id" class="doc-view-switch" :model-value="docView" :options="[{ value: 'project', label: t('projects.viewProject'), icon: FolderCode }, { value: 'notes', label: t('projects.viewNotes'), icon: NotebookPen }]" @update:model-value="setDocView" />
               <div class="icon-row">
                 <DocIconPicker v-if="canEdit" v-model:open="iconOpen" @select="setIcon">
                   <button v-if="live.icon" class="doc-icon">{{ live.icon }}</button>
@@ -310,6 +340,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <aside class="toc-col"><DocToc :headings="headings" :scroller="scroller" /></aside>
       </div>
     </div>
+    </template>
     <Transition name="side">
       <aside v-if="commentsOpen && live" class="side-panel" :aria-label="t('itemComments.title')">
         <header class="side-head">
@@ -347,6 +378,14 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 .collab { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 0 0 2px var(--bg); margin-left: -4px; }
 .fav :deep(svg) { fill: var(--yellow); color: var(--yellow); }
 .doc-body { flex: 1; min-height: 0; display: flex; }
+/* Page projet : espace du projet sur toute la hauteur, sous une ligne titre + vue. */
+.doc-project { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.doc-project-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px 8px; }
+.doc-project-icon { font-size: 20px; line-height: 1; }
+.doc-project-title { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font-size: 18px; font-weight: 650; letter-spacing: -.01em; padding: 2px 0; }
+.doc-project-title:focus { outline: none; }
+.doc-project-ws { flex: 1; min-height: 0; border-top: 1px solid var(--border); }
+.doc-view-switch { margin-bottom: 14px; }
 .doc-scroll { position: relative; flex: 1; min-width: 0; overflow-y: auto; scroll-behavior: smooth; }
 .side-panel { width: 360px; flex-shrink: 0; display: flex; flex-direction: column; padding: 10px 14px 14px; border-left: 1px solid var(--border); background: var(--bg-panel); min-height: 0; }
 .side-head { display: flex; align-items: center; gap: 8px; height: 30px; margin-bottom: 6px; font-weight: 600; }

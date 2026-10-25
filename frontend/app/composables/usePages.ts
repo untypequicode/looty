@@ -1,4 +1,5 @@
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
+import { FileText, Sigma, Code2, NotebookText } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { Page } from '~/types'
 import { api } from './api'
@@ -43,6 +44,9 @@ export function pagePath(pages: Page[], id: string): Page[] {
   return out
 }
 
+/** Projet créé avec une page (elle s'ouvre alors sur ses fichiers et son aperçu). */
+export interface NewPageProject { kind: 'latex' | 'site' | 'notebook'; template?: string }
+
 export function usePages() {
   const qc = useQueryClient()
   const { wsId, pages } = useWorkspace()
@@ -54,10 +58,10 @@ export function usePages() {
     qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, ...patch } : old))
   }
 
-  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string } = {}) {
+  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject } = {}) {
     const page = await api<Page>(`/api/workspaces/${wsId.value}/pages`, {
       method: 'POST',
-      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon },
+      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project },
     })
     qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => (old && !old.some((p) => p.id === page.id) ? [...old, { ...page, content: null, can_edit: true }] : old))
     // Droits calculés par le serveur (sous-pages permises par un partage…).
@@ -65,8 +69,9 @@ export function usePages() {
     return page
   }
 
-  async function createAndOpen(parentId?: string | null) {
-    const page = await createPage({ parentId })
+  // `project` : la page porte un nouveau projet (LaTeX, site, notebook).
+  async function createAndOpen(parentId?: string | null, project?: NewPageProject) {
+    const page = await createPage({ parentId, project, title: project ? translate(`projects.pageKinds.${project.kind}`) : undefined })
     await navigateTo(links.doc(wsId.value, page.id))
     return page
   }
@@ -157,4 +162,9 @@ export function usePages() {
   }
 
   return { tree, favorites, createPage, createAndOpen, updatePage, movePage, deletePage, toggleFavorite, duplicatePage, patchLocal }
+}
+
+/** Icône d'une page sans emoji : celle de son projet (LaTeX, site, notebook) ou d'un document. */
+export function pageKindIcon(p: Pick<Page, 'project_kind'>): Component {
+  return p.project_kind === 'latex' ? Sigma : p.project_kind === 'site' ? Code2 : p.project_kind === 'notebook' ? NotebookText : FileText
 }

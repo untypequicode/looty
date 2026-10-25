@@ -10,8 +10,12 @@ export default {
   nav: { projects: 'Projects', drive: 'Drive' },
   presence: { screens: { projects: 'Projects', drive: 'Drive' } },
   projects: {
+    pageKinds: { doc: 'Document', projects: 'Project in documents', latex: 'LaTeX project', site: 'Website', notebook: 'Python notebook' },
+    makeProject: 'Turn into a project', pageConverted: 'The page now holds a project', openInProjects: 'Open in Projects', viewProject: 'Project', viewNotes: 'Notes',
+    search: 'Search projects', startFrom: 'Start from a template', recent: 'Recent', results: 'Results', noResults: 'No project found.', openFull: 'Open full screen', openInDocs: 'Open in documents', addToDocs: 'Add to documents', inDocs: 'In documents',
+    keepInDocs: 'Keep in documents', keepInDocsHint: 'The project becomes a page: it shows in the page tree, with the page’s access, comments and notes.',
     title: 'Projects', all: 'All', sites: 'Sites', site: 'Mini-site', new: 'New project', newSite: 'New site', newLatex: 'New LaTeX project', newNotebook: 'New notebook', notebookNamePlaceholder: 'Notebook name',
-    emptyTitle: 'Create a mini-site or a LaTeX document', emptyHint: 'HTML/CSS/JS mini-sites published in one click, LaTeX documents compiled to PDF: edited together, live.',
+    emptyTitle: 'No project yet', emptyHint: 'LaTeX documents compiled to PDF, mini-sites published in one click, Python notebooks: edited together, live, kept in your documents.',
     fileCount: { one: '1 file', other: '{count} files' }, buildOk: 'Compiled', buildFailed: 'Compilation errors',
     siteNamePlaceholder: 'Site name', latexNamePlaceholder: 'Document title', template: 'Template',
     templates: {

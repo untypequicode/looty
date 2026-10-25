@@ -13,6 +13,11 @@ export interface ProjectSummary {
   last_build_ok: boolean | null
   files: number
   created_by_name: string | null
+  /** Page des documents qui porte le projet. */
+  page_id: string | null
+  page_icon: string | null
+  /** Début du fichier principal (aperçu). */
+  snippet: string | null
 }
 export interface Project {
   id: string
@@ -44,6 +49,7 @@ export interface ProjectDetail {
   can_write: boolean
   can_manage: boolean
   can_publish: boolean
+  page_id: string | null
 }
 export interface LatexIssue { file: string | null; line: number | null; message: string; level: 'error' | 'warning' }
 export interface CompileResult { ok: boolean; pdf: boolean; engine: string; duration_ms: number; issues: LatexIssue[]; log: string; local?: boolean }

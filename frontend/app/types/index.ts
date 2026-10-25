@@ -113,6 +113,9 @@ export interface Page {
   updated_at?: string
   share_token?: string | null
   is_public?: boolean | null
+  /** Projet porté par la page (LaTeX, site, notebook). */
+  project_id?: string | null
+  project_kind?: 'site' | 'latex' | 'notebook' | null
   /** Permissions particulières (membres ou invités). */
   has_permissions?: boolean
   is_favorite?: boolean

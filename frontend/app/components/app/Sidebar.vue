@@ -190,7 +190,7 @@ async function onRootDrop(e: DragEvent) {
             <span>{{ t('nav.docs') }}</span>
             <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.docs }" />
           </button>
-          <button v-if="canEditDocs" class="sb-section-add" :aria-label="t('docs.new')" @click="createAndOpen()"><Plus :size="14" /></button>
+          <DocNewMenu v-if="canEditDocs" placement="bottom-start"><button class="sb-section-add" :aria-label="t('docs.new')"><Plus :size="14" /></button></DocNewMenu>
         </div>
         <div
           v-show="!sectionsCollapsed.docs"
