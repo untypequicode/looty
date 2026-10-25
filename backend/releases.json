@@ -15,6 +15,7 @@
           "**Documents**: the last edit made just before leaving a page is no longer lost, and losing access while editing keeps the text on screen as read-only.",
           "**PDF viewer**: zooming while a page renders no longer breaks it, and closing the viewer frees its memory.",
           "**Exports**: documents with chemistry formulas (\\ce) export to HTML and PDF again.",
+          "**Diagrams**: Mermaid flowcharts use the cleaner ELK layout again.",
           "**My tasks**: the list slides smoothly when the task panel opens.",
           "Background sync (calendars, CalDAV, mail, Moodle) keeps running if one account returns unexpected data."
         ],
@@ -25,6 +26,7 @@
           "**Documents** : la dernière modification faite juste avant de quitter une page n’est plus perdue, et perdre l’accès pendant l’édition laisse le texte affiché en lecture seule.",
           "**Lecteur PDF** : zoomer pendant le rendu d’une page ne la casse plus, et fermer le lecteur libère sa mémoire.",
           "**Exports** : les documents avec des formules de chimie (\\ce) s’exportent de nouveau en HTML et en PDF.",
+          "**Diagrammes** : les organigrammes Mermaid retrouvent la mise en page ELK, plus lisible.",
           "**Mes tâches** : la liste se décale en douceur à l’ouverture du panneau de tâche.",
           "La synchronisation en arrière-plan (calendriers, CalDAV, mail, Moodle) continue si un compte renvoie des données inattendues."
         ]
