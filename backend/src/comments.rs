@@ -66,7 +66,7 @@ async fn check_target(state: &AppState, user: &AuthUser, ws: Uuid, kind: &str, i
             Ok((title, author))
         }
         "event" => {
-            require_member(&state.pool, user, ws).await?;
+            crate::access::require_perm(&state.pool, user, ws, |p| p.calendar >= crate::access::level::READ).await?;
             let row: Option<(String, Option<Uuid>)> = sqlx::query_as("SELECT summary, created_by FROM workspace_events WHERE id = $1 AND workspace_id = $2")
                 .bind(id)
                 .bind(ws)
@@ -75,6 +75,15 @@ async fn check_target(state: &AppState, user: &AuthUser, ws: Uuid, kind: &str, i
             row.ok_or(ApiError::NotFound)
         }
         _ => Err(ApiError::bad_request("invalid_kind")),
+    }
+}
+
+/// La personne `uid` peut-elle lire la cible (destinataires des notifications) ?
+async fn can_read_target(state: &AppState, ws: Uuid, kind: &str, id: Uuid, uid: Uuid) -> bool {
+    let who = AuthUser { id: uid, is_super_admin: false };
+    match kind {
+        "page" => require_page_read(&state.pool, &who, id).await.is_ok(),
+        _ => crate::access::member_perms(&state.pool, uid, ws).await.ok().flatten().is_some_and(|(_, p)| p.calendar >= crate::access::level::READ),
     }
 }
 
@@ -171,6 +180,14 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let snippet: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(140).collect();
     let data = serde_json::json!({ "title": title, "snippet": snippet, "comment_id": id });
     let mentioned = crate::groups::mentioned_people(&state.pool, ws, &extract_mentions(&content)).await?;
+    // Personne ne reçoit l'extrait d'un commentaire sur un élément qu'elle ne peut pas lire.
+    let mut readers = Vec::with_capacity(mentioned.len());
+    for m in mentioned {
+        if can_read_target(&state, ws, &p.kind, p.id, m).await {
+            readers.push(m);
+        }
+    }
+    let mentioned = readers;
     for m in &mentioned {
         crate::notifications::notify(&state.pool, &state.hub, ws, *m, Some(user.id), "mention", &target, data.clone()).await;
     }
@@ -187,7 +204,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     others.sort();
     others.dedup();
     for u in others {
-        if !mentioned.contains(&u) {
+        if !mentioned.contains(&u) && can_read_target(&state, ws, &p.kind, p.id, u).await {
             crate::notifications::notify(&state.pool, &state.hub, ws, u, Some(user.id), "comment", &target, data.clone()).await;
         }
     }
@@ -239,6 +256,16 @@ struct ResolveReq {
 
 async fn resolve(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(p): Json<ResolveReq>) -> ApiResult<StatusCode> {
     let (ws, kind, target, _, _) = load(&state, &user, id).await?;
+    // Résoudre un fil : réservé à qui peut commenter (les invités en lecture seule ne le peuvent pas).
+    match crate::access::member_perms(&state.pool, user.id, ws).await? {
+        Some((_, perms)) if crate::roles::can_comment(&perms, &kind) => {}
+        Some(_) => return Err(ApiError::Forbidden),
+        None => {
+            if kind != "page" || crate::access::require_page_write(&state.pool, &user, target).await.is_err() {
+                return Err(ApiError::Forbidden);
+            }
+        }
+    }
     sqlx::query("UPDATE item_comments SET resolved_at = CASE WHEN $2 THEN NOW() END, resolved_by = CASE WHEN $2 THEN $3 END WHERE id = $1 AND parent_id IS NULL")
         .bind(id)
         .bind(p.resolved)

@@ -32,7 +32,7 @@ use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::access::{hash_token, Role};
+use crate::access::{hash_token, level, Perms, Role};
 use crate::board::{dav_create_task, dav_unassign, remove_task, sync_apply_remote, RemoteChanges};
 use crate::error::ApiError;
 use crate::ical::{self, TodoFields, TodoMeta};
@@ -212,9 +212,22 @@ fn etag_of(body: &str) -> String {
     format!("\"{}\"", &hex::encode(Sha256::digest(body.as_bytes()))[..32])
 }
 
+/// Permissions de la personne dans chacun de ses espaces (rôles fins compris).
+async fn space_perms(state: &AppState, user: &DavUser) -> Result<std::collections::HashMap<Uuid, Perms>, ApiError> {
+    let spaces: Vec<Uuid> = sqlx::query_scalar("SELECT workspace_id FROM workspace_members WHERE user_id = $1").bind(user.id.to_string()).fetch_all(&state.pool).await?;
+    let mut out = std::collections::HashMap::new();
+    for ws in spaces {
+        if let Some((_, p)) = crate::access::member_perms(&state.pool, user.id, ws).await? {
+            out.insert(ws, p);
+        }
+    }
+    Ok(out)
+}
+
 async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, ApiError> {
-    let rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(
-        "SELECT b.id, b.name, w.name, wm.role FROM boards b
+    let perms = space_perms(state, user).await?;
+    let rows: Vec<(Uuid, String, String, Uuid)> = sqlx::query_as(
+        "SELECT b.id, b.name, w.name, w.id FROM boards b
          JOIN workspaces w ON w.id = b.workspace_id
          JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $1
          ORDER BY w.name, b.created_at",
@@ -229,13 +242,14 @@ async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, Ap
         writable: true,
         order: 0,
     }];
+    let rows: Vec<_> = rows.into_iter().filter(|r| perms.get(&r.3).is_some_and(|p| p.boards > level::NONE)).collect();
     let offset = rows.len() + 1;
-    for (i, (id, board, ws, role)) in rows.into_iter().enumerate() {
+    for (i, (id, board, ws, ws_id)) in rows.into_iter().enumerate() {
         out.push(Calendar {
             kind: CalKind::Board(id),
             name: format!("{ws} · {board}"),
             description: format!("{ws} / {board}"),
-            writable: Role::parse(&role).map(|r| r.can_write()).unwrap_or(false),
+            writable: perms.get(&ws_id).is_some_and(|p| p.boards >= level::EDIT),
             order: i + 1,
         });
     }
@@ -245,18 +259,19 @@ async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, Ap
     .bind(user.id.to_string())
     .fetch_all(&state.pool)
     .await?;
-    for (i, (id, ws, role)) in spaces.into_iter().enumerate() {
+    let spaces: Vec<_> = spaces.into_iter().filter(|s| perms.get(&s.0).is_some_and(|p| p.calendar > level::NONE)).collect();
+    for (i, (id, ws, _)) in spaces.into_iter().enumerate() {
         out.push(Calendar {
             kind: CalKind::Events(id),
             name: format!("{ws} · {}", if user.french { "Calendrier" } else { "Calendar" }),
             description: if user.french { format!("Événements partagés de l'espace {ws}") } else { format!("Shared events of the {ws} workspace") },
-            writable: Role::parse(&role).map(|r| r.can_write()).unwrap_or(false),
+            writable: perms.get(&id).is_some_and(|p| p.calendar >= level::EDIT),
             order: offset + i,
         });
     }
     // Autres calendriers Looty (dont un par tableau) : une collection chacun.
-    let cals: Vec<(Uuid, String, String, String, bool)> = sqlx::query_as(
-        "SELECT c.id, c.name, w.name, wm.role, c.board_id IS NOT NULL FROM looty_calendars c
+    let cals: Vec<(Uuid, String, String, Uuid, bool)> = sqlx::query_as(
+        "SELECT c.id, c.name, w.name, w.id, c.board_id IS NOT NULL FROM looty_calendars c
          JOIN workspaces w ON w.id = c.workspace_id
          JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $1
          WHERE NOT c.is_default ORDER BY w.name, c.position, c.created_at",
@@ -264,8 +279,9 @@ async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, Ap
     .bind(user.id.to_string())
     .fetch_all(&state.pool)
     .await?;
+    let cals: Vec<_> = cals.into_iter().filter(|c| perms.get(&c.3).is_some_and(|p| p.calendar > level::NONE)).collect();
     let offset = out.len();
-    for (i, (id, name, ws, role, board)) in cals.into_iter().enumerate() {
+    for (i, (id, name, ws, ws_id, board)) in cals.into_iter().enumerate() {
         out.push(Calendar {
             kind: CalKind::Cal(id),
             name: format!("{ws} · {name}"),
@@ -275,7 +291,7 @@ async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, Ap
                 (false, true) => format!("Calendrier {name} de l'espace {ws}"),
                 (false, false) => format!("{name} calendar of the {ws} workspace"),
             },
-            writable: Role::parse(&role).map(|r| r.can_write()).unwrap_or(false),
+            writable: perms.get(&ws_id).is_some_and(|p| p.calendar >= level::EDIT),
             order: offset + i,
         });
     }
@@ -304,6 +320,8 @@ async fn items(state: &AppState, user: &DavUser, kind: CalKind, only: Option<Uui
         CalKind::Board(id) => Some(id),
         CalKind::Events(_) | CalKind::Cal(_) => return Ok(vec![]),
     };
+    // Espaces où la personne a accès aux tableaux.
+    let spaces: Vec<Uuid> = space_perms(state, user).await?.into_iter().filter(|(_, p)| p.boards > level::NONE).map(|(id, _)| id).collect();
     Ok(sqlx::query_as::<_, Item>(
         "SELECT t.id, t.title, t.description, t.due_date, t.start_date, t.priority, t.is_completed, t.is_per_person,
                 t.created_at, t.updated_at, b.workspace_id,
@@ -316,19 +334,26 @@ async fn items(state: &AppState, user: &DavUser, kind: CalKind, only: Option<Uui
          JOIN workspace_members wm ON wm.workspace_id = b.workspace_id AND wm.user_id = $1
          LEFT JOIN dav_task_resources r ON r.task_id = t.id
          WHERE (($2::uuid IS NULL AND EXISTS(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)) OR b.id = $2)
-           AND ($3::uuid IS NULL OR t.id = $3)
+           AND ($3::uuid IS NULL OR t.id = $3) AND b.workspace_id = ANY($4)
          ORDER BY t.created_at",
     )
     .bind(user.id.to_string())
     .bind(board)
     .bind(only)
+    .bind(&spaces)
     .fetch_all(&state.pool)
     .await?)
 }
 
 /// Membre de l'espace d'un calendrier d'événements (sinon : introuvable).
 async fn events_role(state: &AppState, user: &DavUser, ws: Uuid) -> Result<Role, ApiError> {
-    crate::access::workspace_role(&state.pool, user.id, ws).await?.ok_or(ApiError::NotFound)
+    // Rôle équivalent aux droits « calendrier » (lecture : Viewer ; modification : Member).
+    let (_, p) = crate::access::member_perms(&state.pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
+    match p.calendar {
+        level::NONE => Err(ApiError::NotFound),
+        l if l >= level::EDIT => Ok(Role::Member),
+        _ => Ok(Role::Viewer),
+    }
 }
 
 /// Ressources d'un calendrier.
@@ -881,8 +906,8 @@ async fn delete(state: &AppState, user: &DavUser, target: Target, headers: &Head
         // Dans « Assignées à moi », supprimer = ne plus être assigné ; la tâche reste.
         CalKind::Assigned => dav_unassign(state, it.id, user.id).await?,
         CalKind::Board(_) => {
-            let role = crate::access::workspace_role(&state.pool, user.id, it.workspace_id).await?.ok_or(ApiError::Forbidden)?;
-            if !role.can_write() {
+            let can_edit = crate::access::member_perms(&state.pool, user.id, it.workspace_id).await?.is_some_and(|(_, p)| p.boards >= level::EDIT);
+            if !can_edit {
                 return Err(ApiError::Forbidden);
             }
             remove_task(state, it.id).await?;

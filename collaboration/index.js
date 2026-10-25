@@ -176,6 +176,54 @@ async function recordRevision(pageId, state, userId) {
  * sont périmés. On ferme les connexions, on oublie les documents sans les enregistrer, et on
  * refuse brièvement les connexions pour laisser les pages ouvertes se recharger.
  */
+const accessUrl = (documentName) => {
+  const fid = fileId(documentName)
+  return fid ? `${BACKEND_URL}/api/projects/files/${fid}/access` : `${BACKEND_URL}/api/pages/${documentName}/access`
+}
+
+/**
+ * Droits revérifiés pendant les connexions : une personne retirée de l'espace ou bloquée
+ * sur la page est déconnectée, une autre passée en lecture seule ne peut plus écrire.
+ * Appelé quand le backend signale un changement de droits (NOTIFY looty_access), et
+ * régulièrement en filet de sécurité.
+ */
+let revalidating = null
+let revalidateAgain = false
+async function revalidate() {
+  if (revalidating) { revalidateAgain = true; return revalidating }
+  revalidating = (async () => {
+    do {
+      revalidateAgain = false
+      for (const [name, doc] of server.hocuspocus.documents) {
+        for (const conn of doc.getConnections()) {
+          const auth = conn.context?.auth
+          if (!auth) continue
+          let res
+          try {
+            res = await fetch(accessUrl(name), { headers: auth })
+          } catch {
+            continue // Backend injoignable : on garde la connexion, on réessaiera.
+          }
+          if (res.status === 401 || res.status === 403 || res.status === 404) {
+            conn.close({ code: 4403, reason: 'forbidden' })
+          } else if (res.ok) {
+            const access = await res.json().catch(() => null)
+            if (access) conn.readOnly = !access.can_write
+          }
+        }
+      }
+    } while (revalidateAgain)
+    revalidating = null
+  })()
+  return revalidating
+}
+let revalidateTimer = null
+function scheduleRevalidate() {
+  clearTimeout(revalidateTimer)
+  revalidateTimer = setTimeout(() => revalidate().catch((e) => console.error('Access revalidation failed', e.message)), 500)
+}
+setInterval(scheduleRevalidate, 120_000).unref()
+
 let restoredAt = 0
 const loadedAt = new Map()
 /** Fichiers de projet dont le contenu a été remplacé par le backend (NOTIFY looty_file_reset). */
@@ -212,10 +260,7 @@ const server = new Server({
     else throw new Error('unauthenticated')
     let res
     try {
-      const url = fid ? `${BACKEND_URL}/api/projects/files/${fid}/access` : `${BACKEND_URL}/api/pages/${documentName}/access`
-      res = await fetch(url, {
-        headers,
-      })
+      res = await fetch(accessUrl(documentName), { headers })
     } catch (e) {
       console.error('Backend unreachable for auth', e.message)
       throw new Error('auth-unavailable')
@@ -225,7 +270,9 @@ const server = new Server({
     }
     const access = await res.json()
     connectionConfig.readOnly = !access.can_write
-    return { user: { id: access.user_id, name: access.name } }
+    // Les en-têtes d'authentification restent dans le contexte pour revérifier les droits
+    // pendant la connexion (voir revalidate).
+    return { user: { id: access.user_id, name: access.name }, auth: headers }
   },
 
   extensions: [
@@ -322,6 +369,10 @@ server.listen()
 
 function onNotification(msg) {
   const hp = server.hocuspocus
+  if (msg.channel === 'looty_access') {
+    scheduleRevalidate()
+    return
+  }
   if (msg.channel === 'looty_file_reset') {
     const name = FILE_PREFIX + msg.payload
     resetAt.set(name, Date.now())
@@ -353,6 +404,7 @@ async function listen() {
     client = await pool.connect()
     await client.query('LISTEN looty_restore')
     await client.query('LISTEN looty_file_reset')
+    await client.query('LISTEN looty_access')
   } catch (e) {
     console.error('LISTEN failed, retrying in 5 s', e.message)
     client?.release(true)

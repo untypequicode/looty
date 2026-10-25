@@ -75,17 +75,23 @@ struct Built {
 
 async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> {
     let role = require_member(&state.pool, user, ws).await?;
+    let perms = crate::access::member_perms(&state.pool, user.id, ws).await?.map(|(_, p)| p).ok_or(ApiError::NotFound)?;
     let visible = visible_pages(&state.pool, user, ws, role).await?;
     let pages: Vec<(Uuid, String, Option<String>, Option<Uuid>, Option<String>, Option<Vec<u8>>)> =
         sqlx::query_as("SELECT id, title, icon, parent_id, content, yjs_state FROM pages WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
     let pages: Vec<_> = pages.into_iter().filter(|p| matches!(visible.get(&p.0), Some(PageAccess::Read | PageAccess::Write))).collect();
-    let boards: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, name FROM boards WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
+    // Tableaux et tâches : seulement avec l'accès aux tableaux ; événements : avec le calendrier.
+    let see_boards = perms.boards > crate::access::level::NONE;
+    let see_events = perms.calendar > crate::access::level::NONE;
+    let boards: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT id, name FROM boards WHERE workspace_id = $1 AND $2").bind(ws).bind(see_boards).fetch_all(&state.pool).await?;
     let tasks: Vec<(Uuid, String, bool, Option<Uuid>, Uuid, Option<String>)> = sqlx::query_as(
         "SELECT t.id, t.title, t.is_completed, t.parent_id, b.id, t.description FROM tasks t
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-         WHERE b.workspace_id = $1 ORDER BY t.updated_at DESC LIMIT 5000",
+         WHERE b.workspace_id = $1 AND $2 ORDER BY t.updated_at DESC LIMIT 5000",
     )
     .bind(ws)
+    .bind(see_boards)
     .fetch_all(&state.pool)
     .await?;
     let comments: Vec<(Uuid, String)> = sqlx::query_as(
@@ -107,7 +113,8 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     // Événements de l'espace : présents dans le graphe s'ils citent un élément (description,
     // commentaires) ou ont une relation manuelle.
     let linked_events: HashSet<Uuid> = relations.iter().flat_map(|(_, s, t)| [*s, *t]).chain(item_comments.iter().map(|(t, _)| *t)).collect();
-    let event_rows: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, ics FROM workspace_events WHERE workspace_id = $1 LIMIT 5000").bind(ws).fetch_all(&state.pool).await?;
+    let event_rows: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT id, ics FROM workspace_events WHERE workspace_id = $1 AND $2 LIMIT 5000").bind(ws).bind(see_events).fetch_all(&state.pool).await?;
     let mut events: Vec<(Uuid, String, Vec<(&'static str, Uuid)>)> = Vec::new();
     for (id, ics) in &event_rows {
         let Some(m) = crate::calendar::master_event(ics) else { continue };

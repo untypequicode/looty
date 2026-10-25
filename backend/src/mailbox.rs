@@ -258,7 +258,8 @@ pub fn start_poll_loop(state: AppState) {
             .await
             .unwrap_or_default();
             for a in accounts {
-                if let Err(e) = tokio::time::timeout(Duration::from_secs(90), sync_and_notify(&state, &a)).await.unwrap_or(Err(ApiError::bad_request("mail_timeout"))) {
+                let synced = crate::bg::guard("mail poll", tokio::time::timeout(Duration::from_secs(90), sync_and_notify(&state, &a))).await;
+                if let Some(Err(e)) = synced.map(|r| r.unwrap_or(Err(ApiError::bad_request("mail_timeout")))) {
                     tracing::debug!("mail account {}: {e:?}", a.id);
                 }
             }

@@ -239,6 +239,8 @@ async fn suspend_user(
         .bind(id)
         .execute(&pool)
         .await?;
+    // Documents ouverts : le serveur de collaboration revérifie les droits (compte suspendu).
+    let _ = sqlx::query("SELECT pg_notify('looty_access', '')").execute(&pool).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

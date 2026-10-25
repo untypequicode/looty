@@ -304,6 +304,17 @@ async fn list_guests(
     Ok(Json(serde_json::json!({ "guests": guests })))
 }
 
+/// Personne retirée de l'espace (ou partie) : ses permissions par page disparaissent aussi,
+/// sinon elle resterait invitée sur ces pages sans que personne ne l'ait voulu.
+async fn drop_member_page_permissions(pool: &PgPool, workspace_id: Uuid, user_id: Uuid) -> ApiResult<()> {
+    sqlx::query("DELETE FROM page_permissions pp USING pages_all p WHERE p.id = pp.page_id AND p.workspace_id = $1 AND pp.user_id = $2")
+        .bind(workspace_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 async fn owner_count(pool: &PgPool, workspace_id: Uuid) -> ApiResult<i64> {
     Ok(sqlx::query_scalar("SELECT count(*) FROM workspace_members WHERE workspace_id = $1 AND role = 'owner'")
         .bind(workspace_id)
@@ -383,6 +394,7 @@ async fn remove_member(
         .bind(member_id.to_string())
         .execute(pool)
         .await?;
+    drop_member_page_permissions(pool, workspace_id, member_id).await?;
     state
         .emit(workspace_id, serde_json::json!({ "type": "MEMBERS_UPDATED", "user_id": member_id, "removed": true }))
         .await;
@@ -403,6 +415,7 @@ async fn leave_workspace(
         .bind(user.id.to_string())
         .execute(&state.pool)
         .await?;
+    drop_member_page_permissions(&state.pool, workspace_id, user.id).await?;
     state
         .emit(workspace_id, serde_json::json!({ "type": "MEMBERS_UPDATED", "user_id": user.id, "removed": true }))
         .await;
@@ -621,6 +634,9 @@ async fn get_my_tasks(
     Query(q): Query<MyTasksQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     require_member(&pool, &user, workspace_id).await?;
+    if !can_see_boards(&pool, &user, workspace_id).await? {
+        return Ok(Json(serde_json::json!({ "tasks": [] })));
+    }
     let all = q.scope.as_deref() == Some("all");
     let tasks: Vec<MyTaskResponse> = sqlx::query_as(
         "SELECT * FROM (
@@ -723,7 +739,9 @@ async fn search_workspace(
     .await?;
 
     let mut results: Vec<SearchResult> = pages.collect();
-    results.extend(tasks);
+    if can_see_boards(&pool, &user, workspace_id).await? {
+        results.extend(tasks);
+    }
     Ok(Json(serde_json::json!({ "results": results })))
 }
 
@@ -770,6 +788,7 @@ async fn get_overview(
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let role = require_member(&pool, &user, workspace_id).await?;
+    let see_boards = can_see_boards(&pool, &user, workspace_id).await?;
     let boards: Vec<BoardStats> = sqlx::query_as(
         "SELECT b.id, b.name,
             count(t.id) FILTER (WHERE t.parent_id IS NULL) AS total,
@@ -830,6 +849,7 @@ async fn get_overview(
             .bind(week_ago)
             .fetch_all(&pool)
             .await?;
+    let (boards, activity) = if see_boards { (boards, activity) } else { (Vec::new(), Vec::new()) };
     let docs_updated_week = recent_pages
         .iter()
         .filter(|(id, _)| visible.get(id).is_some_and(|a| *a != PageAccess::None))
@@ -841,4 +861,11 @@ async fn get_overview(
         "activity": activity,
         "docs_updated_week": docs_updated_week,
     })))
+}
+
+/// Le rôle donne accès aux tableaux (un rôle « documents seulement » n'y voit rien).
+async fn can_see_boards(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) -> ApiResult<bool> {
+    Ok(crate::access::member_perms(pool, user.id, workspace_id)
+        .await?
+        .is_some_and(|(_, p)| p.boards > crate::access::level::NONE))
 }

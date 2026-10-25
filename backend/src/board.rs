@@ -1022,6 +1022,57 @@ async fn move_task(
     .execute(pool)
     .await?;
 
+    // Vers un autre tableau : les étiquettes suivent (même nom dans le tableau d'arrivée,
+    // créée au besoin) et la colonne d'origine mémorisée n'a plus de sens.
+    let other_board = dest.board_id != ctx.board_id;
+    let mut moved_subtasks: Vec<Uuid> = Vec::new();
+    if other_board {
+        let mut tx = pool.begin().await?;
+        let subtree = "WITH RECURSIVE sub AS (SELECT id FROM tasks WHERE id = $1 UNION ALL SELECT t.id FROM tasks t JOIN sub ON t.parent_id = sub.id)";
+        let new_labels: Vec<Label> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "{subtree} INSERT INTO labels (board_id, name, color)
+             SELECT DISTINCT ON (lower(ol.name)) $2, ol.name, ol.color FROM task_labels tl JOIN labels ol ON ol.id = tl.label_id
+             WHERE tl.task_id IN (SELECT id FROM sub) AND ol.board_id <> $2
+               AND NOT EXISTS (SELECT 1 FROM labels nl WHERE nl.board_id = $2 AND lower(nl.name) = lower(ol.name))
+             RETURNING id, board_id, name, color, created_at"
+        )))
+        .bind(task_id)
+        .bind(dest.board_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{subtree} INSERT INTO task_labels (task_id, label_id)
+             SELECT tl.task_id, nl.id FROM task_labels tl JOIN labels ol ON ol.id = tl.label_id
+             JOIN labels nl ON nl.board_id = $2 AND lower(nl.name) = lower(ol.name)
+             WHERE tl.task_id IN (SELECT id FROM sub) AND ol.board_id <> $2
+             ON CONFLICT DO NOTHING"
+        )))
+        .bind(task_id)
+        .bind(dest.board_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{subtree} DELETE FROM task_labels tl USING labels l
+             WHERE l.id = tl.label_id AND l.board_id <> $2 AND tl.task_id IN (SELECT id FROM sub)"
+        )))
+        .bind(task_id)
+        .bind(dest.board_id)
+        .execute(&mut *tx)
+        .await?;
+        moved_subtasks = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "{subtree} UPDATE tasks SET previous_column_id = NULL, parent_id = CASE WHEN id = $1 THEN NULL ELSE parent_id END
+             WHERE id IN (SELECT id FROM sub) RETURNING id"
+        )))
+        .bind(task_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        moved_subtasks.retain(|id| *id != task_id);
+        for label in &new_labels {
+            state.emit(ctx.workspace_id, serde_json::json!({ "type": "LABEL_CREATED", "label": label })).await;
+        }
+    }
+
     if old.column_id != req.column_id {
         log_activity(pool, task_id, user.id, "move_column",
             Some(serde_json::json!({ "column_id": old.column_id })), Some(serde_json::json!({ "column_id": req.column_id }))).await;
@@ -1052,6 +1103,9 @@ async fn move_task(
 
     let t = load_task_enriched(pool, task_id).await?;
     state.emit(ctx.workspace_id, serde_json::json!({ "type": "TASK_MOVED", "task": &t, "from_column_id": old.column_id })).await;
+    for sub in moved_subtasks {
+        emit_task(&state, ctx.workspace_id, "TASK_MOVED", sub).await;
+    }
     Ok(Json(t))
 }
 
@@ -1268,7 +1322,7 @@ async fn get_task_attachments(
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<TaskAttachment>>> {
     let ctx = task_ctx(&pool, task_id).await?;
-    require_member(&pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     Ok(Json(
         sqlx::query_as(
             "SELECT id, task_id, uploaded_by, filename, file_path, mime_type, size_bytes, created_at
@@ -1343,7 +1397,7 @@ async fn get_task_activities(
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<TaskActivity>>> {
     let ctx = task_ctx(&pool, task_id).await?;
-    require_member(&pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     Ok(Json(
         sqlx::query_as(
             "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at
@@ -1472,7 +1526,7 @@ async fn get_task_comments(
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<TaskComment>>> {
     let ctx = task_ctx(&pool, task_id).await?;
-    require_member(&pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     Ok(Json(
         sqlx::query_as(
             "SELECT id, task_id, user_id, content, created_at, updated_at FROM task_comments
@@ -1548,7 +1602,7 @@ async fn edit_task_comment(
     Json(payload): Json<CommentBody>,
 ) -> ApiResult<Json<TaskComment>> {
     let ctx = task_ctx(&state.pool, task_id).await?;
-    require_member(&state.pool, &user, ctx.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::COMMENT).await?;
     let content = comment_content(&payload.content)?;
     // Seul l'auteur peut modifier son commentaire.
     let comment: TaskComment = sqlx::query_as(
@@ -1618,15 +1672,21 @@ impl RemoteChanges {
     }
 }
 
+/// Droit de modifier les tâches (rôle de l'espace, permissions fines comprises) pour les
+/// modifications venues d'un calendrier, sans requête HTTP authentifiée.
+async fn require_board_editor(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<()> {
+    match crate::access::member_perms(pool, user_id, workspace_id).await? {
+        Some((_, p)) if p.boards >= crate::access::level::EDIT => Ok(()),
+        _ => Err(ApiError::Forbidden),
+    }
+}
+
 /// Crée une tâche dans la première colonne d'un tableau depuis un client CalDAV
 /// (droits vérifiés ici), puis applique l'état « terminé » éventuel.
 pub async fn dav_create_task(state: &AppState, user_id: Uuid, board_id: Uuid, f: &crate::ical::TodoFields) -> ApiResult<Uuid> {
     let pool = &state.pool;
     let workspace_id: Uuid = sqlx::query_scalar("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
-    let role = crate::access::workspace_role(pool, user_id, workspace_id).await?.ok_or(ApiError::Forbidden)?;
-    if !role.can_write() {
-        return Err(ApiError::Forbidden);
-    }
+    require_board_editor(pool, user_id, workspace_id).await?;
     let column_id: Uuid = sqlx::query_scalar("SELECT id FROM board_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1")
         .bind(board_id).fetch_optional(pool).await?.ok_or_else(|| ApiError::bad_request("board_has_no_column"))?;
     let title = check_name(if f.summary.trim().is_empty() { "Untitled" } else { f.summary.trim() }, 255)?;
@@ -1672,10 +1732,7 @@ pub async fn sync_apply_remote(state: &AppState, task_id: Uuid, user_id: Uuid, c
     }
     let pool = &state.pool;
     let ctx = task_ctx(pool, task_id).await?;
-    let role = crate::access::workspace_role(pool, user_id, ctx.workspace_id).await?.ok_or(ApiError::Forbidden)?;
-    if !role.can_write() {
-        return Err(ApiError::Forbidden);
-    }
+    require_board_editor(pool, user_id, ctx.workspace_id).await?;
     let old = fetch_task(pool, task_id).await?;
     let title = ch.title.as_deref().map(|t| check_name(t, 255)).transpose().ok().flatten();
     let priority = ch.priority.and_then(|p| check_priority(p).ok());

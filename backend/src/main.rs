@@ -23,6 +23,8 @@ mod latex;
 mod drive;
 mod trash;
 mod storage;
+mod text;
+mod bg;
 mod events;
 mod activity;
 mod graph;

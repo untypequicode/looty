@@ -42,7 +42,25 @@ pub async fn feed(State(state): State<AppState>, Path(file): Path<String>) -> Re
             .unwrap_or_else(|| "Looty".into()),
         None => "Looty".into(),
     };
-    let events: Vec<String> = crate::events::list_for_user(&state.pool, user_id, calendar).await?.into_iter().map(|e| e.dav_ics()).collect();
+    // Droits du moment, rôles fins compris : calendrier pour les événements, tableaux pour les tâches.
+    let spaces: Vec<Uuid> = sqlx::query_scalar("SELECT workspace_id FROM workspace_members WHERE user_id = $1").bind(user_id.to_string()).fetch_all(&state.pool).await?;
+    let (mut cal_spaces, mut board_spaces) = (Vec::new(), Vec::new());
+    for ws in spaces {
+        if let Some((_, p)) = crate::access::member_perms(&state.pool, user_id, ws).await? {
+            if p.calendar > crate::access::level::NONE {
+                cal_spaces.push(ws);
+            }
+            if p.boards > crate::access::level::NONE {
+                board_spaces.push(ws);
+            }
+        }
+    }
+    let events: Vec<String> = crate::events::list_for_user(&state.pool, user_id, calendar)
+        .await?
+        .into_iter()
+        .filter(|e| cal_spaces.contains(&e.workspace_id))
+        .map(|e| e.dav_ics())
+        .collect();
     let tasks: Vec<(Uuid, String, DateTime<Utc>, DateTime<Utc>)> = if calendar.is_some() {
         vec![]
     } else {
@@ -54,9 +72,11 @@ pub async fn feed(State(state): State<AppState>, Path(file): Path<String>) -> Re
              JOIN workspace_members wm ON wm.workspace_id = b.workspace_id AND wm.user_id = $1
              WHERE t.due_date IS NOT NULL AND NOT t.is_completed
                AND EXISTS(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)
+               AND b.workspace_id = ANY($2)
              ORDER BY t.due_date",
         )
         .bind(user_id.to_string())
+        .bind(&board_spaces)
         .fetch_all(&state.pool)
         .await?
     };

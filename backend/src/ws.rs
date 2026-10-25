@@ -11,7 +11,10 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
-use crate::access::{require_member_or_guest, visible_pages, AuthUser, PageAccess, Role};
+use crate::access::{
+    effective_page_access, level, member_perms, nearest_page_override, require_member_or_guest, visible_pages, AuthUser, PageAccess, Perms, Role,
+};
+use sqlx::PgPool;
 use crate::error::ApiResult;
 use crate::state::AppState;
 
@@ -223,10 +226,80 @@ fn guest_view(payload: &str, pages: &std::collections::HashSet<Uuid>, guest: Uui
     Some(v.to_string())
 }
 
+/// Droits d'un membre connecté, pour filtrer ce que la room lui transmet. Recalculés quand
+/// ses droits changent ; `None` : il n'est plus membre (la connexion est fermée).
+struct MemberView {
+    perms: Perms,
+    /// Accès aux pages (vide pour un admin : il voit tout).
+    pages: HashMap<Uuid, PageAccess>,
+}
+
+async fn member_view(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> Option<MemberView> {
+    let (_, perms) = member_perms(pool, user_id, workspace_id).await.ok()??;
+    let user = AuthUser { id: user_id, is_super_admin: false };
+    let pages = if perms.admin { HashMap::new() } else { visible_pages(pool, &user, workspace_id, Role::Member).await.ok()? };
+    Some(MemberView { perms, pages })
+}
+
+impl MemberView {
+    fn page(&self, id: Uuid) -> PageAccess {
+        if self.perms.admin { PageAccess::Write } else { self.pages.get(&id).copied().unwrap_or(PageAccess::None) }
+    }
+}
+
+/// Message transmis à un membre : rien sur les tableaux sans accès aux tableaux, rien sur
+/// les pages qu'il ne peut pas lire, et le lien public d'une page seulement s'il peut la modifier.
+fn member_allows(view: &MemberView, v: &mut serde_json::Value) -> bool {
+    let kind = v["type"].as_str().unwrap_or_default();
+    let boards = kind.starts_with("TASK_")
+        || kind.starts_with("COLUMN_")
+        || kind.starts_with("BOARD_")
+        || kind.starts_with("LABEL_")
+        || matches!(kind, "COMMENT_CREATED" | "COMMENT_UPDATED" | "COMMENT_DELETED");
+    if boards {
+        return view.perms.boards > level::NONE;
+    }
+    if kind == "CALENDAR_EVENTS_UPDATED" {
+        return view.perms.calendar > level::NONE;
+    }
+    if matches!(kind, "PAGE_CREATED" | "PAGE_UPDATED") {
+        let Some(id) = v["page"]["id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) else { return false };
+        return match view.page(id) {
+            PageAccess::None => false,
+            PageAccess::Read => {
+                if let Some(p) = v["page"].as_object_mut() {
+                    p.remove("share_token");
+                }
+                true
+            }
+            PageAccess::Write => true,
+        };
+    }
+    true
+}
+
+/// Compte actif, et toujours membre ou invité de l'espace.
+async fn still_allowed(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> bool {
+    let active: Option<bool> = sqlx::query_scalar("SELECT NOT is_suspended FROM users WHERE id = $1").bind(user_id).fetch_optional(pool).await.ok().flatten();
+    if active != Some(true) {
+        return false;
+    }
+    let user = AuthUser { id: user_id, is_super_admin: false };
+    require_member_or_guest(pool, &user, workspace_id).await.is_ok()
+}
+
 async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, user_id: Uuid, guest_pages: Option<std::sync::Arc<std::collections::HashSet<Uuid>>>) {
     let hub = state.hub.clone();
     let (mut sender, mut receiver) = socket.split();
     let mut rx = hub.room(workspace_id).await.subscribe();
+    let mut view = match guest_pages {
+        Some(_) => None,
+        None => match member_view(&state.pool, user_id, workspace_id).await {
+            Some(v) => Some(v),
+            None => return,
+        },
+    };
+    let send_pool = state.pool.clone();
 
     hub.connected(workspace_id, user_id).await;
     crate::analytics::track(&state.pool, workspace_id, user_id, "session", None).await;
@@ -238,18 +311,70 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
     let _ = sender.send(Message::Text(snapshot.into())).await;
 
     let mut send_task = tokio::spawn(async move {
+        // Vérification régulière : compte suspendu, accès à l'espace perdu (invité dont les partages
+        // ont été retirés) : la connexion est fermée.
+        let mut check = tokio::time::interval(std::time::Duration::from_secs(120));
+        check.tick().await;
         loop {
-            match rx.recv().await {
+            let received = tokio::select! {
+                r = rx.recv() => r,
+                _ = check.tick() => {
+                    if !still_allowed(&send_pool, user_id, workspace_id).await {
+                        break;
+                    }
+                    if let Some(mv) = view.as_mut() {
+                        match member_view(&send_pool, user_id, workspace_id).await {
+                            Some(fresh) => *mv = fresh,
+                            None => break,
+                        }
+                    }
+                    continue;
+                }
+            };
+            match received {
                 Ok(env) => {
                     if env.to.is_some_and(|to| to != user_id) {
                         continue;
                     }
-                    let text = match &guest_pages {
+                    let text = match (&guest_pages, view.as_mut()) {
                         // Invité : messages qui lui sont adressés, et la présence filtrée.
-                        Some(pages) if env.to.is_none() => match guest_view(&env.payload, pages, user_id) {
+                        (Some(pages), _) if env.to.is_none() => match guest_view(&env.payload, pages, user_id) {
                             Some(t) => t,
                             None => continue,
                         },
+                        (None, Some(mv)) if env.to.is_none() => {
+                            let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&env.payload) else { continue };
+                            match v["type"].as_str().unwrap_or_default() {
+                                // Rôle ou membres modifiés : droits recalculés ; retiré de l'espace : fin.
+                                "MEMBERS_UPDATED" => {
+                                    if v["removed"] == true && v["user_id"].as_str() == Some(user_id.to_string().as_str()) {
+                                        let _ = sender.send(Message::Text(env.payload.to_string().into())).await;
+                                        break;
+                                    }
+                                    match member_view(&send_pool, user_id, workspace_id).await {
+                                        Some(fresh) => *mv = fresh,
+                                        None => break,
+                                    }
+                                }
+                                "PAGE_PERMISSIONS_UPDATED" if !mv.perms.admin => {
+                                    if let Some(fresh) = member_view(&send_pool, user_id, workspace_id).await {
+                                        *mv = fresh;
+                                    }
+                                }
+                                // Page nouvelle ou déplacée : son accès (hérité du parent) peut changer.
+                                "PAGE_CREATED" | "PAGE_UPDATED" if !mv.perms.admin => {
+                                    if let Some(id) = v["page"]["id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) {
+                                        let ov = nearest_page_override(&send_pool, id, user_id).await.ok().flatten();
+                                        mv.pages.insert(id, effective_page_access(&mv.perms, ov.as_deref()));
+                                    }
+                                }
+                                _ => {}
+                            }
+                            if !member_allows(mv, &mut v) {
+                                continue;
+                            }
+                            v.to_string()
+                        }
                         _ => env.payload.to_string(),
                     };
                     if sender.send(Message::Text(text.into())).await.is_err() {

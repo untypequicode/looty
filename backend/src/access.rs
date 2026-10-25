@@ -301,17 +301,20 @@ pub async fn require_member_or_guest(pool: &PgPool, user: &AuthUser, workspace_i
     Err(ApiError::NotFound)
 }
 
+/// Écriture dans au moins un domaine (permissions effectives du rôle, pas son nom).
 pub async fn require_writer(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) -> ApiResult<Role> {
-    let role = require_member(pool, user, workspace_id).await?;
-    if !role.can_write() {
+    let (role, perms) = member_perms(pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)?;
+    if !perms.base_role().can_write() {
         return Err(ApiError::Forbidden);
     }
     Ok(role)
 }
 
+/// Administration de l'espace : le droit « admin » du rôle (un préréglage Admin auquel le
+/// propriétaire l'a retiré ne le donne plus).
 pub async fn require_ws_admin(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) -> ApiResult<Role> {
-    let role = require_member(pool, user, workspace_id).await?;
-    if !role.is_admin() {
+    let (role, perms) = member_perms(pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)?;
+    if !perms.admin {
         return Err(ApiError::Forbidden);
     }
     Ok(role)

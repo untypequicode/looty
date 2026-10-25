@@ -223,23 +223,7 @@ fn norm_path(base: &Url, href: &str) -> String {
     decoded.trim_end_matches('/').to_string()
 }
 
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(b);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).to_string()
-}
+use crate::text::percent_decode;
 
 // ---------------------------------------------------------------------------
 // Découverte des calendriers
@@ -641,7 +625,7 @@ pub fn start_sync_loop(state: AppState, notify: Arc<Notify>) {
                 .await
                 .unwrap_or_default();
             for id in ids {
-                if let Err(e) = sync_account(&state, id).await {
+                if let Some(Err(e)) = crate::bg::guard("caldav sync", sync_account(&state, id)).await {
                     tracing::debug!("caldav sync {} failed: {:?}", id, e);
                 }
             }
