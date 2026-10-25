@@ -15,10 +15,10 @@ pub fn start_archive_cron(pool: PgPool) {
         loop {
             interval.tick().await;
             
-            println!("Running automated archiving for task_activities...");
+            tracing::info!("archiving old task activities");
             
             if let Err(e) = archive_old_activities(&pool).await {
-                eprintln!("Error archiving activities: {}", e);
+                tracing::warn!("archiving activities: {e}");
             }
             crate::revisions::prune(&pool).await;
             crate::analytics::prune(&pool).await;

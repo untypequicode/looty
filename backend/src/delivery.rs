@@ -155,11 +155,11 @@ pub fn start_worker(state: AppState) {
             }
             if last_due.elapsed() >= Duration::from_secs(600) {
                 last_due = std::time::Instant::now();
-                if let Err(e) = due_reminders(&state).await {
+                if let Some(Err(e)) = crate::bg::guard("due reminders", due_reminders(&state)).await {
                     tracing::warn!("due reminders: {e:?}");
                 }
             }
-            if let Err(e) = process(&state).await {
+            if let Some(Err(e)) = crate::bg::guard("notification delivery", process(&state)).await {
                 tracing::warn!("notification delivery: {e:?}");
             }
         }

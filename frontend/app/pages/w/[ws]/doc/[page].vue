@@ -50,6 +50,10 @@ const canManage = computed(() => canEdit.value && !isGuest.value)
 // Sous-document : rôle qui crée des documents, ou partage « peut créer des sous-pages ».
 const canAddChild = computed(() => (canManage.value && allows('docs', 'edit')) || (!!live.value?.can_add_child && editing('docs')))
 const path = computed(() => pagePath(pages.data.value ?? [], pageId.value))
+const crumbs = computed(() => [
+  { label: t('nav.docs'), icon: FileText, to: links.docs(wsId.value) },
+  ...path.value.map((p) => ({ label: p.title || t('docs.untitled'), emoji: p.icon, to: p.id === pageId.value ? undefined : links.doc(wsId.value, p.id) })),
+])
 const children = computed(() => (pages.data.value ?? []).filter((p) => p.parent_id === pageId.value).sort((a, b) => a.position - b.position))
 
 // Enregistre la consultation
@@ -92,13 +96,15 @@ const cursorUser = computed(() => {
   const name = user.value?.name ?? '?'
   let h = 0
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return { name, color: PALETTE[h % PALETTE.length] }
+  return { name, color: PALETTE[h % PALETTE.length]! }
 })
-async function saveHtml(html: string) {
+async function saveHtml(html: string, id: string = pageId.value) {
+  // Identifiant fourni par l'éditeur : un éditeur qui se ferme après un changement de page
+  // enregistre bien sa propre page.
   saving.value = true
   try {
-    await api(`/api/workspaces/${wsId.value}/pages/${pageId.value}`, { method: 'PUT', body: { content: html }, silent: true })
-    qc.setQueryData<Page>(['page', pageId.value], (old) => (old ? { ...old, content: html } : old))
+    await api(`/api/workspaces/${wsId.value}/pages/${id}`, { method: 'PUT', body: { content: html }, silent: true })
+    qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, content: html } : old))
   } finally {
     saving.value = false
   }
@@ -208,7 +214,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 
 <template>
   <div class="page">
-    <AppPageHeader :crumbs="[{ label: t('nav.docs'), icon: FileText, to: links.docs(wsId) }, ...path.map((p) => ({ label: p.title || t('docs.untitled'), emoji: p.icon, to: p.id === pageId ? undefined : links.doc(wsId, p.id) }))]">
+    <AppPageHeader :crumbs="crumbs">
       <span v-if="live" class="status">
         <template v-if="status === 'denied' || !canEdit"><Lock :size="13" /> {{ t('editor.readOnly') }}</template>
         <template v-else-if="status === 'offline'"><CloudOff :size="13" /> {{ t('editor.offline') }}</template>

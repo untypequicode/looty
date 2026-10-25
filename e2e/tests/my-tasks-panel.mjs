@@ -14,9 +14,16 @@ const t1 = await mk('Première tâche'), t2 = await mk('Seconde tâche')
 
 // Mes tâches : un clic ouvre le panneau sans quitter la page.
 await p.goto(`${B}/w/${WS}/my-tasks`, { waitUntil: 'networkidle' })
+// Valeurs relevées dans la page à chaque image (les allers-retours du navigateur de test sont trop lents).
+await p.evaluate(() => {
+  const w = window; w.__pads = []
+  const t0 = performance.now()
+  const tick = () => { w.__pads.push(Math.round(parseFloat(getComputedStyle(document.querySelector('.mt')).paddingRight))); if (performance.now() - t0 < 600) requestAnimationFrame(tick) }
+  requestAnimationFrame(tick)
+})
 await p.locator('.mt-row', { hasText: 'Première tâche' }).click()
-const mids = []
-for (let i = 0; i < 6; i++) { mids.push(Math.round(await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.mt')).paddingRight)))); await p.waitForTimeout(40) }
+await p.waitForTimeout(700)
+const mids = await p.evaluate(() => window.__pads)
 ok('décalage progressif (animé)', new Set(mids).size >= 3, mids.join(','))
 await p.waitForTimeout(1000)
 ok('clic: reste sur Mes tâches', new URL(p.url()).pathname === `/w/${WS}/my-tasks`, p.url())

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::access::{require_member, AuthUser};
+use crate::access::AuthUser;
 use crate::calendar::{escape_text, expand, master_event, series_end, unfolded_lines, MasterEvent};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -674,7 +674,7 @@ async fn load(state: &AppState, ws: Uuid, id: Uuid) -> ApiResult<(EventRow, Opti
 }
 
 async fn get_one(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<Json<EventDetail>> {
-    require_member(&state.pool, &user, ws).await?;
+    crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::READ).await?;
     let (e, created_by_name, updated_at) = load(&state, ws, id).await?;
     let m = master_event(&e.ics).ok_or(ApiError::NotFound)?;
     let repeat = m.rrule.as_deref().and_then(|r| simple_repeat(r, m.tzid.as_deref()));

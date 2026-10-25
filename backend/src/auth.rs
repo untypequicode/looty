@@ -311,7 +311,9 @@ async fn callback_handler(
     };
 
     let email = userinfo.email().map(|e| e.as_str().trim().to_lowercase()).unwrap_or_default();
-    let email_verified = userinfo.email_verified().unwrap_or(true);
+    // Sans l'information, l'adresse n'est pas tenue pour vérifiée : elle ne sert alors qu'à
+    // créer un compte, jamais à se rattacher au compte existant de quelqu'un d'autre.
+    let email_verified = userinfo.email_verified().unwrap_or(false);
     let name = userinfo
         .name()
         .and_then(|n| n.get(None))

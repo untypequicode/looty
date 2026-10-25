@@ -56,7 +56,8 @@ export function htmlToMarkdown(html: string): string {
     filter: 'tr',
     replacement: (c, n) => {
       const row = `|${c}\n`
-      const first = n.parentNode?.firstElementChild === n && (n.parentNode?.nodeName !== 'TBODY' || !n.parentNode.previousElementSibling || n.parentNode.previousElementSibling.nodeName === 'COLGROUP')
+      const parent = n.parentNode as Element | null
+      const first = parent?.firstElementChild === n && (parent?.nodeName !== 'TBODY' || !parent.previousElementSibling || parent.previousElementSibling.nodeName === 'COLGROUP')
       return first ? `${row}|${' --- |'.repeat((n as HTMLElement).children.length)}\n` : row
     },
   })

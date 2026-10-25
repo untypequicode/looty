@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::access::{require_member, require_writer, task_ctx, AuthUser};
+use crate::access::{require_member, task_ctx, AuthUser};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -186,7 +186,8 @@ struct TrashedPage {
 async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
     let role = require_member(&state.pool, &user, ws).await?;
     let days = retention_days(&state.pool, ws).await?;
-    let tasks: Vec<TrashedTask> = if role.can_write() {
+    let edit_tasks = crate::access::member_perms(&state.pool, user.id, ws).await?.is_some_and(|(_, p)| p.boards >= crate::access::level::EDIT);
+    let tasks: Vec<TrashedTask> = if edit_tasks {
         sqlx::query_as(
             "SELECT t.id, t.title, b.id AS board_id, b.name AS board_name, t.deleted_at, t.deleted_by, u.name AS deleted_by_name,
                 (SELECT count(*) - 1 FROM tasks_all x WHERE x.trash_batch = t.trash_batch) AS subtasks,
@@ -276,7 +277,7 @@ async fn trashed_task(state: &AppState, id: Uuid) -> ApiResult<TaskEntry> {
 
 async fn restore_task(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
     let e = trashed_task(&state, id).await?;
-    require_writer(&state.pool, &user, e.workspace_id).await?;
+    crate::access::require_perm(&state.pool, &user, e.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let ids: Vec<Uuid> = sqlx::query_scalar(
         "UPDATE tasks_all SET deleted_at = NULL, deleted_by = NULL, trash_batch = NULL
          WHERE trash_batch = $1 OR id = $2 RETURNING id",

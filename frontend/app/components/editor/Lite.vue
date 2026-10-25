@@ -34,7 +34,7 @@ const pageSource: PageSource = { wsId: () => wsId.value, pages: () => pages.data
 
 async function insertImage(file: File, pos?: number) {
   const r = await uploadFile(file)
-  const node = editor.value?.schema.nodes.image.create({ src: r.url, alt: r.name })
+  const node = editor.value?.schema.nodes.image?.create({ src: r.url, alt: r.name })
   if (!node || !editor.value) return
   const tr = editor.value.state.tr
   if (pos != null) tr.insert(pos, node)

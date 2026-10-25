@@ -29,7 +29,7 @@ const tabs = computed(() => [
 ])
 const dueOptions: DueFilter[] = ['overdue', 'today', 'week', 'none']
 
-const chips = computed(() => [
+const chips = computed<{ key: string; label: string; color?: string; remove: () => void }[]>(() => [
   ...f.assignees.value.map((a) => ({ key: `a${a}`, label: a === 'none' ? t('filters.unassigned') : member(a)?.name ?? '?', remove: () => toggle(f.assignees, a) })),
   ...f.labels.value.map((l) => ({ key: `l${l}`, label: props.board.labels.find((x) => x.id === l)?.name ?? '?', color: props.board.labels.find((x) => x.id === l)?.color, remove: () => toggle(f.labels, l) })),
   ...f.priorities.value.map((p) => ({ key: `p${p}`, label: t(`priority.${p}`), remove: () => toggle(f.priorities, p) })),

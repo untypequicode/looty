@@ -164,7 +164,7 @@ function toggleSelect(uid: number, e?: MouseEvent) {
   // Maj+clic : sélection de la plage depuis le dernier coché.
   if (e?.shiftKey && lastChecked.value != null) {
     const ids = messages.value.map((m) => m.uid)
-    const [a, b] = [ids.indexOf(lastChecked.value), ids.indexOf(uid)].sort((x, y) => x - y)
+    const [a = 0, b = 0] = [ids.indexOf(lastChecked.value), ids.indexOf(uid)].sort((x, y) => x - y)
     ids.slice(a, b + 1).forEach((u) => s.add(u))
   } else if (s.has(uid)) s.delete(uid)
   else s.add(uid)

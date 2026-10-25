@@ -75,7 +75,7 @@ export function useDashboard(wsId: Ref<string>) {
   /** Nouvelles positions après un déplacement ou un redimensionnement. */
   function move(boxes: GridBox[]) {
     const at = new Map(boxes.map((b) => [b.i, b]))
-    return save(layout.value.map((w) => ({ ...w, ...at.get(w.i) })))
+    return save(layout.value.map((w) => ({ ...w, ...at.get(w.i), i: w.i })))
   }
   const has = (id: WidgetId) => layout.value.some((w) => w.i === id)
   const remove = (id: WidgetId) => save(layout.value.filter((w) => w.i !== id))

@@ -28,6 +28,7 @@ export default {
     restore: 'Restore this version', restoreTitle: 'Restore this version?', restoreMessage: 'The current value will be replaced (the change stays in the history).',
   },
   task: {
+    moveToBoard: 'Move to board', movedToBoard: 'Task moved to “{name}”', boardHasNoColumn: 'This board has no column yet',
     addSubtask: 'Add sub-task', subtasks: 'Sub-tasks', subtaskPlaceholder: 'Sub-task title… (Enter)',
     assignees: 'Assignees', copyId: 'Copy ID', createdAgo: 'Created {time}', updatedAgo: 'Updated {time}', noDate: 'No date',
     pending: 'Pending', validated: 'Validated', perPerson: 'Per-person validation', perPersonHint: 'Each assignee validates on their own.',

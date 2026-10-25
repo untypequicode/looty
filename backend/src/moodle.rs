@@ -146,23 +146,7 @@ fn parse_token(raw: &str) -> Option<(String, Option<String>)> {
     valid_token(&token).then_some((token, private))
 }
 
-pub(crate) fn pct_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(v);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(b[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
+pub(crate) use crate::text::percent_decode as pct_decode;
 
 // ---------------------------------------------------------------------------
 // Connexion
@@ -729,7 +713,8 @@ pub fn start_poll_loop(state: AppState) {
                 .await
                 .unwrap_or_default();
             for (ws, user) in rows {
-                if let Err(e) = tokio::time::timeout(Duration::from_secs(60), poll_one(&state, ws, user, true)).await.unwrap_or(Err(ApiError::bad_request("moodle_timeout"))) {
+                let polled = crate::bg::guard("moodle poll", tokio::time::timeout(Duration::from_secs(60), poll_one(&state, ws, user, true))).await;
+                if let Some(Err(e)) = polled.map(|r| r.unwrap_or(Err(ApiError::bad_request("moodle_timeout")))) {
                     tracing::debug!("moodle {ws}/{user}: {e:?}");
                 }
             }

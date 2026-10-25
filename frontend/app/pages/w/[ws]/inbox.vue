@@ -17,7 +17,7 @@ const list = computed(() => (notifications.value ?? []).filter((n) => filter.val
 const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, moodle: GraduationCap, event_tag: CalendarHeart }
 
 function targetLink(n: Notification): string {
-  const [kind, id] = n.target.split(':')
+  const [kind, id = ''] = n.target.split(':')
   if (kind === 'task' && n.data?.board_id) return links.task(wsId.value, n.data.board_id, id)
   if (kind === 'task') return links.taskById(wsId.value, id)
   if (kind === 'page') return links.doc(wsId.value, id) + (n.data?.comment_id ? `?comment=${n.data.comment_id}` : '')
@@ -28,7 +28,7 @@ function targetLink(n: Notification): string {
   return links.home(wsId.value)
 }
 function targetLabel(n: Notification): string {
-  const [kind, id] = n.target.split(':')
+  const [kind, id = ''] = n.target.split(':')
   if (kind === 'moodle' && n.data?.from) return `${n.data.from} — ${n.data.title ?? ''}`
   if (n.data?.title) return n.data.title
   if (kind === 'mail' && n.data?.count) return t('mail.newCount', { count: n.data.count })

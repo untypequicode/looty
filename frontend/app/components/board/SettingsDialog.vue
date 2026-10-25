@@ -32,12 +32,12 @@ const columnItems = computed(() => [{ value: '', label: t('board.noDoneColumn') 
 
 // Labels
 const newName = ref('')
-const newColor = ref(LABEL_COLORS[0])
+const newColor = ref<string>(LABEL_COLORS[0]!)
 async function addLabel() {
   if (!newName.value.trim()) return
   await createLabel(newName.value.trim(), newColor.value)
   newName.value = ''
-  newColor.value = LABEL_COLORS[(props.board.labels.length + 1) % LABEL_COLORS.length]
+  newColor.value = LABEL_COLORS[(props.board.labels.length + 1) % LABEL_COLORS.length]!
 }
 async function rename(l: Label, name: string) {
   if (name.trim() && name.trim() !== l.name) await updateLabel(l.id, name.trim(), l.color)

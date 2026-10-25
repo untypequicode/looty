@@ -13,7 +13,7 @@ export function errorMessage(e: unknown): string {
   const err = e as any
   // Les erreurs détaillées ont la forme « code: détail »
   const raw = String(err?.data?.error || err?.code || '')
-  const code: string = raw.split(':')[0].trim()
+  const code: string = (raw.split(':')[0] ?? '').trim()
   const key = `errors.${code}`
   const msg = translate(key)
   // Détail utile à l'utilisateur (adresse refusée, réponse du serveur de messagerie).

@@ -914,23 +914,7 @@ async fn serve_path(state: &AppState, id: Uuid, raw: &str, redirect_root: &str) 
     not_found_page()
 }
 
-fn percent_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'%' && i + 3 <= b.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(v);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(b[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
+use crate::text::percent_decode;
 
 #[cfg(test)]
 mod tests {
@@ -945,6 +929,8 @@ mod tests {
         assert!(clean_path("").is_err());
         assert!(clean_path("a:b").is_err());
         assert_eq!(percent_decode("caf%C3%A9.html"), "café.html");
+        assert_eq!(percent_decode("%€x"), "%€x");
+        assert_eq!(percent_decode("100%"), "100%");
         assert!(is_text_path("chap/intro.TEX") && is_text_path("refs.bib") && !is_text_path("photo.png"));
     }
 }

@@ -34,8 +34,8 @@ export const CodeBlock = CodeBlockLowlight.extend({
  */
 const legacySource = (name: string) => ({ [name]: { default: '', parseHTML: () => '', rendered: false } })
 /** Analyse du HTML (ancien comme nouveau) : la source est dans l'attribut `latex`. */
-const latexContent = (el: HTMLElement | string, schema: Schema) =>
-  Fragment.from(sourceText(schema, typeof el === 'string' ? '' : el.getAttribute('latex') ?? ''))
+const latexContent = (el: globalThis.Node | string, schema: Schema) =>
+  Fragment.from(sourceText(schema, typeof el === 'string' ? '' : (el as HTMLElement).getAttribute('latex') ?? ''))
 
 /** Formule mathématique en bloc ($$...$$). La source LaTeX est le texte du nœud (collaboratif). */
 export const MathBlock = Node.create({
@@ -74,7 +74,7 @@ export const MathBlock = Node.create({
     return [new PasteRule({
       find: /\$\$([^$]+)\$\$/g,
       handler: ({ state, range, match }) => {
-        state.tr.replaceWith(range.from, range.to, this.type.create(null, sourceText(state.schema, match[1].trim())))
+        state.tr.replaceWith(range.from, range.to, this.type.create(null, sourceText(state.schema, match[1]!.trim())))
       },
     })]
   },
@@ -111,9 +111,9 @@ export const MathInline = Node.create({
           // Le « $ » final n'est pas encore dans le document : on retrouve le « $ » ouvrant
           // dans le texte déjà saisi pour le remplacer, lui aussi, par la formule.
           const typed = state.doc.textBetween(range.from, range.to, undefined, '￼')
-          const open = typed.lastIndexOf('$' + match[1])
-          const start = open >= 0 ? range.from + open : range.to - match[1].length - 1
-          state.tr.replaceWith(start, range.to, this.type.create(null, sourceText(state.schema, match[1])))
+          const open = typed.lastIndexOf('$' + match[1]!)
+          const start = open >= 0 ? range.from + open : range.to - match[1]!.length - 1
+          state.tr.replaceWith(start, range.to, this.type.create(null, sourceText(state.schema, match[1]!)))
         },
       }),
     ]

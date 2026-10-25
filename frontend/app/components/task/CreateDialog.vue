@@ -35,8 +35,9 @@ const boardItems = computed(() => (boards.data.value ?? []).map((b) => ({ value:
 async function loadBoard(id: string | null) {
   board.value = null
   if (!id) return
-  board.value = await qc.fetchQuery({ queryKey: boardKey(id), queryFn: () => api<Board>(`/api/boards/${id}`) })
-  const cols = board.value.columns
+  const loaded = await qc.fetchQuery({ queryKey: boardKey(id), queryFn: () => api<Board>(`/api/boards/${id}`) })
+  board.value = loaded
+  const cols = loaded.columns
   if (!cols.some((c) => c.id === columnId.value)) {
     // Par défaut : première colonne non « backlog » si possible.
     columnId.value = (cols.length > 2 ? cols[1] : cols[0])?.id ?? ''

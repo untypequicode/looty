@@ -11,7 +11,7 @@ import { isNativeApp, nativeBack } from '~/composables/useNative'
  * interligne, thème), plan (pages du cours et titres), page précédente / suivante,
  * progression et reprise. Utilisée dans l'espace et pour les liens publics.
  */
-export interface ReaderPage { id: string; title: string; icon?: string | null; content?: string | null; updated_at: string }
+export interface ReaderPage { id: string; title: string; icon?: string | null; content?: string | null; updated_at?: string }
 export interface ReaderEntry { id: string; title: string; icon?: string | null; depth: number; to: string }
 export interface ReaderLink { title: string; to: string }
 
@@ -176,7 +176,7 @@ const native = isNativeApp
       <article v-if="page" ref="article" class="rd-article">
         <p v-if="page.icon" class="rd-icon">{{ page.icon }}</p>
         <h1 class="rd-title">{{ page.title || t('docs.untitled') }}</h1>
-        <p class="rd-meta">{{ t('reader.updated', { time: relativeTime(page.updated_at) }) }}</p>
+        <p v-if="page.updated_at" class="rd-meta">{{ t('reader.updated', { time: relativeTime(page.updated_at) }) }}</p>
         <slot name="before" />
         <DocViewer :html="page.content" class="rd-content" />
         <nav v-if="prev || next" class="rd-nav">

@@ -227,7 +227,14 @@ async fn create_page(
     if let Some(id) = payload.id {
         let existing: Option<Page> = sqlx::query_as("SELECT * FROM pages WHERE id = $1").bind(id).fetch_optional(pool).await?;
         if let Some(p) = existing {
-            return if p.workspace_id == workspace_id { Ok((StatusCode::OK, Json(p))) } else { Err(ApiError::Conflict("id_taken".into())) };
+            if p.workspace_id != workspace_id {
+                return Err(ApiError::Conflict("id_taken".into()));
+            }
+            // Le contenu n'est renvoyé qu'à qui peut lire la page.
+            return match require_page_read(pool, &user, p.id).await {
+                Ok(_) => Ok((StatusCode::OK, Json(p))),
+                Err(_) => Err(ApiError::Conflict("id_taken".into())),
+            };
         }
     }
     let title = check_title(payload.title.as_deref().unwrap_or(""))?;
@@ -291,6 +298,18 @@ async fn update_page(
     let title = payload.title.as_deref().map(check_title).transpose()?;
     if let Some(Some(i)) = &payload.icon {
         check_icon(i)?;
+    }
+
+    // Remonter une page à la racine : réservé aux rôles qui créent des documents (un invité ou
+    // un partage « sous-pages permises » sortirait sinon la page des droits hérités du parent).
+    if payload.parent_id == Some(None) {
+        let current_parent: Option<Uuid> = sqlx::query_scalar("SELECT parent_id FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+        let role_edit = crate::access::member_perms(pool, user.id, workspace_id)
+            .await?
+            .is_some_and(|(_, p)| p.docs >= crate::access::level::EDIT);
+        if current_parent.is_some() && !role_edit {
+            return Err(ApiError::Forbidden);
+        }
     }
 
     // Déplacement : le nouveau parent doit être modifiable, du même workspace,

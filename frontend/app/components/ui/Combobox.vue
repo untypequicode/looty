@@ -80,7 +80,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'ArrowUp') { e.preventDefault(); active.value = (active.value - 1 + total.value) % Math.max(1, total.value) }
   else if (e.key === 'Enter') {
     e.preventDefault()
-    if (active.value < filtered.value.length) choose(filtered.value[active.value])
+    if (active.value < filtered.value.length) choose(filtered.value[active.value]!)
     else if (showCreate.value) create()
   }
 }

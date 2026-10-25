@@ -85,6 +85,8 @@ type PageRow = (Uuid, String, DateTime<Utc>, Uuid, Option<String>, Uuid, String,
 
 async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<FeedQuery>) -> ApiResult<Json<serde_json::Value>> {
     let role = require_member(&state.pool, &user, ws).await?;
+    // Tâches et commentaires de tâches : seulement avec l'accès aux tableaux.
+    let see_boards = crate::access::member_perms(&state.pool, user.id, ws).await?.is_some_and(|(_, p)| p.boards > crate::access::level::NONE);
     let limit = q.limit.unwrap_or(50).clamp(1, 100);
     let before = q.before.unwrap_or_else(Utc::now);
     let who = q.user.map(|u| u.to_string());
@@ -95,13 +97,14 @@ async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
          JOIN tasks t ON t.id = a.task_id
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          LEFT JOIN users u ON u.id = a.user_id
-         WHERE b.workspace_id = $1 AND a.created_at < $2 AND ($3::uuid IS NULL OR a.user_id = $3)
+         WHERE b.workspace_id = $1 AND a.created_at < $2 AND ($3::uuid IS NULL OR a.user_id = $3) AND $5
          ORDER BY a.created_at DESC LIMIT $4",
     )
     .bind(ws)
     .bind(before)
     .bind(q.user)
     .bind(limit)
+    .bind(see_boards)
     .fetch_all(&state.pool)
     .await?;
 
@@ -111,13 +114,14 @@ async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
          JOIN tasks t ON t.id = cm.task_id
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          LEFT JOIN users u ON u.id::text = cm.user_id::text
-         WHERE b.workspace_id = $1 AND cm.created_at < $2 AND ($3::text IS NULL OR cm.user_id::text = $3)
+         WHERE b.workspace_id = $1 AND cm.created_at < $2 AND ($3::text IS NULL OR cm.user_id::text = $3) AND $5
          ORDER BY cm.created_at DESC LIMIT $4",
     )
     .bind(ws)
     .bind(before)
     .bind(&who)
     .bind(limit)
+    .bind(see_boards)
     .fetch_all(&state.pool)
     .await?;
 

@@ -1,7 +1,6 @@
 /**
- * Mermaid chargé à la demande, avec la mise en page ELK pour les organigrammes
- * (équivalent de `%%{init: {"flowchart": {"defaultRenderer": "elk"}}}%%` sur chaque
- * diagramme ; une directive écrite dans le diagramme garde la priorité).
+ * Mermaid chargé à la demande, avec la mise en page ELK (option `layout` de Mermaid 12 ;
+ * une directive écrite dans le diagramme garde la priorité).
  */
 type Mermaid = typeof import('mermaid').default
 let ready: Promise<{ mermaid: Mermaid; elk: boolean }> | null = null
@@ -27,7 +26,7 @@ export async function renderMermaid(id: string, code: string, dark: boolean) {
     securityLevel: 'strict',
     theme: dark ? 'dark' : 'neutral',
     fontFamily: 'Inter, sans-serif',
-    ...(elk ? { flowchart: { defaultRenderer: 'elk' } } : {}),
+    ...(elk ? { layout: 'elk' } : {}),
   })
   return mermaid.render(id, code)
 }

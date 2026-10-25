@@ -30,8 +30,13 @@ impl FromRef<AppState> for PgPool {
 impl AppState {
     /// Diffuse un événement temps réel à tous les membres connectés d'un workspace.
     pub async fn emit(&self, workspace_id: Uuid, event: serde_json::Value) {
-        if event["type"].as_str().is_some_and(|t| t.starts_with("TASK_")) {
+        let kind = event["type"].as_str().unwrap_or_default();
+        if kind.starts_with("TASK_") {
             self.caldav_notify.notify_one();
+        }
+        // Droits modifiés : le serveur de collaboration revérifie les documents ouverts.
+        if matches!(kind, "MEMBERS_UPDATED" | "PAGE_PERMISSIONS_UPDATED" | "WORKSPACE_DELETED") {
+            let _ = sqlx::query("SELECT pg_notify('looty_access', $1)").bind(workspace_id.to_string()).execute(&self.pool).await;
         }
         self.hub.broadcast(workspace_id, event).await;
     }

@@ -20,7 +20,7 @@ function install() {
       if (document.querySelector('[data-editor-suggestion-open]')) return
       e.preventDefault()
       e.stopImmediatePropagation()
-      stack[stack.length - 1].close()
+      stack[stack.length - 1]!.close()
     },
     true,
   )

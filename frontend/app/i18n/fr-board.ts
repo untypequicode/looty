@@ -28,6 +28,7 @@ export default {
     restore: 'Restaurer cette version', restoreTitle: 'Restaurer cette version ?', restoreMessage: 'La valeur actuelle sera remplacée (l’opération reste dans l’historique).',
   },
   task: {
+    moveToBoard: 'Déplacer vers un tableau', movedToBoard: 'Tâche déplacée dans « {name} »', boardHasNoColumn: 'Ce tableau n’a encore aucune colonne',
     addSubtask: 'Ajouter une sous-tâche', subtasks: 'Sous-tâches', subtaskPlaceholder: 'Titre de la sous-tâche… (Entrée)',
     assignees: 'Assignés', copyId: 'Copier l’identifiant', createdAgo: 'Créée {time}', updatedAgo: 'Modifiée {time}', noDate: 'Aucune date',
     pending: 'En attente', validated: 'Validé', perPerson: 'Validation par personne', perPersonHint: 'Chaque assigné valide de son côté.',
