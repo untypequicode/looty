@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   HardDrive, Upload, FolderPlus, Folder, File, FileImage, FileText, FileArchive, FileVideo, FileAudio, Download, Link2, Clock, Pencil,
-  FolderInput, Trash2, MoreHorizontal, Search, X, ChevronRight, Settings, Timer, Eye,
+  FolderInput, Trash2, MoreHorizontal, Search, X, ChevronRight, Settings, Timer, Eye, ClipboardPaste,
 } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -11,7 +11,8 @@ import { useWorkspace } from '~/composables/useWorkspace'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useDrive, fileSize, type DriveItem } from '~/composables/useProjects'
-import { refDebounced } from '@vueuse/core'
+import { refDebounced, useEventListener } from '@vueuse/core'
+import { hasModalLayer } from '~/composables/useLayer'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -80,6 +81,34 @@ async function send(list: FileList | File[]) {
 }
 const dragging = ref(false)
 function onDrop(e: DragEvent) { dragging.value = false; if (e.dataTransfer?.files.length) send(e.dataTransfer.files) }
+
+// --- Coller (Ctrl+V) : fichiers et captures envoyés, texte enregistré dans un nouveau fichier ---
+const pasteOpen = ref(false)
+const pasted = ref('')
+function openText(initial = '') { pasted.value = initial; pasteOpen.value = true }
+const savePasted = (f: globalThis.File) => send([f])
+function stamp() {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}h${p(d.getMinutes())}`
+}
+useEventListener(document, 'paste', (e: ClipboardEvent) => {
+  if (!data.value?.can_upload || hasModalLayer()) return
+  const target = e.target as HTMLElement | null
+  if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')) return
+  const files = [...(e.clipboardData?.files ?? [])]
+  if (files.length) {
+    e.preventDefault()
+    // Capture d'écran collée : nom « image.png » remplacé par un nom daté.
+    send(files.map((f) => (/^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? new globalThis.File([f], `${t('drive.screenshotName')} ${stamp()}.${f.name.split('.').pop()}`, { type: f.type }) : f)))
+    return
+  }
+  const text = e.clipboardData?.getData('text/plain') ?? ''
+  if (text.trim()) {
+    e.preventDefault()
+    openText(text)
+  }
+})
 
 // --- Actions ---
 async function newFolder() {
@@ -185,6 +214,7 @@ useHead({ title: () => t('drive.title') })
         <UiCombobox :model-value="String(days)" v-model:open="daysOpen" :items="dayChoices.map((d) => ({ value: String(d), label: dayLabel(d) }))" :width="180" @update:model-value="(v) => (days = Number(v))">
           <UiButton size="sm" variant="ghost" :icon="Timer" :title="t('drive.keepFor')">{{ dayLabel(days) }}</UiButton>
         </UiCombobox>
+        <UiTooltip :text="t('drive.newTextTip')"><UiButton size="sm" variant="ghost" :icon="ClipboardPaste" @click="openText()">{{ t('drive.newText') }}</UiButton></UiTooltip>
         <UiButton size="sm" variant="primary" :icon="Upload" @click="fileInput?.click()">{{ t('drive.upload') }}</UiButton>
       </template>
       <UiTooltip v-if="isAdmin" :text="t('drive.settings')"><UiButton size="sm" variant="ghost" :icon="Settings" :aria-label="t('drive.settings')" @click="navigateTo(`/w/${wsId}/settings/workspace`)" /></UiTooltip>
@@ -217,6 +247,7 @@ useHead({ title: () => t('drive.title') })
         <div v-if="data?.can_upload && !q" class="dv-empty-actions">
           <UiButton variant="primary" :icon="Upload" @click="fileInput?.click()">{{ t('drive.upload') }}</UiButton>
           <UiButton :icon="FolderInput" @click="folderInput?.click()">{{ t('drive.uploadFolder') }}</UiButton>
+          <UiButton :icon="ClipboardPaste" @click="openText()">{{ t('drive.newText') }}</UiButton>
         </div>
       </UiEmpty>
       <table v-else class="dv-table">
@@ -244,6 +275,7 @@ useHead({ title: () => t('drive.title') })
       </table>
     </div>
     <DrivePreview v-model="preview" :items="data?.items ?? []" :ws="wsId" />
+    <DrivePasteDialog v-model:open="pasteOpen" :initial="pasted" @save="savePasted" />
     <div v-if="dragging" class="dv-drop"><Upload :size="22" /> {{ t('drive.dropHere', { days: dayLabel(days) }) }}</div>
   </div>
 </template>

@@ -38,6 +38,8 @@ export default {
   },
   drive: {
     preview: 'Aperçu', previous: 'Précédent', next: 'Suivant', noPreview: 'Pas d’aperçu pour ce type de fichier.',
+    newText: 'Nouveau texte', newTextTip: 'Créer un fichier texte, ou collez (Ctrl+V) un texte, une image ou des fichiers n’importe où sur la page', newTextHint: 'Collez ou écrivez le contenu, puis choisissez le nom du fichier.',
+    fileName: 'Nom du fichier', pastePlaceholder: 'Collez votre texte ici…', saveText: 'Enregistrer dans le drive', chars: { one: '1 caractère', other: '{count} caractères' }, pastedName: 'Texte collé', screenshotName: 'Capture',
     title: 'Drive', root: 'Drive', search: 'Rechercher dans le drive', upload: 'Envoyer', uploadFolder: 'Envoyer un dossier', newFolder: 'Nouveau dossier', folderName: 'Nom du dossier',
     days: { one: '1 jour', other: '{count} jours' }, keepFor: 'Conserver pendant', nFiles: { one: '1 fichier', other: '{count} fichiers' },
     uploaded: { one: 'Fichier envoyé, conservé {days}', other: '{count} fichiers envoyés, conservés {days}' },

@@ -38,6 +38,8 @@ export default {
   },
   drive: {
     preview: 'Preview', previous: 'Previous', next: 'Next', noPreview: 'No preview for this file type.',
+    newText: 'New text', newTextTip: 'Create a text file, or paste (Ctrl+V) text, an image or files anywhere on the page', newTextHint: 'Paste or type the content, then choose the file name.',
+    fileName: 'File name', pastePlaceholder: 'Paste your text here…', saveText: 'Save to the drive', chars: { one: '1 character', other: '{count} characters' }, pastedName: 'Pasted text', screenshotName: 'Screenshot',
     title: 'Drive', root: 'Drive', search: 'Search the drive', upload: 'Upload', uploadFolder: 'Upload a folder', newFolder: 'New folder', folderName: 'Folder name',
     days: { one: '1 day', other: '{count} days' }, keepFor: 'Keep for', nFiles: { one: '1 file', other: '{count} files' },
     uploaded: { one: 'File uploaded, kept {days}', other: '{count} files uploaded, kept {days}' },
