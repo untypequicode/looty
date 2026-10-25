@@ -62,6 +62,8 @@ pub struct Hooks {
     /// Fenêtre Moodle (site officiel) ; `login` : connexion du compte, la clé renvoyée
     /// par Moodle (moodlemobile://token=…) est transmise à la fenêtre principale.
     pub open_moodle: Box<dyn Fn(String, bool) + Send + Sync>,
+    /// Notifications de l'application activées ou coupées depuis les réglages de la page.
+    pub notifications_set: Box<dyn Fn(bool) + Send + Sync>,
 }
 
 struct PendingSso {
@@ -515,6 +517,23 @@ async fn local_route(p: &Shared, rest: &str, req: Request) -> Response {
         (Method::GET, "sso-wait") => html(include_str!("sso-wait.html")),
         (Method::GET, "quick-add") => html(include_str!("quick-add.html")),
         (Method::GET, "net") => axum::Json(p.offline.status()).into_response(),
+        // Notifications système de l'application (indépendantes de la permission du navigateur).
+        (Method::GET, "notifications") => axum::Json(serde_json::json!({ "enabled": p.config.read().map(|c| c.notifications).unwrap_or(true) })).into_response(),
+        (Method::PUT, "notifications") => {
+            let body = axum::body::to_bytes(req.into_body(), 4 * 1024).await.unwrap_or_default();
+            let Some(on) = serde_json::from_slice::<serde_json::Value>(&body).ok().and_then(|v| v["enabled"].as_bool()) else {
+                return StatusCode::BAD_REQUEST.into_response();
+            };
+            match p.hooks.get() {
+                Some(h) => (h.notifications_set)(on),
+                None => {
+                    let mut cfg = p.config.write().unwrap();
+                    cfg.notifications = on;
+                    let _ = cfg.save();
+                }
+            }
+            axum::Json(serde_json::json!({ "enabled": on })).into_response()
+        }
         (Method::POST, "net/dismiss") => {
             p.offline.dismiss_failed();
             StatusCode::NO_CONTENT.into_response()

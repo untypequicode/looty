@@ -171,6 +171,20 @@ fn notifications_on(app: &AppHandle) -> bool {
     app.state::<proxy::Shared>().config.read().map(|c| c.notifications).unwrap_or(true)
 }
 
+/// Notifications de l'application (menu de la barre système ou réglages de la page).
+fn set_notifications(app: &AppHandle, on: bool) {
+    {
+        let proxy = app.state::<proxy::Shared>();
+        let mut cfg = proxy.config.write().unwrap();
+        cfg.notifications = on;
+        let _ = cfg.save();
+    }
+    if let Some(s) = service(app) {
+        *s.notifications_enabled.lock().unwrap() = on;
+    }
+    refresh_tray(app);
+}
+
 fn refresh_tray(app: &AppHandle) {
     let native = app.state::<Native>();
     let state = native.last_state.lock().unwrap().clone();
@@ -197,19 +211,7 @@ fn on_tray_menu(app: &AppHandle, id: &str) {
         }
         "new-task" => open_quick_add(app, None),
         "server" => open_path(app, "/__looty/setup"),
-        "notifications" => {
-            let proxy = app.state::<proxy::Shared>();
-            let on = {
-                let mut cfg = proxy.config.write().unwrap();
-                cfg.notifications = !cfg.notifications;
-                let _ = cfg.save();
-                cfg.notifications
-            };
-            if let Some(s) = service(app) {
-                *s.notifications_enabled.lock().unwrap() = on;
-            }
-            refresh_tray(app);
-        }
+        "notifications" => set_notifications(app, !notifications_on(app)),
         "ask-download" => {
             if let Ok(mut cfg) = app.state::<proxy::Shared>().config.write() {
                 cfg.ask_download_location = !cfg.ask_download_location;
@@ -511,6 +513,7 @@ fn main() {
             }
 
             let (open_handle, done_handle, qa_handle, moodle_handle) = (handle.clone(), handle.clone(), handle.clone(), handle.clone());
+            let notif_set_handle = handle.clone();
             let _ = proxy.hooks.set(proxy::Hooks {
                 open_url: Box::new(move |url| {
                     // Tests automatisés (débogage uniquement) : navigateur imposé.
@@ -553,6 +556,10 @@ fn main() {
                 open_moodle: Box::new(move |url, login| {
                     let h = moodle_handle.clone();
                     let _ = moodle_handle.run_on_main_thread(move || open_moodle_window(&h, &url, login));
+                }),
+                notifications_set: Box::new(move |on| {
+                    let h = notif_set_handle.clone();
+                    let _ = notif_set_handle.run_on_main_thread(move || set_notifications(&h, on));
                 }),
                 quick_add_closed: Box::new(move |created| {
                     let h = qa_handle.clone();
