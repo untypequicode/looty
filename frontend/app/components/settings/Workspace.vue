@@ -96,7 +96,7 @@ async function remove() {
     </SettingsRow>
     <SettingsRow :label="t('settings.ws.yourRole')"><span class="muted">{{ role ? t(`roles.${role}`) : '' }}</span></SettingsRow>
     <SettingsRow v-if="isAdmin && retention != null" :label="t('trash.retention')" :hint="t('trash.retentionHint')">
-      <UiCombobox :model-value="String(retention)" :items="retentionItems" :width="240" @update:model-value="(v: string) => saveRetention(Number(v))">
+      <UiCombobox :model-value="String(retention)" :items="retentionItems" :width="240" @update:model-value="(v) => saveRetention(Number(v))">
         <button class="ws-select">{{ retentionItems.find((i) => i.value === String(retention))?.label }}</button>
       </UiCombobox>
     </SettingsRow>
@@ -110,7 +110,7 @@ async function remove() {
   </SettingsSection>
   <SettingsSection v-if="isAdmin" :title="t('drive.title')" :description="t('drive.settingsHint')">
     <SettingsRow :label="t('drive.maxDuration')" :hint="t('drive.maxDurationHint')">
-      <UiCombobox :model-value="driveDays" v-model:open="driveDaysOpen" :items="driveDaysItems" :width="200" @update:model-value="(v: string) => saveDrive(v)">
+      <UiCombobox :model-value="driveDays" v-model:open="driveDaysOpen" :items="driveDaysItems" :width="200" @update:model-value="(v) => saveDrive(String(v))">
         <button class="ws-select">{{ driveDaysItems.find((i) => i.value === driveDays)?.label }}</button>
       </UiCombobox>
     </SettingsRow>

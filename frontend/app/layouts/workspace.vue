@@ -241,9 +241,9 @@ onMounted(() => { if (drawer.value && isTablet.value) gsap.set(drawer.value, { x
 
 let startX = 0
 let dx = 0
-function onTouchStart(e: TouchEvent) { startX = e.touches[0].clientX; dx = 0 }
+function onTouchStart(e: TouchEvent) { startX = e.touches[0]?.clientX ?? 0; dx = 0 }
 function onTouchMove(e: TouchEvent) {
-  dx = Math.min(0, e.touches[0].clientX - startX)
+  dx = Math.min(0, (e.touches[0]?.clientX ?? startX) - startX)
   if (drawer.value) gsap.set(drawer.value, { x: dx })
 }
 function onTouchEnd() {
@@ -255,7 +255,7 @@ function onTouchEnd() {
 function onEdgeStart(e: TouchEvent) {
   if (isNativeApp) return
   if (!isTablet.value || sidebarOpen.value) return
-  if (e.touches[0].clientX < 18) sidebarOpen.value = true
+  if ((e.touches[0]?.clientX ?? 99) < 18) sidebarOpen.value = true
 }
 </script>
 

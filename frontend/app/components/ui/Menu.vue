@@ -33,9 +33,9 @@ function onKey(e: KeyboardEvent) {
   const list = selectable.value
   if (!list.length) return
   const pos = list.indexOf(active.value)
-  if (e.key === 'ArrowDown') { e.preventDefault(); active.value = list[(pos + 1) % list.length] }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); active.value = list[(pos - 1 + list.length) % list.length] }
-  else if (e.key === 'Enter' && active.value >= 0) { e.preventDefault(); select(props.items[active.value]) }
+  if (e.key === 'ArrowDown') { e.preventDefault(); active.value = list[(pos + 1) % list.length]! }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); active.value = list[(pos - 1 + list.length) % list.length]! }
+  else if (e.key === 'Enter' && active.value >= 0) { e.preventDefault(); select(props.items[active.value]!) }
 }
 useEventListener('keydown', onKey)
 

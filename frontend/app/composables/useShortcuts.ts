@@ -10,7 +10,7 @@ import { hasModalLayer } from './useLayer'
 export interface Shortcut {
   keys: string
   /** Retourner `false` = non géré : le raccourci suivant est essayé. */
-  handler: (e: KeyboardEvent) => void | boolean
+  handler: (e: KeyboardEvent) => unknown
   /** Actif même dans un champ de saisie / sous une modale. */
   global?: boolean
 }

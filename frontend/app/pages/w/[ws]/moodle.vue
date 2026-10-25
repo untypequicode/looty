@@ -291,7 +291,7 @@ useHead({ title: () => t('moodle.title') })
         <UiButton v-if="reconnecting" class="md-cancel" size="sm" variant="ghost" :icon="ArrowLeft" @click="reconnecting = false">{{ t('common.cancel') }}</UiButton>
         <img v-if="site?.logo" :src="site.logo" alt="" class="md-logo" referrerpolicy="no-referrer" />
         <GraduationCap v-else :size="28" class="md-hero" />
-        <h2>{{ t('moodle.connectTitle', { site: site?.site_name || overview.url }) }}</h2>
+        <h2>{{ t('moodle.connectTitle', { site: site?.site_name || overview?.url }) }}</h2>
         <p class="muted">{{ t('moodle.connectHint') }}</p>
         <p v-if="siteError" class="md-err">{{ siteError }}</p>
         <!-- Application de bureau : portail officiel dans une fenêtre, connexion automatique. -->

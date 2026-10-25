@@ -61,7 +61,7 @@ const tip = computed(() => (hover.value == null ? null : { ...props.data[hover.v
         <line v-if="hover != null" class="cross" :x1="x(hover)" :x2="x(hover)" :y1="pad.t" :y2="H - pad.b" />
         <path v-for="s in series" :key="s.key" :d="path(s.key)" :class="['ln', s.cls]" fill="none" />
         <template v-if="hover != null">
-          <circle v-for="s in series" :key="`c${s.key}`" :cx="x(hover)" :cy="y(data[hover][s.key])" r="4" :class="['dot', s.cls]" />
+          <circle v-for="s in series" :key="`c${s.key}`" :cx="x(hover)" :cy="y(data[hover]![s.key])" r="4" :class="['dot', s.cls]" />
         </template>
         <template v-if="last">
           <text v-for="(s, i) in series" :key="`d${s.key}`" class="direct" :x="W - pad.r + 8" :y="y(last[s.key]) + 4 + (i && Math.abs(y(last.tasks) - y(last.pages)) < 12 ? 12 : 0)">{{ last[s.key] }} {{ s.key === 'tasks' ? t('settings.admin.tasksShort') : t('settings.admin.pagesShort') }}</text>
@@ -75,7 +75,7 @@ const tip = computed(() => (hover.value == null ? null : { ...props.data[hover.v
 
     <div v-else class="table-wrap">
       <table>
-        <thead><tr><th>{{ t('settings.admin.day') }}</th><th>{{ series[0].label }}</th><th>{{ series[1].label }}</th></tr></thead>
+        <thead><tr><th>{{ t('settings.admin.day') }}</th><th>{{ series[0]!.label }}</th><th>{{ series[1]!.label }}</th></tr></thead>
         <tbody><tr v-for="d in [...data].reverse()" :key="d.day"><td>{{ formatDate(d.day) }}</td><td class="tabular">{{ d.tasks }}</td><td class="tabular">{{ d.pages }}</td></tr></tbody>
       </table>
     </div>

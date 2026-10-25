@@ -71,6 +71,7 @@ function onColumnEnd(evt: any) {
   const i = evt.newIndex
   if (i == null || evt.oldIndex === evt.newIndex) return
   const col = cols.value[i]
+  if (!col) return
   emit('move-column', col.id, positionBetween(cols.value[i - 1]?.position, cols.value[i + 1]?.position))
 }
 

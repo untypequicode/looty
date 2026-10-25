@@ -65,7 +65,7 @@ function onLinkKey(e: KeyboardEvent) {
   const n = docResults.value.length
   if (e.key === 'ArrowDown' && n) { e.preventDefault(); active.value = (active.value + 1) % n }
   else if (e.key === 'ArrowUp' && n) { e.preventDefault(); active.value = (active.value - 1 + n) % n }
-  else if (e.key === 'Enter') { e.preventDefault(); applyLink(n ? links.doc(wsId.value, docResults.value[active.value].id) : undefined) }
+  else if (e.key === 'Enter') { e.preventDefault(); applyLink(n ? links.doc(wsId.value, docResults.value[active.value]!.id) : undefined) }
   else if (e.key === 'Escape') { e.preventDefault(); linkMode.value = false; props.editor.commands.focus() }
 }
 

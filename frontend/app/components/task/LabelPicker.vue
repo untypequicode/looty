@@ -11,7 +11,7 @@ const { t } = useI18n()
 const items = computed(() => props.labels.map((l) => ({ value: l.id, label: l.name, color: l.color })))
 
 function onCreate(name: string) {
-  const color = LABEL_COLORS[props.labels.length % LABEL_COLORS.length]
+  const color = LABEL_COLORS[props.labels.length % LABEL_COLORS.length]!
   emit('create', name, color)
 }
 </script>

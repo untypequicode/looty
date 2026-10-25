@@ -1,4 +1,4 @@
-import type { Editor } from '@tiptap/core'
+import type { Editor, JSONContent } from '@tiptap/core'
 import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import { useSourceCursors } from './sourceCursors'
@@ -141,7 +141,7 @@ export function useSourceField(
     if (next === draft.value) return
     const el = field.value
     const active = el && document.activeElement === el
-    const sel = active ? [el!.selectionStart ?? 0, el!.selectionEnd ?? 0] : null
+    const sel: [number, number] | null = active ? [el!.selectionStart ?? 0, el!.selectionEnd ?? 0] : null
     const [start, endOld, endNew] = textDiff(draft.value, next)
     draft.value = next
     if (!sel || !el) return
@@ -180,10 +180,10 @@ export function useSourceField(
 }
 
 /** JSON d'un ancien document (source dans l'attribut) → source dans le texte du nœud. */
-export function upgradeSources<T extends { type?: string; attrs?: Record<string, any>; content?: T[] }>(node: T): T {
+export function upgradeSources(node: JSONContent): JSONContent {
   const legacy = node.type ? SOURCE_NODES[node.type] : undefined
   if (legacy && node.attrs?.[legacy] && !node.content?.length) {
-    return { ...node, attrs: { ...node.attrs, [legacy]: '' }, content: sourceJSON(String(node.attrs[legacy])) as T[] }
+    return { ...node, attrs: { ...node.attrs, [legacy]: '' }, content: sourceJSON(String(node.attrs[legacy])) }
   }
   return node.content ? { ...node, content: node.content.map(upgradeSources) } : node
 }

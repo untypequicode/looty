@@ -15,5 +15,5 @@ export async function davProxy(event: H3Event) {
     for await (const chunk of event.node.req) chunks.push(Buffer.from(chunk))
     body = Buffer.concat(chunks)
   }
-  return proxyRequest(event, `${backend}${event.path}`, { fetchOptions: { method: event.method, body, redirect: 'manual' } })
+  return proxyRequest(event, `${backend}${event.path}`, { fetchOptions: { method: event.method, body: body as BodyInit | undefined, redirect: 'manual' } })
 }

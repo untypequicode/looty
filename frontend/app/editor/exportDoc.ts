@@ -121,7 +121,10 @@ export async function printToPdf(title: string, sections: { title: string; html:
     const images = Array.from(doc.images)
     let pending = images.length + 1
     const done = () => { if (--pending <= 0) resolve() }
-    images.forEach((img) => (img.complete ? done() : img.addEventListener('load', done, { once: true }) || img.addEventListener('error', done, { once: true })))
+    for (const img of images) {
+      if (img.complete) done()
+      else { img.addEventListener('load', done, { once: true }); img.addEventListener('error', done, { once: true }) }
+    }
     const css = doc.querySelector('link[rel=stylesheet]') as HTMLLinkElement | null
     if (css && !css.sheet) css.addEventListener('load', done, { once: true }), css.addEventListener('error', done, { once: true })
     else done()

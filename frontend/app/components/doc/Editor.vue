@@ -144,7 +144,7 @@ useEditorSpellcheck(editor)
 
 /** Transaction appliquée par la synchronisation Yjs (clé « y-sync… », quelle que soit
  * la copie de y-prosemirror qui l'a produite). */
-function fromYjs(tr: { meta?: Record<string, any> }): boolean {
+function fromYjs(tr: unknown): boolean {
   return Object.entries((tr as any).meta ?? {}).some(([k, v]) => k.startsWith('y-sync') && (v as any)?.isChangeOrigin)
 }
 
@@ -158,7 +158,7 @@ async function insertImage(file: File, pos?: number) {
   const r = await uploadFile(file)
   const e = editor.value
   if (!e) return
-  const node = e.schema.nodes.image.create({ src: r.url, alt: r.name })
+  const node = e.schema.nodes.image!.create({ src: r.url, alt: r.name })
   const tr = e.state.tr
   if (pos != null) tr.insert(pos, node)
   else tr.replaceSelectionWith(node)
@@ -306,7 +306,7 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
       </form>
       <p class="embed-hint">{{ $t('embeds.supported') }}</p>
     </UiPopover>
-    <UiCombobox v-model="docPickerValue" v-model:open="docPickerOpen" :items="docItems" :virtual-rect="docPickerPos" :placeholder="$t('editor.searchDocs')" :width="300" @update:model-value="insertDocLink" />
+    <UiCombobox v-model="docPickerValue" v-model:open="docPickerOpen" :items="docItems" :virtual-rect="docPickerPos" :placeholder="$t('editor.searchDocs')" :width="300" @update:model-value="(v) => insertDocLink(v as string | null)" />
   </div>
 </template>
 

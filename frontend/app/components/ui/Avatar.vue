@@ -12,11 +12,11 @@ const color = computed(() => {
   const n = props.name || '?'
   let h = 0
   for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0
-  return PALETTE[h % PALETTE.length]
+  return PALETTE[h % PALETTE.length]!
 })
 const initials = computed(() => {
   const parts = (props.name || '?').trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1]![0] : '')).toUpperCase()
 })
 const failed = ref(false)
 watch(() => props.src, () => (failed.value = false))

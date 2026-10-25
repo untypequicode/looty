@@ -74,7 +74,7 @@ async function commitRename() {
 const settingsOpen = ref(false)
 const boardMenuOpen = ref(false)
 const boardMenu = computed<MenuItem[]>(() => [
-  { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.href.split('?')[0]); toast.success(t('common.linkCopied')) } },
+  { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.href.split('?')[0]!); toast.success(t('common.linkCopied')) } },
   ...(canManage.value ? [
     { label: t('common.rename'), icon: Pencil, onSelect: startRename },
     { label: t('board.settings'), icon: Settings2, onSelect: () => (settingsOpen.value = true) },
@@ -161,7 +161,7 @@ const focusedId = ref<string | null>(null)
 function focusedPos() {
   const cols = visible.value?.columns ?? []
   for (let c = 0; c < cols.length; c++) {
-    const i = cols[c].tasks.findIndex((x) => x.id === focusedId.value)
+    const i = cols[c]!.tasks.findIndex((x) => x.id === focusedId.value)
     if (i !== -1) return { c, i }
   }
   return null
@@ -178,9 +178,13 @@ function moveFocus(dc: number, di: number) {
   if (view.value === 'list' && dc === 0) return setFocus(order.value[order.value.indexOf(focusedId.value!) + di])
   if (dc) {
     let c = p.c + dc
-    while (cols[c] && !cols[c].tasks.length) c += dc
-    if (cols[c]) setFocus(cols[c].tasks[Math.min(p.i, cols[c].tasks.length - 1)].id)
-  } else setFocus(cols[p.c].tasks[Math.max(0, Math.min(cols[p.c].tasks.length - 1, p.i + di))]?.id)
+    while (cols[c] && !cols[c]!.tasks.length) c += dc
+    const col = cols[c]
+    if (col) setFocus(col.tasks[Math.min(p.i, col.tasks.length - 1)]?.id)
+  } else {
+    const col = cols[p.c]!
+    setFocus(col.tasks[Math.max(0, Math.min(col.tasks.length - 1, p.i + di))]?.id)
+  }
 }
 function focusedTask() { return allTasks(board.value).find((x) => x.id === focusedId.value) }
 function pickerAtFocus(kind: NonNullable<typeof picker.value>) {

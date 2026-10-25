@@ -32,7 +32,7 @@ export function mentionExtension(getMembers: () => WorkspaceMember[], onMention?
         return pages && q ? [...named, ...pageItems(pages, q, 5)] : named
       },
       command: ({ editor, range, props }) => {
-        if (props.kind === 'page' && pages) {
+        if ((props as { kind?: string }).kind === 'page' && pages) {
           editor.chain().focus().insertContentAt(range, [pageMentionContent(pages, props as any), { type: 'text', text: ' ' }]).run()
           return
         }
