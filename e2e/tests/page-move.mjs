@@ -6,7 +6,7 @@ const N = Date.now() % 100000
 const { browser, page: p, errors } = await launch(1440, 950)
 await login(p)
 const PID = (await api(p, '/api/workspaces/personal')).id
-await api(p, `/api/workspaces/${PID}/prefs`, 'PATCH', { modes: { docs: 'edit', boards: 'edit', calendar: 'edit' }, modesChosen: true })
+await api(p, `/api/workspaces/${PID}/prefs`, 'PATCH', { modes: { docs: 'write', boards: 'write', calendar: 'write' }, modesChosen: true })
 const pages = async (ws) => api(p, `/api/workspaces/${ws}/pages`)
 const mk = (ws, title, parent_id = null) => api(p, `/api/workspaces/${ws}/pages`, 'POST', { title, parent_id })
 
@@ -55,16 +55,29 @@ ok('menu : sous-pages déplacées', (await pages(PID)).filter((x) => [a.id, b.id
 
 // Glisser : de l'arbre de l'espace partagé vers la section « Espace perso »…
 const d = await mk(WS, `Brouillon ${N}`)
+const host2 = await mk(WS, `Rangement ${N}`)
 await p.goto(`${B}/w/${WS}`, { waitUntil: 'networkidle' })
 const section = p.locator('.sb-personal')
-await p.locator('.tree-node a', { hasText: `Brouillon ${N}` }).first().dragTo(section)
+const head = section.locator('.sb-section-title')
+// Section repliée : sa tête et l'arbre de l'espace tiennent à l'écran quel que soit le contenu perso.
+await head.click()
+await p.locator('.tree-node a', { hasText: `Brouillon ${N}` }).first().dragTo(head)
 await p.waitForTimeout(1200)
 ok('glisser vers l’espace perso', (await pages(PID)).some((x) => x.id === d.id))
+await head.click()
 ok('affiché dans la section perso', await section.getByText(`Brouillon ${N}`).isVisible())
-// … puis de la section perso vers les documents de l'espace courant.
-await section.locator('a', { hasText: `Brouillon ${N}` }).dragTo(p.locator('.sb-group.tree'), { targetPosition: { x: 100, y: 2 } })
+// … puis de la section perso vers une page de l'espace courant (elle y devient sous-page).
+// Événements de glisser envoyés directement : indépendant du défilement de la barre latérale.
+const dt = await p.evaluateHandle(() => new DataTransfer())
+const src = section.locator('.tree-node a', { hasText: `Brouillon ${N}` })
+const dst = p.locator('.sb-section:not(.sb-personal) .tree-node a', { hasText: `Rangement ${N}` })
+await src.dispatchEvent('dragstart', { dataTransfer: dt })
+const box = await dst.evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.left + 20, y: r.top + r.height / 2 } })
+await dst.dispatchEvent('dragover', { dataTransfer: dt, clientX: box.x, clientY: box.y })
+await dst.dispatchEvent('drop', { dataTransfer: dt, clientX: box.x, clientY: box.y })
+await src.dispatchEvent('dragend', { dataTransfer: dt })
 await p.waitForTimeout(1200)
-ok('glisser de l’espace perso vers l’espace courant', (await pages(WS)).some((x) => x.id === d.id))
+ok('glisser de l’espace perso vers l’espace courant', (await pages(WS)).find((x) => x.id === d.id)?.parent_id === host2.id)
 await p.screenshot({ path: OUT + 'page-move-drag.png' })
 
 ok('aucune erreur page', !errors.length, errors.join(' | '))

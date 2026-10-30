@@ -14,7 +14,7 @@ const PID = first.id
 ok('espace perso créé une seule fois', !!PID && PID === again.id)
 const list = await api(p, '/api/workspaces')
 ok('marqué « perso » dans la liste', list.workspaces.some((w) => w.id === PID && w.personal) && list.workspaces.some((w) => w.id === WS && !w.personal))
-await api(p, `/api/workspaces/${PID}/prefs`, 'PATCH', { modes: { docs: 'edit', boards: 'edit', calendar: 'edit' }, modesChosen: true })
+await api(p, `/api/workspaces/${PID}/prefs`, 'PATCH', { modes: { docs: 'write', boards: 'write', calendar: 'write' }, modesChosen: true })
 
 // Personne d'autre n'y entre, et on ne peut ni le quitter ni le supprimer.
 const invite = await api(p, `/api/workspaces/${PID}/invites`, 'POST', { role: 'member' })
@@ -30,13 +30,21 @@ await other.close()
 
 // Contenu perso, créé par l'API : il apparaît dans la barre latérale d'un autre espace.
 const board = await api(p, `/api/workspaces/${PID}/boards`, 'POST', { name: `Courses perso ${N}`, with_default_columns: true })
-await api(p, `/api/workspaces/${PID}/pages`, 'POST', { title: `Journal ${N}`, icon: '📓' })
+const journal = await api(p, `/api/workspaces/${PID}/pages`, 'POST', { title: `Journal ${N}`, icon: '📓' })
 
 await p.goto(`${B}/w/${WS}`, { waitUntil: 'networkidle' })
 const section = p.locator('.sb-section', { has: p.getByText(PERSO, { exact: true }) })
 ok('section « Espace perso » dans la barre latérale', await section.isVisible())
 ok('tableau perso listé', await section.getByText(`Courses perso ${N}`).isVisible())
 ok('document perso listé', await section.getByText(`Journal ${N}`).isVisible())
+// Documents perso : arborescence dépliable, comme dans un espace normal.
+const sub = await api(p, `/api/workspaces/${PID}/pages`, 'POST', { title: `Note ${N}`, parent_id: journal.id })
+await p.reload({ waitUntil: 'networkidle' })
+const node = section.locator('.tree-node', { hasText: `Journal ${N}` }).first()
+ok('sous-page repliée par défaut', !(await section.getByText(`Note ${N}`).isVisible()))
+await node.locator('.tree-toggle').first().click()
+ok('sous-page visible en dépliant', await section.getByText(`Note ${N}`).isVisible())
+ok('lien de la sous-page vers l’espace perso', (await section.locator('a', { hasText: `Note ${N}` }).getAttribute('href')) === `/w/${PID}/doc/${sub.id}`)
 ok('raccourcis (accueil, calendrier, mail, projets, drive, canevas)', (await section.locator('.sb-perso-link').count()) === 6)
 await p.screenshot({ path: OUT + 'personal-sidebar.png' })
 
