@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2 } from 'lucide-vue-next'
+import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput } from 'lucide-vue-next'
+import { openMovePage, draggingPage, useMovePage } from '~/composables/useMovePage'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import type { PageNode } from '~/composables/usePages'
@@ -19,6 +20,7 @@ const canWrite = computed(() => can.value.editDocs)
 const canAddChild = computed(() => (canWrite.value && props.node.can_edit !== false) || !!props.node.can_add_child)
 const { createPage, movePage, deletePage, toggleFavorite, duplicatePage, updatePage } = usePages()
 const route = useRoute()
+const { move: crossMove } = useMovePage()
 
 const expanded = computed({
   get: () => !!expandedPages.value[props.node.id],
@@ -69,6 +71,7 @@ const menuItems = computed<MenuItem[]>(() => [
         { label: translate('common.rename'), icon: Pencil, onSelect: startRename },
         { label: translate('docs.newChild'), icon: Plus, onSelect: addChild },
         { label: translate('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(props.node.id) },
+        { label: translate('move.action'), icon: FolderInput, onSelect: () => openMovePage(wsId.value, props.node) },
         { divider: true },
         { label: translate('common.delete'), icon: Trash2, danger: true, onSelect: () => deletePage(props.node) },
       ]
@@ -80,6 +83,7 @@ const dropZone = ref<'before' | 'inside' | 'after' | null>(null)
 function onDragStart(e: DragEvent) {
   e.dataTransfer!.setData('application/x-looty-page', props.node.id)
   e.dataTransfer!.effectAllowed = 'move'
+  draggingPage.value = { ws: wsId.value, id: props.node.id }
 }
 function onDragOver(e: DragEvent) {
   if (!e.dataTransfer?.types.includes('application/x-looty-page')) return
@@ -93,6 +97,14 @@ async function onDrop(e: DragEvent) {
   const zone = dropZone.value
   dropZone.value = null
   if (!id || !zone || id === props.node.id) return
+  // Page d'un autre espace (perso, par exemple) : elle change d'espace.
+  const from = draggingPage.value
+  draggingPage.value = null
+  if (from && from.id === id && from.ws !== wsId.value) {
+    await crossMove(from.ws, id, wsId.value, zone === 'inside' ? props.node.id : props.node.parent_id ?? null)
+    if (zone === 'inside') expanded.value = true
+    return
+  }
   await movePage(id, props.node.id, zone)
   if (zone === 'inside') expanded.value = true
 }
@@ -107,6 +119,7 @@ async function onDrop(e: DragEvent) {
       :style="{ paddingLeft: `${4 + node.depth * 14}px` }"
       :draggable="canWrite && !renaming"
       @dragstart="onDragStart"
+      @dragend="draggingPage = null"
       @dragover="onDragOver"
       @dragleave="dropZone = null"
       @drop.prevent="onDrop"

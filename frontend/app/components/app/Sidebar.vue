@@ -7,6 +7,7 @@ import {
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { usePersonalSpace } from '~/composables/usePersonal'
+import { draggingPage, useMovePage } from '~/composables/useMovePage'
 import { pageKindIcon } from '~/composables/usePages'
 import { api } from '~/composables/api'
 import { useQueryClient } from '@tanstack/vue-query'
@@ -144,6 +145,27 @@ const personalAdd = computed<MenuItem[]>(() => [
   { label: t('projects.new'), icon: FolderCode, onSelect: () => navigateTo(`/w/${personal.id.value}/projects`) },
 ])
 
+// Glisser une page de l'espace courant sur « Espace perso » l'y déplace (sous-pages comprises).
+const { move: crossMove } = useMovePage()
+const personalDrop = ref(false)
+const acceptsPersonalDrop = () => !!draggingPage.value && draggingPage.value.ws !== personal.id.value
+function onPersonalOver(e: DragEvent) {
+  if (!acceptsPersonalDrop()) return
+  e.preventDefault()
+  personalDrop.value = true
+}
+async function onPersonalDrop() {
+  personalDrop.value = false
+  const from = draggingPage.value
+  draggingPage.value = null
+  if (from && from.ws !== personal.id.value) await crossMove(from.ws, from.id, personal.id.value)
+}
+function onPersonalDragStart(e: DragEvent, id: string) {
+  e.dataTransfer!.setData('application/x-looty-page', id)
+  e.dataTransfer!.effectAllowed = 'move'
+  draggingPage.value = { ws: personal.id.value, id }
+}
+
 // Dépôt d'une page à la racine de l'arbre
 const rootDrop = ref(false)
 const { updatePage } = usePages()
@@ -151,6 +173,10 @@ async function onRootDrop(e: DragEvent) {
   rootDrop.value = false
   const id = e.dataTransfer?.getData('application/x-looty-page')
   if (!id) return
+  // Page d'un autre espace (perso) : elle arrive à la racine de celui-ci.
+  const from = draggingPage.value
+  draggingPage.value = null
+  if (from && from.id === id && from.ws !== wsId.value) return crossMove(from.ws, id, wsId.value)
   const roots = (pages.data.value ?? []).filter((p) => !p.parent_id)
   const max = roots.reduce((m, p) => Math.max(m, p.position), 0)
   await updatePage(id, { parent_id: null, position: max + 65536 })
@@ -181,7 +207,10 @@ async function onRootDrop(e: DragEvent) {
       <!-- Favoris -->
       <template v-for="sec in sectionOrder" :key="sec">
       <!-- Espace perso : propre au compte, joignable depuis chaque espace -->
-      <section v-if="sec === 'personal' && personal.id.value && !personal.inside.value" class="sb-section">
+      <section
+        v-if="sec === 'personal' && personal.id.value && !personal.inside.value" class="sb-section sb-personal" :class="{ dropping: personalDrop }"
+        @dragover="onPersonalOver" @dragleave.self="personalDrop = false" @drop.prevent="onPersonalDrop"
+      >
         <div class="sb-section-head">
           <button class="sb-section-title" @click="toggleSection('personal')">
             <span>{{ t('personal.title') }}</span>
@@ -198,7 +227,11 @@ async function onRootDrop(e: DragEvent) {
             </UiTooltip>
           </div>
           <AppSidebarItem v-for="b in personalBoards" :key="b.id" :to="links.board(personal.id.value, b.id)" :icon="Kanban" :label="b.name" />
-          <AppSidebarItem v-for="p in personalPages" :key="p.id" :to="links.doc(personal.id.value, p.id)" :emoji="p.icon" :icon="pageKindIcon(p)" :label="p.title || t('docs.untitled')" />
+          <AppSidebarItem
+            v-for="p in personalPages" :key="p.id" :to="links.doc(personal.id.value, p.id)" :emoji="p.icon" :icon="pageKindIcon(p)" :label="p.title || t('docs.untitled')"
+            draggable="true" @dragstart="onPersonalDragStart($event, p.id)" @dragend="draggingPage = null"
+          />
+          <div v-if="personalDrop" class="sb-drop-hint">{{ t('move.dropHere') }}</div>
           <AppSidebarItem v-if="personalMore" :to="links.docs(personal.id.value)" :icon="MoreHorizontal" :label="t('personal.all')" />
           <button v-if="!personalBoards.length && !personalPages.length" class="sb-hint" @click="newPersonalDoc()">
             <Plus :size="14" /> {{ t('personal.createFirst') }}
@@ -391,6 +424,9 @@ async function onRootDrop(e: DragEvent) {
   background: var(--bg-input);
   outline: none;
 }
+.sb-personal { border-radius: var(--r-sm); transition: background var(--dur-fast), box-shadow var(--dur-fast); }
+.sb-personal.dropping { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sb-drop-hint { padding: 6px 8px; font-size: var(--fs-sm); color: var(--accent); }
 .sb-perso-links { display: flex; gap: 2px; padding: 2px 4px 4px; }
 .sb-perso-link { width: 30px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--text-3); transition: background var(--dur-fast), color var(--dur-fast); }
 .sb-perso-link:hover { background: var(--bg-hover); color: var(--text); }
