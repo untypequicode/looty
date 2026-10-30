@@ -134,6 +134,7 @@ pub fn start_purge_loop(state: AppState) {
                 tracing::warn!("trash purge (pages): {e:?}");
             }
             crate::graph::prune_links(&state.pool).await;
+            crate::projects::prune_blob_dirs(&state.pool).await;
             tokio::time::sleep(Duration::from_secs(3600)).await;
         }
     });

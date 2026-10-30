@@ -11,6 +11,8 @@ export default {
   inbox: { kinds: { moodle: 'Moodle' } },
   settings: { notify: { ev: { moodle_received: 'Messages et notifications Moodle' }, evHint: { moodle_received: 'Un message ou une notification arrive sur votre compte Moodle connecté.' } } },
   moodle: {
+    offlineBanner: 'Moodle ne répond pas : vous consultez la copie du {date}. Seuls les cours, pages et fichiers déjà ouverts sont disponibles.', retry: 'Réessayer',
+    offlineCount: { zero: 'Rien de gardé hors ligne', one: '1 élément gardé hors ligne ({size})', other: '{count} éléments gardés hors ligne ({size})' },
     title: 'Moodle', open: 'Ouvrir Moodle', refresh: 'Actualiser',
     settingLabel: 'Plateforme Moodle', settingHint: 'Adresse du Moodle utilisé par cet espace (cours, échéances, messages, calendrier). Vide : Moodle désactivé.', useDefault: 'Université de Bordeaux',
     setupTitle: 'Connecter Moodle à cet espace', setupHint: 'Indiquez l’adresse de votre plateforme Moodle. Chaque membre pourra ensuite connecter son propre compte.', askAdmin: 'Moodle n’est pas encore configuré pour cet espace. Demandez à un administrateur de renseigner l’adresse de la plateforme.', enable: 'Activer Moodle',

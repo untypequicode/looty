@@ -3,6 +3,7 @@ import { Mail, BellRing, Trash2, Send, Smartphone, MonitorSmartphone, AlertTrian
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
 import { usePush, pushSupported } from '~/composables/usePush'
+import { isDesktop } from '~/composables/useDesktop'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 
@@ -65,6 +66,16 @@ async function enableDesktop() { desktop.value = await window.Notification.reque
 // iPhone / iPad : le push n'existe que pour l'application ajoutée à l'écran d'accueil (iOS 16.4+).
 const iosBrowser = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent) && !(window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone)
 const anyPush = computed(() => (devices.value?.length ?? 0) > 0)
+// Application de bureau : ses notifications système (aussi dans le menu de la barre système),
+// sans permission du navigateur, que sa vue web ne retient pas.
+const appNotif = ref<boolean | null>(null)
+onMounted(async () => {
+  if (isDesktop) appNotif.value = (await $fetch<{ enabled: boolean }>('/__looty/notifications').catch(() => null))?.enabled ?? null
+})
+async function setAppNotif(v: boolean) {
+  appNotif.value = v
+  await $fetch('/__looty/notifications', { method: 'PUT', body: { enabled: v } }).catch(() => { appNotif.value = !v })
+}
 </script>
 
 <template>
@@ -72,7 +83,10 @@ const anyPush = computed(() => (devices.value?.length ?? 0) > 0)
     <SettingsRow :label="t('settings.notify.emailLabel')" :hint="prefs?.email_available ? t('settings.notify.emailHint', { email: prefs?.email ?? '' }) : t('settings.notify.emailUnavailable')">
       <UiSwitch :model-value="!!prefs?.email_enabled && !!prefs?.email_available" :disabled="!prefs?.email_available" @update:model-value="(v: boolean) => save({ email_enabled: v })" />
     </SettingsRow>
-    <SettingsRow :label="t('settings.notify.pushLabel')" :hint="push.state.value === 'unsupported' ? (iosBrowser ? t('settings.notify.pushIos') : t('settings.notify.pushUnsupported')) : push.state.value === 'denied' ? t('settings.notify.pushDenied') : t('settings.notify.pushHint')">
+    <SettingsRow v-if="isDesktop && appNotif !== null" :label="t('settings.notify.appLabel')" :hint="t('settings.notify.appHint')">
+      <UiSwitch :model-value="appNotif" @update:model-value="setAppNotif" />
+    </SettingsRow>
+    <SettingsRow v-else :label="t('settings.notify.pushLabel')" :hint="push.state.value === 'unsupported' ? (iosBrowser ? t('settings.notify.pushIos') : t('settings.notify.pushUnsupported')) : push.state.value === 'denied' ? t('settings.notify.pushDenied') : t('settings.notify.pushHint')">
       <span v-if="push.state.value === 'on'" class="ok">{{ t('settings.notify.pushOnHere') }}</span>
       <UiButton v-else-if="push.state.value === 'unsupported' && desktop === 'default'" size="sm" @click="enableDesktop">{{ t('settings.notify.enableDesktop') }}</UiButton>
       <span v-else-if="push.state.value === 'unsupported' && desktop === 'granted'" class="ok">{{ t('settings.notify.desktopOn') }}</span>

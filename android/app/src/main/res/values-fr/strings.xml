@@ -57,6 +57,35 @@
     <string name="n_completed">%1$s a terminé une tâche</string>
     <string name="n_mail">Nouveau message</string>
     <string name="n_other">Nouvelle activité</string>
+    <!-- Canaux de notification (réglables dans Android : son, vibration, importance) -->
+    <string name="chg_work">Travail</string>
+    <string name="chg_messages">Messages et agenda</string>
+    <string name="chg_app">Application</string>
+    <string name="ch_assigned">Tâches assignées</string>
+    <string name="ch_assigned_hint">Une tâche vous est assignée</string>
+    <string name="ch_mentions">Mentions</string>
+    <string name="ch_mentions_hint">Quelqu’un vous mentionne dans une tâche, un document ou un commentaire</string>
+    <string name="ch_comments">Commentaires</string>
+    <string name="ch_comments_hint">Nouveaux commentaires sur vos tâches</string>
+    <string name="ch_due">Échéances</string>
+    <string name="ch_due_hint">Une tâche arrive à échéance</string>
+    <string name="ch_completed">Tâches terminées</string>
+    <string name="ch_completed_hint">Une tâche qui vous est assignée est terminée</string>
+    <string name="ch_mail">E-mail</string>
+    <string name="ch_mail_hint">Nouveaux messages dans vos boîtes mail</string>
+    <string name="ch_moodle">Moodle</string>
+    <string name="ch_moodle_hint">Messages et notifications de Moodle</string>
+    <string name="ch_events">Événements</string>
+    <string name="ch_events_hint">Vous êtes indiqué·e dans un événement de l’agenda</string>
+    <string name="ch_updates">Mises à jour de l’application</string>
+    <string name="ch_updates_hint">Une nouvelle version de Looty est disponible</string>
+    <string name="ch_other">Autres</string>
+    <string name="ch_other_hint">Tout le reste, et les notifications de test</string>
+    <string name="ch_settings">Son et vibration par type</string>
+    <string name="ch_settings_hint">Chaque type de notification a ses propres réglages dans Android</string>
+    <string name="ch_off">Désactivé</string>
+    <string name="n_moodle">Nouveau sur Moodle</string>
+    <string name="n_event_tag">%1$s vous a indiqué·e dans un événement</string>
     <string name="new_task">Nouvelle tâche</string>
     <string name="task_title">Titre de la tâche</string>
     <string name="board">Tableau</string>
@@ -180,8 +209,6 @@
 
     <!-- Notifications -->
     <string name="notifications">Notifications</string>
-    <string name="channel_activity">Activité</string>
-    <string name="channel_activity_hint">Mentions, tâches assignées, commentaires et rappels</string>
     <string name="push_how">Comment recevoir les notifications</string>
     <string name="push_unified">Push instantané (UnifiedPush)</string>
     <string name="push_unified_hint">Instantané et économe en batterie, sans Google. Utilise l’application UnifiedPush installée (ntfy, Gotify…).</string>
@@ -228,6 +255,57 @@
     <string name="widget_empty">Rien à faire. Profitez !</string>
     <string name="widget_sign_in">Ouvrez Looty pour vous connecter.</string>
     <string name="widget_offline">Serveur injoignable. Touchez pour ouvrir Looty.</string>
+    <!-- Widgets -->
+    <string name="widget_add">Ajouter</string>
+    <string name="widget_label_agenda">Looty · Agenda</string>
+    <string name="widget_label_today">Looty · Aujourd’hui</string>
+    <string name="widget_label_shortcuts">Looty · Raccourcis</string>
+    <string name="widget_agenda_title">Agenda</string>
+    <string name="widget_agenda_description">Événements et échéances des prochains jours, groupés par jour.</string>
+    <string name="widget_agenda_empty">Rien de prévu cette semaine.</string>
+    <string name="widget_today_description">Le nombre de tâches à faire aujourd’hui et votre prochain événement.</string>
+    <string name="widget_shortcuts_description">De gros boutons pour ajouter une tâche et ouvrir vos écrans préférés.</string>
+    <string name="widget_deadline">Échéance</string>
+    <string name="widget_all_day">Journée</string>
+    <string name="widget_no_event">Plus d’événement aujourd’hui</string>
+    <string name="widget_sc_task">Nouvelle tâche</string>
+    <string name="widget_sc_inbox">Boîte</string>
+    <string name="widget_sc_calendar">Agenda</string>
+    <string name="widget_sc_docs">Documents</string>
+    <string name="widget_sc_tasks">Tâches</string>
+    <string name="widget_sc_mail">Mail</string>
+    <string name="widget_sc_moodle">Moodle</string>
+    <string name="widget_sc_drive">Drive</string>
+    <string name="widget_sc_projects">Projets</string>
+    <plurals name="widget_open_tasks">
+        <item quantity="one">%d tâche à faire</item>
+        <item quantity="other">%d tâches à faire</item>
+    </plurals>
+    <plurals name="widget_tasks_today">
+        <item quantity="one">tâche aujourd’hui</item>
+        <item quantity="other">tâches aujourd’hui</item>
+    </plurals>
+    <plurals name="widget_overdue">
+        <item quantity="one">%d en retard</item>
+        <item quantity="other">%d en retard</item>
+    </plurals>
+    <string name="widgets_title">Widgets</string>
+    <string name="widgets_entry_hint">Tâches, agenda, aujourd’hui et raccourcis sur l’écran d’accueil</string>
+    <string name="widgets_hint">Choisissez un widget, ajoutez-le à l’écran d’accueil, puis appui long dessus → Réglages pour changer son style, son opacité et sa taille.</string>
+    <string name="widgets_add">Ajouter à l’écran d’accueil</string>
+    <string name="widgets_manual">Votre lanceur ne permet pas d’ajouter un widget d’ici : appui long sur l’écran d’accueil → Widgets → Looty.</string>
+    <string name="wc_title">Réglages du widget</string>
+    <string name="wc_save">Enregistrer</string>
+    <string name="wc_look">Style</string>
+    <string name="wc_look_tonal">Tonal</string>
+    <string name="wc_look_surface">Neutre</string>
+    <string name="wc_look_accent">Accent</string>
+    <string name="wc_look_contrast">Contraste</string>
+    <string name="wc_opacity">Opacité du fond : %d %%</string>
+    <string name="wc_items">Éléments listés : jusqu’à %d</string>
+    <string name="wc_round">Coins très arrondis</string>
+    <string name="wc_round_hint">Le style Material 3 Expressive. Désactivez pour des coins plus doux.</string>
+    <string name="wc_shortcuts">Boutons (%1$d sur %2$d)</string>
     <string name="share_files_lost">Ajouté, mais %d fichier(s) n’ont pas pu être joints (trop volumineux ou illisibles).</string>
     <string name="offline_banner">Hors ligne — données enregistrées</string>
     <string name="syncing_banner">Envoi de vos modifications…</string>

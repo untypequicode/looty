@@ -8,10 +8,14 @@ export default {
     drive_invalid_name: 'Invalid name', drive_name_taken: 'An item with this name already exists here', drive_quota_exceeded: 'Drive is full: delete files or ask for more space', drive_invalid_move: 'Can’t move a folder into itself',
   },
   nav: { projects: 'Projects', drive: 'Drive' },
-  presence: { screens: { projects: 'Projects', drive: 'Drive' } },
+  presence: { screens: { projects: 'Projects', drive: 'Drive', canvas: 'Canvases' } },
   projects: {
+    pageKinds: { doc: 'Document', projects: 'Project in documents', latex: 'LaTeX project', site: 'Website', notebook: 'Python notebook' },
+    makeProject: 'Turn into a project', pageConverted: 'The page now holds a project', openInProjects: 'Open in Projects', viewProject: 'Project', viewNotes: 'Notes',
+    search: 'Search projects', startFrom: 'Start from a template', recent: 'Recent', results: 'Results', noResults: 'No project found.', openFull: 'Open full screen', openInDocs: 'Open in documents', addToDocs: 'Add to documents', inDocs: 'In documents',
+    keepInDocs: 'Keep in documents', keepInDocsHint: 'The project becomes a page: it shows in the page tree, with the page’s access, comments and notes.',
     title: 'Projects', all: 'All', sites: 'Sites', site: 'Mini-site', new: 'New project', newSite: 'New site', newLatex: 'New LaTeX project', newNotebook: 'New notebook', notebookNamePlaceholder: 'Notebook name',
-    emptyTitle: 'Create a mini-site or a LaTeX document', emptyHint: 'HTML/CSS/JS mini-sites published in one click, LaTeX documents compiled to PDF: edited together, live.',
+    emptyTitle: 'No project yet', emptyHint: 'LaTeX documents compiled to PDF, mini-sites published in one click, Python notebooks: edited together, live, kept in your documents.',
     fileCount: { one: '1 file', other: '{count} files' }, buildOk: 'Compiled', buildFailed: 'Compilation errors',
     siteNamePlaceholder: 'Site name', latexNamePlaceholder: 'Document title', template: 'Template',
     templates: {
@@ -38,6 +42,8 @@ export default {
   },
   drive: {
     preview: 'Preview', previous: 'Previous', next: 'Next', noPreview: 'No preview for this file type.',
+    newText: 'New text', newTextTip: 'Create a text file, or paste (Ctrl+V) text, an image or files anywhere on the page', newTextHint: 'Paste or type the content, then choose the file name.',
+    fileName: 'File name', pastePlaceholder: 'Paste your text here…', saveText: 'Save to the drive', chars: { one: '1 character', other: '{count} characters' }, pastedName: 'Pasted text', screenshotName: 'Screenshot',
     title: 'Drive', root: 'Drive', search: 'Search the drive', upload: 'Upload', uploadFolder: 'Upload a folder', newFolder: 'New folder', folderName: 'Folder name',
     days: { one: '1 day', other: '{count} days' }, keepFor: 'Keep for', nFiles: { one: '1 file', other: '{count} files' },
     uploaded: { one: 'File uploaded, kept {days}', other: '{count} files uploaded, kept {days}' },

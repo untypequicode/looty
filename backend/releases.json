@@ -4,6 +4,44 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.23.0",
+      "date": "2026-10-30",
+      "title": { "en": "Projects inside documents, canvases, blocks, and Moodle offline", "fr": "Projets dans les documents, canevas, blocs, et Moodle hors ligne" },
+      "notes": {
+        "en": [
+          "**Projects in documents**: a page can hold a LaTeX project, a website or a Python notebook. It opens on its files, editor and preview, with a *Notes* tab for its text. Use *New* in the documents, or *Turn into a project* in a page’s menu. It follows the page’s access, comments and place in the tree.",
+          "**Projects home redone**: search, a gallery of templates, cards with a preview of the main file, and a link to the page that holds each project.",
+          "**Canvas, like AFFiNE**: every page now has a *Canvas* view, an infinite whiteboard edited together live. Add live cards of your tasks (tick them off right there), documents, canvases, boards, events and projects with *+ Looty*. All canvases are listed in the new *Canvases* section.",
+          "**Blocks in documents**: type / then *Board* to show a real board (kanban or list, editable) or *Agenda* for the events and deadlines of the coming days.",
+          "**Interconnected**: links from canvases and board blocks show up in the graph and in search.",
+          "**Drive**: paste text, an image or files with Ctrl+V, or create a text file from *New text*.",
+          "**Moodle offline**: courses, pages, assignments, messages and files you already opened stay readable when Moodle is down, on all your devices. A banner shows the date of the copy.",
+          "**Desktop app**: notifications no longer ask for the browser permission again; use the new switch in *Settings › Notifications*."
+        ],
+        "fr": [
+          "**Projets dans les documents** : une page peut porter un projet LaTeX, un site web ou un notebook Python. Elle s’ouvre sur ses fichiers, son éditeur et son aperçu, avec un onglet *Notes* pour son texte. Utilisez *Nouveau* dans les documents, ou *Transformer en projet* dans le menu d’une page. Le projet suit les droits, les commentaires et la place de la page dans l’arborescence.",
+          "**Accueil des projets refait** : recherche, galerie de modèles, cartes avec aperçu du fichier principal, et lien vers la page qui porte chaque projet.",
+          "**Canevas, façon AFFiNE** : chaque page a maintenant une vue *Canevas*, un tableau blanc infini édité à plusieurs en direct. Ajoutez des cartes vivantes de vos tâches (cochez-les sur place), documents, canevas, tableaux, événements et projets avec *+ Looty*. Tous les canevas sont listés dans la nouvelle section *Canevas*.",
+          "**Blocs dans les documents** : tapez / puis *Tableau* pour afficher un vrai tableau (kanban ou liste, modifiable) ou *Agenda* pour les événements et échéances des prochains jours.",
+          "**Tout est relié** : les liens des canevas et des blocs tableau apparaissent dans le graphe et la recherche.",
+          "**Drive** : collez un texte, une image ou des fichiers avec Ctrl+V, ou créez un fichier texte avec *Nouveau texte*.",
+          "**Moodle hors ligne** : cours, pages, devoirs, messages et fichiers déjà ouverts restent lisibles quand Moodle est en panne, sur tous vos appareils. Un bandeau indique la date de la copie.",
+          "**Application de bureau** : les notifications ne redemandent plus la permission du navigateur ; utilisez le nouvel interrupteur dans *Réglages › Notifications*."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.8.1",
+      "date": "2026-10-30",
+      "title": { "en": "Notifications without the permission prompt", "fr": "Notifications sans demande de permission" },
+      "notes": {
+        "en": ["Notifications no longer ask for the browser permission again, even though the app already has access. A switch in *Settings › Notifications* (and the tray menu) turns them on or off."],
+        "fr": ["Les notifications ne redemandent plus la permission du navigateur alors que l’application y a déjà accès. Un interrupteur dans *Réglages › Notifications* (et le menu de la zone de notification) les active ou les coupe."]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.22.2",
       "date": "2026-10-25",
       "title": { "en": "Move a task to another board, tighter access rules", "fr": "Déplacer une tâche vers un autre tableau, droits mieux appliqués" },
@@ -29,6 +67,26 @@
           "**Diagrammes** : les organigrammes Mermaid retrouvent la mise en page ELK, plus lisible.",
           "**Mes tâches** : la liste se décale en douceur à l’ouverture du panneau de tâche.",
           "La synchronisation en arrière-plan (calendriers, CalDAV, mail, Moodle) continue si un compte renvoie des données inattendues."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.23.0",
+      "date": "2026-10-30",
+      "title": { "en": "Widgets you can make your own, and a channel per notification type", "fr": "Des widgets à votre goût, et un canal par type de notification" },
+      "notes": {
+        "en": [
+          "**Four widgets**: *To do* (tick tasks off right from the home screen), *Agenda* (events and deadlines by day), *Today* (how many tasks are due, your next event) and *Shortcuts* (big buttons: new task, inbox, calendar…).",
+          "**Make them yours**: long-press a widget → *Settings* to pick the style (tonal, neutral, accent, contrast), the background opacity, the number of items, very round or softer corners, and the buttons of the Shortcuts widget. Colours follow your phone’s theme.",
+          "**Notifications by type**: assigned tasks, mentions, comments, deadlines, completed tasks, mail, Moodle, events and updates each have their own channel. In *Notifications* (or Android’s settings) choose the sound, vibration and importance of each type, or turn one off.",
+          "Moodle: what you already opened stays readable when Moodle is down (server-side copy)."
+        ],
+        "fr": [
+          "**Quatre widgets** : *À faire* (cochez vos tâches depuis l’écran d’accueil), *Agenda* (événements et échéances par jour), *Aujourd’hui* (nombre de tâches à faire, prochain événement) et *Raccourcis* (gros boutons : nouvelle tâche, boîte, agenda…).",
+          "**À votre goût** : appui long sur un widget → *Réglages* pour choisir le style (tonal, neutre, accent, contraste), l’opacité du fond, le nombre d’éléments, des coins très arrondis ou plus doux, et les boutons du widget Raccourcis. Les couleurs suivent le thème du téléphone.",
+          "**Notifications par type** : tâches assignées, mentions, commentaires, échéances, tâches terminées, mail, Moodle, événements et mises à jour ont chacun leur canal. Dans *Notifications* (ou les réglages d’Android), choisissez le son, la vibration et l’importance de chaque type, ou coupez-en un.",
+          "Moodle : ce que vous avez déjà ouvert reste lisible quand Moodle est en panne (copie côté serveur)."
         ]
       }
     },

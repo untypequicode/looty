@@ -12,7 +12,7 @@ definePageMeta({ layout: 'workspace' })
 const { wsId, pages, member } = useWorkspace()
 const { can } = useAccess(wsId)
 const canWrite = computed(() => can.value.editDocs)
-const { createAndOpen, toggleFavorite } = usePages()
+const { toggleFavorite } = usePages()
 const { t, relativeTime } = useI18n()
 const view = useLocalStorage<'grid' | 'list'>('looty.docs.view', 'list')
 const sort = ref<'updated' | 'created' | 'title' | 'popular'>('updated')
@@ -44,7 +44,7 @@ useHead({ title: () => t('nav.allDocs') })
       <UiSegmented v-model="view" :options="[{ value: 'list', icon: List, title: t('docs.listView') }, { value: 'grid', icon: LayoutGrid, title: t('docs.gridView') }]" />
       <UiTooltip v-if="canWrite" :text="t('transfer.importTitle')"><UiButton size="sm" variant="ghost" :icon="Upload" :aria-label="t('transfer.importTitle')" @click="importOpen = true" /></UiTooltip>
       <UiTooltip :text="t('transfer.exportWorkspace')"><UiButton size="sm" variant="ghost" :icon="Download" :aria-label="t('transfer.exportWorkspace')" @click="exportOpen = true" /></UiTooltip>
-      <UiButton v-if="canWrite" size="sm" variant="primary" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
+      <DocNewMenu v-if="canWrite"><UiButton size="sm" variant="primary" :icon="Plus">{{ t('docs.new') }}</UiButton></DocNewMenu>
     </AppPageHeader>
     <DocImportDialog v-model:open="importOpen" />
     <DocExportDialog v-model:open="exportOpen" />
@@ -59,7 +59,7 @@ useHead({ title: () => t('nav.allDocs') })
       </div>
   
       <UiEmpty v-if="!list.length && !pages.isLoading.value" :icon="FileText" :title="t('docs.empty')" :description="t('docs.emptyHint')">
-        <UiButton v-if="canWrite" variant="primary" :icon="Plus" @click="createAndOpen()">{{ t('docs.new') }}</UiButton>
+        <DocNewMenu v-if="canWrite" placement="bottom"><UiButton variant="primary" :icon="Plus">{{ t('docs.new') }}</UiButton></DocNewMenu>
       </UiEmpty>
   
       <div v-else-if="view === 'grid'" class="d-grid">

@@ -8,10 +8,14 @@ export default {
     drive_invalid_name: 'Nom invalide', drive_name_taken: 'Un élément porte déjà ce nom ici', drive_quota_exceeded: 'Espace du drive plein : supprimez des fichiers ou demandez plus de place', drive_invalid_move: 'Impossible de déplacer un dossier dans lui-même',
   },
   nav: { projects: 'Projets', drive: 'Drive' },
-  presence: { screens: { projects: 'Projets', drive: 'Drive' } },
+  presence: { screens: { projects: 'Projets', drive: 'Drive', canvas: 'Canevas' } },
   projects: {
+    pageKinds: { doc: 'Document', projects: 'Projet dans les documents', latex: 'Projet LaTeX', site: 'Site web', notebook: 'Notebook Python' },
+    makeProject: 'Transformer en projet', pageConverted: 'La page porte maintenant un projet', openInProjects: 'Ouvrir dans Projets', viewProject: 'Projet', viewNotes: 'Notes',
+    search: 'Rechercher un projet', startFrom: 'Démarrer à partir d’un modèle', recent: 'Récents', results: 'Résultats', noResults: 'Aucun projet trouvé.', openFull: 'Ouvrir en plein écran', openInDocs: 'Ouvrir dans les documents', addToDocs: 'Ranger dans les documents', inDocs: 'Dans les documents',
+    keepInDocs: 'Ranger dans les documents', keepInDocsHint: 'Le projet devient une page : on le retrouve dans l’arborescence, avec les droits de la page, ses commentaires et ses notes.',
     title: 'Projets', all: 'Tous', sites: 'Sites', site: 'Mini-site', new: 'Nouveau projet', newSite: 'Nouveau site', newLatex: 'Nouveau projet LaTeX', newNotebook: 'Nouveau notebook', notebookNamePlaceholder: 'Nom du notebook',
-    emptyTitle: 'Créez un mini-site ou un document LaTeX', emptyHint: 'Mini-sites HTML/CSS/JS publiables en un clic, documents LaTeX compilés en PDF : édition à plusieurs, en direct.',
+    emptyTitle: 'Aucun projet pour l’instant', emptyHint: 'Documents LaTeX compilés en PDF, mini-sites publiables en un clic, notebooks Python : édition à plusieurs, en direct, rangés dans vos documents.',
     fileCount: { one: '1 fichier', other: '{count} fichiers' }, buildOk: 'Compilé', buildFailed: 'Erreurs de compilation',
     siteNamePlaceholder: 'Nom du site', latexNamePlaceholder: 'Titre du document', template: 'Modèle',
     templates: {
@@ -38,6 +42,8 @@ export default {
   },
   drive: {
     preview: 'Aperçu', previous: 'Précédent', next: 'Suivant', noPreview: 'Pas d’aperçu pour ce type de fichier.',
+    newText: 'Nouveau texte', newTextTip: 'Créer un fichier texte, ou collez (Ctrl+V) un texte, une image ou des fichiers n’importe où sur la page', newTextHint: 'Collez ou écrivez le contenu, puis choisissez le nom du fichier.',
+    fileName: 'Nom du fichier', pastePlaceholder: 'Collez votre texte ici…', saveText: 'Enregistrer dans le drive', chars: { one: '1 caractère', other: '{count} caractères' }, pastedName: 'Texte collé', screenshotName: 'Capture',
     title: 'Drive', root: 'Drive', search: 'Rechercher dans le drive', upload: 'Envoyer', uploadFolder: 'Envoyer un dossier', newFolder: 'Nouveau dossier', folderName: 'Nom du dossier',
     days: { one: '1 jour', other: '{count} jours' }, keepFor: 'Conserver pendant', nFiles: { one: '1 fichier', other: '{count} fichiers' },
     uploaded: { one: 'Fichier envoyé, conservé {days}', other: '{count} fichiers envoyés, conservés {days}' },

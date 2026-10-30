@@ -18,6 +18,7 @@ mod mailbox;
 mod mailclient;
 mod moodle;
 mod moodle_content;
+mod moodle_cache;
 mod projects;
 mod latex;
 mod drive;
@@ -135,6 +136,7 @@ async fn main() {
         .nest("/workspaces", workspace::routes())
         .nest("/workspaces/{workspace_id}/boards", board::workspace_routes())
         .nest("/workspaces/{workspace_id}/pages", page::routes())
+        .nest("/workspaces/{workspace_id}/canvases", page::canvas_routes())
         .nest("/workspaces/{workspace_id}/calendars", calendar::workspace_routes())
         .nest("/calendars", calendar::routes())
         .nest("/mail", mailbox::routes().merge(mailclient::routes()))

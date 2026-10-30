@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ChevronRight, FileText, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2 } from 'lucide-vue-next'
+import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2 } from 'lucide-vue-next'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import type { PageNode } from '~/composables/usePages'
 import type { MenuItem } from '~/components/ui/Menu.vue'
-import { usePages } from '~/composables/usePages'
+import { usePages, pageKindIcon } from '~/composables/usePages'
 import { useUi } from '~/composables/useUi'
 import { links, useWorkspace } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
@@ -117,7 +117,7 @@ async function onDrop(e: DragEvent) {
         <ChevronRight :size="13" />
       </button>
       <span v-if="node.icon" class="tree-emoji">{{ node.icon }}</span>
-      <FileText v-else :size="15" :stroke-width="1.8" class="tree-icon" />
+      <component :is="pageKindIcon(node)" v-else :size="15" :stroke-width="1.8" class="tree-icon" />
       <input
         v-if="renaming"
         ref="input"

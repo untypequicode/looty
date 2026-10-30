@@ -711,7 +711,7 @@ async fn search_workspace(
                 substring(regexp_replace(coalesce(content, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
                 parent_id
          FROM pages
-         WHERE workspace_id = $1 AND (title ILIKE $2 OR content ILIKE $2)
+         WHERE workspace_id = $1 AND (title ILIKE $2 OR content ILIKE $2 OR canvas_text ILIKE $2)
          ORDER BY (title ILIKE $2) DESC, updated_at DESC
          LIMIT 40",
     )

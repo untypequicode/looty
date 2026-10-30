@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Deserializer, Serialize};
@@ -30,6 +30,18 @@ pub struct Page {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub share_token: Option<Uuid>,
     pub is_public: Option<bool>,
+    /// Projet porté par la page (LaTeX, site, notebook).
+    #[sqlx(default)]
+    pub project_id: Option<Uuid>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_kind: Option<String>,
+    /// Vue à l'ouverture : « doc » (texte) ou « canvas ».
+    #[sqlx(default)]
+    pub default_view: String,
+    /// Éléments du canevas (0 : canevas vide).
+    #[sqlx(default)]
+    pub canvas_count: i32,
     // Champs calculés par utilisateur (absents de la table `pages`).
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -59,6 +71,7 @@ pub struct Page {
 /// Version allégée pour les listes / l'arbre (sans le contenu HTML).
 const PAGE_LIST_COLUMNS: &str = "p.id, p.workspace_id, p.parent_id, p.icon, p.title, NULL::text AS content,
     p.created_by, p.updated_by, p.position, p.created_at, p.updated_at, p.share_token, p.is_public,
+    p.project_id, (SELECT kind FROM projects pr WHERE pr.id = p.project_id) AS project_kind, p.default_view, p.canvas_count,
     EXISTS(SELECT 1 FROM page_permissions pp WHERE pp.page_id = p.id) AS has_permissions";
 
 /// Distingue un champ absent (`None`) d'un champ explicitement `null` (`Some(None)`).
@@ -78,6 +91,16 @@ pub struct CreatePage {
     pub icon: Option<String>,
     pub parent_id: Option<Uuid>,
     pub content: Option<String>,
+    /// Page qui porte un nouveau projet (LaTeX, site, notebook) créé avec elle.
+    pub project: Option<NewProject>,
+    /// « canvas » : la page s'ouvre sur son canevas.
+    pub default_view: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct NewProject {
+    pub kind: String,
+    pub template: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -89,6 +112,7 @@ pub struct UpdatePage {
     pub parent_id: Option<Option<Uuid>>,
     pub content: Option<String>,
     pub position: Option<f64>,
+    pub default_view: Option<String>,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -99,6 +123,8 @@ pub fn routes() -> Router<AppState> {
         .route("/{page_id}/view", post(record_view))
         .route("/{page_id}/share", post(share_page).delete(revoke_share))
         .route("/{page_id}/permissions", get(get_page_permissions).put(set_page_permission))
+        .route("/{page_id}/project", post(make_project))
+        .route("/{page_id}/canvas-preview", put(save_canvas_preview))
 }
 
 /// Routes hors workspace : contrôle d'accès pour le serveur de collaboration.
@@ -112,6 +138,13 @@ fn check_title(t: &str) -> ApiResult<String> {
         return Err(ApiError::bad_request("title_too_long"));
     }
     Ok(t.to_string())
+}
+
+fn check_view(v: &str) -> ApiResult<String> {
+    match v {
+        "doc" | "canvas" => Ok(v.to_string()),
+        _ => Err(ApiError::bad_request("invalid_value")),
+    }
 }
 
 fn check_icon(icon: &str) -> ApiResult<()> {
@@ -175,7 +208,7 @@ async fn get_page(
         return Err(ApiError::NotFound);
     }
     let mut page: Page = sqlx::query_as(
-        "SELECT p.*,
+        "SELECT p.*, (SELECT kind FROM projects pr WHERE pr.id = p.project_id) AS project_kind,
             (pf.page_id IS NOT NULL) AS is_favorite,
             pv.view_count, pv.last_viewed_at,
             (SELECT COALESCE(SUM(view_count), 0) FROM page_views WHERE page_id = p.id) AS total_view_count
@@ -238,6 +271,7 @@ async fn create_page(
         }
     }
     let title = check_title(payload.title.as_deref().unwrap_or(""))?;
+    let default_view = check_view(payload.default_view.as_deref().unwrap_or("doc"))?;
     if let Some(i) = &payload.icon {
         check_icon(i)?;
     }
@@ -249,9 +283,9 @@ async fn create_page(
     .fetch_one(pool)
     .await?;
 
-    let page: Page = sqlx::query_as(
-        "INSERT INTO pages (id, workspace_id, parent_id, icon, title, content, created_by, updated_by, position)
-         VALUES (COALESCE($8, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $6, $7) RETURNING *",
+    let mut page: Page = sqlx::query_as(
+        "INSERT INTO pages (id, workspace_id, parent_id, icon, title, content, created_by, updated_by, position, default_view)
+         VALUES (COALESCE($8, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $6, $7, $9) RETURNING *",
     )
     .bind(workspace_id)
     .bind(payload.parent_id)
@@ -261,6 +295,7 @@ async fn create_page(
     .bind(user.id)
     .bind(position)
     .bind(payload.id)
+    .bind(default_view)
     .fetch_one(pool)
     .await?;
 
@@ -275,6 +310,14 @@ async fn create_page(
         .bind(user.id)
         .execute(pool)
         .await?;
+    }
+    // Page qui porte un projet : créé avec elle, au nom de la page.
+    if let Some(np) = &payload.project {
+        let name = if page.title.trim().is_empty() { "Sans titre".to_string() } else { page.title.clone() };
+        let project = crate::projects::insert_project(&state, workspace_id, user.id, &np.kind, &name, np.template.as_deref()).await?;
+        sqlx::query("UPDATE pages SET project_id = $2 WHERE id = $1").bind(page.id).bind(project.id).execute(pool).await?;
+        page.project_id = Some(project.id);
+        page.project_kind = Some(project.kind);
     }
     crate::activity::log_page(pool, page.id, workspace_id, user.id, "create").await;
     let mut lite = page.clone();
@@ -343,6 +386,7 @@ async fn update_page(
             parent_id = CASE WHEN $4 THEN $5 ELSE parent_id END,
             content = COALESCE($6, content),
             position = COALESCE($7, position),
+            default_view = COALESCE($10, default_view),
             updated_by = $8,
             updated_at = CURRENT_TIMESTAMP
          WHERE id = $9 RETURNING *",
@@ -356,6 +400,7 @@ async fn update_page(
     .bind(payload.position)
     .bind(user.id)
     .bind(page_id)
+    .bind(payload.default_view.as_deref().map(check_view).transpose()?)
     .fetch_one(pool)
     .await?;
     if let Some((old_title, old_parent, old_content)) = before {
@@ -627,4 +672,90 @@ async fn page_access_check(
         .fetch_one(&pool)
         .await?;
     Ok(Json(AccessCheck { user_id: user.id, name, can_write: access == PageAccess::Write }))
+}
+
+/// La page devient un projet (LaTeX, site, notebook) : son texte reste dans l'onglet Notes.
+async fn make_project(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    Json(np): Json<NewProject>,
+) -> ApiResult<Json<Page>> {
+    let pool = &state.pool;
+    let (ws, _) = require_page_write(pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    let (title, current): (String, Option<Uuid>) = sqlx::query_as("SELECT title, project_id FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+    if current.is_some() {
+        return Err(ApiError::Conflict("page_has_project".into()));
+    }
+    let name = if title.trim().is_empty() { "Sans titre".to_string() } else { title };
+    let project = crate::projects::insert_project(&state, workspace_id, user.id, &np.kind, &name, np.template.as_deref()).await?;
+    let mut page: Page = sqlx::query_as("UPDATE pages SET project_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *")
+        .bind(page_id)
+        .bind(project.id)
+        .fetch_one(pool)
+        .await?;
+    page.project_kind = Some(project.kind);
+    let mut lite = page.clone();
+    lite.content = None;
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_UPDATED", "page": lite })).await;
+    Ok(Json(page))
+}
+
+/// Canevas de l'espace (section dédiée) : pages ouvertes en canevas ou dont le canevas
+/// n'est pas vide, lisibles par la personne.
+pub fn canvas_routes() -> Router<AppState> {
+    Router::new().route("/", get(list_canvases))
+}
+
+#[derive(Serialize, FromRow)]
+struct CanvasSummary {
+    id: Uuid,
+    title: String,
+    icon: Option<String>,
+    parent_id: Option<Uuid>,
+    default_view: String,
+    canvas_count: i32,
+    canvas_preview: Option<String>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+async fn list_canvases(State(pool): State<PgPool>, user: AuthUser, Path(workspace_id): Path<Uuid>) -> ApiResult<Json<Vec<CanvasSummary>>> {
+    let role = crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
+    let visible = visible_pages(&pool, &user, workspace_id, role).await?;
+    let rows: Vec<CanvasSummary> = sqlx::query_as(
+        "SELECT id, title, icon, parent_id, default_view, canvas_count, canvas_preview, COALESCE(canvas_updated_at, updated_at) AS updated_at
+         FROM pages WHERE workspace_id = $1 AND (default_view = 'canvas' OR canvas_count > 0)
+         ORDER BY COALESCE(canvas_updated_at, updated_at) DESC LIMIT 500",
+    )
+    .bind(workspace_id)
+    .fetch_all(&pool)
+    .await?;
+    Ok(Json(rows.into_iter().filter(|r| visible.get(&r.id).is_some_and(|a| *a != PageAccess::None)).collect()))
+}
+
+#[derive(Deserialize)]
+struct CanvasPreview {
+    svg: String,
+}
+
+/// Aperçu du canevas (SVG produit par l'interface, affiché seulement en <img>).
+async fn save_canvas_preview(
+    State(pool): State<PgPool>,
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    Json(p): Json<CanvasPreview>,
+) -> ApiResult<StatusCode> {
+    let (ws, _) = require_page_write(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    let svg = p.svg.trim();
+    if svg.len() > 600_000 || !(svg.is_empty() || svg.starts_with("<svg")) {
+        return Err(ApiError::bad_request("invalid_value"));
+    }
+    sqlx::query("UPDATE pages SET canvas_preview = NULLIF($2, '') WHERE id = $1").bind(page_id).bind(svg).execute(&pool).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

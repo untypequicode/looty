@@ -16,6 +16,7 @@ export default {
       pushIos: 'On iPhone and iPad, notifications need the app on your home screen: in Safari tap Share → “Add to Home Screen”, then open Looty from there and come back here (iOS 16.4 or later).', pushUnsupported: 'Not available in this browser (a secure https connection is required).', pushDenied: 'Blocked in this browser’s site settings.',
       pushOnHere: 'On for this device', enableHere: 'Enable on this device', pushEnabled: 'Push notifications enabled on this device',
       enableDesktop: 'Notify while Looty is open', desktopOn: 'While Looty is open',
+      appLabel: 'App notifications', appHint: 'System notifications sent by the desktop app, even with the window closed (also in the Looty icon menu).',
       events: 'What you receive', eventsHint: 'Pick a channel for each kind of event.', email: 'Email', push: 'Push',
       ev: {
         task_assigned: 'Assigned to a task', task_mention: 'Mentioned in a task', doc_mention: 'Mentioned in a document',

@@ -16,6 +16,7 @@ export default {
       pushIos: 'Sur iPhone et iPad, les notifications demandent l’application sur l’écran d’accueil : dans Safari, touchez Partager → « Sur l’écran d’accueil », ouvrez Looty depuis là, puis revenez ici (iOS 16.4 ou plus).', pushUnsupported: 'Indisponible dans ce navigateur (une connexion https sécurisée est nécessaire).', pushDenied: 'Bloquées dans les réglages du site de ce navigateur.',
       pushOnHere: 'Activées sur cet appareil', enableHere: 'Activer sur cet appareil', pushEnabled: 'Notifications push activées sur cet appareil',
       enableDesktop: 'Notifier quand Looty est ouvert', desktopOn: 'Quand Looty est ouvert',
+      appLabel: 'Notifications de l’application', appHint: 'Notifications du système envoyées par l’application de bureau, même fenêtre fermée (aussi dans le menu de l’icône Looty).',
       events: 'Ce que vous recevez', eventsHint: 'Choisissez un canal pour chaque type d’événement.', email: 'E-mail', push: 'Push',
       ev: {
         task_assigned: 'Assignation à une tâche', task_mention: 'Mention dans une tâche', doc_mention: 'Mention dans un document',

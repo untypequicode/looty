@@ -14,6 +14,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
+    response::Response,
     routing::{get, post, put},
     Json, Router,
 };
@@ -210,7 +211,13 @@ async fn overview(State(state): State<AppState>, user: AuthUser, Path(ws): Path<
     .bind(user.id)
     .fetch_optional(&state.pool)
     .await?;
-    Ok(Json(json!({ "url": url, "default_url": DEFAULT_URL, "can_configure": role.is_admin(), "connection": conn })))
+    // Copie hors ligne : éléments déjà ouverts, consultables si la plateforme ne répond pas.
+    let (offline_items, offline_bytes): (i64, i64) = sqlx::query_as("SELECT count(*), COALESCE(sum(size), 0)::bigint FROM moodle_cache WHERE workspace_id = $1 AND user_id = $2")
+        .bind(ws)
+        .bind(user.id)
+        .fetch_one(&state.pool)
+        .await?;
+    Ok(Json(json!({ "url": url, "default_url": DEFAULT_URL, "can_configure": role.is_admin(), "connection": conn, "offline_items": offline_items, "offline_bytes": offline_bytes })))
 }
 
 #[derive(Deserialize)]
@@ -404,6 +411,8 @@ async fn disconnect(State(state): State<AppState>, user: AuthUser, Path(ws): Pat
     if let Some(Some(cal)) = cal {
         sqlx::query("DELETE FROM calendars WHERE id = $1 AND user_id = $2").bind(cal).bind(user.id).execute(&state.pool).await?;
     }
+    // Copie hors ligne de ce qui avait été ouvert : effacée avec la connexion.
+    crate::moodle_cache::forget(&state, ws, user.id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -440,7 +449,7 @@ struct CoursesQuery {
     all: bool,
 }
 
-async fn courses(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<CoursesQuery>) -> ApiResult<Json<Vec<Value>>> {
+async fn courses_live(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<CoursesQuery>) -> ApiResult<Json<Vec<Value>>> {
     let (c, client, uid) = conn_of(&state, &user, ws).await?;
     let v = track(&state, c.id, client.call("core_enrol_get_users_courses", &[p("userid", uid)]).await).await?;
     let hidden = |c: &Value| c["hidden"].as_bool().unwrap_or_else(|| c["hidden"].as_i64().unwrap_or(0) != 0);
@@ -498,7 +507,7 @@ async fn set_hidden(State(state): State<AppState>, user: AuthUser, Path((ws, cou
 }
 
 /// Échéances à venir (et en retard depuis 14 jours) : devoirs, tests, rendez-vous…
-async fn deadlines(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<Value>>> {
+async fn deadlines_live(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<Value>>> {
     let (c, client, _) = conn_of(&state, &user, ws).await?;
     let from = Utc::now().timestamp() - 14 * 86400;
     let v = track(&state, c.id, client.call("core_calendar_get_action_events_by_timesort", &[p("timesortfrom", from), p("limitnum", 50)]).await).await?;
@@ -534,7 +543,7 @@ fn text_of(html: &str) -> String {
     crate::ical::html_to_text(html).split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-async fn notifications(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Value>> {
+async fn notifications_live(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Value>> {
     let (c, client, uid) = conn_of(&state, &user, ws).await?;
     let v = track(&state, c.id, client.call("message_popup_get_popup_notifications", &[p("useridto", uid), p("newestfirst", 1), p("limit", 30), p("offset", 0)]).await).await?;
     let list: Vec<Value> = v["notifications"]
@@ -561,7 +570,7 @@ fn member_name(members: &Value, id: i64) -> String {
     members.as_array().and_then(|m| m.iter().find(|x| x["id"].as_i64() == Some(id))).and_then(|x| x["fullname"].as_str()).unwrap_or("").to_string()
 }
 
-async fn conversations(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<Value>>> {
+async fn conversations_live(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<Value>>> {
     let (c, client, uid) = conn_of(&state, &user, ws).await?;
     let v = track(&state, c.id, client.call("core_message_get_conversations", &[p("userid", uid), p("limitfrom", 0), p("limitnum", 40)]).await).await?;
     Ok(Json(
@@ -591,7 +600,7 @@ async fn conversations(State(state): State<AppState>, user: AuthUser, Path(ws): 
     ))
 }
 
-async fn conversation(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, i64)>) -> ApiResult<Json<Value>> {
+async fn conversation_live(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, i64)>) -> ApiResult<Json<Value>> {
     let (c, client, uid) = conn_of(&state, &user, ws).await?;
     let v = track(
         &state,
@@ -720,6 +729,37 @@ pub fn start_poll_loop(state: AppState) {
             }
         }
     });
+}
+
+// ---------------------------------------------------------------------------
+// Copie hors ligne (voir moodle_cache) : ce qui a déjà été ouvert reste consultable
+// quand la plateforme ne répond pas.
+// ---------------------------------------------------------------------------
+
+async fn courses(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<CoursesQuery>) -> ApiResult<Response> {
+    let key = if q.all { "courses:all" } else { "courses:visible" };
+    let live = courses_live(State(state.clone()), user, Path(ws), Query(q)).await.map(|Json(v)| Value::Array(v));
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, key, live).await
+}
+
+async fn deadlines(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Response> {
+    let live = deadlines_live(State(state.clone()), user, Path(ws)).await.map(|Json(v)| Value::Array(v));
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, "deadlines", live).await
+}
+
+async fn notifications(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Response> {
+    let live = notifications_live(State(state.clone()), user, Path(ws)).await.map(|Json(v)| v);
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, "notifications", live).await
+}
+
+async fn conversations(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Response> {
+    let live = conversations_live(State(state.clone()), user, Path(ws)).await.map(|Json(v)| Value::Array(v));
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, "conversations", live).await
+}
+
+async fn conversation(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, i64)>) -> ApiResult<Response> {
+    let live = conversation_live(State(state.clone()), user, Path((ws, id))).await.map(|Json(v)| v);
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, &format!("conversation:{id}"), live).await
 }
 
 #[cfg(test)]

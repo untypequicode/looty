@@ -45,6 +45,7 @@ pub fn routes() -> Router<AppState> {
         .route("/{id}/download", get(download_zip))
         .route("/{id}/bundle", get(bundle))
         .route("/{id}/preview-token", post(preview_token))
+        .route("/{id}/page", post(attach_page))
         .route("/{id}/compile", post(crate::latex::compile))
         .route("/{id}/output.pdf", get(crate::latex::output_pdf))
         .route("/files/{fid}/access", get(file_access))
@@ -131,8 +132,33 @@ pub(crate) async fn project_for(state: &AppState, user: &AuthUser, id: Uuid, nee
         .fetch_optional(&state.pool)
         .await?
         .ok_or(ApiError::NotFound)?;
+    // Projet porté par une page : les droits de la page (permissions par page, invités).
+    let page: Option<Uuid> = sqlx::query_scalar("SELECT id FROM pages_all WHERE project_id = $1").bind(id).fetch_optional(&state.pool).await?;
+    if let Some(page_id) = page {
+        let (_, _, access) = crate::access::page_access(&state.pool, user, page_id).await?;
+        let mut perms = member_perms(&state.pool, user.id, p.workspace_id).await?.map(|(_, x)| x).unwrap_or(Perms::preset(crate::access::Role::Guest));
+        perms.docs = match access {
+            crate::access::PageAccess::None => return Err(ApiError::NotFound),
+            crate::access::PageAccess::Read => level::READ,
+            crate::access::PageAccess::Write => level::EDIT,
+        };
+        // Supprimer le projet d'une page : qui peut modifier la page (sinon on supprime la page).
+        let ok = match need {
+            Need::Read => true,
+            Need::Write | Need::Manage => perms.docs >= level::EDIT,
+        };
+        if !ok {
+            return Err(ApiError::Forbidden);
+        }
+        return Ok((p, perms));
+    }
     let perms = require_ws(state, user, p.workspace_id, need).await?;
     Ok((p, perms))
+}
+
+/// Page qui porte le projet, s'il y en a une.
+pub(crate) async fn page_of(state: &AppState, project: Uuid) -> ApiResult<Option<Uuid>> {
+    Ok(sqlx::query_scalar("SELECT id FROM pages WHERE project_id = $1").bind(project).fetch_optional(&state.pool).await?)
 }
 
 /// Chemin relatif propre : segments non vides, sans `.`/`..`, caractères sûrs.
@@ -159,6 +185,18 @@ fn blob_dir(project: Uuid) -> PathBuf {
     PathBuf::from(crate::upload::UPLOAD_DIR).join("projects").join(project.to_string())
 }
 
+/// Dossiers de fichiers envoyés des projets supprimés (par exemple avec leur page, en base).
+pub(crate) async fn prune_blob_dirs(pool: &sqlx::PgPool) {
+    let Ok(mut dir) = tokio::fs::read_dir(PathBuf::from(crate::upload::UPLOAD_DIR).join("projects")).await else { return };
+    while let Ok(Some(entry)) = dir.next_entry().await {
+        let Some(id) = entry.file_name().to_str().and_then(|s| Uuid::parse_str(s).ok()) else { continue };
+        let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1)").bind(id).fetch_one(pool).await.unwrap_or(true);
+        if !exists {
+            let _ = tokio::fs::remove_dir_all(entry.path()).await;
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Projets
 // ---------------------------------------------------------------------------
@@ -174,20 +212,63 @@ struct ProjectSummary {
     last_build_ok: Option<bool>,
     files: i64,
     created_by_name: Option<String>,
+    /// Page qui porte le projet (dans les documents).
+    page_id: Option<Uuid>,
+    page_icon: Option<String>,
+    /// Début du fichier principal (aperçu sur la carte).
+    snippet: Option<String>,
+}
+
+/// Sources des premières cellules d'un notebook, séparées par une ligne vide.
+fn notebook_snippet(json: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(json).ok()?;
+    let text = |s: &Value| match s {
+        Value::Array(a) => a.iter().filter_map(Value::as_str).collect::<String>(),
+        Value::String(s) => s.clone(),
+        _ => String::new(),
+    };
+    let out: Vec<String> = v["cells"].as_array()?.iter().take(3).map(|c| text(&c["source"])).filter(|s| !s.trim().is_empty()).collect();
+    (!out.is_empty()).then(|| out.join("\n\n").chars().take(400).collect())
 }
 
 async fn list_projects(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<Vec<ProjectSummary>>> {
-    require_ws(&state, &user, ws, Need::Read).await?;
-    Ok(Json(
-        sqlx::query_as(
-            "SELECT p.id, p.kind, p.name, p.slug, p.published, GREATEST(p.updated_at, COALESCE(MAX(f.updated_at), p.updated_at)) AS updated_at, p.last_build_ok,
-                    count(f.id) FILTER (WHERE NOT f.is_dir) AS files, u.name AS created_by_name
-             FROM projects p LEFT JOIN project_files f ON f.project_id = p.id LEFT JOIN users u ON u.id = p.created_by
-             WHERE p.workspace_id = $1 GROUP BY p.id, u.name ORDER BY 6 DESC",
+    let role = crate::access::require_member_or_guest(&state.pool, &user, ws).await?;
+    let rows: Vec<ProjectSummary> = sqlx::query_as(
+        "SELECT p.id, p.kind, p.name, p.slug, p.published, GREATEST(p.updated_at, COALESCE(MAX(f.updated_at), p.updated_at)) AS updated_at, p.last_build_ok,
+                count(f.id) FILTER (WHERE NOT f.is_dir) AS files, u.name AS created_by_name, pg.id AS page_id, pg.icon AS page_icon,
+                (SELECT left(m.content, 400) FROM project_files m WHERE m.project_id = p.id AND m.content IS NOT NULL
+                   AND m.path = COALESCE(p.settings->>'main', p.settings->>'entry', 'index.html') LIMIT 1) AS snippet
+         FROM projects p LEFT JOIN project_files f ON f.project_id = p.id LEFT JOIN users u ON u.id = p.created_by
+         LEFT JOIN pages_all pg ON pg.project_id = p.id
+         WHERE p.workspace_id = $1 AND pg.deleted_at IS NULL
+         GROUP BY p.id, u.name, pg.id, pg.icon ORDER BY 6 DESC",
+    )
+    .bind(ws)
+    .fetch_all(&state.pool)
+    .await?;
+    // Projets des pages : selon l'accès à la page ; les autres : droit de lecture des documents.
+    // Notebook : aperçu = texte des premières cellules (pas le JSON du fichier).
+    let mut rows = rows;
+    for r in rows.iter_mut().filter(|r| r.kind == "notebook") {
+        let content: Option<String> = sqlx::query_scalar(
+            "SELECT f.content FROM project_files f JOIN projects p ON p.id = f.project_id
+             WHERE f.project_id = $1 AND f.path = COALESCE(p.settings->>'main', 'notebook.ipynb')",
         )
-        .bind(ws)
-        .fetch_all(&state.pool)
-        .await?,
+        .bind(r.id)
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten();
+        r.snippet = content.and_then(|c| notebook_snippet(&c));
+    }
+    let docs_read = crate::access::member_perms(&state.pool, user.id, ws).await?.is_some_and(|(_, p)| p.docs >= level::READ);
+    let visible = crate::access::visible_pages(&state.pool, &user, ws, role).await?;
+    Ok(Json(
+        rows.into_iter()
+            .filter(|r| match r.page_id {
+                Some(pid) => visible.get(&pid).is_some_and(|a| *a != crate::access::PageAccess::None),
+                None => docs_read,
+            })
+            .collect(),
     ))
 }
 
@@ -290,10 +371,15 @@ fn template_files(kind: &str, template: &str, name: &str) -> Vec<(&'static str, 
 
 async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<CreateProject>) -> ApiResult<Json<Project>> {
     require_ws(&state, &user, ws, Need::Write).await?;
-    if !matches!(p.kind.as_str(), "site" | "latex" | "notebook") {
+    Ok(Json(insert_project(&state, ws, user.id, &p.kind, &p.name, p.template.as_deref()).await?))
+}
+
+/// Nouveau projet à partir d'un modèle (droits vérifiés par l'appelant).
+pub(crate) async fn insert_project(state: &AppState, ws: Uuid, user_id: Uuid, kind: &str, name: &str, template: Option<&str>) -> ApiResult<Project> {
+    if !matches!(kind, "site" | "latex" | "notebook") {
         return Err(ApiError::bad_request("invalid_value"));
     }
-    let name = p.name.trim();
+    let name = name.trim();
     if name.is_empty() || name.chars().count() > 120 {
         return Err(ApiError::bad_request("invalid_value"));
     }
@@ -301,7 +387,7 @@ async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws):
     if count >= 200 {
         return Err(ApiError::bad_request("project_too_many"));
     }
-    let settings = match p.kind.as_str() {
+    let settings = match kind {
         "latex" => json!({ "main": "main.tex", "engine": "pdflatex" }),
         "notebook" => json!({ "main": "notebook.ipynb" }),
         _ => json!({ "entry": "index.html" }),
@@ -311,18 +397,18 @@ async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws):
         "INSERT INTO projects (workspace_id, kind, name, settings, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING {PROJECT_COLS}"
     )))
     .bind(ws)
-    .bind(&p.kind)
+    .bind(kind)
     .bind(name)
     .bind(&settings)
-    .bind(user.id)
+    .bind(user_id)
     .fetch_one(&mut *tx)
     .await?;
-    let files = template_files(&p.kind, p.template.as_deref().unwrap_or("starter"), name);
+    let files = template_files(kind, template.unwrap_or("starter"), name);
     let mut dirs: Vec<String> = files.iter().filter_map(|(path, _)| path.rsplit_once('/').map(|(d, _)| d.to_string())).collect();
     dirs.sort();
     dirs.dedup();
     for d in dirs {
-        sqlx::query("INSERT INTO project_files (project_id, path, is_dir, updated_by) VALUES ($1, $2, TRUE, $3) ON CONFLICT DO NOTHING").bind(project.id).bind(&d).bind(user.id).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO project_files (project_id, path, is_dir, updated_by) VALUES ($1, $2, TRUE, $3) ON CONFLICT DO NOTHING").bind(project.id).bind(&d).bind(user_id).execute(&mut *tx).await?;
     }
     for (path, content) in files {
         sqlx::query("INSERT INTO project_files (project_id, path, content, mime, size, updated_by) VALUES ($1, $2, $3, $4, $5, $6)")
@@ -331,12 +417,12 @@ async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws):
             .bind(&content)
             .bind(mime_guess::from_path(path).first_or_text_plain().essence_str())
             .bind(content.len() as i64)
-            .bind(user.id)
+            .bind(user_id)
             .execute(&mut *tx)
             .await?;
     }
     tx.commit().await?;
-    Ok(Json(project))
+    Ok(project)
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -366,9 +452,11 @@ async fn files_of(state: &AppState, project: Uuid) -> ApiResult<Vec<FileDto>> {
 async fn get_project(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
     let (p, perms) = project_for(&state, &user, id, Need::Read).await?;
     let files = files_of(&state, id).await?;
+    let page_id = page_of(&state, id).await?;
     let public_url = p.slug.as_ref().filter(|_| p.published).map(|s| format!("{}/pages/{s}/", sites_base(&state)));
     Ok(Json(json!({
         "project": p,
+        "page_id": page_id,
         "files": files,
         "public_url": public_url,
         "can_write": allowed(&perms, Need::Write),
@@ -450,6 +538,37 @@ async fn delete_project(State(state): State<AppState>, user: AuthUser, Path(id):
     sqlx::query("DELETE FROM projects WHERE id = $1").bind(id).execute(&state.pool).await?;
     let _ = tokio::fs::remove_dir_all(blob_dir(id)).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Projet sans page : une page est créée à la racine des documents et le porte (il suit
+/// alors les droits de cette page).
+async fn attach_page(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let (p, perms) = project_for(&state, &user, id, Need::Write).await?;
+    if page_of(&state, id).await?.is_some() {
+        return Err(ApiError::Conflict("page_has_project".into()));
+    }
+    if perms.docs < level::EDIT {
+        return Err(ApiError::Forbidden);
+    }
+    let position: f64 = sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 65536 FROM pages WHERE workspace_id = $1 AND parent_id IS NULL")
+        .bind(p.workspace_id)
+        .fetch_one(&state.pool)
+        .await?;
+    let page: crate::page::Page = sqlx::query_as(
+        "INSERT INTO pages (workspace_id, title, created_by, updated_by, position, project_id) VALUES ($1, $2, $3, $3, $4, $5) RETURNING *",
+    )
+    .bind(p.workspace_id)
+    .bind(&p.name)
+    .bind(user.id)
+    .bind(position)
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    let mut lite = page.clone();
+    lite.content = None;
+    lite.project_kind = Some(p.kind.clone());
+    state.emit(p.workspace_id, json!({ "type": "PAGE_CREATED", "page": lite })).await;
+    Ok(Json(json!({ "page_id": page.id })))
 }
 
 // ---------------------------------------------------------------------------
@@ -929,6 +1048,9 @@ mod tests {
         assert!(clean_path("").is_err());
         assert!(clean_path("a:b").is_err());
         assert_eq!(percent_decode("caf%C3%A9.html"), "café.html");
+        let nb = notebook_json(&[("markdown", "# Titre\n"), ("code", "print(1)")]);
+        assert_eq!(notebook_snippet(&nb).as_deref(), Some("# Titre\n\n\nprint(1)"));
+        assert_eq!(notebook_snippet("{"), None);
         assert_eq!(percent_decode("%€x"), "%€x");
         assert_eq!(percent_decode("100%"), "100%");
         assert!(is_text_path("chap/intro.TEX") && is_text_path("refs.bib") && !is_text_path("photo.png"));

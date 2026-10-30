@@ -4,6 +4,8 @@ import type { Notification } from '~/types'
 import { useNotifications } from '~/composables/useNotifications'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
+// Application de bureau : notifications système de l'application, sans permission du navigateur.
+import { isDesktop } from '~/composables/useDesktop'
 import { motion } from '~/composables/useMotion'
 
 definePageMeta({ layout: 'workspace' })
@@ -64,7 +66,7 @@ useHead({ title: () => t('nav.inbox') })
     </AppPageHeader>
   
     <div ref="root" class="inbox">
-      <div v-if="permission === 'default'" class="desktop-banner">
+      <div v-if="permission === 'default' && !isDesktop" class="desktop-banner">
         <BellRing :size="16" />
         <span>{{ t('inbox.enableDesktop') }}</span>
         <UiButton size="xs" variant="primary" @click="enableDesktop">{{ t('common.enable') }}</UiButton>

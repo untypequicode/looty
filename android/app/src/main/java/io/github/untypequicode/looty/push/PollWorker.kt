@@ -32,7 +32,7 @@ class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
                     latest = maxOf(latest, at)
                     if (n.read_at != null || at <= since || !shown.add(n.id) || count >= 8) continue
                     count++
-                    Notifier.show(ctx, w.name, Notifier.line(ctx, n), Notifier.path(n), n.id)
+                    Notifier.show(ctx, w.name, Notifier.line(ctx, n), Notifier.path(n), n.id, Notifier.Kind.of(n.kind))
                 }
             }
             PushStore.setLastPoll(ctx, maxOf(latest, since))

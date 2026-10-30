@@ -77,6 +77,15 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
         val seg = uri.pathSegments
         val ws = seg.getOrNull(1)
         if (seg.firstOrNull() == "app" && seg.getOrNull(1) == "updates") { nav.navigate("updates") { launchSingleTop = true }; return@LaunchedEffect }
+        // Widgets : ajout rapide et écrans principaux (looty://app/<écran>).
+        if (seg.firstOrNull() == "app") {
+            when (val screen = seg.getOrNull(1)) {
+                "quickadd" -> quickAdd = true
+                "tasks", "docs", "inbox", "home" -> nav.navigate(screen) { launchSingleTop = true }
+                "calendar", "mail", "moodle", "drive", "projects", "notifications" -> nav.navigate(screen) { launchSingleTop = true }
+            }
+            return@LaunchedEffect
+        }
         if (seg.firstOrNull() != "w" || ws == null) return@LaunchedEffect openWeb(ctx, link)
         if (ws != state.ws) state.switchWorkspace(ws)
         val target = when {
@@ -201,6 +210,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("settings") { SettingsScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("settings/profile") { ProfileSettingsScreen(state, onBack = { nav.popBackStack() }) }
             composable("settings/preferences") { PreferencesScreen(state, onBack = { nav.popBackStack() }) }
+            composable("widgets") { WidgetsScreen(onBack = { nav.popBackStack() }) }
             composable("settings/security") { SecurityScreen(state, onBack = { nav.popBackStack() }) }
             composable("settings/calendars") { CalendarSyncScreen(state, onBack = { nav.popBackStack() }) }
             composable("settings/workspace") { WorkspaceSettingsScreen(state, onBack = { nav.popBackStack() }, onLeft = { nav.popBackStack("home", inclusive = false) }) }
