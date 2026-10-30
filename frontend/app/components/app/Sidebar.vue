@@ -8,7 +8,6 @@ import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { usePersonalSpace } from '~/composables/usePersonal'
 import { draggingPage, useMovePage } from '~/composables/useMovePage'
-import { pageKindIcon } from '~/composables/usePages'
 import { api } from '~/composables/api'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useAccess } from '~/composables/useAccess'
@@ -121,12 +120,10 @@ const personalLinks = computed(() => {
   ]
 })
 // Accès rapide : quelques tableaux, puis les documents modifiés le plus récemment.
-const PERSONAL_MAX = 8
 const recent = <T extends { updated_at?: string }>(l: T[] | undefined) => [...(l ?? [])].sort((x, y) => (y.updated_at ?? '').localeCompare(x.updated_at ?? ''))
 const personalBoards = computed(() => recent(personal.boards.data.value).slice(0, 4))
-const personalRecent = computed(() => recent(personal.pages.data.value))
-const personalPages = computed(() => personalRecent.value.slice(0, PERSONAL_MAX - personalBoards.value.length))
-const personalMore = computed(() => personalRecent.value.length > personalPages.value.length || (personal.boards.data.value?.length ?? 0) > personalBoards.value.length)
+// Documents : arborescence dépliable complète (AppPersonalTree) ; « Tout voir » pour les tableaux en plus.
+const personalMore = computed(() => (personal.boards.data.value?.length ?? 0) > personalBoards.value.length)
 const personalAddOpen = ref(false)
 const qc = useQueryClient()
 async function newPersonalDoc() {
@@ -159,11 +156,6 @@ async function onPersonalDrop() {
   const from = draggingPage.value
   draggingPage.value = null
   if (from && from.ws !== personal.id.value) await crossMove(from.ws, from.id, personal.id.value)
-}
-function onPersonalDragStart(e: DragEvent, id: string) {
-  e.dataTransfer!.setData('application/x-looty-page', id)
-  e.dataTransfer!.effectAllowed = 'move'
-  draggingPage.value = { ws: personal.id.value, id }
 }
 
 // Dépôt d'une page à la racine de l'arbre
@@ -227,13 +219,10 @@ async function onRootDrop(e: DragEvent) {
             </UiTooltip>
           </div>
           <AppSidebarItem v-for="b in personalBoards" :key="b.id" :to="links.board(personal.id.value, b.id)" :icon="Kanban" :label="b.name" />
-          <AppSidebarItem
-            v-for="p in personalPages" :key="p.id" :to="links.doc(personal.id.value, p.id)" :emoji="p.icon" :icon="pageKindIcon(p)" :label="p.title || t('docs.untitled')"
-            draggable="true" @dragstart="onPersonalDragStart($event, p.id)" @dragend="draggingPage = null"
-          />
+          <AppShellScope :ws="personal.id.value"><AppPersonalTree /></AppShellScope>
           <div v-if="personalDrop" class="sb-drop-hint">{{ t('move.dropHere') }}</div>
-          <AppSidebarItem v-if="personalMore" :to="links.docs(personal.id.value)" :icon="MoreHorizontal" :label="t('personal.all')" />
-          <button v-if="!personalBoards.length && !personalPages.length" class="sb-hint" @click="newPersonalDoc()">
+          <AppSidebarItem v-if="personalMore" :to="links.home(personal.id.value)" :icon="MoreHorizontal" :label="t('personal.all')" />
+          <button v-if="!personalBoards.length && !personal.pages.data.value?.length" class="sb-hint" @click="newPersonalDoc()">
             <Plus :size="14" /> {{ t('personal.createFirst') }}
           </button>
         </div>

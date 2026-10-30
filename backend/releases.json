@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.25.1",
+      "date": "2026-10-31",
+      "title": {
+        "en": "Personal documents as a tree",
+        "fr": "Documents perso en arborescence"
+      },
+      "notes": {
+        "en": [
+          "**Personal space** in the sidebar: its documents now show as an expandable tree, like in any workspace, with their sub-pages, menu and drag and drop."
+        ],
+        "fr": [
+          "**Espace perso** dans la barre latérale : ses documents s’affichent maintenant en arborescence dépliable, comme dans n’importe quel espace, avec leurs sous-pages, leur menu et le glisser-déposer."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.25.0",
       "date": "2026-10-30",
       "title": {
