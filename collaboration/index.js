@@ -14,6 +14,25 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Fichier texte d'un projet (mini-site, LaTeX) : document « file:<id> », texte dans Y.Text('content').
 const FILE_PREFIX = 'file:'
 const fileId = (name) => (name.startsWith(FILE_PREFIX) && UUID_RE.test(name.slice(FILE_PREFIX.length)) ? name.slice(FILE_PREFIX.length) : null)
+// Canevas d'une page (tableau blanc) : document « canvas:<page> », éléments dans Y.Map('elements').
+const CANVAS_PREFIX = 'canvas:'
+const canvasId = (name) => (name.startsWith(CANVAS_PREFIX) && UUID_RE.test(name.slice(CANVAS_PREFIX.length)) ? name.slice(CANVAS_PREFIX.length) : null)
+
+/** Nombre d'éléments présents et textes / liens (recherche, graphe) d'un canevas. */
+function canvasSummary(state) {
+  const doc = new Y.Doc()
+  Y.applyUpdate(doc, state)
+  let count = 0
+  const parts = []
+  for (const el of doc.getMap('elements').values()) {
+    if (!el || el.isDeleted) continue
+    count++
+    if (typeof el.text === 'string' && el.text) parts.push(el.text)
+    if (typeof el.link === 'string' && el.link) parts.push(el.link)
+  }
+  doc.destroy()
+  return { count, text: parts.join('\n').slice(0, 200000) }
+}
 
 /** État Yjs initial d'un fichier jamais ouvert en direct : son texte. */
 function textState(text) {
@@ -178,7 +197,9 @@ async function recordRevision(pageId, state, userId) {
  */
 const accessUrl = (documentName) => {
   const fid = fileId(documentName)
-  return fid ? `${BACKEND_URL}/api/projects/files/${fid}/access` : `${BACKEND_URL}/api/pages/${documentName}/access`
+  // Canevas : les droits de sa page.
+  const page = canvasId(documentName) ?? documentName
+  return fid ? `${BACKEND_URL}/api/projects/files/${fid}/access` : `${BACKEND_URL}/api/pages/${page}/access`
 }
 
 /**
@@ -244,12 +265,13 @@ const server = new Server({
       throw new Error('restoring')
     }
     const fid = fileId(documentName)
-    if (!fid && !UUID_RE.test(documentName)) {
+    const cid = canvasId(documentName)
+    if (!fid && !cid && !UUID_RE.test(documentName)) {
       throw new Error('invalid-document')
     }
     // Interface d'avant la version du format (onglet ouvert avant une mise à jour…) : elle ne
     // sait pas lire les formules et diagrammes convertis et les supprimerait du document.
-    if (!fid && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
+    if (!fid && !cid && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
       throw new Error('outdated-client')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
@@ -279,6 +301,13 @@ const server = new Server({
     new Database({
       fetch: async ({ documentName }) => {
         loadedAt.set(documentName, Date.now())
+        const cid = canvasId(documentName)
+        if (cid) {
+          // Erreur de lecture : la connexion échoue (jamais un canevas vide enregistré à la place).
+          const res = await pool.query('SELECT canvas_state FROM pages WHERE id = $1', [cid])
+          const state = res.rows[0]?.canvas_state
+          return state && state.length > 0 ? state : null
+        }
         const fid = fileId(documentName)
         if (fid) {
           try {
@@ -333,6 +362,19 @@ const server = new Server({
         const userId = lastContext?.user?.id || context?.user?.id || null
         // Document chargé avant une restauration : ne jamais écraser les données restaurées.
         if ((loadedAt.get(documentName) ?? 0) < restoredAt) return
+        const cid = canvasId(documentName)
+        if (cid) {
+          try {
+            const { count, text } = canvasSummary(state)
+            await pool.query(
+              'UPDATE pages SET canvas_state = $1, canvas_count = $2, canvas_text = $3, canvas_updated_at = NOW(), updated_by = COALESCE($5::uuid, updated_by) WHERE id = $4',
+              [state, count, text, cid, userId],
+            )
+          } catch (e) {
+            console.error('Error saving canvas', cid, e.message)
+          }
+          return
+        }
         const fid = fileId(documentName)
         if (fid) {
           // Contenu remplacé ailleurs (envoi, autre client) depuis le chargement : on n'écrase pas.

@@ -21,7 +21,7 @@ ok('page : arborescence du projet', await p.locator('.doc-project .pj-tree').isV
 ok('page : main.tex dans les fichiers', (await p.locator('.doc-project .pj-tree').textContent()).includes('main.tex'))
 ok('page : bouton Compiler', await p.locator('.doc-project .pj-compile').isVisible())
 await p.screenshot({ path: OUT + 'page-project.png' })
-await p.locator('.doc-project-head').getByText(/^(Notes)$/).click()
+await p.locator('.doc-views').getByText(/^(Notes)$/).click()
 await p.waitForTimeout(800)
 ok('notes : éditeur de la page', await p.locator('.ProseMirror').first().isVisible())
 ok('notes : adresse ?view=notes', new URL(p.url()).searchParams.get('view') === 'notes')

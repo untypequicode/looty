@@ -8,7 +8,7 @@ export default {
     drive_invalid_name: 'Invalid name', drive_name_taken: 'An item with this name already exists here', drive_quota_exceeded: 'Drive is full: delete files or ask for more space', drive_invalid_move: 'Can’t move a folder into itself',
   },
   nav: { projects: 'Projects', drive: 'Drive' },
-  presence: { screens: { projects: 'Projects', drive: 'Drive' } },
+  presence: { screens: { projects: 'Projects', drive: 'Drive', canvas: 'Canvases' } },
   projects: {
     pageKinds: { doc: 'Document', projects: 'Project in documents', latex: 'LaTeX project', site: 'Website', notebook: 'Python notebook' },
     makeProject: 'Turn into a project', pageConverted: 'The page now holds a project', openInProjects: 'Open in Projects', viewProject: 'Project', viewNotes: 'Notes',

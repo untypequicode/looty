@@ -116,6 +116,10 @@ export interface Page {
   /** Projet porté par la page (LaTeX, site, notebook). */
   project_id?: string | null
   project_kind?: 'site' | 'latex' | 'notebook' | null
+  /** Vue à l'ouverture : texte ou canevas. */
+  default_view?: 'doc' | 'canvas'
+  /** Éléments du canevas de la page. */
+  canvas_count?: number
   /** Permissions particulières (membres ou invités). */
   has_permissions?: boolean
   is_favorite?: boolean

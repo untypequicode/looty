@@ -1,5 +1,5 @@
 import { computed, type Component } from 'vue'
-import { FileText, Sigma, Code2, NotebookText } from 'lucide-vue-next'
+import { FileText, Sigma, Code2, NotebookText, PenTool } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { Page } from '~/types'
 import { api } from './api'
@@ -58,10 +58,10 @@ export function usePages() {
     qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, ...patch } : old))
   }
 
-  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject } = {}) {
+  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas' } = {}) {
     const page = await api<Page>(`/api/workspaces/${wsId.value}/pages`, {
       method: 'POST',
-      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project },
+      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView },
     })
     qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => (old && !old.some((p) => p.id === page.id) ? [...old, { ...page, content: null, can_edit: true }] : old))
     // Droits calculés par le serveur (sous-pages permises par un partage…).
@@ -76,7 +76,7 @@ export function usePages() {
     return page
   }
 
-  async function updatePage(id: string, data: Partial<Pick<Page, 'title' | 'icon' | 'parent_id' | 'position' | 'content'>>) {
+  async function updatePage(id: string, data: Partial<Pick<Page, 'title' | 'icon' | 'parent_id' | 'position' | 'content' | 'default_view'>>) {
     const prev = (pages.data.value ?? []).find((p) => p.id === id)
     const { content, ...meta } = data
     patchLocal(id, meta)
@@ -165,6 +165,7 @@ export function usePages() {
 }
 
 /** Icône d'une page sans emoji : celle de son projet (LaTeX, site, notebook) ou d'un document. */
-export function pageKindIcon(p: Pick<Page, 'project_kind'>): Component {
+export function pageKindIcon(p: Pick<Page, 'project_kind' | 'default_view'>): Component {
+  if (!p.project_kind && p.default_view === 'canvas') return PenTool
   return p.project_kind === 'latex' ? Sigma : p.project_kind === 'site' ? Code2 : p.project_kind === 'notebook' ? NotebookText : FileText
 }

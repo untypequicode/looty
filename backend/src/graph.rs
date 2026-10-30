@@ -55,7 +55,7 @@ pub struct Edge {
 /// Identifiants de pages et de tâches cités dans un texte (liens Looty).
 fn referenced_ids(text: &str) -> Vec<(&'static str, Uuid)> {
     let mut out = Vec::new();
-    for (marker, kind) in [("/doc/", "page"), ("/task/", "task"), ("task=", "task")] {
+    for (marker, kind) in [("/doc/", "page"), ("/task/", "task"), ("task=", "task"), ("event=", "event"), ("data-board=\"", "board"), ("/board/", "board")] {
         let mut rest = text;
         while let Some(i) = rest.find(marker) {
             let tail = &rest[i + marker.len()..];
@@ -78,7 +78,7 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     let perms = crate::access::member_perms(&state.pool, user.id, ws).await?.map(|(_, p)| p).ok_or(ApiError::NotFound)?;
     let visible = visible_pages(&state.pool, user, ws, role).await?;
     let pages: Vec<(Uuid, String, Option<String>, Option<Uuid>, Option<String>, Option<Vec<u8>>)> =
-        sqlx::query_as("SELECT id, title, icon, parent_id, content, yjs_state FROM pages WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
+        sqlx::query_as("SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, ''), yjs_state FROM pages WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
     let pages: Vec<_> = pages.into_iter().filter(|p| matches!(visible.get(&p.0), Some(PageAccess::Read | PageAccess::Write))).collect();
     // Tableaux et tâches : seulement avec l'accès aux tableaux ; événements : avec le calendrier.
     let see_boards = perms.boards > crate::access::level::NONE;

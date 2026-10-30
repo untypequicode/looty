@@ -4,7 +4,7 @@ import { PluginKey } from '@tiptap/pm/state'
 import type { Component } from 'vue'
 import {
   Pilcrow, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code2, Sigma, Table, Image, Minus,
-  Info, AlertTriangle, CheckCircle2, Lightbulb, ChevronRightSquare, Paperclip, CalendarDays, FileText, Superscript, Workflow, PenTool, FileType2, Clapperboard,
+  Info, AlertTriangle, CheckCircle2, Lightbulb, ChevronRightSquare, Paperclip, CalendarDays, FileText, Superscript, Workflow, PenTool, FileType2, Clapperboard, Kanban,
 } from 'lucide-vue-next'
 import { suggestionRenderer } from './suggestion'
 import { translate as t } from '~/composables/useI18n'
@@ -81,6 +81,8 @@ export function slashItems(ctx: SlashContext = {}): SlashItem[] {
     } },
     { id: 'mermaid', group: emb, label: t('editor.slash.mermaid'), hint: t('editor.slash.mermaidHint'), icon: Workflow, keywords: 'mermaid diagram diagramme flowchart graph sequence gantt', run: (e, r) => chain(e, r).insertMermaid('graph TD\n  A[Idée] --> B{Validée ?}\n  B -- Oui --> C[Réalisation]\n  B -- Non --> A').run() },
     { id: 'excalidraw', group: emb, label: t('editor.slash.excalidraw'), hint: t('editor.slash.excalidrawHint'), icon: PenTool, keywords: 'excalidraw drawing dessin schéma sketch whiteboard tableau blanc', run: (e, r) => chain(e, r).insertExcalidraw().run() },
+    { id: 'board', group: emb, label: t('blocks.slashBoard'), hint: t('blocks.slashBoardHint'), icon: Kanban, keywords: 'board tableau kanban database base de données tâches tasks liste table', run: (e, r) => chain(e, r).insertBoardBlock().run() },
+    { id: 'agenda', group: emb, label: t('blocks.slashAgenda'), hint: t('blocks.slashAgendaHint'), icon: CalendarDays, keywords: 'agenda calendrier calendar événements events échéances deadlines semaine week', run: (e, r) => chain(e, r).insertAgendaBlock().run() },
     ...(ctx.askEmbed ? [{ id: 'embed', group: emb, label: t('editor.slash.embed'), hint: 'YouTube, Figma, Loom…', icon: Clapperboard, keywords: 'embed intégrer youtube vimeo loom figma codepen google miro video vidéo', run: (e: Editor, r: Range) => { chain(e, r).run(); ctx.askEmbed!(e) } }] : []),
 
     { id: 'math', group: adv, label: t('editor.slash.math'), hint: '$$', icon: Sigma, keywords: 'math latex formula équation formule katex', run: (e, r) => chain(e, r).insertMathBlock('').run() },

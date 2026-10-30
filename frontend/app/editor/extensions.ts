@@ -23,6 +23,7 @@ import { mentionExtension } from './mention'
 import { PageMention, pageMentionSuggest, type PageSource } from './pageMention'
 import { CommentMark } from './commentMark'
 import { embedExtensions, EmbedPaste } from './embeds'
+import { lootyBlocks } from './lootyBlocks'
 import { CollaborativeUndo } from './undo'
 import { StablePluginState } from './pluginState'
 import { SOURCE_NODES } from './source'
@@ -67,6 +68,7 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
     ToggleContent,
     HeadingAnchors,
     ...embedExtensions,
+    ...lootyBlocks,
   ]
 }
 

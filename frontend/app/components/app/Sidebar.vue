@@ -2,7 +2,7 @@
 import {
   NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
-  GraduationCap, FolderCode, HardDrive, Eye,
+  GraduationCap, FolderCode, HardDrive, Eye, PenTool,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -42,6 +42,7 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   projects: { icon: FolderCode, label: () => t('projects.title'), to: () => `/w/${wsId.value}/projects`, when: () => !isGuest.value && can.value.seeDocs },
   drive: { icon: HardDrive, label: () => t('drive.title'), to: () => `/w/${wsId.value}/drive`, when: () => !isGuest.value && can.value.seeDocs },
   docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => seesSomeDocs.value },
+  canvas: { icon: PenTool, label: () => t('canvas.section'), to: () => `/w/${wsId.value}/canvas`, when: () => seesSomeDocs.value },
   graph: { icon: Waypoints, label: () => t('graph.title'), to: () => `/w/${wsId.value}/graph`, when: () => !isGuest.value },
   activity: { icon: History, label: () => t('feed.title'), to: () => `/w/${wsId.value}/activity`, hiddenByDefault: true, when: () => !isGuest.value },
   trash: { icon: Trash2, label: () => t('trash.title'), to: () => `/w/${wsId.value}/trash`, hiddenByDefault: true, when: () => !isGuest.value },
