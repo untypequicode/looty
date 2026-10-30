@@ -125,6 +125,7 @@ pub fn routes() -> Router<AppState> {
         .route("/{page_id}/permissions", get(get_page_permissions).put(set_page_permission))
         .route("/{page_id}/project", post(make_project))
         .route("/{page_id}/canvas-preview", put(save_canvas_preview))
+        .route("/{page_id}/move", post(move_to_workspace))
 }
 
 /// Routes hors workspace : contrôle d'accès pour le serveur de collaboration.
@@ -420,6 +421,101 @@ async fn update_page(
     lite.content = None;
     state.emit(workspace_id, serde_json::json!({ "type": "PAGE_UPDATED", "page": lite })).await;
     Ok(Json(page))
+}
+
+#[derive(Deserialize)]
+struct MoveToWorkspace {
+    workspace_id: Uuid,
+    /// Page d'accueil dans l'espace cible (sinon à la racine).
+    parent_id: Option<Uuid>,
+}
+
+/// Déplace une page et toutes ses sous-pages vers un autre espace (perso compris) : contenu,
+/// projet, canevas, commentaires et historique suivent. Les partages individuels et les
+/// liens vers des éléments de l'ancien espace sont retirés.
+async fn move_to_workspace(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<MoveToWorkspace>,
+) -> ApiResult<Json<serde_json::Value>> {
+    use crate::access::level::EDIT;
+    let pool = &state.pool;
+    let target = payload.workspace_id;
+    let (ws, _) = require_page_write(pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    if target == workspace_id {
+        return Err(ApiError::bad_request("invalid_value"));
+    }
+    // Sortir une page de son espace, comme la remonter à la racine : rôles qui créent des documents.
+    crate::access::require_perm(pool, &user, workspace_id, |p| p.docs >= EDIT).await?;
+    crate::access::require_perm(pool, &user, target, |p| p.docs >= EDIT).await?;
+    if let Some(parent) = payload.parent_id {
+        let (pws, _) = require_page_write(pool, &user, parent).await?;
+        if pws != target {
+            return Err(ApiError::bad_request("invalid_parent"));
+        }
+    }
+
+    // Sous-pages, corbeille comprise : une page restaurée doit retrouver son parent.
+    let ids: Vec<Uuid> = sqlx::query_scalar(
+        "WITH RECURSIVE sub AS (SELECT id, 0 AS depth FROM pages_all WHERE id = $1
+            UNION ALL SELECT p.id, sub.depth + 1 FROM pages_all p JOIN sub ON p.parent_id = sub.id WHERE sub.depth < 64)
+         SELECT id FROM sub ORDER BY depth",
+    )
+    .bind(page_id)
+    .fetch_all(pool)
+    .await?;
+    let live: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM pages WHERE id = ANY($1)").bind(&ids).fetch_all(pool).await?;
+    // On ne déplace pas une sous-page qu'on ne peut pas modifier (masquée, en lecture seule).
+    for id in &live {
+        if require_page_write(pool, &user, *id).await.is_err() {
+            return Err(ApiError::Conflict("move_restricted_subpages".into()));
+        }
+    }
+
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE pages_all SET parent_id = $2, updated_by = $4, updated_at = NOW(),
+            position = COALESCE((SELECT MAX(position) FROM pages WHERE workspace_id = $3 AND parent_id IS NOT DISTINCT FROM $2), 0) + 65536
+         WHERE id = $1",
+    )
+    .bind(page_id)
+    .bind(payload.parent_id)
+    .bind(target)
+    .bind(user.id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("UPDATE pages_all SET workspace_id = $2 WHERE id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
+    sqlx::query("UPDATE projects SET workspace_id = $2 WHERE id IN (SELECT project_id FROM pages_all WHERE id = ANY($1) AND project_id IS NOT NULL)")
+        .bind(&ids)
+        .bind(target)
+        .execute(&mut *tx)
+        .await?;
+    // Les partages et restrictions valaient pour les membres de l'ancien espace.
+    sqlx::query("DELETE FROM page_permissions WHERE page_id = ANY($1)").bind(&ids).execute(&mut *tx).await?;
+    sqlx::query("UPDATE item_comments SET workspace_id = $2 WHERE target_kind = 'page' AND target_id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
+    sqlx::query("UPDATE page_activities SET workspace_id = $2 WHERE page_id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM class_links WHERE page_id = ANY($1)").bind(&ids).execute(&mut *tx).await?;
+    // Relations manuelles : gardées entre pages déplacées, retirées vers l'ancien espace.
+    sqlx::query("UPDATE item_links SET workspace_id = $2 WHERE source_id = ANY($1) AND target_id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM item_links WHERE workspace_id = $2 AND (source_id = ANY($1) OR target_id = ANY($1))").bind(&ids).bind(workspace_id).execute(&mut *tx).await?;
+    tx.commit().await?;
+
+    crate::activity::log_page(pool, page_id, target, user.id, "move").await;
+    for id in live.iter().rev() {
+        state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": id })).await;
+    }
+    // Documents ouverts ailleurs : le serveur de collaboration revérifie les droits.
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
+    let moved: Vec<Page> = sqlx::query_as("SELECT * FROM pages WHERE id = ANY($1)").bind(&live).fetch_all(pool).await?;
+    for mut p in moved {
+        p.content = None;
+        state.emit(target, serde_json::json!({ "type": "PAGE_CREATED", "page": p })).await;
+    }
+    Ok(Json(serde_json::json!({ "workspace_id": target, "page_id": page_id, "moved": live.len() })))
 }
 
 async fn delete_page(

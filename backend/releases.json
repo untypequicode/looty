@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.25.0",
+      "date": "2026-10-30",
+      "title": {
+        "en": "Move a page to another workspace",
+        "fr": "Déplacer une page vers un autre espace"
+      },
+      "notes": {
+        "en": [
+          "**Move to another workspace**: in a page’s menu (or its menu in the sidebar), *Move to another workspace…* sends it with all its sub-pages to another workspace or to your personal space, at the root or under the page you choose. Its project, canvas, comments and history follow.",
+          "**Drag and drop**: drag a page from the sidebar onto *Personal space* to move it there, or drag a personal page onto the documents of the current workspace (or onto one of its pages) to bring it in.",
+          "Individual shares are removed when a page changes workspace, and links to boards or events of the old workspace don’t follow."
+        ],
+        "fr": [
+          "**Déplacer vers un autre espace** : dans le menu d’une page (ou son menu dans la barre latérale), *Déplacer vers un autre espace…* l’envoie avec toutes ses sous-pages vers un autre espace ou votre espace perso, à la racine ou sous la page de votre choix. Son projet, son canevas, ses commentaires et son historique suivent.",
+          "**Glisser-déposer** : glissez une page de la barre latérale sur *Espace perso* pour l’y ranger, ou une page perso sur les documents de l’espace courant (ou sur l’une de ses pages) pour l’y faire entrer.",
+          "Les partages individuels sont retirés quand une page change d’espace, et les liens vers des tableaux ou événements de l’ancien espace ne suivent pas."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.24.1",
       "date": "2026-10-30",
       "title": {

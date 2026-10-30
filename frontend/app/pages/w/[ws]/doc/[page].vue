@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput } from 'lucide-vue-next'
+import { openMovePage } from '~/composables/useMovePage'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
 import type { Page } from '~/types'
@@ -231,6 +232,7 @@ const menu = computed<MenuItem[]>(() => {
       : p.can_edit !== false ? [{ divider: true }, { heading: t('projects.makeProject') }, ...projectKinds.value.map((k) => ({ label: k.label, icon: k.icon, onSelect: () => makeProject(k.kind, k.template) }))] : []),
     { divider: true },
     ...(canManage.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
+    ...(canManage.value ? [{ label: t('move.action'), icon: FolderInput, onSelect: () => openMovePage(wsId.value, p) }] : []),
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },
     { label: t('exportFormats.printPdf'), icon: Printer, onSelect: async () => { const { printToPdf } = await import('~/editor/exportDoc'); printToPdf(title.value, [{ title: title.value || t('docs.untitled'), html: editorInst.value?.getHTML() ?? p.content ?? '' }]) } },
     { label: t('transfer.exportMenu'), icon: FileArchive, onSelect: () => (exportOpen.value = true) },
@@ -284,7 +286,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
           <UiButton size="sm" variant="ghost" :icon="MessageSquare" :class="{ 'cm-on': commentsOpen }" :aria-pressed="commentsOpen" @click="commentsOpen = !commentsOpen">{{ openComments || '' }}</UiButton>
         </UiTooltip>
         <UiButton v-if="!isGuest" size="sm" :icon="Share2" @click="shareOpen = true">{{ t('share.share') }}</UiButton>
-        <UiMenu v-model:open="menuOpen" :items="menu" placement="bottom-end" :width="250"><UiButton size="sm" variant="ghost" :icon="MoreHorizontal" /></UiMenu>
+        <UiMenu v-model:open="menuOpen" :items="menu" placement="bottom-end" :width="250"><UiButton size="sm" variant="ghost" :icon="MoreHorizontal" class="doc-more" :aria-label="t('common.more')" /></UiMenu>
       </template>
     </AppPageHeader>
 
