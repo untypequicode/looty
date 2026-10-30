@@ -3,20 +3,20 @@ import { useUi } from '~/composables/useUi'
 import { useBoards } from '~/composables/useBoards'
 import { useI18n } from '~/composables/useI18n'
 
-const { createBoardOpen } = useUi()
+const { createBoardOpen, createBoardIn } = useUi()
 const { createBoard } = useBoards()
 const { t } = useI18n()
 const name = ref('')
 const withColumns = ref(true)
 const loading = ref(false)
 
-watch(createBoardOpen, (v) => { if (v) { name.value = ''; withColumns.value = true } })
+watch(createBoardOpen, (v) => { if (v) { name.value = ''; withColumns.value = true } else createBoardIn.value = '' })
 
 async function submit() {
   if (!name.value.trim()) return
   loading.value = true
   try {
-    await createBoard(name.value.trim(), withColumns.value)
+    await createBoard(name.value.trim(), withColumns.value, createBoardIn.value || undefined)
     createBoardOpen.value = false
   } finally {
     loading.value = false

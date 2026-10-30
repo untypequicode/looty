@@ -60,7 +60,7 @@ const { data: mailAccounts } = useMailAccounts()
 const { data: moodleInfo } = useMoodle(wsId, computed(() => role.value != null && !isGuest.value))
 const cardFor = ref<string | null>(null)
 const moreOpen = ref(false)
-const { commandOpen, createBoardOpen, sectionsCollapsed, sidebarCollapsed, sidebarOpen, shortcutsOpen, openCreateTask } = useUi()
+const { commandOpen, createBoardOpen, createBoardIn, sectionsCollapsed, sidebarCollapsed, sidebarOpen, shortcutsOpen, openCreateTask } = useUi()
 const { user } = useAuth()
 
 function toggleSection(k: string) {
@@ -134,8 +134,8 @@ async function newPersonalDoc() {
   qc.invalidateQueries({ queryKey: wsKeys.pages(id) })
   await navigateTo(links.doc(id, page.id))
 }
-async function newPersonalBoard() {
-  await navigateTo(links.home(personal.id.value))
+function newPersonalBoard() {
+  createBoardIn.value = personal.id.value
   createBoardOpen.value = true
 }
 const personalAdd = computed<MenuItem[]>(() => [

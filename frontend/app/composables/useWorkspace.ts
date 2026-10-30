@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, getCurrentInstance, inject, provide, ref, type InjectionKey, type Ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { BoardSummary, Page, Workspace, WorkspaceMember, MyTask } from '~/types'
 import { api } from './api'
@@ -23,18 +23,30 @@ export function useWorkspaces() {
   })
 }
 
-/** Identifiant du workspace courant, déduit de la route `/w/:ws/...`. */
+const SHELL_WS: InjectionKey<Ref<string>> = Symbol('looty-shell-ws')
+
+/**
+ * Identifiant du workspace courant, déduit de la route `/w/:ws/...`, sauf dans la coque
+ * (barre latérale, menus, onglets) qui peut garder un autre espace autour d'un contenu perso.
+ */
 export function useWorkspaceId(): Ref<string> {
+  const shell = getCurrentInstance() ? inject(SHELL_WS, null) : null
+  if (shell) return shell
   const route = useRoute()
   return computed(() => (route.params.ws as string) || '')
+}
+
+/** Les composants descendants voient `id` comme espace courant (voir `AppShellScope`). */
+export function provideWorkspaceId(id: Ref<string>) {
+  provide(SHELL_WS, id)
 }
 
 /**
  * Données partagées du workspace courant (membres, tableaux, pages).
  * Les requêtes sont mises en cache par Vue Query et tenues à jour par le temps réel.
  */
-export function useWorkspace() {
-  const wsId = useWorkspaceId()
+export function useWorkspace(id?: Ref<string>) {
+  const wsId = id ?? useWorkspaceId()
   const enabled = computed(() => !!wsId.value)
   const qc = useQueryClient()
 
