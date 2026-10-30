@@ -5,7 +5,11 @@ import {
   GraduationCap, FolderCode, HardDrive, Eye, PenTool,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
-import { useWorkspace, links } from '~/composables/useWorkspace'
+import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
+import { usePersonalSpace } from '~/composables/usePersonal'
+import { pageKindIcon } from '~/composables/usePages'
+import { api } from '~/composables/api'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useAccess } from '~/composables/useAccess'
 import { useSidebarLayout } from '~/composables/useSidebarLayout'
 import { usePages } from '~/composables/usePages'
@@ -102,6 +106,44 @@ const boardMenuOpen = ref<Record<string, boolean>>({})
 const route = useRoute()
 watch(() => route.fullPath, () => (sidebarOpen.value = false))
 
+// --- Espace perso : raccourcis, tableaux et documents racine, création directe ---
+const personal = usePersonalSpace()
+const personalLinks = computed(() => {
+  const id = personal.id.value
+  return [
+    { icon: Home, label: t('nav.home'), to: links.home(id) },
+    { icon: CalendarDays, label: t('calendar.title'), to: links.calendar(id) },
+    { icon: Mail, label: t('nav.mail'), to: links.mail(id) },
+    { icon: FolderCode, label: t('projects.title'), to: `/w/${id}/projects` },
+    { icon: HardDrive, label: t('drive.title'), to: `/w/${id}/drive` },
+    { icon: PenTool, label: t('canvas.section'), to: `/w/${id}/canvas` },
+  ]
+})
+// Accès rapide : quelques tableaux, puis les documents modifiés le plus récemment.
+const PERSONAL_MAX = 8
+const recent = <T extends { updated_at?: string }>(l: T[] | undefined) => [...(l ?? [])].sort((x, y) => (y.updated_at ?? '').localeCompare(x.updated_at ?? ''))
+const personalBoards = computed(() => recent(personal.boards.data.value).slice(0, 4))
+const personalRecent = computed(() => recent(personal.pages.data.value))
+const personalPages = computed(() => personalRecent.value.slice(0, PERSONAL_MAX - personalBoards.value.length))
+const personalMore = computed(() => personalRecent.value.length > personalPages.value.length || (personal.boards.data.value?.length ?? 0) > personalBoards.value.length)
+const personalAddOpen = ref(false)
+const qc = useQueryClient()
+async function newPersonalDoc() {
+  const id = personal.id.value
+  const page = await api<{ id: string }>(`/api/workspaces/${id}/pages`, { method: 'POST', body: { title: '' } })
+  qc.invalidateQueries({ queryKey: wsKeys.pages(id) })
+  await navigateTo(links.doc(id, page.id))
+}
+async function newPersonalBoard() {
+  await navigateTo(links.home(personal.id.value))
+  createBoardOpen.value = true
+}
+const personalAdd = computed<MenuItem[]>(() => [
+  { label: t('docs.new'), icon: FileText, onSelect: newPersonalDoc },
+  { label: t('board.new'), icon: Kanban, onSelect: newPersonalBoard },
+  { label: t('projects.new'), icon: FolderCode, onSelect: () => navigateTo(`/w/${personal.id.value}/projects`) },
+])
+
 // Dépôt d'une page à la racine de l'arbre
 const rootDrop = ref(false)
 const { updatePage } = usePages()
@@ -138,7 +180,33 @@ async function onRootDrop(e: DragEvent) {
 
       <!-- Favoris -->
       <template v-for="sec in sectionOrder" :key="sec">
-      <section v-if="sec === 'favorites' && favorites.length" class="sb-section">
+      <!-- Espace perso : propre au compte, joignable depuis chaque espace -->
+      <section v-if="sec === 'personal' && personal.id.value && !personal.inside.value" class="sb-section">
+        <div class="sb-section-head">
+          <button class="sb-section-title" @click="toggleSection('personal')">
+            <span>{{ t('personal.title') }}</span>
+            <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.personal }" />
+          </button>
+          <UiMenu v-model:open="personalAddOpen" :items="personalAdd" placement="bottom-start">
+            <button class="sb-section-add" :aria-label="t('personal.new')"><Plus :size="14" /></button>
+          </UiMenu>
+        </div>
+        <div v-show="!sectionsCollapsed.personal" class="sb-group">
+          <div class="sb-perso-links">
+            <UiTooltip v-for="l in personalLinks" :key="l.to" :text="l.label">
+              <NuxtLink :to="l.to" class="sb-perso-link" :aria-label="l.label"><component :is="l.icon" :size="15" :stroke-width="1.9" /></NuxtLink>
+            </UiTooltip>
+          </div>
+          <AppSidebarItem v-for="b in personalBoards" :key="b.id" :to="links.board(personal.id.value, b.id)" :icon="Kanban" :label="b.name" />
+          <AppSidebarItem v-for="p in personalPages" :key="p.id" :to="links.doc(personal.id.value, p.id)" :emoji="p.icon" :icon="pageKindIcon(p)" :label="p.title || t('docs.untitled')" />
+          <AppSidebarItem v-if="personalMore" :to="links.docs(personal.id.value)" :icon="MoreHorizontal" :label="t('personal.all')" />
+          <button v-if="!personalBoards.length && !personalPages.length" class="sb-hint" @click="newPersonalDoc()">
+            <Plus :size="14" /> {{ t('personal.createFirst') }}
+          </button>
+        </div>
+      </section>
+
+      <section v-else-if="sec === 'favorites' && favorites.length" class="sb-section">
         <button class="sb-section-head" @click="toggleSection('favorites')">
           <span>{{ t('nav.favorites') }}</span>
           <ChevronRight :size="12" class="sb-chevron" :class="{ open: !sectionsCollapsed.favorites }" />
@@ -323,6 +391,9 @@ async function onRootDrop(e: DragEvent) {
   background: var(--bg-input);
   outline: none;
 }
+.sb-perso-links { display: flex; gap: 2px; padding: 2px 4px 4px; }
+.sb-perso-link { width: 30px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--text-3); transition: background var(--dur-fast), color var(--dur-fast); }
+.sb-perso-link:hover { background: var(--bg-hover); color: var(--text); }
 .tree { min-height: 8px; border-radius: var(--r-sm); }
 .tree.root-drop { box-shadow: inset 0 -2px 0 var(--accent); }
 .rm-on { color: var(--accent); background: var(--accent-soft); }

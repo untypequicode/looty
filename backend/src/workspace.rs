@@ -31,6 +31,9 @@ pub struct WorkspaceResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     /// Couleur du calendrier de l'espace (sinon la couleur d'accent).
     pub calendar_color: Option<String>,
+    /// Espace perso du compte courant.
+    #[sqlx(default)]
+    pub personal: bool,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +62,7 @@ pub struct WorkspaceMemberResponse {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_workspaces).post(create_workspace))
+        .route("/personal", get(personal_space))
         .route("/{workspace_id}", get(get_workspace).put(update_workspace).delete(delete_workspace))
         .route("/{workspace_id}/latex", get(get_latex).put(put_latex))
         .route("/{workspace_id}/calendar-color", put(put_calendar_color))
@@ -89,12 +93,12 @@ fn validate_name(name: &str) -> ApiResult<String> {
 
 async fn list_workspaces(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
     let ws: Vec<WorkspaceResponse> = sqlx::query_as(
-        "SELECT w.id, w.name, wm.role, w.created_at, w.updated_at, w.calendar_color
+        "SELECT w.id, w.name, wm.role, w.created_at, w.updated_at, w.calendar_color, w.personal_of IS NOT NULL AS personal
          FROM workspaces w JOIN workspace_members wm ON w.id = wm.workspace_id
          WHERE wm.user_id = $1
          UNION ALL
          -- Espaces où l'on est seulement invité (pages partagées avec soi).
-         SELECT w.id, w.name, 'guest'::varchar, w.created_at, w.updated_at, w.calendar_color
+         SELECT w.id, w.name, 'guest'::varchar, w.created_at, w.updated_at, w.calendar_color, false
          FROM workspaces w
          WHERE NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = w.id AND m.user_id = $1)
            AND EXISTS (SELECT 1 FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
@@ -118,7 +122,8 @@ async fn get_workspace(
         .bind(workspace_id)
         .fetch_one(&pool)
         .await?;
-    let calendar_color: Option<String> = sqlx::query_scalar("SELECT calendar_color FROM workspaces WHERE id = $1").bind(workspace_id).fetch_one(&pool).await?;
+    let (calendar_color, personal): (Option<String>, bool) =
+        sqlx::query_as("SELECT calendar_color, personal_of IS NOT NULL FROM workspaces WHERE id = $1").bind(workspace_id).fetch_one(&pool).await?;
     Ok(Json(WorkspaceResponse {
         id: w.id,
         name: w.name,
@@ -126,7 +131,38 @@ async fn get_workspace(
         created_at: w.created_at,
         updated_at: w.updated_at,
         calendar_color,
+        personal,
     }))
+}
+
+/// Espace perso du compte : créé à la première demande, la personne en est la seule membre.
+async fn personal_space(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("INSERT INTO workspaces (name, personal_of) VALUES ('Perso', $1) ON CONFLICT (personal_of) DO NOTHING")
+        .bind(user.id)
+        .execute(&mut *tx)
+        .await?;
+    let id: Uuid = sqlx::query_scalar("SELECT id FROM workspaces WHERE personal_of = $1").bind(user.id).fetch_one(&mut *tx).await?;
+    sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner') ON CONFLICT DO NOTHING")
+        .bind(id)
+        .bind(user.id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "id": id })))
+}
+
+/// Refuse ce qui ferait entrer ou sortir quelqu'un d'un espace perso (invitations,
+/// rôles, départ, suppression).
+pub async fn forbid_personal(pool: &PgPool, workspace_id: Uuid) -> ApiResult<()> {
+    let personal: Option<bool> = sqlx::query_scalar("SELECT personal_of IS NOT NULL FROM workspaces WHERE id = $1")
+        .bind(workspace_id)
+        .fetch_optional(pool)
+        .await?;
+    if personal == Some(true) {
+        return Err(ApiError::Conflict("personal_space".into()));
+    }
+    Ok(())
 }
 
 async fn create_workspace(
@@ -226,6 +262,7 @@ async fn delete_workspace(
     if require_member(&state.pool, &user, workspace_id).await? != Role::Owner {
         return Err(ApiError::Forbidden);
     }
+    forbid_personal(&state.pool, workspace_id).await?;
     state.emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_DELETED", "workspace_id": workspace_id })).await;
     sqlx::query("DELETE FROM workspaces WHERE id = $1").bind(workspace_id).execute(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -336,6 +373,7 @@ async fn update_member_role(
     Json(payload): Json<UpdateMemberRolePayload>,
 ) -> ApiResult<StatusCode> {
     let pool = &state.pool;
+    forbid_personal(pool, workspace_id).await?;
     if let Some(role_id) = payload.role_id {
         crate::roles::assign_role(&state, &user, workspace_id, member_id, role_id).await?;
         return Ok(StatusCode::NO_CONTENT);
@@ -407,6 +445,7 @@ async fn leave_workspace(
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     let role = require_member(&state.pool, &user, workspace_id).await?;
+    forbid_personal(&state.pool, workspace_id).await?;
     if role == Role::Owner && owner_count(&state.pool, workspace_id).await? <= 1 {
         return Err(ApiError::Conflict("last_owner".into()));
     }
@@ -473,6 +512,7 @@ async fn create_invite(
     Json(body): Json<CreateInvite>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let (my_role, _) = crate::access::require_perm(&pool, &user, workspace_id, |p| p.invite).await?;
+    forbid_personal(&pool, workspace_id).await?;
     let (role, role_id) = match body.role_id {
         Some(id) => {
             let (preset, perms) = crate::roles::role_info(&pool, workspace_id, id).await?;

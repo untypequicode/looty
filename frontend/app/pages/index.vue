@@ -24,12 +24,19 @@ onMounted(async () => {
     queryFn: async () => (await api<{ workspaces: Workspace[] }>('/api/workspaces')).workspaces,
   })
   const last = localStorage.getItem('looty.lastWorkspace')
-  const target = list.find((w) => w.id === last) ?? list[0]
+  const target = list.find((w) => w.id === last) ?? list.find((w) => !w.personal) ?? list[0]
   if (target) return navigateTo(links.home(target.id), { replace: true })
   ready.value = true
   await nextTick()
   if (card.value) gsap.fromTo(card.value.children, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.06, ease: 'power3.out' })
 })
+
+// Sans espace partagé : on peut commencer seul, dans son espace perso.
+async function startPersonal() {
+  const p = await api<{ id: string }>('/api/workspaces/personal')
+  await qc.invalidateQueries({ queryKey: wsKeys.list })
+  navigateTo(links.home(p.id))
+}
 
 async function create() {
   if (!name.value.trim()) return
@@ -56,6 +63,7 @@ async function create() {
         <UiInput v-model="name" :placeholder="t('workspace.namePlaceholder')" size="lg" autofocus />
         <UiButton type="submit" variant="primary" size="lg" block :loading="creating" :disabled="!name.trim()">{{ t('workspace.create') }}</UiButton>
       </form>
+      <UiButton variant="ghost" block @click="startPersonal">{{ t('personal.start') }}</UiButton>
       <p class="faint hint">{{ t('onboarding.inviteHint') }}</p>
       <NuxtLink v-if="shared?.length" to="/shared" class="shared-link">{{ t('shared.link', { n: shared.length }) }}</NuxtLink>
       <button class="faint logout" @click="logout">{{ t('auth.logout') }}</button>

@@ -9,9 +9,14 @@ import { useTheme } from '~/composables/useTheme'
 import { useI18n, LOCALES } from '~/composables/useI18n'
 import { api } from '~/composables/api'
 import { useQueryClient } from '@tanstack/vue-query'
+import { usePersonalSpace } from '~/composables/usePersonal'
+import { Lock } from 'lucide-vue-next'
 
 defineProps<{ collapsed?: boolean }>()
-const { data: workspaces } = useWorkspaces()
+const { data: allWorkspaces } = useWorkspaces()
+// L'espace perso a sa propre entrée, en tête du menu.
+const workspaces = computed(() => (allWorkspaces.value ?? []).filter((w) => !w.personal))
+const personal = usePersonalSpace()
 const { wsId, workspace, isAdmin } = useWorkspace()
 const { can } = useAccess(wsId)
 const { data: shared } = useSharedPages()
@@ -58,9 +63,10 @@ async function createWorkspace() {
   <UiPopover v-model:open="open" :width="260" placement="bottom-start">
     <template #trigger>
       <button class="ws-trigger" :class="{ collapsed }">
-        <span class="ws-logo">{{ (workspace.data.value?.name || '?')[0]?.toUpperCase() }}</span>
+        <UiAvatar v-if="personal.inside.value" :name="user?.name" :src="user?.avatar_url" :size="20" />
+        <span v-else class="ws-logo">{{ (workspace.data.value?.name || '?')[0]?.toUpperCase() }}</span>
         <template v-if="!collapsed">
-          <span class="ws-name truncate">{{ workspace.data.value?.name || '…' }}</span>
+          <span class="ws-name truncate">{{ personal.inside.value ? t('personal.title') : workspace.data.value?.name || '…' }}</span>
           <ChevronDown :size="13" class="faint" />
         </template>
       </button>
@@ -74,6 +80,12 @@ async function createWorkspace() {
         </div>
       </div>
       <div class="ws-sep" />
+      <button v-if="personal.id.value" class="ws-row" :title="t('personal.hint')" @click="go(links.home(personal.id.value))">
+        <UiAvatar :name="user?.name" :src="user?.avatar_url" :size="18" />
+        <span class="truncate" style="flex: 1">{{ t('personal.title') }}</span>
+        <Lock :size="12" class="faint" />
+        <Check v-if="personal.inside.value" :size="14" class="accent" />
+      </button>
       <div class="ws-heading">{{ t('nav.workspaces') }}</div>
       <button v-for="w in workspaces" :key="w.id" class="ws-row" @click="go(links.home(w.id))">
         <span class="ws-logo sm">{{ w.name[0]?.toUpperCase() }}</span>
@@ -86,7 +98,7 @@ async function createWorkspace() {
       <div class="ws-sep" />
       <button class="ws-row" @click="go(links.settings(wsId, 'profile'))"><Settings :size="15" class="faint" />{{ t('nav.settings') }}</button>
       <button class="ws-row" @click="go(`/w/${wsId}/whats-new`)"><Sparkles :size="15" class="faint" />{{ t('releases.whatsNew') }}<span v-if="appUpdate" class="ws-badge">{{ t('releases.updateShort') }}</span></button>
-      <button v-if="can.invite" class="ws-row" @click="go(links.settings(wsId, 'members'))"><UserPlus :size="15" class="faint" />{{ t('workspace.inviteMembers') }}</button>
+      <button v-if="can.invite && !personal.inside.value" class="ws-row" @click="go(links.settings(wsId, 'members'))"><UserPlus :size="15" class="faint" />{{ t('workspace.inviteMembers') }}</button>
       <button v-if="user?.is_super_admin" class="ws-row" @click="go(links.settings(wsId, 'admin'))"><Shield :size="15" class="faint" />{{ t('nav.admin') }}</button>
       <div class="ws-sep" />
       <div class="ws-inline">
