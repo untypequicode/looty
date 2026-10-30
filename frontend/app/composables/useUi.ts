@@ -6,6 +6,8 @@ const sidebarOpen = ref(false) // tiroir mobile
 const commandOpen = ref(false)
 const shortcutsOpen = ref(false)
 const createBoardOpen = ref(false)
+/** Espace où créer le tableau (vide : l'espace courant), ex. l'espace perso depuis un autre. */
+const createBoardIn = ref('')
 /** Valeurs proposées à l'ouverture de « Nouvelle tâche » (ex. échéance Moodle). */
 export interface CreateTaskDefaults { boardId?: string; columnId?: string; title?: string; description?: string; dueDate?: string | null }
 const createTaskOpen = ref(false)
@@ -29,6 +31,7 @@ export function useUi() {
     commandOpen,
     shortcutsOpen,
     createBoardOpen,
+    createBoardIn,
     createTaskOpen,
     createTaskDefaults,
     openCreateTask,

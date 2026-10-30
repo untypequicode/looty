@@ -22,9 +22,13 @@ import { useNotifications } from '~/composables/useNotifications'
 import { usePages } from '~/composables/usePages'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useI18n } from '~/composables/useI18n'
+import { usePersonalShell, usePersonalSpace } from '~/composables/usePersonal'
 
 const route = useRoute()
-const { wsId, workspace, canWriteRole, member, isGuest } = useWorkspace()
+// Coque : l'espace partagé reste autour d'un élément perso ouvert depuis lui.
+const shell = usePersonalShell()
+const personal = usePersonalSpace()
+const { wsId, workspace, canWriteRole, member, isGuest } = useWorkspace(shell.id)
 const { can } = useAccess(wsId)
 const { toggleReading } = useReadingMode(wsId)
 const canWrite = computed(() => can.value.editTasks)
@@ -40,20 +44,25 @@ const { t } = useI18n()
 useRealtime(computed(() => (workspace.data.value ? wsId.value : '')), computed(() => user.value?.id))
 
 // Préambule LaTeX de l'espace : appliqué à toutes les formules des pages.
-const latex = useQuery({ queryKey: computed(() => wsKeys.latex(wsId.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${wsId.value}/latex`, { silent: true }), enabled: computed(() => !!wsId.value) })
+// Celui de l'espace du contenu (perso compris).
+const latex = useQuery({ queryKey: computed(() => wsKeys.latex(shell.routeWs.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${shell.routeWs.value}/latex`, { silent: true }), enabled: computed(() => !!shell.routeWs.value) })
 watch(() => latex.data.value?.preamble, (p) => { workspacePreamble.value = p ?? '' }, { immediate: true })
 onBeforeUnmount(() => { workspacePreamble.value = '' })
 
 // Workspace inaccessible (supprimé, exclu...) -> retour à l'accueil global
 watch(() => workspace.error.value, (e: any) => {
-  if (e && (e.status === 404 || e.statusCode === 404 || e.status === 403)) navigateTo('/')
+  if (!e || !(e.status === 404 || e.statusCode === 404 || e.status === 403)) return
+  // Espace gardé autour d'un élément perso devenu inaccessible : l'espace perso reprend sa coque.
+  if (shell.borrowing.value) shell.dropShell()
+  else navigateTo('/')
 })
 
 // Mémorise le dernier workspace visité
 watch(wsId, (id) => { if (id) localStorage.setItem('looty.lastWorkspace', id) }, { immediate: true })
 
 // Position de l'utilisateur pour la présence : page, tableau, tâche ouverte, ou écran.
-watch(() => [route.path, route.query.task], () => sendLocation(locationOfRoute(route)), { immediate: true })
+// Un élément perso n'est jamais montré aux membres de l'espace autour.
+watch(() => [route.path, route.query.task, shell.borrowing.value], () => sendLocation(shell.borrowing.value ? 'hidden' : locationOfRoute(route)), { immediate: true })
 
 // Inactif : onglet en arrière-plan depuis une minute, ou aucune interaction depuis 5 minutes.
 const { idle } = useIdle(5 * 60_000)
@@ -136,7 +145,7 @@ function tabShortcuts() {
 }
 const showTabs = computed(() => !isPane && tabsEnabled.value && !isTablet.value)
 // Le volet secondaire (écran partagé) ne touche pas aux onglets : la fenêtre principale les gère.
-watch(() => route.fullPath, (p) => { if (!isPane && route.path.startsWith(`/w/${wsId.value}`)) tabs.onNavigate(p) }, { immediate: true })
+watch(() => route.fullPath, (p) => { if (!isPane && (route.path.startsWith(`/w/${wsId.value}`) || shell.borrowing.value)) tabs.onNavigate(p) }, { immediate: true })
 
 // --- Écran partagé : l'onglet actif à gauche, un autre onglet à droite (copie intégrée) ---
 const sideTab = computed(() => (showTabs.value ? tabs.splitTab.value : null))
@@ -178,7 +187,7 @@ function linkFrom(e: MouseEvent): string | null {
   const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
   if (!a || a.target === '_blank') return null
   const href = a.getAttribute('href')
-  return isWorkspaceLink(href, wsId.value) ? href : null
+  return isWorkspaceLink(href, wsId.value) || (!!personal.id.value && isWorkspaceLink(href, personal.id.value)) ? href : null
 }
 function onLinkClick(e: MouseEvent) {
   if (!showTabs.value || e.shiftKey || !(e.ctrlKey || e.metaKey) || e.button !== 0) return
@@ -272,11 +281,11 @@ function onEdgeStart(e: TouchEvent) {
       @touchmove.passive="isTablet && onTouchMove($event)"
       @touchend="isTablet && onTouchEnd()"
     >
-      <AppSidebar />
+      <AppShellScope :ws="wsId"><AppSidebar /></AppShellScope>
     </aside>
 
     <main class="app-main" :class="{ following: !!followed }">
-      <AppTabBar v-if="showTabs" />
+      <AppShellScope v-if="showTabs" :ws="wsId"><AppTabBar /></AppShellScope>
       <AppUpdateBanner />
       <AppOfflineBanner />
       <div ref="panesEl" class="panes" :class="{ split: !!sideTab, resizing }">
@@ -319,12 +328,14 @@ function onEdgeStart(e: TouchEvent) {
       <button class="tab" @click="commandOpen = true"><Search :size="20" /><span>{{ t('nav.search') }}</span></button>
     </nav>
 
-    <AppCommandPalette />
-    <AppNotepad v-if="!isPane" />
-    <AppWorkOnDialog v-if="!isPane" />
+    <AppShellScope :ws="wsId">
+      <AppCommandPalette />
+      <AppNotepad v-if="!isPane" />
+      <AppWorkOnDialog v-if="!isPane" />
+      <AppCreateBoardDialog />
+    </AppShellScope>
     <AppWhatsNewDialog v-if="!isPane" />
     <AppShortcutsDialog />
-    <AppCreateBoardDialog />
     <TaskCreateDialog />
   </div>
 </template>

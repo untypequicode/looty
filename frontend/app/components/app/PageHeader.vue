@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { Menu, PanelLeftOpen, ChevronRight, ArrowLeft } from 'lucide-vue-next'
+import { Menu, PanelLeftOpen, ChevronRight, ArrowLeft, Lock } from 'lucide-vue-next'
+import { usePersonalBorrowed } from '~/composables/usePersonal'
+import { useWorkspaceId, links } from '~/composables/useWorkspace'
 import { isNativeApp, nativeBack } from '~/composables/useNative'
 import type { Component } from 'vue'
 import { useUi } from '~/composables/useUi'
@@ -17,6 +19,9 @@ defineProps<{ crumbs?: Crumb[]; title?: string }>()
 const { sidebarOpen, sidebarCollapsed } = useUi()
 // Volet secondaire de l'écran partagé : pas de barre latérale à ouvrir.
 const pane = isPane
+// Élément perso ouvert depuis un autre espace : repère cliquable vers l'accueil perso.
+const borrowed = usePersonalBorrowed()
+const wsId = useWorkspaceId()
 </script>
 
 <template>
@@ -28,6 +33,10 @@ const pane = isPane
       <UiButton class="ph-expand" variant="ghost" size="sm" :icon="PanelLeftOpen" @click="sidebarCollapsed = false" />
     </UiTooltip>
     <nav class="ph-crumbs" :aria-label="$t('common.breadcrumb')">
+      <template v-if="borrowed">
+        <NuxtLink :to="links.home(wsId)" class="ph-crumb ph-personal"><Lock :size="12" />{{ $t('personal.title') }}</NuxtLink>
+        <ChevronRight v-if="crumbs?.length || title" :size="13" class="ph-sep" />
+      </template>
       <template v-for="(c, i) in crumbs ?? []" :key="i">
         <ChevronRight v-if="i > 0" :size="13" class="ph-sep" />
         <component :is="c.to ? NuxtLink : 'span'" :to="c.to" class="ph-crumb" :class="{ last: i === (crumbs?.length ?? 0) - 1 }">
@@ -56,6 +65,7 @@ const pane = isPane
   background: var(--bg);
 }
 .ph-menu { display: none; margin-left: -6px; }
+.ph-personal { gap: 5px; color: var(--accent-text, var(--accent)); font-weight: 500; flex: none; }
 .ph-crumbs { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; overflow: hidden; }
 .ph-crumb {
   display: flex;

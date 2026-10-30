@@ -12,13 +12,13 @@ export function useBoards() {
   const wsId = useWorkspaceId()
   const route = useRoute()
 
-  async function createBoard(name: string, withDefaultColumns = true) {
-    const b = await api<BoardSummary>(`/api/workspaces/${wsId.value}/boards`, {
+  async function createBoard(name: string, withDefaultColumns = true, ws = wsId.value) {
+    const b = await api<BoardSummary>(`/api/workspaces/${ws}/boards`, {
       method: 'POST',
       body: { name, with_default_columns: withDefaultColumns },
     })
-    qc.setQueryData<BoardSummary[]>(wsKeys.boards(wsId.value), (old) => (old && !old.some((x) => x.id === b.id) ? [...old, b] : old))
-    await navigateTo(links.board(wsId.value, b.id))
+    qc.setQueryData<BoardSummary[]>(wsKeys.boards(ws), (old) => (old && !old.some((x) => x.id === b.id) ? [...old, b] : old))
+    await navigateTo(links.board(ws, b.id))
     return b
   }
 

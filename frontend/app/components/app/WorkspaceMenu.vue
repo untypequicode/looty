@@ -9,7 +9,7 @@ import { useTheme } from '~/composables/useTheme'
 import { useI18n, LOCALES } from '~/composables/useI18n'
 import { api } from '~/composables/api'
 import { useQueryClient } from '@tanstack/vue-query'
-import { usePersonalSpace } from '~/composables/usePersonal'
+import { usePersonalSpace, openPersonalSpace } from '~/composables/usePersonal'
 import { Lock } from 'lucide-vue-next'
 
 defineProps<{ collapsed?: boolean }>()
@@ -80,7 +80,7 @@ async function createWorkspace() {
         </div>
       </div>
       <div class="ws-sep" />
-      <button v-if="personal.id.value" class="ws-row" :title="t('personal.hint')" @click="go(links.home(personal.id.value))">
+      <button v-if="personal.id.value" class="ws-row" :title="t('personal.hint')" @click="open = false; openPersonalSpace(personal.id.value)">
         <UiAvatar :name="user?.name" :src="user?.avatar_url" :size="18" />
         <span class="truncate" style="flex: 1">{{ t('personal.title') }}</span>
         <Lock :size="12" class="faint" />

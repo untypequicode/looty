@@ -13,13 +13,13 @@
       "notes": {
         "en": [
           "**Personal space**: every account now has its own private space, reachable from the sidebar of every workspace. Create documents, boards, projects, canvases, calendar events, mail accounts and drive files there: only you can see them.",
-          "The *Personal space* section of the sidebar lists your recent personal boards and documents, with shortcuts to its home, calendar, mail, projects, drive and canvases. Use + to create a document, a board or a project there without leaving where you are.",
-          "It is also at the top of the workspace menu. Nobody can be invited into it; it cannot be left or deleted."
+          "The *Personal space* section of the sidebar lists your recent personal boards and documents, with shortcuts to its home, calendar, mail, projects, drive and canvases. Personal items open right there, without leaving the workspace you are in: its sidebar stays, and a *Personal space* marker shows in the header. Use + to create a document, a board or a project there.",
+          "To open the personal space on its own, with its own sidebar, pick it at the top of the workspace menu. Nobody can be invited into it; it cannot be left or deleted."
         ],
         "fr": [
           "**Espace perso** : chaque compte a maintenant son espace privé, joignable depuis la barre latérale de chaque espace. Créez-y documents, tableaux, projets, canevas, événements, comptes mail et fichiers du drive : vous seul les voyez.",
-          "La section *Espace perso* de la barre latérale liste vos tableaux et documents perso récents, avec des raccourcis vers son accueil, son calendrier, le mail, les projets, le drive et les canevas. Le + y crée un document, un tableau ou un projet sans quitter l’espace où vous êtes.",
-          "Il est aussi en tête du menu des espaces. Personne ne peut y être invité ; on ne peut ni le quitter ni le supprimer."
+          "La section *Espace perso* de la barre latérale liste vos tableaux et documents perso récents, avec des raccourcis vers son accueil, son calendrier, le mail, les projets, le drive et les canevas. Les éléments perso s’ouvrent sur place, sans quitter l’espace où vous êtes : sa barre latérale reste, et un repère *Espace perso* s’affiche dans l’en-tête. Le + y crée un document, un tableau ou un projet.",
+          "Pour ouvrir l’espace perso seul, avec sa propre barre latérale, choisissez-le en tête du menu des espaces. Personne ne peut y être invité ; on ne peut ni le quitter ni le supprimer."
         ]
       }
     },
