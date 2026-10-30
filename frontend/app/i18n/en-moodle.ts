@@ -11,6 +11,8 @@ export default {
   inbox: { kinds: { moodle: 'Moodle' } },
   settings: { notify: { ev: { moodle_received: 'Moodle messages and notifications' }, evHint: { moodle_received: 'A message or notification arrives on your connected Moodle account.' } } },
   moodle: {
+    offlineBanner: 'Moodle is not responding: you are browsing the copy from {date}. Only courses, pages and files already opened are available.', retry: 'Retry',
+    offlineCount: { zero: 'Nothing kept offline', one: '1 item kept offline ({size})', other: '{count} items kept offline ({size})' },
     title: 'Moodle', open: 'Open Moodle', refresh: 'Refresh',
     settingLabel: 'Moodle site', settingHint: 'Address of the Moodle used by this workspace (courses, deadlines, messages, calendar). Empty: Moodle disabled.', useDefault: 'University of Bordeaux',
     setupTitle: 'Connect Moodle to this workspace', setupHint: 'Enter your Moodle site address. Each member can then connect their own account.', askAdmin: 'Moodle isn’t set up for this workspace yet. Ask an admin to enter the site address.', enable: 'Enable Moodle',

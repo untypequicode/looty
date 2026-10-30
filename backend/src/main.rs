@@ -18,6 +18,7 @@ mod mailbox;
 mod mailclient;
 mod moodle;
 mod moodle_content;
+mod moodle_cache;
 mod projects;
 mod latex;
 mod drive;

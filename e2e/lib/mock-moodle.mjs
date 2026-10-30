@@ -74,8 +74,12 @@ function ws(fn, a) {
   }
 }
 const body = (req) => new Promise((r) => { let b = ''; req.on('data', (d) => (b += d)); req.on('end', () => r(b)) })
+// Panne simulée (tests du mode hors ligne) : /__mock/down?on=1 puis tout répond 503.
+let down = false
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
+  if (url.pathname === '/__mock/down') { down = url.searchParams.get('on') === '1'; res.writeHead(204); return res.end() }
+  if (down) { res.writeHead(503, { 'Content-Type': 'text/html' }); return res.end('<h1>Maintenance</h1>') }
   const send = (v, type = 'application/json') => { res.writeHead(200, { 'Content-Type': type }); res.end(typeof v === 'string' ? v : JSON.stringify(v)) }
   const raw = await body(req)
   const form = Object.fromEntries(new URLSearchParams(raw))

@@ -14,7 +14,7 @@ export interface MoodleConnection {
   /** Ouverture du site déjà connecté possible (sinon : se reconnecter une fois). */
   autologin: boolean
 }
-export interface MoodleOverview { url: string | null; default_url: string; can_configure: boolean; connection: MoodleConnection | null }
+export interface MoodleOverview { url: string | null; default_url: string; can_configure: boolean; connection: MoodleConnection | null; /** Copie hors ligne : éléments déjà ouverts et taille des fichiers gardés. */ offline_items?: number; offline_bytes?: number }
 export interface MoodleSite {
   base_url: string
   site_name: string | null

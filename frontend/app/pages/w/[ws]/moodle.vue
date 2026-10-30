@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import {
   GraduationCap, ExternalLink, MoreHorizontal, RefreshCw, LogOut, Bell, BellOff, Settings, AlertTriangle, ArrowLeft, Send,
-  MessageSquare, KeyRound, LogIn, Plus, LayoutDashboard,
+  MessageSquare, KeyRound, LogIn, Plus, LayoutDashboard, CloudOff,
 } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MenuItem } from '~/components/ui/Menu.vue'
-import { api, errorMessage } from '~/composables/api'
+import { api, errorMessage, moodleOffline } from '~/composables/api'
+import { fileSize } from '~/composables/useProjects'
 import { useI18n } from '~/composables/useI18n'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useBreakpoint } from '~/composables/useBreakpoint'
@@ -27,7 +28,7 @@ definePageMeta({ layout: 'workspace' })
  * (à transformer en tâches), cours, messages et notifications. Le calendrier Moodle est
  * importé dans le calendrier Looty.
  */
-const { t, locale, relativeTime } = useI18n()
+const { t, locale, relativeTime, formatDateTime } = useI18n()
 const { wsId } = useWorkspace()
 const { isMobile } = useBreakpoint()
 const { openCreateTask } = useUi()
@@ -250,6 +251,8 @@ const moreItems = computed<MenuItem[]>(() => [
   ...(board.customized.value ? [{ label: t('moodle.board.reset'), icon: LayoutDashboard, onSelect: resetBoard }] : []),
   ...(overview.value?.can_configure ? [{ label: t('moodle.platformSettings'), icon: Settings, onSelect: () => navigateTo(`/w/${wsId.value}/settings/workspace`) }] : []),
   { divider: true },
+  { label: t('moodle.offlineCount', { count: overview.value?.offline_items ?? 0, size: fileSize(overview.value?.offline_bytes ?? 0) }), icon: CloudOff, disabled: true },
+  { divider: true },
   { label: t('moodle.disconnect'), icon: LogOut, danger: true, onSelect: disconnect },
 ])
 const refreshAll = () => invalidate()
@@ -341,6 +344,10 @@ useHead({ title: () => t('moodle.title') })
 
     <!-- Connecté -->
     <div v-else class="md-body">
+      <div v-if="moodleOffline" class="md-banner warn">
+        <CloudOff :size="14" /><span>{{ t('moodle.offlineBanner', { date: formatDateTime(moodleOffline) }) }}</span>
+        <UiButton size="xs" variant="ghost" :icon="RefreshCw" @click="refreshAll">{{ t('moodle.retry') }}</UiButton>
+      </div>
       <div v-if="tokenBroken" class="md-banner">
         <AlertTriangle :size="14" /><span>{{ t('moodle.tokenExpired') }}</span>
         <UiButton size="xs" variant="ghost" @click="disconnect">{{ t('moodle.reconnect') }}</UiButton>
@@ -450,6 +457,7 @@ useHead({ title: () => t('moodle.title') })
 .md-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 20px 20px; gap: 12px; overflow-y: auto; }
 .md-banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); font-size: var(--fs-sm); }
 .md-banner span { flex: 1; }
+.md-banner.warn { background: color-mix(in srgb, var(--orange, #e2a03f) 14%, transparent); color: var(--text); }
 .md-banner.info { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text-2); }
 .md-cancel { align-self: flex-start; }
 .md-tabs { display: flex; align-items: center; gap: 12px; }

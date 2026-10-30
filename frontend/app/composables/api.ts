@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { toast } from './useToast'
 import { translate } from './useI18n'
 
@@ -25,13 +26,25 @@ export function errorMessage(e: unknown): string {
 }
 
 /**
+ * Moodle hors ligne : date de la copie servie par Looty quand la plateforme ne répond pas
+ * (en-tête `x-looty-offline`), `null` dès qu'une réponse arrive en direct.
+ */
+export const moodleOffline = ref<string | null>(null)
+function trackMoodleOffline(url: string, inner?: (ctx: any) => unknown) {
+  return (ctx: any) => {
+    if (url.includes('/moodle/') && ctx.response?.ok) moodleOffline.value = ctx.response.headers.get('x-looty-offline')
+    return inner?.(ctx)
+  }
+}
+
+/**
  * Client HTTP de l'application. En cas de 401 on renvoie vers la connexion
  * en conservant la page courante pour y revenir ensuite.
  */
 export async function api<T = any>(url: string, opts: Parameters<typeof $fetch>[1] & { silent?: boolean } = {}): Promise<T> {
   const { silent, ...rest } = opts as any
   try {
-    return (await $fetch<T>(url, { credentials: 'include', ...rest })) as T
+    return (await $fetch<T>(url, { credentials: 'include', ...rest, onResponse: trackMoodleOffline(url, rest.onResponse) })) as T
   } catch (e: any) {
     const status = e?.status ?? e?.statusCode
     if (status === 401 && typeof window !== 'undefined' && !url.startsWith('/api/auth/')) {

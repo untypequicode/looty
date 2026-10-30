@@ -86,7 +86,7 @@ fn ts(v: &Value) -> Option<DateTime<chrono::Utc>> {
 }
 
 /// Sections et activités d'un cours (ce que l'étudiant voit sur la page du cours).
-async fn course(State(state): State<AppState>, user: AuthUser, Path((ws, course_id)): Path<(Uuid, i64)>) -> ApiResult<Json<Value>> {
+async fn course_live(State(state): State<AppState>, user: AuthUser, Path((ws, course_id)): Path<(Uuid, i64)>) -> ApiResult<Json<Value>> {
     let (c, client, _) = conn_of(&state, &user, ws).await?;
     let v = track(&state, c.id, client.call("core_course_get_contents", &[p("courseid", course_id)]).await).await?;
     let base = client.base.clone();
@@ -176,21 +176,53 @@ async fn fetch(client: &crate::moodle::Ws, raw: &str) -> ApiResult<reqwest::Resp
     }
 }
 
-/// Fichier d'un cours, servi par Looty. Rien n'est exécuté depuis l'origine de Looty :
-/// HTML et SVG sont toujours téléchargés, et tout est servi en bac à sable.
 async fn file(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<UrlQuery>) -> ApiResult<Response> {
     let (_, client, _) = conn_of(&state, &user, ws).await?;
-    let r = fetch(&client, &q.url).await?;
-    let mime = r.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
-    let len = r.headers().get(header::CONTENT_LENGTH).cloned();
     let name = q.url.split('?').next().unwrap_or("").rsplit('/').next().map(crate::moodle::pct_decode).unwrap_or_else(|| "file".into());
+    let r = match fetch(&client, &q.url).await {
+        Ok(r) => r,
+        // Plateforme injoignable : la copie du fichier, s'il a déjà été ouvert.
+        Err(e) if crate::moodle_cache::is_outage(&e) => {
+            let (mime, cached_name, bytes, at) = crate::moodle_cache::recall_file(&state, ws, user.id, &q.url).await.ok_or(e)?;
+            let len = bytes.len() as u64;
+            let resp = file_response(Body::from(bytes), &mime, Some(len), &cached_name, q.download);
+            return Ok(crate::moodle_cache::offline(resp, at));
+        }
+        Err(e) => return Err(e),
+    };
+    let mime = r.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
+    let len = r.content_length();
+    if len.is_some_and(|l| l > crate::moodle_cache::max_file()) {
+        return Ok(file_response(Body::from_stream(r.bytes_stream()), &mime, len, &name, q.download));
+    }
+    // Taille raisonnable (ou inconnue) : lu jusqu'à la limite et gardé pour la consultation
+    // hors ligne ; au-delà, ce qui est lu est renvoyé suivi du reste, sans copie.
+    use futures::StreamExt;
+    let mut stream = r.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|_| ApiError::bad_request("moodle_unreachable"))?;
+        buf.extend_from_slice(&chunk);
+        if buf.len() as u64 > crate::moodle_cache::max_file() {
+            let head = futures::stream::once(async move { Ok::<_, reqwest::Error>(bytes::Bytes::from(buf)) });
+            return Ok(file_response(Body::from_stream(head.chain(stream)), &mime, len, &name, q.download));
+        }
+    }
+    crate::moodle_cache::remember_file(&state, ws, user.id, &q.url, &mime, &name, &buf).await;
+    let n = buf.len() as u64;
+    Ok(file_response(Body::from(buf), &mime, Some(n), &name, q.download))
+}
+
+/// Réponse d'un fichier de la plateforme : rien n'est exécuté depuis l'origine de Looty
+/// (HTML et SVG toujours téléchargés, tout est servi en bac à sable).
+fn file_response(body: Body, mime: &str, len: Option<u64>, name: &str, download: bool) -> Response {
     let risky = mime.contains("html") || mime.contains("svg") || mime.contains("xml") || mime.contains("javascript");
-    let disposition = if q.download || risky { "attachment" } else { "inline" };
-    let mut resp = Response::new(Body::from_stream(r.bytes_stream()));
+    let disposition = if download || risky { "attachment" } else { "inline" };
+    let mut resp = Response::new(body);
     let h = resp.headers_mut();
-    h.insert(header::CONTENT_TYPE, HeaderValue::from_str(if risky { "application/octet-stream" } else { &mime }).unwrap_or(HeaderValue::from_static("application/octet-stream")));
+    h.insert(header::CONTENT_TYPE, HeaderValue::from_str(if risky { "application/octet-stream" } else { mime }).unwrap_or(HeaderValue::from_static("application/octet-stream")));
     if let Some(l) = len {
-        h.insert(header::CONTENT_LENGTH, l);
+        h.insert(header::CONTENT_LENGTH, HeaderValue::from(l));
     }
     let fname = name.replace(['"', '\\', '\r', '\n'], "_");
     if let Ok(v) = HeaderValue::from_str(&format!("{disposition}; filename*=UTF-8''{}", crate::mailclient::pct(&fname))) {
@@ -199,11 +231,11 @@ async fn file(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     h.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     h.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"));
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=3600"));
-    Ok(resp)
+    resp
 }
 
 /// Page HTML d'une activité (page, chapitre de livre), nettoyée pour être lue dans Looty.
-async fn page_html(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<UrlQuery>) -> ApiResult<Json<Value>> {
+async fn page_html_live(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<UrlQuery>) -> ApiResult<Json<Value>> {
     let (c, client, _) = conn_of(&state, &user, ws).await?;
     let page = plugin_url(&client.base, &q.url).ok_or_else(|| ApiError::bad_request("moodle_bad_file"))?;
     let r = track(&state, c.id, fetch(&client, &q.url).await).await?;
@@ -216,7 +248,7 @@ async fn page_html(State(state): State<AppState>, user: AuthUser, Path(ws): Path
 }
 
 /// Devoir : consigne, dates, état de la remise et note (le dépôt se fait sur le site).
-async fn assignment(State(state): State<AppState>, user: AuthUser, Path((ws, course_id, cmid)): Path<(Uuid, i64, i64)>) -> ApiResult<Json<Value>> {
+async fn assignment_live(State(state): State<AppState>, user: AuthUser, Path((ws, course_id, cmid)): Path<(Uuid, i64, i64)>) -> ApiResult<Json<Value>> {
     let (c, client, _) = conn_of(&state, &user, ws).await?;
     let v = track(&state, c.id, client.call("mod_assign_get_assignments", &[p("courseids[0]", course_id)]).await).await?;
     let a = v["courses"]
@@ -249,4 +281,24 @@ async fn assignment(State(state): State<AppState>, user: AuthUser, Path((ws, cou
         "grade": s.as_ref().and_then(|s| s["feedback"]["gradefordisplay"].as_str()).map(|g| crate::ical::html_to_text(g)),
         "url": format!("{base}/mod/assign/view.php?id={cmid}"),
     })))
+}
+
+// ---------------------------------------------------------------------------
+// Copie hors ligne (voir moodle_cache)
+// ---------------------------------------------------------------------------
+
+async fn course(State(state): State<AppState>, user: AuthUser, Path((ws, course_id)): Path<(Uuid, i64)>) -> ApiResult<Response> {
+    let live = course_live(State(state.clone()), user, Path((ws, course_id))).await.map(|Json(v)| v);
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, &format!("course:{course_id}"), live).await
+}
+
+async fn page_html(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<UrlQuery>) -> ApiResult<Response> {
+    let key = format!("html:{}", q.url);
+    let live = page_html_live(State(state.clone()), user, Path(ws), Query(q)).await.map(|Json(v)| v);
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, &key, live).await
+}
+
+async fn assignment(State(state): State<AppState>, user: AuthUser, Path((ws, course_id, cmid)): Path<(Uuid, i64, i64)>) -> ApiResult<Response> {
+    let live = assignment_live(State(state.clone()), user, Path((ws, course_id, cmid))).await.map(|Json(v)| v);
+    crate::moodle_cache::json_or_cached(&state, ws, user.id, &format!("assign:{course_id}:{cmid}"), live).await
 }
