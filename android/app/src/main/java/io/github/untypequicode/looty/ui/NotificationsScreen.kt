@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import io.github.untypequicode.looty.push.Notifier
 import io.github.untypequicode.looty.push.Push
 import io.github.untypequicode.looty.push.PushMode
 import io.github.untypequicode.looty.push.PushStore
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -50,6 +52,9 @@ fun NotificationsScreen(state: AppState, onBack: () -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     // Les réglages changent hors de l'écran (adresse reçue par le service) : relus régulièrement.
     var tick by remember { mutableIntStateOf(0) }
+    // Retour des réglages d'Android : état des canaux relu.
+    var resumed by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) { resumed++; onPauseOrDispose {} }
     LaunchedEffect(Unit) { while (true) { delay(1200); tick++ } }
     val mode = remember(tick) { PushStore.mode(ctx) }
     val registered = remember(tick) { PushStore.subscriptionId(ctx) != null }
@@ -154,6 +159,39 @@ fun NotificationsScreen(state: AppState, onBack: () -> Unit) {
                         }
                     },
                 )
+            }
+            // Canaux Android : son, vibration et importance réglés par type de notification.
+            if (Build.VERSION.SDK_INT >= 26) {
+                item {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.ch_settings)) },
+                        supportingContent = { Text(stringResource(R.string.ch_settings_hint)) },
+                        leadingContent = { Icon(Icons.Outlined.Tune, null) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Outlined.OpenInNew, null) },
+                        modifier = Modifier.clickable {
+                            Notifier.ensureChannels(ctx)
+                            ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
+                        },
+                    )
+                }
+                items(Notifier.Kind.entries.size) { i ->
+                    val k = Notifier.Kind.entries[i]
+                    val on = remember(tick, resumed) { Notifier.channelEnabled(ctx, k) }
+                    ListItem(
+                        headlineContent = { Text(stringResource(k.title)) },
+                        supportingContent = { Text(stringResource(k.hint)) },
+                        trailingContent = { if (!on) Text(stringResource(R.string.ch_off), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium) },
+                        modifier = Modifier.padding(start = 40.dp).clickable {
+                            Notifier.ensureChannels(ctx)
+                            ctx.startActivity(
+                                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                                    .putExtra(Settings.EXTRA_CHANNEL_ID, k.channel),
+                            )
+                        },
+                    )
+                }
             }
             if (ws != null) item {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))

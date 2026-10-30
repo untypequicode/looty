@@ -95,13 +95,26 @@
         <!-- Résultat de l'installation d'une mise à jour (reçu de l'installateur du système). -->
         <receiver android:name=".update.InstallReceiver" android:exported="false" />
 
-        <!-- Widget : mes tâches à faire. -->
+        <!-- Widgets : à faire, agenda, aujourd'hui, raccourcis (réglables : appui long → Réglages). -->
         <receiver android:name=".widget.LootyWidgetReceiver" android:exported="true" android:label="@string/widget_title">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/looty_widget_info" />
         </receiver>
+        <receiver android:name=".widget.AgendaWidgetReceiver" android:exported="true" android:label="@string/widget_label_agenda">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/looty_agenda_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.TodayWidgetReceiver" android:exported="true" android:label="@string/widget_label_today">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/looty_today_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.ShortcutsWidgetReceiver" android:exported="true" android:label="@string/widget_label_shortcuts">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/looty_shortcuts_widget_info" />
+        </receiver>
+        <activity android:name=".widget.WidgetConfigActivity" android:exported="true" android:theme="@style/Theme.Looty">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
 
         <!-- « Partager » vers Looty : texte ou lien reçu → tâche ou document. -->
         <activity

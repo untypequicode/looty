@@ -219,7 +219,8 @@ async fn process(state: &AppState) -> ApiResult<()> {
                 let m = message(state, &p).await;
                 match p.channel.as_str() {
                     "push" => {
-                        let payload = serde_json::json!({ "title": p.workspace_name, "body": m.line, "url": m.path, "tag": p.id });
+                        // `kind` : type d'événement (canal de notification sur Android : son, vibration…).
+                        let payload = serde_json::json!({ "title": p.workspace_name, "body": m.line, "url": m.path, "tag": p.id, "kind": event_of(&p.kind, &p.target) });
                         crate::push::send_to_user(state, p.user_id, &payload).await.map(|_| ()).map_err(|e| format!("{e:?}"))
                     }
                     "email" => {

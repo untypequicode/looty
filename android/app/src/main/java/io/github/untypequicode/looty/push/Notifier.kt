@@ -2,6 +2,7 @@ package io.github.untypequicode.looty.push
 
 import android.Manifest
 import android.app.NotificationChannel
+import android.app.NotificationChannelGroup
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -16,18 +17,76 @@ import io.github.untypequicode.looty.R
 import io.github.untypequicode.looty.api.Notification
 import kotlinx.serialization.json.jsonPrimitive
 
-/** Affiche les notifications reçues (push) ou trouvées (vérification périodique). */
+/**
+ * Affiche les notifications reçues (push) ou trouvées (vérification périodique), chacune dans
+ * le canal de son type : dans les réglages d'Android, chaque type a son importance, son son,
+ * sa vibration et son affichage sur l'écran verrouillé.
+ */
 object Notifier {
+    /** Canal historique (avant les canaux par type) : gardé pour « Autres », avec ses réglages. */
     const val CHANNEL_ACTIVITY = "activity"
+
+    /** Un type de notification : canal Android, groupe, importance par défaut, libellés. */
+    enum class Kind(val channel: String, val group: String, val importance: Int, val title: Int, val hint: Int) {
+        ASSIGNED("assigned", GROUP_WORK, NotificationManager.IMPORTANCE_HIGH, R.string.ch_assigned, R.string.ch_assigned_hint),
+        MENTION("mentions", GROUP_WORK, NotificationManager.IMPORTANCE_HIGH, R.string.ch_mentions, R.string.ch_mentions_hint),
+        COMMENT("comments", GROUP_WORK, NotificationManager.IMPORTANCE_DEFAULT, R.string.ch_comments, R.string.ch_comments_hint),
+        DUE("due", GROUP_WORK, NotificationManager.IMPORTANCE_HIGH, R.string.ch_due, R.string.ch_due_hint),
+        COMPLETED("completed", GROUP_WORK, NotificationManager.IMPORTANCE_LOW, R.string.ch_completed, R.string.ch_completed_hint),
+        MAIL("mail", GROUP_MESSAGES, NotificationManager.IMPORTANCE_DEFAULT, R.string.ch_mail, R.string.ch_mail_hint),
+        MOODLE("moodle", GROUP_MESSAGES, NotificationManager.IMPORTANCE_DEFAULT, R.string.ch_moodle, R.string.ch_moodle_hint),
+        EVENTS("events", GROUP_MESSAGES, NotificationManager.IMPORTANCE_DEFAULT, R.string.ch_events, R.string.ch_events_hint),
+        UPDATES("updates", GROUP_APP, NotificationManager.IMPORTANCE_LOW, R.string.ch_updates, R.string.ch_updates_hint),
+        OTHER(CHANNEL_ACTIVITY, GROUP_APP, NotificationManager.IMPORTANCE_DEFAULT, R.string.ch_other, R.string.ch_other_hint);
+
+        companion object {
+            /** Type d'après le serveur : `kind` du push (task_assigned…) ou de la boîte de réception (assigned…). */
+            fun of(kind: String?): Kind = when (kind) {
+                "task_assigned", "assigned" -> ASSIGNED
+                "task_mention", "doc_mention", "mention" -> MENTION
+                "task_comment", "comment" -> COMMENT
+                "task_due", "due_soon" -> DUE
+                "task_completed", "completed" -> COMPLETED
+                "mail_received", "mail" -> MAIL
+                "moodle_received", "moodle" -> MOODLE
+                "event_tag" -> EVENTS
+                "update" -> UPDATES
+                else -> OTHER
+            }
+        }
+    }
+
+    private const val GROUP_WORK = "work"
+    private const val GROUP_MESSAGES = "messages"
+    private const val GROUP_APP = "app"
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ACTIVITY, ctx.getString(R.string.channel_activity), NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = ctx.getString(R.string.channel_activity_hint)
+        nm.createNotificationChannelGroups(
+            listOf(
+                NotificationChannelGroup(GROUP_WORK, ctx.getString(R.string.chg_work)),
+                NotificationChannelGroup(GROUP_MESSAGES, ctx.getString(R.string.chg_messages)),
+                NotificationChannelGroup(GROUP_APP, ctx.getString(R.string.chg_app)),
+            ),
+        )
+        // Création idempotente : les réglages choisis par la personne ne sont jamais écrasés.
+        nm.createNotificationChannels(
+            Kind.entries.map { k ->
+                NotificationChannel(k.channel, ctx.getString(k.title), k.importance).apply {
+                    description = ctx.getString(k.hint)
+                    group = k.group
+                    if (k == Kind.MENTION || k == Kind.ASSIGNED || k == Kind.DUE) enableVibration(true)
+                }
             },
         )
+    }
+
+    /** Canal encore actif (désactivé dans les réglages d'Android : rien n'est affiché). */
+    fun channelEnabled(ctx: Context, kind: Kind): Boolean {
+        if (Build.VERSION.SDK_INT < 26) return true
+        val ch = ctx.getSystemService(NotificationManager::class.java).getNotificationChannel(kind.channel) ?: return true
+        return ch.importance != NotificationManager.IMPORTANCE_NONE
     }
 
     fun permitted(ctx: Context): Boolean =
@@ -46,12 +105,12 @@ object Notifier {
     }
 
     /** Une notification : `tag` identifie l'évènement (une même notification ne s'affiche qu'une fois). */
-    fun show(ctx: Context, title: String, body: String, path: String?, tag: String?) {
+    fun show(ctx: Context, title: String, body: String, path: String?, tag: String?, kind: Kind = Kind.OTHER) {
         if (!permitted(ctx)) return
         ensureChannels(ctx)
         val id = (tag ?: "$title|$body").hashCode()
         val pi = PendingIntent.getActivity(ctx, id, intentFor(ctx, path), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val n = NotificationCompat.Builder(ctx, CHANNEL_ACTIVITY)
+        val n = NotificationCompat.Builder(ctx, kind.channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
@@ -59,7 +118,7 @@ object Notifier {
             .setContentIntent(pi)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setGroup("looty")
+            .setGroup("looty-${kind.group}")
             .build()
         runCatching { NotificationManagerCompat.from(ctx).notify(id, n) }
     }
@@ -74,6 +133,8 @@ object Notifier {
             "due_soon" -> ctx.getString(R.string.n_due_soon)
             "completed" -> ctx.getString(R.string.n_completed, who)
             "mail" -> ctx.getString(R.string.n_mail)
+            "moodle" -> ctx.getString(R.string.n_moodle)
+            "event_tag" -> ctx.getString(R.string.n_event_tag, who)
             else -> ctx.getString(R.string.n_other)
         }
     }

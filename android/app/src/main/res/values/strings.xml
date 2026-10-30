@@ -58,6 +58,35 @@
     <string name="n_completed">%1$s completed a task</string>
     <string name="n_mail">New email</string>
     <string name="n_other">New activity</string>
+    <!-- Canaux de notification (réglables dans Android : son, vibration, importance) -->
+    <string name="chg_work">Work</string>
+    <string name="chg_messages">Messages and calendar</string>
+    <string name="chg_app">App</string>
+    <string name="ch_assigned">Assigned tasks</string>
+    <string name="ch_assigned_hint">A task is assigned to you</string>
+    <string name="ch_mentions">Mentions</string>
+    <string name="ch_mentions_hint">Someone mentions you in a task, a document or a comment</string>
+    <string name="ch_comments">Comments</string>
+    <string name="ch_comments_hint">New comments on your tasks</string>
+    <string name="ch_due">Deadlines</string>
+    <string name="ch_due_hint">A task is due soon</string>
+    <string name="ch_completed">Completed tasks</string>
+    <string name="ch_completed_hint">A task you are assigned to is done</string>
+    <string name="ch_mail">Email</string>
+    <string name="ch_mail_hint">New messages in your mailboxes</string>
+    <string name="ch_moodle">Moodle</string>
+    <string name="ch_moodle_hint">Moodle messages and notifications</string>
+    <string name="ch_events">Events</string>
+    <string name="ch_events_hint">You are tagged in a calendar event</string>
+    <string name="ch_updates">App updates</string>
+    <string name="ch_updates_hint">A new version of Looty is available</string>
+    <string name="ch_other">Other</string>
+    <string name="ch_other_hint">Everything else, and test notifications</string>
+    <string name="ch_settings">Sound and vibration by type</string>
+    <string name="ch_settings_hint">Each type of notification has its own settings in Android</string>
+    <string name="ch_off">Off</string>
+    <string name="n_moodle">New on Moodle</string>
+    <string name="n_event_tag">%1$s tagged you in an event</string>
     <string name="new_task">New task</string>
     <string name="task_title">Task title</string>
     <string name="board">Board</string>
@@ -181,8 +210,6 @@
 
     <!-- Notifications -->
     <string name="notifications">Notifications</string>
-    <string name="channel_activity">Activity</string>
-    <string name="channel_activity_hint">Mentions, assigned tasks, comments and reminders</string>
     <string name="push_how">How to receive notifications</string>
     <string name="push_unified">Instant push (UnifiedPush)</string>
     <string name="push_unified_hint">Instant and battery-friendly, without Google. Uses the UnifiedPush app you installed (ntfy, Gotify…).</string>
@@ -229,6 +256,57 @@
     <string name="widget_empty">Nothing to do. Enjoy!</string>
     <string name="widget_sign_in">Open Looty to sign in.</string>
     <string name="widget_offline">Can’t reach the server. Tap to open Looty.</string>
+    <!-- Widgets -->
+    <string name="widget_add">Add</string>
+    <string name="widget_label_agenda">Looty · Agenda</string>
+    <string name="widget_label_today">Looty · Today</string>
+    <string name="widget_label_shortcuts">Looty · Shortcuts</string>
+    <string name="widget_agenda_title">Agenda</string>
+    <string name="widget_agenda_description">Events and deadlines of the coming days, grouped by day.</string>
+    <string name="widget_agenda_empty">Nothing planned this week.</string>
+    <string name="widget_today_description">How many tasks are due today, and your next event.</string>
+    <string name="widget_shortcuts_description">Big buttons to add a task and open your favourite screens.</string>
+    <string name="widget_deadline">Due</string>
+    <string name="widget_all_day">All day</string>
+    <string name="widget_no_event">No event left today</string>
+    <string name="widget_sc_task">New task</string>
+    <string name="widget_sc_inbox">Inbox</string>
+    <string name="widget_sc_calendar">Calendar</string>
+    <string name="widget_sc_docs">Documents</string>
+    <string name="widget_sc_tasks">Tasks</string>
+    <string name="widget_sc_mail">Mail</string>
+    <string name="widget_sc_moodle">Moodle</string>
+    <string name="widget_sc_drive">Drive</string>
+    <string name="widget_sc_projects">Projects</string>
+    <plurals name="widget_open_tasks">
+        <item quantity="one">%d task to do</item>
+        <item quantity="other">%d tasks to do</item>
+    </plurals>
+    <plurals name="widget_tasks_today">
+        <item quantity="one">task today</item>
+        <item quantity="other">tasks today</item>
+    </plurals>
+    <plurals name="widget_overdue">
+        <item quantity="one">%d overdue</item>
+        <item quantity="other">%d overdue</item>
+    </plurals>
+    <string name="widgets_title">Widgets</string>
+    <string name="widgets_entry_hint">Tasks, agenda, today and shortcuts on your home screen</string>
+    <string name="widgets_hint">Pick a widget, add it to your home screen, then long-press it → Settings to change its style, opacity and size.</string>
+    <string name="widgets_add">Add to home screen</string>
+    <string name="widgets_manual">Your launcher cannot add widgets from here: long-press the home screen → Widgets → Looty.</string>
+    <string name="wc_title">Widget settings</string>
+    <string name="wc_save">Save</string>
+    <string name="wc_look">Style</string>
+    <string name="wc_look_tonal">Tonal</string>
+    <string name="wc_look_surface">Neutral</string>
+    <string name="wc_look_accent">Accent</string>
+    <string name="wc_look_contrast">Contrast</string>
+    <string name="wc_opacity">Background opacity: %d %%</string>
+    <string name="wc_items">Items listed: up to %d</string>
+    <string name="wc_round">Very round corners</string>
+    <string name="wc_round_hint">The Material 3 Expressive look. Turn off for softer corners.</string>
+    <string name="wc_shortcuts">Buttons (%1$d of %2$d)</string>
     <string name="share_files_lost">Added, but %d file(s) could not be attached (too large or unreadable).</string>
     <string name="offline_banner">Offline — showing saved data</string>
     <string name="syncing_banner">Sending your changes…</string>

@@ -90,6 +90,7 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit, onRoute: (String) -> Uni
             item { entry(Icons.Outlined.Person, R.string.settings_profile, null, "settings/profile") }
             item { entry(Icons.Outlined.Palette, R.string.settings_preferences, R.string.settings_preferences_hint, "settings/preferences") }
             item { entry(Icons.Outlined.Notifications, R.string.notifications, R.string.settings_notifications_hint, "notifications") }
+            item { entry(Icons.Outlined.Widgets, R.string.widgets_title, R.string.widgets_entry_hint, "widgets") }
             item { entry(Icons.Outlined.EventRepeat, R.string.settings_calendars, R.string.settings_calendars_hint, "settings/calendars") }
             item { entry(Icons.Outlined.Lock, R.string.settings_security, R.string.settings_security_hint, "settings/security") }
             item { SectionTitle(stringResource(R.string.workspace)) }

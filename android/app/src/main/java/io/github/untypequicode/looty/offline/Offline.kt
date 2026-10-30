@@ -140,7 +140,7 @@ class OutboxWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
                 val prefs = applicationContext.getSharedPreferences("looty", 0)
                 prefs.edit().putStringSet("refusedChanges", prefs.getStringSet("refusedChanges", emptySet()).orEmpty() + r.refused).apply()
             }
-            if (r.sent) runCatching { io.github.untypequicode.looty.widget.LootyWidget().updateAll(applicationContext) }
+            if (r.sent) runCatching { io.github.untypequicode.looty.widget.Widgets.updateAll(applicationContext) }
             return if (r.offline) Result.retry() else Result.success()
         } finally {
             Outbox.replayLock.unlock()

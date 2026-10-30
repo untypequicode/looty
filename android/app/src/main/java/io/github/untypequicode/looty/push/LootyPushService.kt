@@ -56,6 +56,7 @@ class LootyPushService : PushService() {
             body = o.optString("body"),
             path = o.optString("url").ifBlank { null },
             tag = o.optString("tag").ifBlank { null },
+            kind = Notifier.Kind.of(o.optString("kind").ifBlank { null }),
         )
     }
 

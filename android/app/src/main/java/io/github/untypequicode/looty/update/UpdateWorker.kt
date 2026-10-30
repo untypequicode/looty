@@ -23,7 +23,7 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         prefs.edit().putString("updateAvailable", update?.version).putLong("updateChecked", System.currentTimeMillis()).apply()
         if (update != null && prefs.getString("updateNotified", null) != update.version) {
             prefs.edit().putString("updateNotified", update.version).apply()
-            Notifier.show(applicationContext, applicationContext.getString(R.string.update_available_title), applicationContext.getString(R.string.update_available_body, update.version), "/app/updates", "update-" + update.version)
+            Notifier.show(applicationContext, applicationContext.getString(R.string.update_available_title), applicationContext.getString(R.string.update_available_body, update.version), "/app/updates", "update-" + update.version, Notifier.Kind.UPDATES)
         }
         return Result.success()
     }

@@ -278,7 +278,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
             api.get<MyTasks>("/api/workspaces/$w/my_tasks?scope=$taskScope").tasks.also { l -> l.forEach { taskBoard[it.id] = it.board_id }; persistTaskBoard() }
         }
         // Le widget de l’écran d’accueil suit les tâches affichées.
-        viewModelScope.launch { runCatching { io.github.untypequicode.looty.widget.LootyWidget().updateAll(getApplication()) } }
+        viewModelScope.launch { runCatching { io.github.untypequicode.looty.widget.Widgets.updateAll(getApplication()) } }
     }
     fun loadPages() { val w = ws ?: return; load({ pages }, { pages = it }, "${w}/pages") { api.get<List<Page>>("/api/workspaces/$w/pages") } }
     fun loadInbox() { val w = ws ?: return; load({ inbox }, { inbox = it }, "${w}/inbox") { api.get<List<Notification>>("/api/notifications?workspace_id=$w") } }
