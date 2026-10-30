@@ -10,6 +10,7 @@ import { useTrash } from '~/composables/useTrash'
 import { useMoodle, moodleKeys } from '~/composables/useMoodle'
 
 const { wsId, workspace, role, isAdmin, canWriteRole: canWrite } = useWorkspace()
+const personal = computed(() => !!workspace.data.value?.personal)
 const importOpen = ref(false)
 const exportOpen = ref(false)
 const { t } = useI18n()
@@ -89,12 +90,13 @@ async function remove() {
 </script>
 
 <template>
-  <SettingsSection :title="t('settings.ws.title')" :description="t('settings.ws.description')">
-    <SettingsRow :label="t('workspace.name')">
+  <!-- Espace perso : ni nom ni rôle à régler, il est à soi. -->
+  <SettingsSection :title="personal ? t('personal.title') : t('settings.ws.title')" :description="personal ? t('personal.hint') : t('settings.ws.description')">
+    <SettingsRow v-if="!personal" :label="t('workspace.name')">
       <UiInput v-model="name" :disabled="!isAdmin" style="width: 260px" maxlength="120" />
       <UiButton v-if="isAdmin" variant="primary" size="sm" :disabled="!name.trim() || name.trim() === workspace.data.value?.name" :loading="saving" @click="save">{{ t('common.save') }}</UiButton>
     </SettingsRow>
-    <SettingsRow :label="t('settings.ws.yourRole')"><span class="muted">{{ role ? t(`roles.${role}`) : '' }}</span></SettingsRow>
+    <SettingsRow v-if="!personal" :label="t('settings.ws.yourRole')"><span class="muted">{{ role ? t(`roles.${role}`) : '' }}</span></SettingsRow>
     <SettingsRow v-if="isAdmin && retention != null" :label="t('trash.retention')" :hint="t('trash.retentionHint')">
       <UiCombobox :model-value="String(retention)" :items="retentionItems" :width="240" @update:model-value="(v) => saveRetention(Number(v))">
         <button class="ws-select">{{ retentionItems.find((i) => i.value === String(retention))?.label }}</button>
@@ -129,7 +131,7 @@ async function remove() {
     <DocImportDialog v-model:open="importOpen" />
     <DocExportDialog v-model:open="exportOpen" />
   </SettingsSection>
-  <SettingsSection :title="t('settings.ws.danger')" danger>
+  <SettingsSection v-if="!personal" :title="t('settings.ws.danger')" danger>
     <SettingsRow :label="t('settings.ws.leave')" :hint="t('settings.ws.leaveHint')">
       <UiButton size="sm" :icon="LogOut" @click="leave">{{ t('settings.ws.leave') }}</UiButton>
     </SettingsRow>

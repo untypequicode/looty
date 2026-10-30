@@ -323,6 +323,7 @@ struct AddReq {
 async fn add_member(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<AddReq>) -> ApiResult<Json<serde_json::Value>> {
     let pool = &state.pool;
     let (my_role, _) = require_perm(pool, &user, ws, |p| p.invite).await?;
+    crate::workspace::forbid_personal(pool, ws).await?;
     // Rôle donné : par défaut « membre » ; jamais plus élevé que le sien.
     let role_id = match p.role_id {
         Some(r) => r,

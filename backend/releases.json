@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.24.0",
+      "date": "2026-10-30",
+      "title": {
+        "en": "Your personal space",
+        "fr": "Votre espace perso"
+      },
+      "notes": {
+        "en": [
+          "**Personal space**: every account now has its own private space, reachable from the sidebar of every workspace. Create documents, boards, projects, canvases, calendar events, mail accounts and drive files there: only you can see them.",
+          "The *Personal space* section of the sidebar lists your recent personal boards and documents, with shortcuts to its home, calendar, mail, projects, drive and canvases. Use + to create a document, a board or a project there without leaving where you are.",
+          "It is also at the top of the workspace menu. Nobody can be invited into it; it cannot be left or deleted."
+        ],
+        "fr": [
+          "**Espace perso** : chaque compte a maintenant son espace privé, joignable depuis la barre latérale de chaque espace. Créez-y documents, tableaux, projets, canevas, événements, comptes mail et fichiers du drive : vous seul les voyez.",
+          "La section *Espace perso* de la barre latérale liste vos tableaux et documents perso récents, avec des raccourcis vers son accueil, son calendrier, le mail, les projets, le drive et les canevas. Le + y crée un document, un tableau ou un projet sans quitter l’espace où vous êtes.",
+          "Il est aussi en tête du menu des espaces. Personne ne peut y être invité ; on ne peut ni le quitter ni le supprimer."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.23.0",
       "date": "2026-10-30",
       "title": { "en": "Projects inside documents, canvases, blocks, and Moodle offline", "fr": "Projets dans les documents, canevas, blocs, et Moodle hors ligne" },

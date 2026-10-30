@@ -10,6 +10,7 @@ const { wsId, workspace, isAdmin } = useWorkspace()
 const { user } = useAuth()
 const { t } = useI18n()
 const navOpen = ref(false)
+const personal = computed(() => !!workspace.data.value?.personal)
 watch(() => route.fullPath, () => (navOpen.value = false))
 
 const groups = computed(() => [
@@ -24,15 +25,18 @@ const groups = computed(() => [
     ],
   },
   {
-    title: workspace.data.value?.name ?? t('settings.groups.workspace'),
-    items: [
-      { key: 'workspace', label: t('settings.nav.general'), icon: Building2 },
-      { key: 'my-space', label: t('access.mySpace'), icon: UserCog },
-      { key: 'members', label: t('settings.nav.members'), icon: Users },
-      { key: 'groups', label: t('memberGroups.title'), icon: AtSign },
-      { key: 'roles', label: t('rolesUi.title'), icon: ShieldCheck },
-      ...(isAdmin.value ? [{ key: 'space-overview', label: t('insights.spaceOverview'), icon: ChartLine }] : []),
-    ],
+    title: personal.value ? t('personal.title') : workspace.data.value?.name ?? t('settings.groups.workspace'),
+    // Espace perso : la personne y est seule, pas de membres, groupes ni rôles.
+    items: personal.value
+      ? [{ key: 'workspace', label: t('settings.nav.general'), icon: Building2 }]
+      : [
+          { key: 'workspace', label: t('settings.nav.general'), icon: Building2 },
+          { key: 'my-space', label: t('access.mySpace'), icon: UserCog },
+          { key: 'members', label: t('settings.nav.members'), icon: Users },
+          { key: 'groups', label: t('memberGroups.title'), icon: AtSign },
+          { key: 'roles', label: t('rolesUi.title'), icon: ShieldCheck },
+          ...(isAdmin.value ? [{ key: 'space-overview', label: t('insights.spaceOverview'), icon: ChartLine }] : []),
+        ],
   },
   ...(user.value?.is_super_admin
     ? [{

@@ -162,6 +162,7 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
             "{EVENTS} SELECT w.id, w.name, (SELECT count(*) FROM workspace_members m WHERE m.workspace_id = w.id),
                 count(DISTINCT e.user_id), count(e.*) FILTER (WHERE e.k = 'view'), count(e.*) FILTER (WHERE e.k IN ('edit', 'task', 'comment'))
              FROM workspaces w LEFT JOIN e ON e.workspace_id = w.id
+             WHERE w.personal_of IS NULL
              GROUP BY w.id, w.name ORDER BY count(e.*) DESC"
         )))
         .bind(since)

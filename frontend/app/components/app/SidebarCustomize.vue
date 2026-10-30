@@ -13,7 +13,7 @@ const { registry, sb, isHidden, ordered, save, reset } = useSidebarLayout(wsId)
 interface Row { key: string; label: string; icon?: any; visible: boolean }
 const links = ref<Row[]>([])
 const secs = ref<Row[]>([])
-const secLabel = (k: string) => ({ favorites: t('nav.favorites'), boards: t('nav.boards'), docs: t('nav.docs') })[k] ?? k
+const secLabel = (k: string) => ({ personal: t('personal.title'), favorites: t('nav.favorites'), boards: t('nav.boards'), docs: t('nav.docs') })[k] ?? k
 watch(open, (o) => {
   if (!o) return
   links.value = ordered(Object.keys(registry.value), sb.value.order).map((k) => ({ key: k, label: registry.value[k]!.label(), icon: registry.value[k]!.icon, visible: !isHidden(k) }))

@@ -23,6 +23,8 @@ export interface Workspace {
   created_at?: string
   updated_at?: string
   calendar_color?: string | null
+  /** Espace perso du compte courant (seule membre : la personne). */
+  personal?: boolean
 }
 
 export interface WorkspaceMember {

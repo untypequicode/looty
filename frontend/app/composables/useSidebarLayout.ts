@@ -19,7 +19,7 @@ export interface NavDef {
 export interface SidebarPrefs { order?: string[]; hidden?: string[]; shown?: string[]; sectionOrder?: string[]; sectionHidden?: string[] }
 interface Prefs { sidebar?: SidebarPrefs; [k: string]: unknown }
 
-export const SECTION_KEYS = ['favorites', 'boards', 'docs'] as const
+export const SECTION_KEYS = ['personal', 'favorites', 'boards', 'docs'] as const
 const customizeOpen = ref(false)
 /** Définitions enregistrées par la barre latérale (lues par la fenêtre de personnalisation). */
 const registry = ref<Record<string, NavDef>>({})
