@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.24.1",
+      "date": "2026-10-30",
+      "title": {
+        "en": "Personal items open where you are",
+        "fr": "Les éléments perso s’ouvrent là où vous êtes"
+      },
+      "notes": {
+        "en": [
+          "**Personal space**: personal items now open without leaving the workspace you are in. Its sidebar, menu and tabs stay, and a *Personal space* marker shows in the header.",
+          "To open the personal space on its own, with its own sidebar, pick it at the top of the workspace menu.",
+          "*New board* in the *Personal space* section now creates the board in your personal space from any workspace."
+        ],
+        "fr": [
+          "**Espace perso** : ses éléments s’ouvrent maintenant sans quitter l’espace où vous êtes. Sa barre latérale, son menu et ses onglets restent, et un repère *Espace perso* s’affiche dans l’en-tête.",
+          "Pour ouvrir l’espace perso seul, avec sa propre barre latérale, choisissez-le en tête du menu des espaces.",
+          "*Nouveau tableau* dans la section *Espace perso* crée maintenant le tableau dans votre espace perso, depuis n’importe quel espace."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.24.0",
       "date": "2026-10-30",
       "title": {
