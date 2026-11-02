@@ -69,6 +69,12 @@ function ws(fn, a) {
     ]
     case 'mod_assign_get_assignments': return { courses: [{ id: 1, assignments: [{ id: 55, cmid: 105, name: 'Rendu TP Algèbre', intro: '<p>Rendre le <a href="http://127.0.0.1:18300/pluginfile.php/22/mod_assign/intro/sujet.pdf">sujet</a> complété.</p>', duedate: now() + 2 * day, cutoffdate: 0, allowsubmissionsfromdate: now() - 5 * day,
       introattachments: [{ filename: 'sujet.pdf', filesize: 400, mimetype: 'application/pdf', fileurl: 'http://127.0.0.1:18300/webservice/pluginfile.php/22/mod_assign/introattachment/0/sujet.pdf' }] }] }] }
+    case 'gradereport_overview_get_course_grades': return { grades: [{ courseid: 1, grade: '14,50', rawgrade: '14.5', rank: null }, { courseid: 2, grade: '-', rawgrade: null, rank: null }], warnings: [] }
+    case 'gradereport_user_get_grade_items': return a.courseid != 1 ? { usergrades: [{ courseid: Number(a.courseid), gradeitems: [] }], warnings: [] } : { usergrades: [{ courseid: 1, userid: 5, gradeitems: [
+      { id: 1, itemname: 'Rendu TP Algèbre', itemtype: 'mod', itemmodule: 'assign', cmid: 105, graderaw: 16, gradeformatted: '16,00', grademin: 0, grademax: 20, percentageformatted: '80,00 %', feedback: '<p>Très bon travail.</p>', gradedategraded: now() - 2 * day },
+      { id: 2, itemname: 'Partiel', itemtype: 'mod', itemmodule: 'quiz', cmid: 106, graderaw: 13, gradeformatted: '13,00', grademin: 0, grademax: 20, percentageformatted: '65,00 %', feedback: '', gradedategraded: now() - day },
+      { id: 3, itemname: null, itemtype: 'course', graderaw: 14.5, gradeformatted: '14,50', grademin: 0, grademax: 20, percentageformatted: '72,50 %', feedback: '' },
+    ] }], warnings: [] }
     case 'mod_assign_get_submission_status': return { lastattempt: { submission: { status: 'draft' }, gradingstatus: 'notgraded' }, feedback: null }
     default: return { exception: 'x', errorcode: 'invalidfunction', message: fn }
   }

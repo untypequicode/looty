@@ -2,7 +2,7 @@
 import {
   NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
-  GraduationCap, FolderCode, HardDrive, Eye, PenTool,
+  GraduationCap, FolderCode, HardDrive, Eye, PenTool, Megaphone,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
@@ -15,6 +15,7 @@ import { useSidebarLayout } from '~/composables/useSidebarLayout'
 import { usePages } from '~/composables/usePages'
 import { useBoards } from '~/composables/useBoards'
 import { useNotifications } from '~/composables/useNotifications'
+import { useAnnouncements } from '~/composables/useAnnouncements'
 import { useReadingMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useMoodle } from '~/composables/useMoodle'
@@ -39,6 +40,7 @@ const canManageBoards = computed(() => can.value.manageBoards)
 const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   home: { icon: Home, label: () => t('nav.home'), to: () => links.home(wsId.value), exact: true },
   inbox: { icon: Inbox, label: () => t('nav.inbox'), to: () => links.inbox(wsId.value), badge: () => unread.value || undefined },
+  announcements: { icon: Megaphone, label: () => t('announcements.title'), to: () => links.announcements(wsId.value), badge: () => announcements.unread.value || undefined, when: () => !isGuest.value },
   myTasks: { icon: CircleUserRound, label: () => t('nav.myTasks'), to: () => links.myTasks(wsId.value), when: () => can.value.seeBoards },
   calendar: { icon: CalendarDays, label: () => t('calendar.title'), to: () => links.calendar(wsId.value), when: () => !isGuest.value },
   mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined, when: () => !isGuest.value },
@@ -56,6 +58,7 @@ const sectionOrder = computed(() => Object.entries(sections.value).filter(([, v]
 const { tree, favorites, createAndOpen } = usePages()
 const { renameBoard, deleteBoard } = useBoards()
 const { unread } = useNotifications()
+const announcements = useAnnouncements(wsId, computed(() => role.value != null && !isGuest.value))
 const { data: mailAccounts } = useMailAccounts()
 const { data: moodleInfo } = useMoodle(wsId, computed(() => role.value != null && !isGuest.value))
 const cardFor = ref<string | null>(null)

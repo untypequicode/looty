@@ -49,6 +49,7 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/calendar/sync", post(sync_calendar))
         .route("/open", get(open_link))
         .merge(crate::moodle_content::routes())
+        .merge(crate::moodle_grades::routes())
 }
 
 // ---------------------------------------------------------------------------

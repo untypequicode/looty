@@ -2,7 +2,7 @@ export default {
   attachments: { title: 'Attachments', drop: 'Drop files here or click to upload', deleteTitle: 'Delete this attachment?' },
   board: {
     addColumn: 'Add column', addTask: 'Add task', columnName: 'Column name', display: 'Display',
-    automations: 'Automations', settings: 'Board settings', doneColumn: '“Done” column',
+    automations: 'Automations', settings: 'Board settings', exportCsv: 'Export as CSV', doneColumn: '“Done” column',
     doneColumnHint: 'Completed tasks are moved there automatically, and go back to their column when reopened.',
     noDoneColumn: 'None', autoValidate: 'Complete on move', autoValidateHint: 'Dropping a task in the “Done” column marks it as completed.',
     applySubtasks: 'Apply to sub-tasks', applySubtasksHint: 'Completed sub-tasks also follow the move rule.',
@@ -37,5 +37,10 @@ export default {
   timeline: {
     days: 'Days', weeks: 'Weeks', hint: 'Drag a bar to move it, its edges to resize.',
     unscheduled: 'Unscheduled', clickToSchedule: 'Click to schedule on this date',
+  },
+  taskRepeat: {
+    label: 'Repeat', none: 'Does not repeat', daily: 'Every day', weekly: 'Every week', biweekly: 'Every two weeks',
+    monthly: 'Every month', yearly: 'Every year', needsDate: 'Give the task a due date first.',
+    hint: 'Once done, the task comes back with its dates moved forward.',
   },
 }

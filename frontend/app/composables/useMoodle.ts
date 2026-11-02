@@ -62,6 +62,17 @@ export interface MoodleAssignment {
   status: string | null; grading: string | null; grade: string | null
 }
 
+/** Note globale d'un cours (`grade` tel qu'affiché par Moodle, vide s'il n'y en a pas). */
+export interface MoodleGrade { course_id: number; grade: string | null; raw: number | null; rank: number | null }
+export interface MoodleGradeItem {
+  id: number; name: string | null; type: string; module: string | null; cmid: number | null
+  grade: string | null; raw: number | null; min: number | null; max: number | null; percentage: string | null
+  /** HTML nettoyé côté serveur. */
+  feedback: string | null
+  graded_at: string | null
+}
+export interface MoodleCourseGrades { items: MoodleGradeItem[]; total: MoodleGradeItem | null }
+
 export const moodleKeys = {
   overview: (ws: string) => ['moodle', ws, 'overview'] as const,
   data: (ws: string, kind: string) => ['moodle', ws, kind] as const,

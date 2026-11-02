@@ -7,6 +7,8 @@ export interface User {
   avatar_url?: string | null
   theme?: 'system' | 'light' | 'dark' | null
   locale?: 'fr' | 'en' | null
+  /** Fuseau horaire IANA (heures des e-mails). */
+  timezone?: string | null
   is_super_admin?: boolean
   prefs?: Record<string, unknown>
 }
@@ -97,9 +99,13 @@ export interface Task {
   assignees: string[]
   validations: string[]
   previous_column_id?: string | null
+  /** Répétition : terminée, la tâche crée sa prochaine occurrence. */
+  repeat?: TaskRepeat | null
   created_at?: string
   updated_at?: string
 }
+
+export type TaskRepeat = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
 
 export interface Page {
   id: string
@@ -196,10 +202,15 @@ export interface MyTask {
 export interface SearchResult {
   id: string
   title: string
-  type: 'page' | 'task'
+  /** `event` : événement de l'espace ; `calendar_event` : occurrence d'un calendrier intégré. */
+  type: 'page' | 'task' | 'event' | 'calendar_event' | 'file' | 'folder'
   icon?: string | null
   snippet?: string | null
   parent_id?: string | null
+  /** Début d'un événement. */
+  date?: string | null
+  /** Dossier d'un fichier du Drive. */
+  folder?: string | null
 }
 
 export interface Presence {

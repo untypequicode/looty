@@ -18,6 +18,7 @@ export default {
       languageHint: 'Langue de l’interface, enregistrée sur votre compte.', compactSidebar: 'Masquer la barre latérale',
       compactSidebarHint: 'Raccourci : [', notifications: 'Notifications', desktop: 'Notifications système',
       enabled: 'Activées', blocked: 'Bloquées par le navigateur',
+      timezone: 'Fuseau horaire', timezoneHint: 'Heures affichées dans les e-mails de notification.', timezoneDetect: 'Utiliser celui de cet appareil',
     },
     security: {
       accounts: 'Comptes connectés', accountsHint: 'Fournisseurs avec lesquels vous pouvez vous connecter.', unknownProvider: 'Fournisseur supprimé',

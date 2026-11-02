@@ -6,11 +6,13 @@ export default {
     moodle_invalid_token: 'Invalid or expired Moodle key', moodle_not_connected: 'Moodle account not connected', moodle_bad_response: 'Unexpected answer from Moodle',
     moodle_error: 'Moodle returned an error', moodle_http_error: 'Moodle returned an HTTP error', moodle_no_calendar_export: 'This Moodle doesn’t allow calendar export',
     moodle_timeout: 'Moodle took too long to answer',
+    moodle_grades_unavailable: 'This Moodle does not let Looty read grades. They are still on the site.',
   },
   nav: { moodle: 'Moodle' },
   inbox: { kinds: { moodle: 'Moodle' } },
   settings: { notify: { ev: { moodle_received: 'Moodle messages and notifications' }, evHint: { moodle_received: 'A message or notification arrives on your connected Moodle account.' } } },
   moodle: {
+    grades: { title: 'My grades', none: 'No grades published yet.', noneInCourse: 'No grades published in this course.', untitled: 'Untitled item', rank: 'Rank {rank}' },
     offlineBanner: 'Moodle is not responding: you are browsing the copy from {date}. Only courses, pages and files already opened are available.', retry: 'Retry',
     offlineCount: { zero: 'Nothing kept offline', one: '1 item kept offline ({size})', other: '{count} items kept offline ({size})' },
     title: 'Moodle', open: 'Open Moodle', refresh: 'Refresh',
@@ -62,7 +64,7 @@ export default {
     },
     board: {
       add: 'Add a panel', reset: 'Reset the dashboard', resetTitle: 'Go back to the default dashboard?', resetHint: 'Your panels, their sizes and their titles are replaced by the suggested layout.',
-      kinds: { deadlines: 'Deadlines', courses: 'My courses', messages: 'Recent messages', notifications: 'Notifications', course: 'Pinned course', progress: 'Progress', folder: 'Folder' },
+      kinds: { deadlines: 'Deadlines', courses: 'My courses', messages: 'Recent messages', notifications: 'Notifications', course: 'Pinned course', progress: 'Progress', folder: 'Folder', grades: 'Grades' },
       changeFolder: 'Change folder', pickFolder: 'Choose the folder to show in this panel.', noFolder: 'No folder yet. Create one from the “My courses” panel (group by folders).', includeHidden: 'Include hidden courses',
       changeCourse: 'Change course', openCourse: 'Open the course', pickCourse: 'Choose the course to show in this panel.', noProgress: 'No course tracks completion.',
     },

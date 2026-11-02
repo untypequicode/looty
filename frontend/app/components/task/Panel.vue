@@ -3,11 +3,11 @@ import { isDesktop, openInDesktop } from '~/composables/useDesktop'
 import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow } from 'lucide-vue-next'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
-import { CalendarSync, CalendarRange, ExternalLink } from 'lucide-vue-next'
+import { CalendarSync, CalendarRange, ExternalLink, Repeat } from 'lucide-vue-next'
 import type { CalEvent, EventDetail } from '~/composables/useCalendar'
 import { isTimed, timeOf } from '~/utils/dates'
 import { api } from '~/composables/api'
-import type { Board, Task, Priority } from '~/types'
+import type { Board, Task, Priority, TaskRepeat } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardActions, columnProgress, allTasks } from '~/composables/useBoard'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -109,6 +109,14 @@ function linkEvent(e: CalEvent | null) {
   if (!task.value) return
   if (!e) actions.updateTask(task.value.id, { event_id: null, event_start: null })
   else actions.updateTask(task.value.id, { event_id: e.event_id!, event_start: e.starts_at, due_date: e.starts_at })
+}
+const REPEATS: TaskRepeat[] = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']
+const repeatOpen = ref(false)
+const repeatItems = computed(() => [{ value: '', label: t('taskRepeat.none') }, ...REPEATS.map((r) => ({ value: r, label: t(`taskRepeat.${r}`) }))])
+function setRepeat(v: string) {
+  if (!task.value) return
+  if (v && !task.value.due_date && !task.value.start_date) { toast.error(t('taskRepeat.needsDate')); return }
+  actions.updateTask(task.value.id, { repeat: (v || null) as TaskRepeat | null })
 }
 const dueLabel = (d: string) => (isTimed(d) ? `${formatDate(d)} · ${timeOf(d)}` : formatDate(d))
 const startModel = computed({
@@ -291,6 +299,14 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
                 <CalendarDays :size="14" class="faint" /> <span :class="{ faint: !task.due_date }">{{ task.due_date ? dueLabel(task.due_date) : t('task.noDate') }}</span>
               </button>
             </TaskDatePicker>
+          </div>
+          <div class="prop">
+            <span class="prop-label">{{ t('taskRepeat.label') }}</span>
+            <UiCombobox v-model:open="repeatOpen" :model-value="task.repeat ?? ''" :items="repeatItems" :width="230" @update:model-value="(v) => setRepeat(String(v))">
+              <button class="prop-val" :disabled="!canWrite" :title="t('taskRepeat.hint')">
+                <Repeat :size="14" class="faint" /> <span :class="{ faint: !task.repeat }">{{ task.repeat ? t(`taskRepeat.${task.repeat}`) : t('taskRepeat.none') }}</span>
+              </button>
+            </UiCombobox>
           </div>
 
           <div class="prop">

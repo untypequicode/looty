@@ -99,6 +99,8 @@ function onContentClick(e: MouseEvent) {
     <p v-else-if="error" class="md-err">{{ errorMessage(error) }}</p>
     <p v-else-if="!data?.sections.length" class="muted mc-center">{{ t('moodle.course.empty') }}</p>
 
+    <MoodleCourseGrades v-if="!isLoading && !error" :ws="ws" :course-id="courseId" />
+
     <!-- eslint-disable vue/no-v-html : HTML nettoyé côté serveur -->
     <section v-for="s in data?.sections ?? []" :key="s.id" class="mc-sec">
       <h3 v-if="s.name">{{ s.name }}</h3>

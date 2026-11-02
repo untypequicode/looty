@@ -41,7 +41,7 @@ pub struct BoardColumn {
 }
 
 pub const TASK_COLUMNS: &str = "id, column_id, parent_id, title, description, position, previous_column_id, \
-    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start";
+    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start, repeat";
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Task {
@@ -65,6 +65,10 @@ pub struct Task {
     pub event_id: Option<Uuid>,
     #[sqlx(default)]
     pub event_start: Option<DateTime<Utc>>,
+    /// Répétition (`daily`, `weekly`, `biweekly`, `monthly`, `yearly`) : une fois terminée,
+    /// la tâche crée sa prochaine occurrence.
+    #[sqlx(default)]
+    pub repeat: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -143,7 +147,7 @@ impl Automations {
     }
 }
 
-fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
+pub(crate) fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -162,6 +166,7 @@ pub fn workspace_routes() -> Router<AppState> {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/{board_id}", get(get_board).put(update_board).delete(delete_board))
+        .route("/{board_id}/export.csv", get(crate::board_export::export_csv))
         .route("/{board_id}/columns", post(create_column))
         .route("/{board_id}/labels", post(create_label))
         .route("/labels/{label_id}", put(update_label).delete(delete_label))
@@ -278,6 +283,93 @@ async fn notify_completed(state: &AppState, task_id: Uuid, actor: Uuid) {
         crate::notifications::notify(pool, &state.hub, ctx.workspace_id, a, Some(actor), "completed", &format!("task:{task_id}"),
             serde_json::json!({ "title": title, "board_id": ctx.board_id })).await;
     }
+}
+
+/// Une tâche vient d'être terminée : prévenir, puis créer l'occurrence suivante si elle se répète.
+async fn task_completed(state: &AppState, task_id: Uuid, actor: Uuid) {
+    notify_completed(state, task_id, actor).await;
+    if let Some(Err(e)) = crate::bg::guard("next occurrence", spawn_next_occurrence(state, task_id, actor)).await {
+        tracing::warn!("next occurrence of {task_id}: {e:?}");
+    }
+}
+
+/// Crée la prochaine occurrence d'une tâche récurrente terminée : même tableau (dans sa
+/// colonne d'avant « terminé »), mêmes contenu, priorité, étiquettes, personnes et
+/// répétition, dates décalées. Une seule par tâche (`repeat_next_id`).
+async fn spawn_next_occurrence(state: &AppState, task_id: Uuid, actor: Uuid) -> ApiResult<()> {
+    let pool = &state.pool;
+    let task = fetch_task(pool, task_id).await?;
+    let Some(repeat) = task.repeat.as_deref().filter(|r| crate::recurrence::is_valid(r)) else { return Ok(()) };
+    let Some(reference) = task.due_date.or(task.start_date) else { return Ok(()) };
+    let ctx = task_ctx(pool, task_id).await?;
+    let tz: Option<chrono_tz::Tz> = sqlx::query_scalar::<_, Option<String>>("SELECT timezone FROM users WHERE id = $1")
+        .bind(actor)
+        .fetch_optional(pool)
+        .await?
+        .flatten()
+        .and_then(|z| z.parse().ok());
+    let Some(n) = crate::recurrence::periods_after(reference, repeat, tz, Utc::now()) else { return Ok(()) };
+    let shift = |d: Option<DateTime<Utc>>| d.and_then(|d| crate::recurrence::shift(d, repeat, n, tz));
+
+    // Colonne : celle d'avant « terminé », sinon la première qui ne l'est pas.
+    let done = board_automations(pool, ctx.board_id).await?.done_column();
+    let column: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM board_columns WHERE board_id = $1 AND ($2::uuid IS NULL OR id <> $2)
+         ORDER BY COALESCE(id = $3, false) DESC, (id = $4) DESC, position LIMIT 1",
+    )
+    .bind(ctx.board_id)
+    .bind(done)
+    .bind(task.previous_column_id)
+    .bind(task.column_id)
+    .fetch_optional(pool)
+    .await?;
+    let column = column.unwrap_or(task.column_id);
+    let position = next_task_position(pool, column).await?;
+
+    let mut tx = pool.begin().await?;
+    let next_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO tasks (column_id, parent_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations, repeat)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
+    )
+    .bind(column)
+    .bind(task.parent_id)
+    .bind(&task.title)
+    .bind(&task.description)
+    .bind(position)
+    .bind(shift(task.start_date))
+    .bind(shift(task.due_date))
+    .bind(task.priority)
+    .bind(task.is_per_person)
+    .bind(task.require_all_validations)
+    .bind(repeat)
+    .fetch_one(&mut *tx)
+    .await?;
+    // Déjà créée (tâche rouverte puis terminée à nouveau, ou deux validations simultanées) : on s'arrête là.
+    let claimed = sqlx::query("UPDATE tasks SET repeat_next_id = $2 WHERE id = $1 AND repeat_next_id IS NULL")
+        .bind(task_id)
+        .bind(next_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    if claimed == 0 {
+        tx.rollback().await?;
+        return Ok(());
+    }
+    sqlx::query("INSERT INTO task_labels (task_id, label_id) SELECT $2, label_id FROM task_labels WHERE task_id = $1 ON CONFLICT DO NOTHING")
+        .bind(task_id)
+        .bind(next_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO task_assignees (task_id, user_id) SELECT $2, user_id FROM task_assignees WHERE task_id = $1 ON CONFLICT DO NOTHING")
+        .bind(task_id)
+        .bind(next_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    log_activity(pool, next_id, actor, "create", None, Some(serde_json::json!({ "title": task.title, "repeat_of": task_id }))).await;
+    emit_task(state, ctx.workspace_id, "TASK_CREATED", next_id).await;
+    Ok(())
 }
 
 async fn next_task_position(pool: &PgPool, column_id: Uuid) -> ApiResult<f64> {
@@ -884,6 +976,8 @@ pub struct UpdateTaskReq {
     pub event_id: Option<Option<Uuid>>,
     #[serde(default, deserialize_with = "double_option")]
     pub event_start: Option<Option<DateTime<Utc>>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub repeat: Option<Option<String>>,
 }
 
 async fn update_task(
@@ -902,6 +996,11 @@ async fn update_task(
     if req.is_completed.is_some() && old.is_per_person && req.is_per_person != Some(false) {
         return Err(ApiError::bad_request("use_toggle_validation"));
     }
+    if let Some(Some(r)) = &req.repeat {
+        if !crate::recurrence::is_valid(r) {
+            return Err(ApiError::bad_request("invalid_repeat"));
+        }
+    }
 
     let task: Task = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "UPDATE tasks SET
@@ -915,6 +1014,7 @@ async fn update_task(
             is_completed = COALESCE($11, is_completed),
             event_id = CASE WHEN $13 THEN (SELECT id FROM workspace_events WHERE id = $14 AND workspace_id = $17) ELSE event_id END,
             event_start = CASE WHEN $15 THEN $16 WHEN $13 AND $14 IS NULL THEN NULL ELSE event_start END,
+            repeat = CASE WHEN $18 THEN $19 ELSE repeat END,
             updated_at = NOW()
          WHERE id = $12 RETURNING {TASK_COLUMNS}"
     )))
@@ -935,9 +1035,15 @@ async fn update_task(
     .bind(req.event_start.is_some())
     .bind(req.event_start.flatten())
     .bind(ctx.workspace_id)
+    .bind(req.repeat.is_some())
+    .bind(req.repeat.clone().flatten())
     .fetch_one(pool)
     .await?;
 
+    if old.repeat != task.repeat {
+        log_activity(pool, task_id, user.id, "update_repeat",
+            Some(serde_json::json!({ "repeat": old.repeat })), Some(serde_json::json!({ "repeat": task.repeat }))).await;
+    }
     if old.title != task.title {
         log_activity(pool, task_id, user.id, "update_title",
             Some(serde_json::json!({ "title": old.title })), Some(serde_json::json!({ "title": task.title }))).await;
@@ -961,7 +1067,7 @@ async fn update_task(
             Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
         apply_completion_automation(pool, ctx.board_id, &task).await?;
         if task.is_completed {
-            notify_completed(&state, task_id, user.id).await;
+            task_completed(&state, task_id, user.id).await;
         }
     }
 
@@ -1087,7 +1193,7 @@ async fn move_task(
                         .bind(old.column_id)
                         .execute(pool)
                         .await?;
-                    notify_completed(&state, task_id, user.id).await;
+                    task_completed(&state, task_id, user.id).await;
                 } else if old.column_id == done && req.column_id != done && old.is_completed {
                     sqlx::query("UPDATE tasks SET is_completed = false, previous_column_id = NULL WHERE id = $1")
                         .bind(task_id)
@@ -1303,7 +1409,7 @@ async fn toggle_task_validation(
             Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
         apply_completion_automation(pool, ctx.board_id, &task).await?;
         if task.is_completed {
-            notify_completed(&state, task_id, user.id).await;
+            task_completed(&state, task_id, user.id).await;
         }
     }
 
@@ -1811,7 +1917,7 @@ pub async fn sync_apply_remote(state: &AppState, task_id: Uuid, user_id: Uuid, c
             log_activity(pool, task_id, user_id, "toggle_validation", Some(serde_json::json!({ "is_completed": was })), Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
             apply_completion_automation(pool, ctx.board_id, &task).await?;
             if task.is_completed {
-                notify_completed(state, task_id, user_id).await;
+                task_completed(state, task_id, user_id).await;
             }
         }
     }

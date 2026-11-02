@@ -106,7 +106,7 @@ export default {
   priority: { 0: 'No priority', 1: 'Urgent', 2: 'High', 3: 'Medium', 4: 'Low' },
   command: {
     placeholder: 'Search or run a command…', darkTheme: 'Switch to dark theme', lightTheme: 'Switch to light theme',
-    groups: { navigation: 'Navigation', actions: 'Actions', preferences: 'Preferences', tasks: 'Tasks', content: 'Document content' },
+    groups: { navigation: 'Navigation', actions: 'Actions', preferences: 'Preferences', tasks: 'Tasks', content: 'Document content', events: 'Events', files: 'Drive files' },
   },
   shortcuts: {
     general: 'General', navigation: 'Navigation', board: 'Board', editor: 'Editor', commandPalette: 'Command palette',

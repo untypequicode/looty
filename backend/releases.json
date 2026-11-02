@@ -4,6 +4,35 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.26.0",
+      "date": "2026-11-02",
+      "title": {
+        "en": "Announcements, polls, Moodle grades and recurring tasks",
+        "fr": "Annonces, sondages, notes Moodle et tâches récurrentes"
+      },
+      "notes": {
+        "en": [
+          "**Announcements**: people allowed to (owners and admins by default, a new permission in roles) post news for the whole workspace: room change, exam date… Everyone is notified, sees what is new, and finds them on the *Announcements* page and in a home widget. They can be pinned and expire.",
+          "**Polls**: an announcement can carry a poll, single or multiple choice, named or anonymous, with results shown right away or only after voting, and a closing date. Results update live.",
+          "**Moodle grades**: a *Grades* panel on the Moodle dashboard shows each course’s overall grade, and a course shows its grade book (items, scale, teacher feedback).",
+          "**Recurring tasks**: a task can repeat every day, week, two weeks, month or year. Once done, its next occurrence appears with its dates moved forward.",
+          "**Export as CSV**: in a board’s menu, download its tasks for a spreadsheet (Excel reads accents correctly).",
+          "**Search** ignores accents (“algebre” finds “Algèbre”) and now also finds calendar events and Drive files.",
+          "**Emails** show due times in your time zone (detected from your device, editable in *Preferences*) instead of UTC."
+        ],
+        "fr": [
+          "**Annonces** : les personnes autorisées (propriétaires et administrateurs par défaut, un nouveau droit dans les rôles) publient une information pour tout l’espace : changement de salle, date d’un partiel… Chacun est notifié, voit ce qui est nouveau et les retrouve sur la page *Annonces* et dans un widget de l’accueil. Elles peuvent être épinglées et expirer.",
+          "**Sondages** : une annonce peut porter un sondage, à choix unique ou multiple, nominatif ou anonyme, avec résultats visibles tout de suite ou seulement après le vote, et une date de clôture. Les résultats se mettent à jour en direct.",
+          "**Notes Moodle** : un panneau *Notes* du tableau de bord Moodle donne la note globale de chaque cours, et un cours affiche son carnet de notes (éléments, barème, commentaire de l’enseignant).",
+          "**Tâches récurrentes** : une tâche peut se répéter chaque jour, semaine, deux semaines, mois ou année. Une fois terminée, sa prochaine occurrence apparaît avec ses dates décalées.",
+          "**Exporter en CSV** : dans le menu d’un tableau, téléchargez ses tâches pour un tableur (Excel lit correctement les accents).",
+          "**Recherche** sans accents (« algebre » trouve « Algèbre »), qui trouve aussi les événements de l’agenda et les fichiers du Drive.",
+          "**E-mails** : les échéances s’affichent à l’heure de votre fuseau (détecté sur votre appareil, modifiable dans les *Préférences*) au lieu de l’UTC."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.25.1",
       "date": "2026-10-31",
       "title": {

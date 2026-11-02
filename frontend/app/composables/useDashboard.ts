@@ -9,7 +9,7 @@ import { bottomOf, GRID_COLS, type GridBox } from './usePanelGrid'
  */
 export type WidgetId =
   | 'greeting' | 'stats' | 'agenda' | 'myTasks' | 'docs' | 'boards' | 'activity'
-  | 'overdue' | 'toApprove' | 'favorites' | 'inbox' | 'notepad' | 'online' | 'month' | 'mail' | 'myEvents' | 'classes'
+  | 'overdue' | 'toApprove' | 'favorites' | 'inbox' | 'notepad' | 'online' | 'month' | 'mail' | 'myEvents' | 'classes' | 'announcements'
 /** Un widget : `i` est son identifiant (un seul exemplaire de chaque). */
 export interface WidgetConf extends GridBox { i: WidgetId }
 /** `grid` marque la disposition sur grille ; l'ancienne (liste `{ id, size }`) est convertie à la lecture. */
@@ -21,6 +21,7 @@ export const WIDGETS: { id: WidgetId; w: number; h: number }[] = [
   { id: 'greeting', w: 12, h: 3 },
   { id: 'stats', w: 12, h: 4 },
   { id: 'classes', w: 12, h: 8 },
+  { id: 'announcements', w: 12, h: 6 },
   { id: 'agenda', w: 6, h: 9 },
   { id: 'myTasks', w: 6, h: 9 },
   { id: 'docs', w: 6, h: 9 },

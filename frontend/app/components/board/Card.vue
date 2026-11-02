@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ListTree, Check, Users } from 'lucide-vue-next'
+import { CalendarDays, ListTree, Check, Users, Repeat } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
@@ -77,7 +77,7 @@ const validationText = computed(() => {
       <span v-if="task.priority" class="chip icon-only" :title="$t(`priority.${task.priority}`)"><TaskPriorityIcon :priority="task.priority" :size="13" /></span>
       <span v-for="l in task.labels.slice(0, 3)" :key="l.id" class="chip label"><span class="dot" :style="{ background: l.color }" />{{ l.name }}</span>
       <span v-if="task.labels.length > 3" class="chip">+{{ task.labels.length - 3 }}</span>
-      <span v-if="due" class="chip" :class="due.tone"><CalendarDays :size="12" />{{ due.label }}</span>
+      <span v-if="due" class="chip" :class="due.tone"><CalendarDays :size="12" />{{ due.label }}<Repeat v-if="task.repeat" :size="11" :aria-label="$t('taskRepeat.label')" /></span>
       <span v-if="subtasks.length" class="chip" :class="{ complete: subDone === subtasks.length }"><ListTree :size="12" />{{ subDone }}/{{ subtasks.length }}</span>
       <span v-if="validationText" class="chip" :title="$t('task.perPerson')"><Users :size="12" />{{ validationText }}</span>
     </div>

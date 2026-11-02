@@ -22,6 +22,14 @@ _Avoid_: test du cache, smoke test
 Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup ou à les ajouter ensemble à une tâche ou un événement. Une personne peut appartenir à plusieurs groupes. Ajouter un groupe à une tâche y ajoute ses membres du moment ; la tâche ne suit pas les changements ultérieurs du groupe.
 _Avoid_: équipe, rôle, liste
 
+**Annonce**:
+Information qu'une personne autorisée (droit « Publier des annonces ») passe à tous les membres d'un espace : changement de salle, date d'un partiel… Elle est notifiée, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
+_Avoid_: message, actualité, post, news
+
+**Sondage**:
+Question à options portée par une annonce : chaque membre vote (choix unique ou multiple), change ou retire son vote tant qu'il est ouvert. Il peut être anonyme (seuls les totaux sont visibles), ne montrer les résultats qu'après le vote, et se clore à une date ou à la main.
+_Avoid_: vote, questionnaire, formulaire
+
 ## Agenda externe
 
 **Flux d'abonnement**:
@@ -74,6 +82,10 @@ _Avoid_: dossier, filière
 Regroupement de cours Moodle créé par le membre dans Looty, qui n'existe pas sur le site Moodle.
 _Avoid_: catégorie, collection, groupe
 
+**Note Moodle**:
+Note publiée dans le carnet de notes Moodle d'un cours : la note globale du cours, ou celle d'un élément (devoir, test…) avec son barème et le commentaire de l'enseignant. Looty la lit, sans pouvoir la modifier.
+_Avoid_: résultat, évaluation, score
+
 **Personnalisation d'un cours**:
 Nom court, couleur et icône qu'un membre donne à un cours Moodle ; elle remplace la présentation du site partout dans Looty, pour ce membre seulement.
 _Avoid_: alias, surnom, thème
@@ -87,3 +99,13 @@ _Avoid_: fenêtre, page ouverte
 **Panneau de tâche**:
 Volet latéral qui montre le détail d'une tâche. Il s'ouvre à droite du tableau, ou à droite de la liste dans « Mes tâches ». À ne pas confondre avec un panneau du tableau de bord Moodle.
 _Avoid_: fiche, popup, tiroir
+
+## Tâches
+
+**Tâche récurrente**:
+Tâche avec une répétition (chaque jour, semaine, deux semaines, mois ou année). Une fois terminée, elle crée sa prochaine occurrence ; elle-même reste terminée.
+_Avoid_: tâche répétée, routine, modèle
+
+**Occurrence suivante**:
+Copie d'une tâche récurrente créée à sa fin : même tableau, contenu, étiquettes et personnes, dates décalées d'autant de périodes qu'il faut pour tomber dans le futur. Une seule par tâche.
+_Avoid_: clone, duplicata

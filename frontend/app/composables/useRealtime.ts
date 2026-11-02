@@ -241,6 +241,9 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) => old?.filter((p) => p.id !== ev.page_id))
       break
 
+    case 'ANNOUNCEMENTS_UPDATED':
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'announcements'] })
+      break
     case 'GROUPS_UPDATED':
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'groups'] })
       break

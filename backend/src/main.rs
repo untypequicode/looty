@@ -1,8 +1,10 @@
 mod access;
 mod admin;
+mod announcements;
 mod archive;
 mod auth;
 mod board;
+mod board_export;
 mod caldav;
 mod calendar;
 mod classes;
@@ -18,6 +20,7 @@ mod mailbox;
 mod mailclient;
 mod moodle;
 mod moodle_content;
+mod moodle_grades;
 mod moodle_cache;
 mod projects;
 mod latex;
@@ -33,12 +36,14 @@ mod groups;
 mod releases;
 mod notifications;
 mod push;
+mod recurrence;
 mod page;
 mod prefs;
 mod comments;
 mod revisions;
 mod roles;
 mod planning;
+mod polls;
 mod analytics;
 mod backup;
 mod session_store;
@@ -147,6 +152,7 @@ async fn main() {
         .nest("/workspaces/{workspace_id}/comments", comments::workspace_routes())
         .nest("/workspaces/{workspace_id}/access", roles::workspace_routes())
         .nest("/workspaces/{workspace_id}/groups", groups::workspace_routes())
+        .nest("/workspaces/{workspace_id}/announcements", announcements::workspace_routes())
         .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
         .nest("/workspaces/{workspace_id}", classes::workspace_routes())
         .nest("/workspaces/{workspace_id}/moodle", moodle::workspace_routes())

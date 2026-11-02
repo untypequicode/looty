@@ -1,6 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap, FolderCode, HardDrive, PenTool } from 'lucide-vue-next'
+import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap, FolderCode, HardDrive, PenTool, Megaphone } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { api } from './api'
 import { links, useWorkspace } from './useWorkspace'
@@ -14,6 +14,7 @@ const SCREENS: Record<string, { icon: any; path: (ws: string) => string }> = {
   projects: { icon: FolderCode, path: (ws) => `/w/${ws}/projects` },
   drive: { icon: HardDrive, path: (ws) => `/w/${ws}/drive` },
   inbox: { icon: Inbox, path: (ws) => links.inbox(ws) },
+  announcements: { icon: Megaphone, path: (ws) => links.announcements(ws) },
   'my-tasks': { icon: CircleUserRound, path: (ws) => links.myTasks(ws) },
   docs: { icon: Files, path: (ws) => links.docs(ws) },
   trash: { icon: Trash2, path: (ws) => `/w/${ws}/trash` },
@@ -72,7 +73,7 @@ export function locationPath(ws: string, location: string | undefined): string |
 
 /** Emplacement correspondant à une route (même règle que la présence envoyée). */
 export function locationOfRoute(route: { path: string; params: Record<string, any>; query: Record<string, any> }): string {
-  const screens = ['calendar', 'mail', 'moodle', 'projects', 'drive', 'inbox', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph', 'canvas']
+  const screens = ['calendar', 'mail', 'moodle', 'projects', 'drive', 'inbox', 'announcements', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph', 'canvas']
   const screen = route.path.split('/')[3] ?? ''
   const task = (route.query.task as string) || (route.params.task as string)
   return task ? `task:${task}` : route.params.page ? `page:${route.params.page}` : route.params.board ? `board:${route.params.board}` : screens.includes(screen) ? screen : 'home'

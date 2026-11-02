@@ -716,7 +716,12 @@ pub struct SearchResult {
     pub r#type: String,
     pub icon: Option<String>,
     pub snippet: Option<String>,
+    /// Tableau d'une tâche, page parente, calendrier d'un événement.
     pub parent_id: Option<Uuid>,
+    /// Début d'un événement.
+    pub date: Option<chrono::DateTime<chrono::Utc>>,
+    /// Dossier d'un fichier du Drive.
+    pub folder: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -724,9 +729,11 @@ struct SearchQuery {
     q: Option<String>,
 }
 
-/// Échappe les métacaractères LIKE (`%`, `_`, `\`).
+/// Motif LIKE sans majuscules ni accents, à comparer à `looty_fold(colonne)` ;
+/// métacaractères (`%`, `_`, `\`) échappés.
 fn like_pattern(q: &str) -> String {
-    let escaped = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let folded = crate::classes::fold(q);
+    let escaped = folded.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
     format!("%{}%", escaped)
 }
 
@@ -743,44 +750,103 @@ async fn search_workspace(
         return Ok(Json(serde_json::json!({ "results": [] })));
     }
     let pattern = like_pattern(&q.chars().take(200).collect::<String>());
+    let perms = crate::access::member_perms(&pool, user.id, workspace_id).await?.map(|(_, p)| p);
+    let level_of = |f: fn(&crate::access::Perms) -> u8| perms.as_ref().map(f).unwrap_or(crate::access::level::NONE);
 
     let visible = visible_pages(&pool, &user, workspace_id, role).await?;
     // Le contenu HTML est nettoyé des balises pour l'extrait.
     let pages: Vec<SearchResult> = sqlx::query_as(
         "SELECT id, title, 'page' AS type, icon,
                 substring(regexp_replace(coalesce(content, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
-                parent_id
+                parent_id, NULL::timestamptz AS date, NULL::text AS folder
          FROM pages
-         WHERE workspace_id = $1 AND (title ILIKE $2 OR content ILIKE $2 OR canvas_text ILIKE $2)
-         ORDER BY (title ILIKE $2) DESC, updated_at DESC
+         WHERE workspace_id = $1 AND (looty_fold(title) LIKE $2 OR looty_fold(content) LIKE $2 OR looty_fold(canvas_text) LIKE $2)
+         ORDER BY (looty_fold(title) LIKE $2) DESC, updated_at DESC
          LIMIT 40",
     )
     .bind(workspace_id)
     .bind(&pattern)
     .fetch_all(&pool)
     .await?;
-    let pages = pages
+    let mut results: Vec<SearchResult> = pages
         .into_iter()
         .filter(|p| visible.get(&p.id).is_some_and(|a| *a != PageAccess::None))
-        .take(20);
+        .take(20)
+        .collect();
 
-    let tasks: Vec<SearchResult> = sqlx::query_as(
-        "SELECT t.id, t.title, 'task' AS type, NULL::varchar AS icon,
-                substring(regexp_replace(coalesce(t.description, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
-                b.id AS parent_id
-         FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-         WHERE b.workspace_id = $1 AND (t.title ILIKE $2 OR t.description ILIKE $2)
-         ORDER BY (t.title ILIKE $2) DESC, t.updated_at DESC
-         LIMIT 20",
+    if level_of(|p| p.boards) > crate::access::level::NONE {
+        let tasks: Vec<SearchResult> = sqlx::query_as(
+            "SELECT t.id, t.title, 'task' AS type, NULL::varchar AS icon,
+                    substring(regexp_replace(coalesce(t.description, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
+                    b.id AS parent_id, NULL::timestamptz AS date, NULL::text AS folder
+             FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+             WHERE b.workspace_id = $1 AND (looty_fold(t.title) LIKE $2 OR looty_fold(t.description) LIKE $2)
+             ORDER BY (looty_fold(t.title) LIKE $2) DESC, t.updated_at DESC
+             LIMIT 20",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(tasks);
+    }
+
+    // Événements de l'espace (si le rôle donne accès à l'agenda), puis ceux des calendriers
+    // intégrés de l'espace ou du membre : une série n'y apparaît qu'une fois, à sa prochaine
+    // occurrence (sinon la dernière passée).
+    let ws_calendar = level_of(|p| p.calendar) >= crate::access::level::READ;
+    if ws_calendar {
+        let events: Vec<SearchResult> = sqlx::query_as(
+            "SELECT e.id, e.summary AS title, 'event' AS type, NULL::varchar AS icon, NULL::text AS snippet,
+                    e.calendar_id AS parent_id, e.starts_at AS date, NULL::text AS folder
+             FROM workspace_events e
+             WHERE e.workspace_id = $1 AND looty_fold(e.summary) LIKE $2
+             ORDER BY (e.starts_at >= NOW() OR e.recurring) DESC, e.starts_at DESC
+             LIMIT 10",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(events);
+    }
+    let subscribed: Vec<SearchResult> = sqlx::query_as(
+        "SELECT id, title, type, icon, snippet, parent_id, date, folder FROM (
+            SELECT DISTINCT ON (e.calendar_id, e.uid)
+                   e.id, e.summary AS title, 'calendar_event' AS type, NULL::varchar AS icon, e.location AS snippet,
+                   e.calendar_id AS parent_id, e.starts_at AS date, NULL::text AS folder, (e.ends_at < NOW()) AS past
+            FROM calendar_events e JOIN calendars c ON c.id = e.calendar_id
+            WHERE c.enabled AND ((c.workspace_id = $1 AND $4) OR c.user_id = $3)
+              AND (looty_fold(e.summary) LIKE $2 OR looty_fold(e.location) LIKE $2 OR looty_fold(e.description) LIKE $2)
+            ORDER BY e.calendar_id, e.uid, (e.ends_at < NOW()),
+                     CASE WHEN e.ends_at < NOW() THEN -extract(epoch FROM e.starts_at) ELSE extract(epoch FROM e.starts_at) END
+         ) s
+         ORDER BY past, abs(extract(epoch FROM date - NOW()))
+         LIMIT 10",
     )
     .bind(workspace_id)
     .bind(&pattern)
+    .bind(user.id)
+    .bind(ws_calendar)
     .fetch_all(&pool)
     .await?;
+    results.extend(subscribed);
 
-    let mut results: Vec<SearchResult> = pages.collect();
-    if can_see_boards(&pool, &user, workspace_id).await? {
-        results.extend(tasks);
+    // Fichiers et dossiers du Drive (même droit que pour le parcourir : lire les documents).
+    if level_of(|p| p.docs) >= crate::access::level::READ {
+        let files: Vec<SearchResult> = sqlx::query_as(
+            "SELECT id, name AS title, CASE WHEN is_dir THEN 'folder' ELSE 'file' END AS type, NULL::varchar AS icon,
+                    NULLIF(folder, '') AS snippet, NULL::uuid AS parent_id, NULL::timestamptz AS date, folder::text AS folder
+             FROM drive_files
+             WHERE workspace_id = $1 AND looty_fold(name) LIKE $2 AND (expires_at IS NULL OR expires_at > NOW())
+             ORDER BY is_dir DESC, created_at DESC
+             LIMIT 10",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(files);
     }
     Ok(Json(serde_json::json!({ "results": results })))
 }
@@ -908,4 +974,31 @@ async fn can_see_boards(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) -> A
     Ok(crate::access::member_perms(pool, user.id, workspace_id)
         .await?
         .is_some_and(|(_, p)| p.boards > crate::access::level::NONE))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_pattern_ignores_case_and_accents() {
+        assert_eq!(like_pattern("Algèbre"), "%algebre%");
+        assert_eq!(like_pattern("RÉUNION"), "%reunion%");
+        assert_eq!(like_pattern("50%_a\\b"), "%50\\%\\_a\\\\b%");
+    }
+
+    /// `looty_fold` (SQL) et `classes::fold` (Rust) doivent plier les mêmes caractères.
+    #[test]
+    fn sql_fold_matches_rust_fold() {
+        let sql = include_str!("../migrations/20261104120000_search_fold.sql");
+        let quoted: Vec<&str> = sql.split('\'').skip(1).step_by(2).collect();
+        let (from, to) = (quoted[quoted.len() - 2], quoted[quoted.len() - 1]);
+        assert_eq!(from.chars().count(), to.chars().count());
+        for (a, b) in from.chars().zip(to.chars()) {
+            assert_eq!(crate::classes::fold(&a.to_string()), b.to_string(), "{a}");
+        }
+        for c in "àáâãäåçèéêëìíîïñòóôõöùúûüýÿœæ".chars() {
+            assert!(from.contains(c), "{c} manque dans looty_fold");
+        }
+    }
 }

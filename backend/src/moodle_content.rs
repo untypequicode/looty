@@ -50,7 +50,7 @@ pub(crate) fn is_plugin_file(base: &str, raw: &str) -> bool {
 
 /// HTML de la plateforme, nettoyé ; images et fichiers passent par Looty, les adresses
 /// relatives sont résolues depuis `page` (page d'un cours, chapitre d'un livre).
-fn clean(html: &str, base: &str, ws: Uuid, page: Option<&reqwest::Url>) -> String {
+pub(crate) fn clean(html: &str, base: &str, ws: Uuid, page: Option<&reqwest::Url>) -> String {
     let base = base.to_string();
     let page = page.cloned();
     ammonia::Builder::default()

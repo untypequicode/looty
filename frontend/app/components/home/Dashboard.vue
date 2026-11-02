@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { useCalendars, useCalendarEvents, useCalendarPrefs, startOfDay, addDays, sameDay } from '~/composables/useCalendar'
-import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange, GraduationCap, Clock, BookOpenText, GripVertical, X } from 'lucide-vue-next'
+import { Home, CircleUserRound, AlertTriangle, CalendarClock, CheckCircle2, FileText, Kanban, ArrowRight, Plus, Activity, CalendarDays, MapPin, LayoutGrid, Star, Inbox as InboxIcon, NotebookPen, Users, Mail, BadgeCheck, CalendarHeart, CalendarRange, GraduationCap, Clock, BookOpenText, GripVertical, X, Megaphone, Pin } from 'lucide-vue-next'
 import { useTodayClasses, useClassLinks } from '~/composables/useClasses'
 import { useMemberPrefs } from '~/composables/usePrefs'
 import { useDashboard } from '~/composables/useDashboard'
 import { useNotifications } from '~/composables/useNotifications'
+import { useAnnouncements } from '~/composables/useAnnouncements'
 import { useMailAccounts } from '~/composables/useMail'
 import { presence } from '~/composables/useRealtime'
 import { notepadOpen } from '~/composables/useUi'
@@ -135,6 +136,8 @@ const overdueTasks = computed(() => (myTasks.value ?? []).filter((tk) => tk.due_
 const toApprove = computed(() => (myTasks.value ?? []).filter((tk) => tk.is_per_person && tk.assigned_to_me && !tk.done_by_me).slice(0, 7))
 const favoritePages = computed(() => (pages.data.value ?? []).filter((p) => p.is_favorite).slice(0, 8))
 const { notifications } = useNotifications()
+const announcements = useAnnouncements(wsId, computed(() => dash.has('announcements')))
+const topAnnouncements = computed(() => announcements.list.value.filter((a) => !a.expired).slice(0, 4))
 const unreadNotifs = computed(() => (notifications.value ?? []).filter((n) => !n.read_at).slice(0, 6))
 const { data: mailAccounts } = useMailAccounts()
 const { members } = useWorkspace()
@@ -284,6 +287,19 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
               <NuxtLink v-for="p in favoritePages" :key="p.id" :to="links.doc(wsId, p.id)" class="doc-row">
                 <span class="doc-icon">{{ p.icon || '' }}<FileText v-if="!p.icon" :size="15" /></span>
                 <span class="truncate doc-title">{{ p.title || t('docs.untitled') }}</span>
+              </NuxtLink>
+            </div>
+          </AppGridPanel>
+
+          <AppGridPanel v-else-if="w.i === 'announcements'" :title="t('dashboard.widgets.announcements')" :icon="Megaphone" :fixed="stacked" data-reveal @remove="dash.remove(w.i)">
+            <template #actions><NuxtLink :to="links.announcements(wsId)" class="panel-link">{{ t('common.viewAll') }} <ArrowRight :size="13" /></NuxtLink></template>
+            <div v-if="!topAnnouncements.length" class="panel-empty"><Megaphone :size="20" /><span>{{ t('dashboard.empty.announcements') }}</span></div>
+            <div v-else class="panel-body">
+              <NuxtLink v-for="a in topAnnouncements" :key="a.id" :to="links.announcements(wsId)" class="task-row" :class="{ 'ann-unread': !a.read }">
+                <Pin v-if="a.pinned" :size="13" class="ann-pin" /><Megaphone v-else :size="13" class="ann-pin" />
+                <span class="task-title truncate">{{ a.title }}</span>
+                <span v-if="a.poll && !a.poll.closed" class="ann-poll">{{ a.poll.my_votes.length ? t('polls.voted') : t('polls.toVote') }}</span>
+                <span class="task-due">{{ relativeTime(a.created_at) }}</span>
               </NuxtLink>
             </div>
           </AppGridPanel>
@@ -517,4 +533,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
   .hero h1 { font-size: 22px; }
   .task-board { display: none; }
 }
+.ann-pin { color: var(--text-3); flex: none; }
+.ann-poll { font-size: var(--fs-xs, 11px); padding: 1px 6px; border-radius: 99px; background: var(--bg-hover); color: var(--text-2); flex: none; }
+.ann-unread .task-title { font-weight: 600; }
 </style>

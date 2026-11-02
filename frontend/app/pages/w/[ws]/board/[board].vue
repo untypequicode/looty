@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Kanban, Columns3, List, GanttChart, Settings2, MoreHorizontal, Link2, Trash2, Pencil, Plus, SearchX, ExternalLink, CircleCheck, Signal, UserRound, Tag, CalendarDays, ArrowRightLeft, CalendarRange } from 'lucide-vue-next'
+import { Kanban, Columns3, List, GanttChart, Settings2, MoreHorizontal, Link2, Trash2, Pencil, Plus, SearchX, ExternalLink, CircleCheck, Signal, UserRound, Tag, CalendarDays, ArrowRightLeft, CalendarRange, FileSpreadsheet } from 'lucide-vue-next'
 import type { Task, Priority } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardQuery, useBoardActions, allTasks, positionBetween } from '~/composables/useBoard'
@@ -18,7 +18,7 @@ definePageMeta({ layout: 'workspace' })
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { wsId, isAdmin, members } = useWorkspace()
 // Droits du rôle et mode d'édition personnel (tableaux).
 const { can } = useAccess(wsId)
@@ -75,6 +75,7 @@ const settingsOpen = ref(false)
 const boardMenuOpen = ref(false)
 const boardMenu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.href.split('?')[0]!); toast.success(t('common.linkCopied')) } },
+  { label: t('board.exportCsv'), icon: FileSpreadsheet, onSelect: () => { window.location.href = `/api/boards/${boardId.value}/export.csv?lang=${locale.value}` } },
   ...(canManage.value ? [
     { label: t('common.rename'), icon: Pencil, onSelect: startRename },
     { label: t('board.settings'), icon: Settings2, onSelect: () => (settingsOpen.value = true) },

@@ -8,6 +8,7 @@ import { toast } from '~/composables/useToast'
 import { shareLocation } from '~/composables/useRealtime'
 import { tabsEnabled } from '~/composables/useTabs'
 import { useUserPrefs } from '~/composables/usePrefs'
+import { useAuth } from '~/composables/useAuth'
 
 const { prefs, update: updatePrefs } = useUserPrefs()
 const spellOn = computed({ get: () => prefs.value.spellcheck !== false, set: (v: boolean) => updatePrefs({ spellcheck: v }) })
@@ -23,6 +24,20 @@ async function persist(body: Record<string, string>) {
 }
 function onTheme(m: ThemeMode) { setTheme(m); persist({ theme: m }) }
 function onLocale(l: Locale) { setLocale(l); persist({ locale: l }) }
+
+// Fuseau horaire du compte : celui de l'appareil est posé automatiquement au premier passage.
+const { user, refresh } = useAuth()
+const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+const timezone = computed(() => user.value?.timezone ?? deviceTz)
+const tzOpen = ref(false)
+const tzItems = computed(() => {
+  const all: string[] = (Intl as any).supportedValuesOf?.('timeZone') ?? [deviceTz]
+  return (all.includes(timezone.value) ? all : [timezone.value, ...all]).map((z) => ({ value: z, label: z.replace(/_/g, ' ') }))
+})
+async function onTimezone(z: string) {
+  await persist({ timezone: z })
+  refresh()
+}
 const themes = computed(() => [
   { value: 'system' as ThemeMode, label: t('settings.themeSystem'), icon: Monitor },
   { value: 'light' as ThemeMode, label: t('settings.themeLight'), icon: Sun },
@@ -42,6 +57,12 @@ const themes = computed(() => [
     </SettingsRow>
     <SettingsRow :label="t('settings.prefs.language')" :hint="t('settings.prefs.languageHint')">
       <UiSegmented :model-value="locale" size="md" :options="LOCALES.map((l) => ({ value: l.code, label: l.label }))" @update:model-value="onLocale" />
+    </SettingsRow>
+    <SettingsRow :label="t('settings.prefs.timezone')" :hint="t('settings.prefs.timezoneHint')">
+      <UiButton v-if="timezone !== deviceTz" size="sm" variant="ghost" @click="onTimezone(deviceTz)">{{ t('settings.prefs.timezoneDetect') }}</UiButton>
+      <UiCombobox v-model:open="tzOpen" :model-value="timezone" :items="tzItems" :width="280" placement="bottom-end" @update:model-value="(v) => onTimezone(String(v))">
+        <button class="tz-select">{{ timezone.replace(/_/g, ' ') }}</button>
+      </UiCombobox>
     </SettingsRow>
     <SettingsRow :label="t('settings.prefs.compactSidebar')" :hint="t('settings.prefs.compactSidebarHint')">
       <UiSwitch v-model="sidebarCollapsed" />
@@ -78,4 +99,5 @@ const themes = computed(() => [
 .preview.system span { background: rgba(127, 127, 140, 0.35); }
 .theme-label { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-weight: 500; font-size: var(--fs-sm); }
 .ok { color: var(--green); font-weight: 500; }
+.tz-select { height: 28px; min-width: 200px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); background: var(--bg-input); text-align: left; }
 </style>
