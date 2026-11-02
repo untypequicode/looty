@@ -26,6 +26,10 @@ _Avoid_: équipe, rôle, liste
 Information qu'une personne autorisée (droit « Publier des annonces ») passe à tous les membres d'un espace : changement de salle, date d'un partiel… Elle est notifiée, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
 _Avoid_: message, actualité, post, news
 
+**Sondage**:
+Question à options portée par une annonce : chaque membre vote (choix unique ou multiple), change ou retire son vote tant qu'il est ouvert. Il peut être anonyme (seuls les totaux sont visibles), ne montrer les résultats qu'après le vote, et se clore à une date ou à la main.
+_Avoid_: vote, questionnaire, formulaire
+
 ## Agenda externe
 
 **Flux d'abonnement**:

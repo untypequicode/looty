@@ -16,9 +16,25 @@ export interface Announcement {
   updated_at: string
   read: boolean
   expired: boolean
+  poll: Poll | null
 }
+
+/** Sondage d'une annonce, tel que le membre le voit (totaux absents tant qu'ils sont cachés). */
+export interface Poll {
+  question: string
+  multiple: boolean
+  anonymous: boolean
+  results_after_vote: boolean
+  closes_at: string | null
+  closed: boolean
+  results_visible: boolean
+  voter_count: number
+  my_votes: string[]
+  options: { id: string; label: string; votes: number | null; voters: string[] | null }[]
+}
+export interface PollInput { question: string; options: string[]; multiple: boolean; anonymous: boolean; results_after_vote: boolean; closes_at: string | null }
 export interface AnnouncementList { announcements: Announcement[]; unread: number; can_manage: boolean }
-export interface AnnouncementInput { title?: string; body?: string; pinned?: boolean; expires_at?: string | null }
+export interface AnnouncementInput { title?: string; body?: string; pinned?: boolean; expires_at?: string | null; poll?: PollInput | null }
 
 export const announcementsKey = (ws: string) => ['ws', ws, 'announcements'] as const
 
@@ -66,11 +82,20 @@ export function useAnnouncements(ws: Ref<string>, enabled?: Ref<boolean>) {
     qc.invalidateQueries({ queryKey: ['ws', ws.value, 'notifications'] })
   }
 
+  async function vote(id: string, options: string[]) {
+    await api(`${base()}/${id}/vote`, { method: 'POST', body: { options } })
+    await refresh()
+  }
+  async function closePoll(id: string) {
+    await api(`${base()}/${id}/poll/close`, { method: 'POST' })
+    await refresh()
+  }
+
   return {
     query,
     list: computed(() => query.data.value?.announcements ?? []),
     unread: computed(() => query.data.value?.unread ?? 0),
     canManage: computed(() => !!query.data.value?.can_manage),
-    create, update, remove, markRead, markAllRead, refresh,
+    create, update, remove, markRead, markAllRead, refresh, vote, closePoll,
   }
 }

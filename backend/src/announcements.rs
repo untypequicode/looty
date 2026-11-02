@@ -25,6 +25,8 @@ pub fn workspace_routes() -> Router<AppState> {
         .route("/read-all", post(read_all))
         .route("/{id}", put(update).delete(remove))
         .route("/{id}/read", post(mark_read))
+        .route("/{id}/vote", post(crate::polls::vote))
+        .route("/{id}/poll/close", post(close_poll))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -41,6 +43,9 @@ pub struct Announcement {
     pub updated_at: DateTime<Utc>,
     pub read: bool,
     pub expired: bool,
+    /// Sondage porté par l'annonce (voir polls.rs).
+    #[sqlx(skip)]
+    pub poll: Option<serde_json::Value>,
 }
 
 async fn perms_of(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Perms> {
@@ -58,12 +63,14 @@ const SELECT: &str = "SELECT a.id, a.workspace_id, a.author_id, u.name AS author
      LEFT JOIN announcement_reads r ON r.announcement_id = a.id AND r.user_id = $2";
 
 async fn load(state: &AppState, id: Uuid, user: Uuid) -> ApiResult<Announcement> {
-    sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE a.id = $1")))
+    let mut a: Announcement = sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE a.id = $1")))
         .bind(id)
         .bind(user)
         .fetch_optional(&state.pool)
         .await?
-        .ok_or(ApiError::NotFound)
+        .ok_or(ApiError::NotFound)?;
+    a.poll = crate::polls::load(&state.pool, &[id], user).await?.remove(&id);
+    Ok(a)
 }
 
 async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
@@ -79,6 +86,11 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     .bind(manage)
     .fetch_all(&state.pool)
     .await?;
+    let mut items = items;
+    let mut polls = crate::polls::load(&state.pool, &items.iter().map(|a| a.id).collect::<Vec<_>>(), user.id).await?;
+    for a in &mut items {
+        a.poll = polls.remove(&a.id);
+    }
     let unread = items.iter().filter(|a| !a.read && !a.expired).count();
     Ok(Json(serde_json::json!({ "announcements": items, "unread": unread, "can_manage": manage })))
 }
@@ -90,6 +102,9 @@ struct AnnouncementReq {
     pinned: Option<bool>,
     #[serde(default, deserialize_with = "crate::board::double_option")]
     expires_at: Option<Option<DateTime<Utc>>>,
+    /// Sondage : le créer ou le remplacer (`null` : le retirer).
+    #[serde(default, deserialize_with = "crate::board::double_option")]
+    poll: Option<Option<crate::polls::PollReq>>,
 }
 
 fn clean_title(raw: &str) -> ApiResult<String> {
@@ -118,6 +133,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     }
     let title = clean_title(req.title.as_deref().unwrap_or(""))?;
     let body = clean_body(req.body.as_deref().unwrap_or(""))?;
+    let mut tx = state.pool.begin().await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO announcements (workspace_id, author_id, title, body, pinned, expires_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
     )
@@ -127,8 +143,12 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     .bind(&body)
     .bind(req.pinned.unwrap_or(false))
     .bind(req.expires_at.flatten())
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await?;
+    if let Some(Some(p)) = &req.poll {
+        crate::polls::save(&mut tx, id, p).await?;
+    }
+    tx.commit().await?;
     // L'auteur l'a lue.
     sqlx::query("INSERT INTO announcement_reads (announcement_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
         .bind(id)
@@ -152,6 +172,7 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     }
     let title = req.title.as_deref().map(clean_title).transpose()?;
     let body = req.body.as_deref().map(clean_body).transpose()?;
+    let mut tx = state.pool.begin().await?;
     let n = sqlx::query(
         "UPDATE announcements SET title = COALESCE($3, title), body = COALESCE($4, body), pinned = COALESCE($5, pinned),
                 expires_at = CASE WHEN $6 THEN $7 ELSE expires_at END, updated_at = NOW()
@@ -164,12 +185,18 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     .bind(req.pinned)
     .bind(req.expires_at.is_some())
     .bind(req.expires_at.flatten())
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?
     .rows_affected();
     if n == 0 {
         return Err(ApiError::NotFound);
     }
+    match &req.poll {
+        Some(Some(p)) => crate::polls::save(&mut tx, id, p).await?,
+        Some(None) => crate::polls::delete(&mut tx, id).await?,
+        None => {}
+    }
+    tx.commit().await?;
     changed(&state, ws).await;
     Ok(Json(load(&state, id, user.id).await?))
 }
@@ -185,6 +212,25 @@ async fn remove(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     }
     // Les notifications de l'annonce n'ont plus de cible.
     sqlx::query("DELETE FROM notifications WHERE workspace_id = $1 AND target = $2").bind(ws).bind(format!("announcement:{id}")).execute(&state.pool).await?;
+    changed(&state, ws).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Clore un sondage avant sa date (ou sans date).
+async fn close_poll(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
+    let perms = perms_of(&state, &user, ws).await?;
+    if !can_manage(&perms) {
+        return Err(ApiError::Forbidden);
+    }
+    let n = sqlx::query("UPDATE announcement_polls p SET closed = TRUE FROM announcements a WHERE a.id = p.announcement_id AND p.announcement_id = $1 AND a.workspace_id = $2")
+        .bind(id)
+        .bind(ws)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+    if n == 0 {
+        return Err(ApiError::NotFound);
+    }
     changed(&state, ws).await;
     Ok(StatusCode::NO_CONTENT)
 }

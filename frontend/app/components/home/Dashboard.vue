@@ -298,6 +298,7 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
               <NuxtLink v-for="a in topAnnouncements" :key="a.id" :to="links.announcements(wsId)" class="task-row" :class="{ 'ann-unread': !a.read }">
                 <Pin v-if="a.pinned" :size="13" class="ann-pin" /><Megaphone v-else :size="13" class="ann-pin" />
                 <span class="task-title truncate">{{ a.title }}</span>
+                <span v-if="a.poll && !a.poll.closed" class="ann-poll">{{ a.poll.my_votes.length ? t('polls.voted') : t('polls.toVote') }}</span>
                 <span class="task-due">{{ relativeTime(a.created_at) }}</span>
               </NuxtLink>
             </div>
@@ -533,5 +534,6 @@ const evTime = (e: { all_day: boolean; starts_at: string }) => {
   .task-board { display: none; }
 }
 .ann-pin { color: var(--text-3); flex: none; }
+.ann-poll { font-size: var(--fs-xs, 11px); padding: 1px 6px; border-radius: 99px; background: var(--bg-hover); color: var(--text-2); flex: none; }
 .ann-unread .task-title { font-weight: 600; }
 </style>

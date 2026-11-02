@@ -43,6 +43,7 @@ mod comments;
 mod revisions;
 mod roles;
 mod planning;
+mod polls;
 mod analytics;
 mod backup;
 mod session_store;
