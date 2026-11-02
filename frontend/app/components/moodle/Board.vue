@@ -61,6 +61,7 @@ function menuOf(p: BoardPanel): MenuItem[] {
         <MoodlePanelMessages v-else-if="p.kind === 'messages'" :ws="ws" @conversation="emit('conversation', $event)" />
         <MoodlePanelNotifications v-else-if="p.kind === 'notifications'" :ws="ws" @open="emit('open', $event)" />
         <MoodlePanelProgress v-else-if="p.kind === 'progress'" :ws="ws" @course="emit('course', $event)" />
+        <MoodlePanelGrades v-else-if="p.kind === 'grades'" :ws="ws" @course="emit('course', $event)" />
         <template v-else-if="p.kind === 'folder'">
           <MoodlePanelCourses v-if="p.folder && folderOf(p.folder)" :ws="ws" :opts="p.opts" :folder="p.folder" @opts="patch(p.i, { opts: $event })" @course="emit('course', $event)" />
           <div v-else class="mb-pick">

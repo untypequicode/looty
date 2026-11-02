@@ -1,5 +1,5 @@
 import { computed, type Component, type Ref } from 'vue'
-import { Clock, BookOpen, MessageSquare, Bell, BookMarked, BarChart3, Folder } from 'lucide-vue-next'
+import { Clock, BookOpen, MessageSquare, Bell, BookMarked, BarChart3, Folder, GraduationCap } from 'lucide-vue-next'
 import { useMemberPrefs } from './usePrefs'
 import { bottomOf, type GridBox } from './usePanelGrid'
 
@@ -8,7 +8,7 @@ import { bottomOf, type GridBox } from './usePanelGrid'
  * colonnes, propres à chaque membre dans chaque espace (préférences de membre, clé
  * `moodleBoard`). Tant que rien n'est enregistré, la disposition par défaut s'affiche.
  */
-export type PanelKind = 'deadlines' | 'courses' | 'messages' | 'notifications' | 'course' | 'progress' | 'folder'
+export type PanelKind = 'deadlines' | 'courses' | 'messages' | 'notifications' | 'course' | 'progress' | 'folder' | 'grades'
 export interface BoardPanel extends GridBox {
   kind: PanelKind
   /** Titre choisi par le membre (sinon le titre du type de panneau). */
@@ -44,10 +44,11 @@ export const PANEL_KINDS: { kind: PanelKind; w: number; h: number }[] = [
   { kind: 'course', w: 6, h: 14 },
   { kind: 'progress', w: 4, h: 8 },
   { kind: 'folder', w: 6, h: 12 },
+  { kind: 'grades', w: 4, h: 10 },
 ]
 
 export const PANEL_ICONS: Record<PanelKind, Component> = {
-  deadlines: Clock, courses: BookOpen, messages: MessageSquare, notifications: Bell, course: BookMarked, progress: BarChart3, folder: Folder,
+  deadlines: Clock, courses: BookOpen, messages: MessageSquare, notifications: Bell, course: BookMarked, progress: BarChart3, folder: Folder, grades: GraduationCap,
 }
 
 export const DEFAULT_BOARD: BoardPanel[] = [

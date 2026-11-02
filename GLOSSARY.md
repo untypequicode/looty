@@ -74,6 +74,10 @@ _Avoid_: dossier, filière
 Regroupement de cours Moodle créé par le membre dans Looty, qui n'existe pas sur le site Moodle.
 _Avoid_: catégorie, collection, groupe
 
+**Note Moodle**:
+Note publiée dans le carnet de notes Moodle d'un cours : la note globale du cours, ou celle d'un élément (devoir, test…) avec son barème et le commentaire de l'enseignant. Looty la lit, sans pouvoir la modifier.
+_Avoid_: résultat, évaluation, score
+
 **Personnalisation d'un cours**:
 Nom court, couleur et icône qu'un membre donne à un cours Moodle ; elle remplace la présentation du site partout dans Looty, pour ce membre seulement.
 _Avoid_: alias, surnom, thème

@@ -6,11 +6,13 @@ export default {
     moodle_invalid_token: 'Jeton Moodle invalide ou expiré', moodle_not_connected: 'Compte Moodle non connecté', moodle_bad_response: 'Réponse inattendue de Moodle',
     moodle_error: 'Moodle a renvoyé une erreur', moodle_http_error: 'Moodle a renvoyé une erreur HTTP', moodle_no_calendar_export: 'Ce Moodle ne permet pas l’export du calendrier',
     moodle_timeout: 'Moodle a mis trop de temps à répondre',
+    moodle_grades_unavailable: 'Ce Moodle ne permet pas de consulter les notes depuis Looty. Elles restent visibles sur le site.',
   },
   nav: { moodle: 'Moodle' },
   inbox: { kinds: { moodle: 'Moodle' } },
   settings: { notify: { ev: { moodle_received: 'Messages et notifications Moodle' }, evHint: { moodle_received: 'Un message ou une notification arrive sur votre compte Moodle connecté.' } } },
   moodle: {
+    grades: { title: 'Mes notes', none: 'Aucune note publiée pour l’instant.', noneInCourse: 'Aucune note publiée dans ce cours.', untitled: 'Élément sans nom', rank: 'Rang {rank}' },
     offlineBanner: 'Moodle ne répond pas : vous consultez la copie du {date}. Seuls les cours, pages et fichiers déjà ouverts sont disponibles.', retry: 'Réessayer',
     offlineCount: { zero: 'Rien de gardé hors ligne', one: '1 élément gardé hors ligne ({size})', other: '{count} éléments gardés hors ligne ({size})' },
     title: 'Moodle', open: 'Ouvrir Moodle', refresh: 'Actualiser',
@@ -62,7 +64,7 @@ export default {
     },
     board: {
       add: 'Ajouter un panneau', reset: 'Réinitialiser le tableau de bord', resetTitle: 'Revenir au tableau de bord par défaut ?', resetHint: 'Vos panneaux, leurs tailles et leurs titres sont remplacés par la disposition proposée.',
-      kinds: { deadlines: 'Échéances', courses: 'Mes cours', messages: 'Messages récents', notifications: 'Notifications', course: 'Cours épinglé', progress: 'Progression', folder: 'Dossier' },
+      kinds: { deadlines: 'Échéances', courses: 'Mes cours', messages: 'Messages récents', notifications: 'Notifications', course: 'Cours épinglé', progress: 'Progression', folder: 'Dossier', grades: 'Notes' },
       changeFolder: 'Changer de dossier', pickFolder: 'Choisissez le dossier à afficher dans ce panneau.', noFolder: 'Aucun dossier. Créez-en un depuis le panneau « Mes cours » (regrouper par dossiers).', includeHidden: 'Inclure les cours masqués',
       changeCourse: 'Changer de cours', openCourse: 'Ouvrir le cours', pickCourse: 'Choisissez le cours à afficher dans ce panneau.', noProgress: 'Aucun cours ne suit l’avancement.',
     },
