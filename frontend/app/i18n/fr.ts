@@ -106,7 +106,7 @@ export default {
   priority: { 0: 'Aucune priorité', 1: 'Urgente', 2: 'Haute', 3: 'Moyenne', 4: 'Basse' },
   command: {
     placeholder: 'Rechercher ou lancer une commande…', darkTheme: 'Passer au thème sombre', lightTheme: 'Passer au thème clair',
-    groups: { navigation: 'Navigation', actions: 'Actions', preferences: 'Préférences', tasks: 'Tâches', content: 'Contenu des documents' },
+    groups: { navigation: 'Navigation', actions: 'Actions', preferences: 'Préférences', tasks: 'Tâches', content: 'Contenu des documents', events: 'Événements', files: 'Fichiers du Drive' },
   },
   shortcuts: {
     general: 'Général', navigation: 'Navigation', board: 'Tableau', editor: 'Éditeur', commandPalette: 'Palette de commandes',

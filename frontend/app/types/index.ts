@@ -196,10 +196,15 @@ export interface MyTask {
 export interface SearchResult {
   id: string
   title: string
-  type: 'page' | 'task'
+  /** `event` : événement de l'espace ; `calendar_event` : occurrence d'un calendrier intégré. */
+  type: 'page' | 'task' | 'event' | 'calendar_event' | 'file' | 'folder'
   icon?: string | null
   snippet?: string | null
   parent_id?: string | null
+  /** Début d'un événement. */
+  date?: string | null
+  /** Dossier d'un fichier du Drive. */
+  folder?: string | null
 }
 
 export interface Presence {

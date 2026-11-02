@@ -228,6 +228,11 @@ function openEvent(e: CalEvent, ev: MouseEvent) {
 }
 const route = useRoute()
 const wantEvent = ref<string | null>(null)
+// `?date=` (recherche) : se placer sur ce jour.
+watch(() => route.query.date as string | undefined, (d) => {
+  const day = d ? new Date(d) : null
+  if (day && !Number.isNaN(day.getTime())) cursor.value = startOfDay(day)
+}, { immediate: true })
 watch(() => route.query.event as string | undefined, async (id) => {
   if (!id || !wsId.value) return
   try {

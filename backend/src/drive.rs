@@ -131,14 +131,14 @@ struct ListQuery {
 async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<ListQuery>) -> ApiResult<Json<Value>> {
     let perms = perms_for(&state, &user, ws).await?;
     let folder = clean_folder(q.folder.as_deref().unwrap_or(""))?;
-    let search = q.q.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(|s| format!("%{}%", s.to_lowercase().replace(['%', '_'], "")));
+    let search = q.q.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(|s| format!("%{}%", crate::classes::fold(s).replace(['%', '_'], "")));
     let items: Vec<Item> = sqlx::query_as(
         "SELECT f.id, f.folder, f.name, f.is_dir, f.mime, f.size, f.created_at, f.expires_at, f.uploaded_by, u.name AS uploaded_by_name,
                 (f.share_token IS NOT NULL) AS shared,
                 CASE WHEN f.is_dir THEN (SELECT count(*) FROM drive_files c WHERE c.workspace_id = f.workspace_id
                      AND c.folder = CASE WHEN f.folder = '' THEN f.name ELSE f.folder || '/' || f.name END) ELSE 0 END AS children
          FROM drive_files f LEFT JOIN users u ON u.id = f.uploaded_by
-         WHERE f.workspace_id = $1 AND (($3::text IS NULL AND f.folder = $2) OR ($3::text IS NOT NULL AND lower(f.name) LIKE $3))
+         WHERE f.workspace_id = $1 AND (($3::text IS NULL AND f.folder = $2) OR ($3::text IS NOT NULL AND looty_fold(f.name) LIKE $3))
            AND (f.expires_at IS NULL OR f.expires_at > NOW())
          ORDER BY f.is_dir DESC, lower(f.name)",
     )

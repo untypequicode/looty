@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import {
   Search, Home, Inbox, CircleUserRound, FileText, Kanban, SquarePen, FilePlus2, Plus, Settings,
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
-  BookOpen, PencilLine, Activity, Waypoints, Sparkles, Columns2,
+  BookOpen, PencilLine, Activity, Waypoints, Sparkles, Columns2, CalendarDays, File, Folder,
 } from 'lucide-vue-next'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import { isPane } from '~/composables/usePane'
@@ -20,6 +20,7 @@ import { useAuth } from '~/composables/useAuth'
 import { api } from '~/composables/api'
 import type { SearchResult } from '~/types'
 import { motion } from '~/composables/useMotion'
+import { fold } from '~/utils/fold'
 
 interface Cmd {
   id: string
@@ -101,9 +102,9 @@ const entityCommands = computed<Cmd[]>(() => [
   })),
 ])
 
-/** Correspondance floue simple : toutes les lettres dans l'ordre. */
+/** Correspondance floue simple, sans casse ni accents : toutes les lettres dans l'ordre. */
 function score(text: string, q: string): number {
-  const s = text.toLowerCase()
+  const s = fold(text)
   if (s.startsWith(q)) return 3
   if (s.includes(q)) return 2
   let i = 0
@@ -112,7 +113,7 @@ function score(text: string, q: string): number {
 }
 
 const results = computed<Cmd[]>(() => {
-  const q = query.value.trim().toLowerCase()
+  const q = fold(query.value.trim())
   if (!q) return [...staticCommands.value.slice(0, 9), ...entityCommands.value.filter((c) => c.id.startsWith('p-')).slice(0, 5)]
   const local = [...staticCommands.value, ...entityCommands.value]
     .map((c) => ({ c, s: score(`${c.label} ${c.keywords ?? ''}`, q) }))
@@ -125,15 +126,34 @@ const results = computed<Cmd[]>(() => {
     .filter((r) => !seen.has(`p-${r.id}`))
     .map((r) => ({
       id: `r-${r.id}`,
-      group: r.type === 'task' ? t('command.groups.tasks') : t('command.groups.content'),
+      group: t(`command.groups.${GROUP[r.type]}`),
       label: r.title || t('docs.untitled'),
-      hint: r.snippet?.replace(/\s+/g, ' ').trim().slice(0, 80) || undefined,
-      icon: r.type === 'task' ? CheckSquare : FileText,
+      hint: (r.date ? eventDate(r.date) + (r.snippet ? ` · ${r.snippet}` : '') : r.snippet)?.replace(/\s+/g, ' ').trim().slice(0, 80) || undefined,
+      icon: ICON[r.type],
       emoji: r.icon,
-      run: () => go(r.type === 'task' ? links.task(wsId.value, r.parent_id!, r.id) : links.doc(wsId.value, r.id)),
+      run: () => go(resultLink(r)),
     }))
   return [...local, ...rem]
 })
+
+const GROUP: Record<SearchResult['type'], string> = { page: 'content', task: 'tasks', event: 'events', calendar_event: 'events', file: 'files', folder: 'files' }
+const ICON: Record<SearchResult['type'], Component> = { page: FileText, task: CheckSquare, event: CalendarDays, calendar_event: CalendarDays, file: File, folder: Folder }
+const eventDate = (d: string) => new Date(d).toLocaleDateString(locale.value, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+
+function resultLink(r: SearchResult): string {
+  const ws = wsId.value
+  switch (r.type) {
+    case 'task': return links.task(ws, r.parent_id!, r.id)
+    case 'event': return `${links.calendar(ws)}?event=${r.id}`
+    case 'calendar_event': return `${links.calendar(ws)}?date=${encodeURIComponent(r.date ?? '')}`
+    case 'file': return `/w/${ws}/drive${r.folder ? `?folder=${encodeURIComponent(r.folder)}` : ''}`
+    case 'folder': {
+      const path = r.folder ? `${r.folder}/${r.title}` : r.title
+      return `/w/${ws}/drive?folder=${encodeURIComponent(path)}`
+    }
+    default: return links.doc(ws, r.id)
+  }
+}
 
 const grouped = computed(() => {
   const out: { group: string; items: (Cmd & { index: number })[] }[] = []
