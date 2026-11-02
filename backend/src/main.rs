@@ -3,6 +3,7 @@ mod admin;
 mod archive;
 mod auth;
 mod board;
+mod board_export;
 mod caldav;
 mod calendar;
 mod classes;

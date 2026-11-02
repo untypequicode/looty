@@ -166,6 +166,7 @@ pub fn workspace_routes() -> Router<AppState> {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/{board_id}", get(get_board).put(update_board).delete(delete_board))
+        .route("/{board_id}/export.csv", get(crate::board_export::export_csv))
         .route("/{board_id}/columns", post(create_column))
         .route("/{board_id}/labels", post(create_label))
         .route("/labels/{label_id}", put(update_label).delete(delete_label))

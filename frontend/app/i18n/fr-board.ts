@@ -2,7 +2,7 @@ export default {
   attachments: { title: 'Pièces jointes', drop: 'Déposez des fichiers ici ou cliquez pour importer', deleteTitle: 'Supprimer cette pièce jointe ?' },
   board: {
     addColumn: 'Ajouter une colonne', addTask: 'Ajouter une tâche', columnName: 'Nom de la colonne', display: 'Affichage',
-    automations: 'Automatisations', settings: 'Paramètres du tableau', doneColumn: 'Colonne « Terminé »',
+    automations: 'Automatisations', settings: 'Paramètres du tableau', exportCsv: 'Exporter en CSV', doneColumn: 'Colonne « Terminé »',
     doneColumnHint: 'Les tâches terminées y sont déplacées automatiquement, et retournent à leur colonne si on les rouvre.',
     noDoneColumn: 'Aucune', autoValidate: 'Valider en déplaçant', autoValidateHint: 'Déposer une tâche dans la colonne « Terminé » la marque comme terminée.',
     applySubtasks: 'Appliquer aux sous-tâches', applySubtasksHint: 'Les sous-tâches terminées suivent aussi la règle de déplacement.',
