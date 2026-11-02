@@ -60,6 +60,8 @@ async fn update_profile(
 struct PreferencesRequest {
     theme: Option<String>,
     locale: Option<String>,
+    /// Fuseau horaire IANA (« Europe/Paris »).
+    timezone: Option<String>,
 }
 
 async fn update_preferences(
@@ -77,10 +79,16 @@ async fn update_preferences(
             return Err(ApiError::bad_request("invalid_locale"));
         }
     }
-    sqlx::query("UPDATE users SET theme = COALESCE($1, theme), locale = COALESCE($2, locale), updated_at = NOW() WHERE id = $3")
+    if let Some(tz) = &p.timezone {
+        if tz.len() > 64 || tz.parse::<chrono_tz::Tz>().is_err() {
+            return Err(ApiError::bad_request("invalid_timezone"));
+        }
+    }
+    sqlx::query("UPDATE users SET theme = COALESCE($1, theme), locale = COALESCE($2, locale), timezone = COALESCE($4, timezone), updated_at = NOW() WHERE id = $3")
         .bind(p.theme)
         .bind(p.locale)
         .bind(user.id)
+        .bind(p.timezone)
         .execute(&pool)
         .await?;
     Ok(StatusCode::NO_CONTENT)

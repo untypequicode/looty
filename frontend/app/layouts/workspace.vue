@@ -43,6 +43,13 @@ const { t } = useI18n()
 // Invités aussi : ils reçoivent seulement la présence (le serveur filtre le reste).
 useRealtime(computed(() => (workspace.data.value ? wsId.value : '')), computed(() => user.value?.id))
 
+// Fuseau horaire du compte (heures des e-mails) : celui de l'appareil tant qu'aucun n'est choisi.
+watch(() => user.value, (u) => {
+  if (!u || u.timezone) return
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (timezone) api('/api/user/preferences', { method: 'PUT', body: { timezone }, silent: true }).catch(() => {})
+}, { immediate: true })
+
 // Préambule LaTeX de l'espace : appliqué à toutes les formules des pages.
 // Celui de l'espace du contenu (perso compris).
 const latex = useQuery({ queryKey: computed(() => wsKeys.latex(shell.routeWs.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${shell.routeWs.value}/latex`, { silent: true }), enabled: computed(() => !!shell.routeWs.value) })

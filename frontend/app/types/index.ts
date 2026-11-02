@@ -7,6 +7,8 @@ export interface User {
   avatar_url?: string | null
   theme?: 'system' | 'light' | 'dark' | null
   locale?: 'fr' | 'en' | null
+  /** Fuseau horaire IANA (heures des e-mails). */
+  timezone?: string | null
   is_super_admin?: boolean
   prefs?: Record<string, unknown>
 }

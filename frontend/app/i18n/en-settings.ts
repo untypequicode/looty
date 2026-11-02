@@ -18,6 +18,7 @@ export default {
       languageHint: 'Interface language, saved to your account.', compactSidebar: 'Hide sidebar',
       compactSidebarHint: 'Shortcut: [', notifications: 'Notifications', desktop: 'Desktop notifications',
       enabled: 'Enabled', blocked: 'Blocked by the browser',
+      timezone: 'Time zone', timezoneHint: 'Times shown in notification emails.', timezoneDetect: 'Use this device’s',
     },
     security: {
       accounts: 'Connected accounts', accountsHint: 'Providers you can sign in with.', unknownProvider: 'Deleted provider',

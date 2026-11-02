@@ -181,6 +181,7 @@ struct Pending {
     email: String,
     name: String,
     locale: Option<String>,
+    timezone: Option<String>,
     workspace_name: String,
 }
 
@@ -197,7 +198,7 @@ async fn process(state: &AppState) -> ApiResult<()> {
                 FROM due WHERE d.id = due.id RETURNING d.*
              )
              SELECT c.id, c.channel, c.attempts, n.workspace_id, n.kind, n.target, n.data, n.read_at,
-                    a.name AS actor_name, u.id AS user_id, u.email, u.name, u.locale, w.name AS workspace_name
+                    a.name AS actor_name, u.id AS user_id, u.email, u.name, u.locale, u.timezone, w.name AS workspace_name
              FROM claimed c
              JOIN notifications n ON n.id = c.notification_id
              JOIN users u ON u.id = c.user_id
@@ -295,13 +296,19 @@ struct Rendered {
     path: String,
 }
 
-fn fmt_due(d: &DateTime<Utc>, fr: bool) -> String {
-    let all_day = d.hour() == 12 && d.minute() == 0;
-    match (fr, all_day) {
-        (true, true) => d.format("%d/%m/%Y").to_string(),
-        (true, false) => d.format("%d/%m/%Y à %H:%M UTC").to_string(),
-        (false, true) => d.format("%b %-d, %Y").to_string(),
-        (false, false) => d.format("%b %-d, %Y at %H:%M UTC").to_string(),
+/// Échéance lisible, à l'heure du fuseau du membre (UTC, et dit comme tel, s'il n'en a pas
+/// de valide). Une échéance sans heure (12:00 UTC) garde sa date, quel que soit le fuseau.
+fn fmt_due(d: &DateTime<Utc>, fr: bool, tz: Option<&str>) -> String {
+    if d.hour() == 12 && d.minute() == 0 {
+        return if fr { d.format("%d/%m/%Y").to_string() } else { d.format("%b %-d, %Y").to_string() };
+    }
+    match tz.and_then(|z| z.parse::<chrono_tz::Tz>().ok()) {
+        Some(z) => {
+            let l = d.with_timezone(&z);
+            if fr { l.format("%d/%m/%Y à %H:%M").to_string() } else { l.format("%b %-d, %Y at %-I:%M %p").to_string() }
+        }
+        None if fr => d.format("%d/%m/%Y à %H:%M UTC").to_string(),
+        None => d.format("%b %-d, %Y at %H:%M UTC").to_string(),
     }
 }
 
@@ -338,7 +345,7 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
         ("task_mention", false) | ("doc_mention", false) => format!("{actor} mentioned you in {}", q(&title)),
         ("task_mention", true) | ("doc_mention", true) => format!("{actor} vous a mentionné dans {}", q(&title)),
         ("task_due", _) => {
-            let due = p.data["due_date"].as_str().and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|d| fmt_due(&d.with_timezone(&Utc), fr)).unwrap_or_default();
+            let due = p.data["due_date"].as_str().and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|d| fmt_due(&d.with_timezone(&Utc), fr, p.timezone.as_deref())).unwrap_or_default();
             if fr { format!("{} arrive à échéance le {due}", q(&title)) } else { format!("{} is due {due}", q(&title)) }
         }
         ("mail_received", false) => match (p.data["from"].as_str(), p.data["count"].as_u64()) {
@@ -411,4 +418,39 @@ pub fn render_email(_base: &str, fr: bool, context: &str, line: &str, excerpt: O
         url = esc(url),
     );
     (text, html)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn due_in_member_timezone() {
+        // 13:00 UTC = 14:00 à Paris en hiver, 15:00 en été.
+        let winter = Utc.with_ymd_and_hms(2026, 11, 3, 13, 0, 0).unwrap();
+        let summer = Utc.with_ymd_and_hms(2026, 7, 3, 13, 0, 0).unwrap();
+        assert_eq!(fmt_due(&winter, true, Some("Europe/Paris")), "03/11/2026 à 14:00");
+        assert_eq!(fmt_due(&summer, true, Some("Europe/Paris")), "03/07/2026 à 15:00");
+        assert_eq!(fmt_due(&winter, false, Some("America/New_York")), "Nov 3, 2026 at 8:00 AM");
+        // Passage à l'heure d'hiver (25 octobre 2026, 3 h → 2 h à Paris).
+        let before = Utc.with_ymd_and_hms(2026, 10, 25, 0, 30, 0).unwrap();
+        let after = Utc.with_ymd_and_hms(2026, 10, 25, 1, 30, 0).unwrap();
+        assert_eq!(fmt_due(&before, true, Some("Europe/Paris")), "25/10/2026 à 02:30");
+        assert_eq!(fmt_due(&after, true, Some("Europe/Paris")), "25/10/2026 à 02:30");
+    }
+
+    #[test]
+    fn due_without_valid_timezone_is_utc() {
+        let d = Utc.with_ymd_and_hms(2026, 11, 3, 13, 0, 0).unwrap();
+        assert_eq!(fmt_due(&d, true, None), "03/11/2026 à 13:00 UTC");
+        assert_eq!(fmt_due(&d, false, Some("Mars/Olympus")), "Nov 3, 2026 at 13:00 UTC");
+    }
+
+    #[test]
+    fn all_day_due_keeps_its_date() {
+        let d = Utc.with_ymd_and_hms(2026, 11, 3, 12, 0, 0).unwrap();
+        assert_eq!(fmt_due(&d, true, Some("Pacific/Kiritimati")), "03/11/2026");
+        assert_eq!(fmt_due(&d, false, Some("Pacific/Pago_Pago")), "Nov 3, 2026");
+    }
 }
