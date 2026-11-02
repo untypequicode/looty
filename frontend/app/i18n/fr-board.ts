@@ -38,4 +38,9 @@ export default {
     days: 'Jours', weeks: 'Semaines', hint: 'Glissez une barre pour la déplacer, ses bords pour la redimensionner.',
     unscheduled: 'Non planifiées', clickToSchedule: 'Cliquez pour planifier à cette date',
   },
+  taskRepeat: {
+    label: 'Répétition', none: 'Ne se répète pas', daily: 'Chaque jour', weekly: 'Chaque semaine', biweekly: 'Toutes les deux semaines',
+    monthly: 'Chaque mois', yearly: 'Chaque année', needsDate: 'Donnez d’abord une échéance à la tâche.',
+    hint: 'Une fois terminée, la tâche revient avec ses dates décalées.',
+  },
 }

@@ -99,9 +99,13 @@ export interface Task {
   assignees: string[]
   validations: string[]
   previous_column_id?: string | null
+  /** Répétition : terminée, la tâche crée sa prochaine occurrence. */
+  repeat?: TaskRepeat | null
   created_at?: string
   updated_at?: string
 }
+
+export type TaskRepeat = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
 
 export interface Page {
   id: string

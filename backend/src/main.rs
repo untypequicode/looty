@@ -33,6 +33,7 @@ mod groups;
 mod releases;
 mod notifications;
 mod push;
+mod recurrence;
 mod page;
 mod prefs;
 mod comments;

@@ -87,3 +87,13 @@ _Avoid_: fenêtre, page ouverte
 **Panneau de tâche**:
 Volet latéral qui montre le détail d'une tâche. Il s'ouvre à droite du tableau, ou à droite de la liste dans « Mes tâches ». À ne pas confondre avec un panneau du tableau de bord Moodle.
 _Avoid_: fiche, popup, tiroir
+
+## Tâches
+
+**Tâche récurrente**:
+Tâche avec une répétition (chaque jour, semaine, deux semaines, mois ou année). Une fois terminée, elle crée sa prochaine occurrence ; elle-même reste terminée.
+_Avoid_: tâche répétée, routine, modèle
+
+**Occurrence suivante**:
+Copie d'une tâche récurrente créée à sa fin : même tableau, contenu, étiquettes et personnes, dates décalées d'autant de périodes qu'il faut pour tomber dans le futur. Une seule par tâche.
+_Avoid_: clone, duplicata

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Plus, ListTree } from 'lucide-vue-next'
+import { ChevronRight, Plus, ListTree, Repeat } from 'lucide-vue-next'
 import type { Board, Task } from '~/types'
 import { columnProgress, allTasks } from '~/composables/useBoard'
 import { useWorkspace } from '~/composables/useWorkspace'
@@ -67,7 +67,7 @@ function dueTone(tk: Task) {
           <span class="lv-labels">
             <span v-for="l in tk.labels.slice(0, 3)" :key="l.id" class="lv-label"><span class="dot" :style="{ background: l.color }" />{{ l.name }}</span>
           </span>
-          <span class="lv-due" :class="dueTone(tk)">{{ tk.due_date ? formatDate(tk.due_date) : '' }}</span>
+          <span class="lv-due" :class="dueTone(tk)">{{ tk.due_date ? formatDate(tk.due_date) : '' }}<Repeat v-if="tk.repeat" :size="11" class="lv-repeat" :aria-label="$t('taskRepeat.label')" /></span>
           <span class="lv-assignees">
             <UiAvatar v-for="a in tk.assignees.slice(0, 3)" :key="a" :name="member(a)?.name" :src="member(a)?.avatar_url" :size="18" ring />
           </span>
@@ -127,6 +127,7 @@ function dueTone(tk: Task) {
 }
 .lv-label .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .lv-due { font-size: var(--fs-sm); color: var(--text-2); width: 64px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+.lv-repeat { margin-left: 3px; vertical-align: -1px; }
 .lv-due.overdue { color: var(--red); }
 .lv-due.soon { color: var(--orange); }
 .lv-assignees { display: flex; width: 56px; justify-content: flex-end; flex: none; }
