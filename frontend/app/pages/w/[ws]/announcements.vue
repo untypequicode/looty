@@ -142,7 +142,7 @@ useHead({ title: () => t('announcements.title') })
 </template>
 
 <style scoped>
-.an-list { max-width: 760px; margin: 0 auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 12px; }
+.an-list { width: 100%; max-width: 760px; margin: 0 auto; box-sizing: border-box; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 12px; }
 .an { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 14px 16px; }
 .an.unread { box-shadow: inset 3px 0 0 var(--accent); }
 .an.expired { opacity: .65; }

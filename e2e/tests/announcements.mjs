@@ -38,10 +38,11 @@ poll = (await api(`/api/workspaces/${WS}/announcements`)).announcements.find((x)
 ok('poll closed', poll.closed && await card.locator('.poll-opt:disabled').count() === 3)
 
 // Accueil : le widget montre l'annonce.
-await api(`/api/workspaces/${WS}/prefs`, 'PATCH', { dashboard: null })
+await api(`/api/workspaces/${WS}/prefs`, 'PATCH', { dashboard: { widgets: [{ i: 'announcements', x: 0, y: 0, w: 12, h: 6 }], saved: true, grid: true, knowsClasses: true } })
 await p.goto(`${B}/w/${WS}`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1200)
 ok('home widget lists the announcement', /Sortie de promo/.test(await p.locator('.gp', { hasText: /Annonces|Announcements/ }).first().innerText()))
 
 await api(`/api/workspaces/${WS}/announcements/${a.id}`, 'DELETE')
+await api(`/api/workspaces/${WS}/prefs`, 'PATCH', { dashboard: null })
 ok('no page errors', errors.length === 0, errors.join(' | '))
 await browser.close()

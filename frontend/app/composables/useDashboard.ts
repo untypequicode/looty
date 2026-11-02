@@ -53,7 +53,7 @@ function flow(list: { id: WidgetId; w?: number }[]): WidgetConf[] {
   }
   return out
 }
-export const DEFAULT_LAYOUT: WidgetConf[] = flow(['greeting', 'announcements', 'classes', 'stats', 'agenda', 'myTasks', 'docs', 'toApprove', 'boards', 'activity'].map((id) => ({ id: id as WidgetId })))
+export const DEFAULT_LAYOUT: WidgetConf[] = flow(['greeting', 'classes', 'stats', 'agenda', 'myTasks', 'docs', 'toApprove', 'boards', 'activity'].map((id) => ({ id: id as WidgetId })))
 
 export function useDashboard(wsId: Ref<string>) {
   const { prefs, loaded, update } = useMemberPrefs<{ dashboard?: DashboardPrefs | null }>(wsId)

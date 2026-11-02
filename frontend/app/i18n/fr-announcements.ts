@@ -30,4 +30,5 @@ export default {
     voters: { zero: 'Aucun vote', one: '1 votant', other: '{count} votants' }, resultsAfterVote: 'résultats visibles après votre vote',
     vote: 'Voter', change: 'Changer mon vote', retract: 'Retirer mon vote', close: 'Clore le sondage', voted: 'Voté', toVote: 'Sondage',
   },
+  presence: { screens: { announcements: 'Annonces' } },
 }
