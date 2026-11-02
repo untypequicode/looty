@@ -22,6 +22,10 @@ _Avoid_: test du cache, smoke test
 Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup ou à les ajouter ensemble à une tâche ou un événement. Une personne peut appartenir à plusieurs groupes. Ajouter un groupe à une tâche y ajoute ses membres du moment ; la tâche ne suit pas les changements ultérieurs du groupe.
 _Avoid_: équipe, rôle, liste
 
+**Annonce**:
+Information qu'une personne autorisée (droit « Publier des annonces ») passe à tous les membres d'un espace : changement de salle, date d'un partiel… Elle est notifiée, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
+_Avoid_: message, actualité, post, news
+
 ## Agenda externe
 
 **Flux d'abonnement**:

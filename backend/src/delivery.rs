@@ -30,6 +30,7 @@ pub const EVENTS: &[(&str, bool, bool)] = &[
     ("task_completed", false, false),
     ("mail_received", false, true),
     ("moodle_received", false, true),
+    ("announcement", true, true),
 ];
 
 pub fn event_of(kind: &str, target: &str) -> &'static str {
@@ -42,6 +43,7 @@ pub fn event_of(kind: &str, target: &str) -> &'static str {
         "completed" => "task_completed",
         "mail" => "mail_received",
         "moodle" => "moodle_received",
+        "announcement" => "announcement",
         _ => "other",
     }
 }
@@ -331,6 +333,7 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
         "board" => format!("/w/{}/board/{}", p.workspace_id, id),
         "mail" => format!("/w/{}/mail?account={}", p.workspace_id, id),
         "moodle" => format!("/w/{}/moodle", p.workspace_id),
+        "announcement" => format!("/w/{}/announcements", p.workspace_id),
         _ => format!("/w/{}/inbox", p.workspace_id),
     };
     if title.trim().is_empty() {
@@ -366,20 +369,25 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
             Some(from) => format!("Moodle — {from} : {title}"),
             None => format!("Moodle : {title}"),
         },
+        ("announcement", false) => format!("{actor} posted an announcement: {}", q(&title)),
+        ("announcement", true) => format!("{actor} a publié une annonce : {}", q(&title)),
         ("task_completed", false) => format!("{actor} completed {}", q(&title)),
         ("task_completed", true) => format!("{actor} a terminé {}", q(&title)),
         (_, false) => format!("New activity from {actor}"),
         (_, true) => format!("Nouvelle activité de {actor}"),
     };
-    // Extrait du commentaire, s'il y en a un.
-    let mut excerpt = None;
-    if let Some(cid) = p.data["comment_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) {
-        if let Ok(Some(html)) = sqlx::query_scalar::<_, String>("SELECT content FROM task_comments WHERE id = $1").bind(cid).fetch_optional(&state.pool).await {
-            let text = crate::ical::html_to_text(&html);
-            let short: String = text.chars().take(400).collect();
-            excerpt = Some(if text.chars().count() > 400 { format!("{short}…") } else { short });
-        }
-    }
+    // Extrait du commentaire ou du texte de l'annonce, s'il y en a un.
+    let html = if let Some(cid) = p.data["comment_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) {
+        sqlx::query_scalar::<_, String>("SELECT content FROM task_comments WHERE id = $1").bind(cid).fetch_optional(&state.pool).await.ok().flatten()
+    } else if let (Some(aid), "announcement") = (Uuid::parse_str(id).ok(), kind) {
+        sqlx::query_scalar::<_, String>("SELECT body FROM announcements WHERE id = $1").bind(aid).fetch_optional(&state.pool).await.ok().flatten()
+    } else {
+        None
+    };
+    let excerpt = html.map(|h| crate::ical::html_to_text(&h)).filter(|t| !t.trim().is_empty()).map(|text| {
+        let short: String = text.chars().take(400).collect();
+        if text.chars().count() > 400 { format!("{short}…") } else { short }
+    });
     Rendered { line, excerpt, path }
 }
 

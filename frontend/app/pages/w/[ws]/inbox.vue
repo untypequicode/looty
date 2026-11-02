@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart, GraduationCap } from 'lucide-vue-next'
+import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart, GraduationCap, Megaphone } from 'lucide-vue-next'
 import type { Notification } from '~/types'
 import { useNotifications } from '~/composables/useNotifications'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -16,7 +16,7 @@ const { t, relativeTime } = useI18n()
 const filter = ref<'all' | 'unread'>('all')
 
 const list = computed(() => (notifications.value ?? []).filter((n) => filter.value === 'all' || !n.read_at))
-const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, moodle: GraduationCap, event_tag: CalendarHeart }
+const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, moodle: GraduationCap, event_tag: CalendarHeart, announcement: Megaphone }
 
 function targetLink(n: Notification): string {
   const [kind, id = ''] = n.target.split(':')
@@ -27,6 +27,7 @@ function targetLink(n: Notification): string {
   if (kind === 'board') return links.board(wsId.value, id)
   if (kind === 'mail') return links.mail(wsId.value, id)
   if (kind === 'moodle') return links.moodle(wsId.value)
+  if (kind === 'announcement') return links.announcements(wsId.value)
   return links.home(wsId.value)
 }
 function targetLabel(n: Notification): string {

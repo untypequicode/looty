@@ -147,7 +147,7 @@ impl Automations {
     }
 }
 
-fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
+pub(crate) fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
