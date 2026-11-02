@@ -360,6 +360,11 @@ async fn spawn_next_occurrence(state: &AppState, task_id: Uuid, actor: Uuid) -> 
         .bind(next_id)
         .execute(&mut *tx)
         .await?;
+    sqlx::query("UPDATE tasks SET keywords = (SELECT keywords FROM tasks WHERE id = $1) WHERE id = $2")
+        .bind(task_id)
+        .bind(next_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("INSERT INTO task_assignees (task_id, user_id) SELECT $2, user_id FROM task_assignees WHERE task_id = $1 ON CONFLICT DO NOTHING")
         .bind(task_id)
         .bind(next_id)

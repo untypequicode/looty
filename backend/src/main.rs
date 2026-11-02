@@ -33,6 +33,7 @@ mod events;
 mod activity;
 mod graph;
 mod groups;
+mod keywords;
 mod releases;
 mod notifications;
 mod push;
@@ -152,6 +153,8 @@ async fn main() {
         .nest("/workspaces/{workspace_id}/comments", comments::workspace_routes())
         .nest("/workspaces/{workspace_id}/access", roles::workspace_routes())
         .nest("/workspaces/{workspace_id}/groups", groups::workspace_routes())
+        .nest("/workspaces/{workspace_id}/keywords", keywords::workspace_routes())
+        .nest("/keywords", keywords::routes())
         .nest("/workspaces/{workspace_id}/announcements", announcements::workspace_routes())
         .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
         .nest("/workspaces/{workspace_id}", classes::workspace_routes())

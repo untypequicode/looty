@@ -30,6 +30,12 @@ _Avoid_: message, actualité, post, news
 Question à options portée par une annonce : chaque membre vote (choix unique ou multiple), change ou retire son vote tant qu'il est ouvert. Il peut être anonyme (seuls les totaux sont visibles), ne montrer les résultats qu'après le vote, et se clore à une date ou à la main.
 _Avoid_: vote, questionnaire, formulaire
 
+## Recherche
+
+**Mot-clé**:
+Terme libre posé sur un document, un projet, un fichier du Drive, un tableau, une tâche ou un événement pour le retrouver par la recherche, même s'il n'apparaît pas dans son contenu (code du cours, « partiel »…). Il est transverse à l'espace, sans couleur ni droit ; `#mot-clé` dans la recherche ne montre que les éléments qui le portent.
+_Avoid_: tag, étiquette (réservé aux étiquettes colorées d'un tableau)
+
 ## Agenda externe
 
 **Flux d'abonnement**:

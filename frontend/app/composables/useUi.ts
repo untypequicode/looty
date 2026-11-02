@@ -4,6 +4,8 @@ import { useLocalStorage } from '@vueuse/core'
 /** État d'interface global (barre latérale, palette, dialogues de création). */
 const sidebarOpen = ref(false) // tiroir mobile
 const commandOpen = ref(false)
+/** Recherche pré-remplie à l'ouverture de la palette (ex. « #partiel » depuis un mot-clé). */
+const commandQuery = ref('')
 const shortcutsOpen = ref(false)
 const createBoardOpen = ref(false)
 /** Espace où créer le tableau (vide : l'espace courant), ex. l'espace perso depuis un autre. */
@@ -25,10 +27,17 @@ export function useUi() {
     createTaskOpen.value = true
   }
 
+  function openCommand(query = '') {
+    commandQuery.value = query
+    commandOpen.value = true
+  }
+
   return {
     sidebarOpen,
     sidebarCollapsed,
     commandOpen,
+    commandQuery,
+    openCommand,
     shortcutsOpen,
     createBoardOpen,
     createBoardIn,

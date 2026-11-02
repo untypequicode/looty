@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Repeat, MapPin, AlignLeft, FileText, CalendarDays, Users, Tag, ListTodo } from 'lucide-vue-next'
+import { Repeat, MapPin, AlignLeft, FileText, CalendarDays, Users, Tag, ListTodo, Hash } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Board } from '~/types'
 import { boardKey } from '~/composables/useRealtime'
@@ -227,6 +227,7 @@ async function save() {
         </UiCombobox>
       </div>
       <div class="evf-row"><MapPin :size="15" class="evf-ic" /><UiInput v-model="form.location" class="evf-grow" :placeholder="t('event.location')" maxlength="500" /></div>
+      <div v-if="event" class="evf-row" :title="t('keywords.hint')"><Hash :size="15" class="evf-ic" /><AppKeywords kind="event" :id="event.id" class="evf-grow" /></div>
       <div class="evf-row top"><AlignLeft :size="15" class="evf-ic" /><textarea ref="descEl" v-model="form.description" class="evf-desc" rows="3" :placeholder="t('event.description')" maxlength="10000" /></div>
       <div class="evf-row evf-sub">
         <UiCombobox v-model:open="pagePick" :items="pageItems" :width="320" :model-value="null" @update:model-value="(v) => linkPage(v as string)">

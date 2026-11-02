@@ -203,7 +203,7 @@ export interface SearchResult {
   id: string
   title: string
   /** `event` : événement de l'espace ; `calendar_event` : occurrence d'un calendrier intégré. */
-  type: 'page' | 'task' | 'event' | 'calendar_event' | 'file' | 'folder'
+  type: 'page' | 'board' | 'project' | 'task' | 'event' | 'calendar_event' | 'file' | 'folder'
   icon?: string | null
   snippet?: string | null
   parent_id?: string | null
@@ -211,6 +211,8 @@ export interface SearchResult {
   date?: string | null
   /** Dossier d'un fichier du Drive. */
   folder?: string | null
+  /** Mot-clé de l'élément qui correspond à la recherche. */
+  keyword?: string | null
 }
 
 export interface Presence {

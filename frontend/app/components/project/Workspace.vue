@@ -289,6 +289,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
       <span v-if="embedded && project" class="pj-bar-kind"><component :is="isSite ? Globe : isNotebook ? NotebookText : Sigma" :size="13" /> {{ isSite ? t('projects.site') : isNotebook ? 'Notebook' : 'LaTeX' }}</span>
       <span v-if="embedded" class="pj-bar-space" />
       <template v-if="project">
+        <AppKeywords v-if="!embedded" kind="project" :id="project.id" class="pj-kw" />
         <span v-if="collaborators.length" class="pj-people" :title="collaborators.map((c) => c.name).join(', ')">
           <Users :size="13" /> <span v-for="c in collaborators.slice(0, 4)" :key="c.name" class="pj-dot" :style="{ background: c.color }" />
         </span>
@@ -447,6 +448,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
 .pj-people { display: inline-flex; align-items: center; gap: 3px; color: var(--text-3); margin-right: 4px; }
 .pj-dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--bg); }
 .pj-ro { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--text-3); }
+.pj-kw { min-width: 0; }
 .pj-compile :deep(.kbd-group) { margin-left: 4px; opacity: .8; }
 .pj-mobile-tabs { padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .pj-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr); }

@@ -287,6 +287,10 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
             </TaskLabelPicker>
           </div>
           <div class="prop">
+            <span class="prop-label" :title="t('keywords.hint')">{{ t('keywords.label') }}</span>
+            <AppKeywords kind="task" :id="task.id" :readonly="!canWrite" />
+          </div>
+          <div class="prop">
             <span class="prop-label">{{ t('task.startDate') }}</span>
             <TaskDatePicker v-model="startModel">
               <button class="prop-val" :disabled="!canWrite"><CalendarClock :size="14" class="faint" /> <span :class="{ faint: !task.start_date }">{{ task.start_date ? formatDate(task.start_date) : t('task.noDate') }}</span></button>

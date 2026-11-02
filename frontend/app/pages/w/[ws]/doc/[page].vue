@@ -298,6 +298,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
       <div class="doc-project-head">
         <span v-if="live.icon" class="doc-project-icon">{{ live.icon }}</span>
         <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
+        <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
       </div>
       <ProjectWorkspace :key="live.project_id" :project-id="live.project_id" embedded class="doc-project-ws" />
     </div>
@@ -305,6 +306,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
       <div class="doc-project-head">
         <span v-if="live.icon" class="doc-project-icon">{{ live.icon }}</span>
         <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
+        <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
       </div>
       <CanvasBoard :key="`canvas-${live.id}`" class="doc-project-ws" :page-id="live.id" :ws-id="wsId" :can-edit="canEdit" :user="cursorUser" @status="(s) => (status = s)" @collaborators="(c) => (collaborators = c)" />
     </div>
@@ -338,6 +340,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
                 <UiAvatar v-if="live.updated_by" :name="member(live.updated_by)?.name" :src="member(live.updated_by)?.avatar_url" :size="18" />
                 <span>{{ t('editor.lastEdited', { name: member(live.updated_by ?? live.created_by)?.name ?? '?', time: relativeTime(live.updated_at) }) }}</span>
               </div>
+              <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-kw" />
             </header>
             <DocEditor
               :key="pageId"
@@ -455,6 +458,8 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 }
 .doc-title::placeholder { color: var(--text-4); }
 .doc-meta { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--text-3); font-size: var(--fs-sm); }
+.doc-kw { margin: 8px 0 0 -4px; }
+.doc-project-kw { flex: none; max-width: 40%; }
 .children { margin: 8px 0 80px; padding-top: 24px; border-top: 1px solid var(--border); }
 .children h3 { margin: 0 0 12px; font-size: var(--fs-sm); color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .child-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }

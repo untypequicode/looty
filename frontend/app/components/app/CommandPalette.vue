@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import {
   Search, Home, Inbox, CircleUserRound, FileText, Kanban, SquarePen, FilePlus2, Plus, Settings,
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
-  BookOpen, PencilLine, Activity, Waypoints, Sparkles, Columns2, CalendarDays, File, Folder,
+  BookOpen, PencilLine, Activity, Waypoints, Sparkles, Columns2, CalendarDays, File, Folder, FolderCode, Hash,
 } from 'lucide-vue-next'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import { isPane } from '~/composables/usePane'
@@ -31,10 +31,12 @@ interface Cmd {
   emoji?: string | null
   shortcut?: string | string[]
   keywords?: string
+  /** Mot-clé de l'élément qui correspond à la recherche. */
+  keyword?: string | null
   run: () => void
 }
 
-const { commandOpen, createBoardOpen, openCreateTask, shortcutsOpen } = useUi()
+const { commandOpen, commandQuery, createBoardOpen, openCreateTask, shortcutsOpen } = useUi()
 const { wsId, boards, pages, canWriteRole } = useWorkspace()
 const { can } = useAccess(wsId)
 const tabsApi = useTabs(wsId)
@@ -55,7 +57,8 @@ const list = ref<HTMLElement | null>(null)
 
 watch(commandOpen, (v) => {
   if (v) {
-    query.value = ''
+    query.value = commandQuery.value
+    commandQuery.value = ''
     remote.value = []
     active.value = 0
     nextTick(() => input.value?.focus())
@@ -113,9 +116,12 @@ function score(text: string, q: string): number {
 }
 
 const results = computed<Cmd[]>(() => {
-  const q = fold(query.value.trim())
+  const raw = query.value.trim()
+  const q = fold(raw)
+  // « #mot-clé » : seulement les éléments qui portent ce mot-clé (recherche du serveur).
+  const kwOnly = raw.startsWith('#')
   if (!q) return [...staticCommands.value.slice(0, 9), ...entityCommands.value.filter((c) => c.id.startsWith('p-')).slice(0, 5)]
-  const local = [...staticCommands.value, ...entityCommands.value]
+  const local = kwOnly ? [] : [...staticCommands.value, ...entityCommands.value]
     .map((c) => ({ c, s: score(`${c.label} ${c.keywords ?? ''}`, q) }))
     .filter((x) => x.s > 0)
     .sort((a, b) => b.s - a.s)
@@ -123,7 +129,7 @@ const results = computed<Cmd[]>(() => {
     .map((x) => x.c)
   const seen = new Set(local.map((c) => c.id))
   const rem: Cmd[] = remote.value
-    .filter((r) => !seen.has(`p-${r.id}`))
+    .filter((r) => !seen.has(`p-${r.id}`) && !seen.has(`b-${r.id}`))
     .map((r) => ({
       id: `r-${r.id}`,
       group: t(`command.groups.${GROUP[r.type]}`),
@@ -131,19 +137,22 @@ const results = computed<Cmd[]>(() => {
       hint: (r.date ? eventDate(r.date) + (r.snippet ? ` · ${r.snippet}` : '') : r.snippet)?.replace(/\s+/g, ' ').trim().slice(0, 80) || undefined,
       icon: ICON[r.type],
       emoji: r.icon,
+      keyword: r.keyword,
       run: () => go(resultLink(r)),
     }))
   return [...local, ...rem]
 })
 
-const GROUP: Record<SearchResult['type'], string> = { page: 'content', task: 'tasks', event: 'events', calendar_event: 'events', file: 'files', folder: 'files' }
-const ICON: Record<SearchResult['type'], Component> = { page: FileText, task: CheckSquare, event: CalendarDays, calendar_event: CalendarDays, file: File, folder: Folder }
+const GROUP: Record<SearchResult['type'], string> = { page: 'content', board: 'boards', project: 'projects', task: 'tasks', event: 'events', calendar_event: 'events', file: 'files', folder: 'files' }
+const ICON: Record<SearchResult['type'], Component> = { page: FileText, board: Kanban, project: FolderCode, task: CheckSquare, event: CalendarDays, calendar_event: CalendarDays, file: File, folder: Folder }
 const eventDate = (d: string) => new Date(d).toLocaleDateString(locale.value, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 
 function resultLink(r: SearchResult): string {
   const ws = wsId.value
   switch (r.type) {
     case 'task': return links.task(ws, r.parent_id!, r.id)
+    case 'board': return links.board(ws, r.id)
+    case 'project': return r.parent_id ? links.doc(ws, r.parent_id) : `/w/${ws}/projects/${r.id}`
     case 'event': return `${links.calendar(ws)}?event=${r.id}`
     case 'calendar_event': return `${links.calendar(ws)}?date=${encodeURIComponent(r.date ?? '')}`
     case 'file': return `/w/${ws}/drive${r.folder ? `?folder=${encodeURIComponent(r.folder)}` : ''}`
@@ -213,6 +222,7 @@ watch(grouped, () => nextTick(() => {
             <span v-if="c.emoji" class="cmd-emoji">{{ c.emoji }}</span>
             <component :is="c.icon" v-else :size="16" class="cmd-icon" />
             <span class="cmd-label truncate">{{ c.label }}</span>
+            <span v-if="c.keyword" class="cmd-kw"><Hash :size="11" />{{ c.keyword }}</span>
             <span v-if="c.hint" class="cmd-hint truncate">{{ c.hint }}</span>
             <UiKbd v-if="c.shortcut" :keys="c.shortcut" />
             <CornerDownLeft v-else-if="active === c.index" :size="13" class="faint" />
@@ -260,6 +270,7 @@ watch(grouped, () => nextTick(() => {
 .cmd-emoji { width: 16px; text-align: center; flex: none; }
 .cmd-label { flex: none; max-width: 60%; }
 .cmd-hint { flex: 1; color: var(--text-3); font-size: var(--fs-sm); }
+.cmd-kw { display: inline-flex; align-items: center; gap: 1px; flex: none; padding: 1px 6px 1px 4px; border-radius: 999px; background: var(--bg-active); color: var(--text-2); font-size: var(--fs-xs); }
 .cmd-item .kbd-group, .cmd-item svg:last-child { margin-left: auto; }
 .cmd-empty { padding: 28px; text-align: center; color: var(--text-3); }
 </style>
