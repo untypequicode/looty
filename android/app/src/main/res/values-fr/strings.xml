@@ -927,4 +927,56 @@
     <string name="enter_manually">Saisir à la main</string>
     <string name="phone_calendar_creds_title">Informations CalDAV</string>
     <string name="phone_calendar_creds_message">Saisissez-les dans votre application d’agenda (touchez pour copier). Le mot de passe n’est affiché qu’une fois.</string>
+    <!-- Annonces et sondages -->
+    <string name="announcements">Annonces</string>
+    <string name="announcements_empty">Aucune annonce pour l’instant.</string>
+    <string name="announcement_new">Nouvelle annonce</string>
+    <string name="announcement_edit">Modifier l’annonce</string>
+    <string name="announcement_pinned">Épinglée</string>
+    <string name="announcement_expired">Expirée</string>
+    <string name="announcement_body">Détail</string>
+    <string name="announcement_pin">Épingler en haut</string>
+    <string name="announcement_publish">Publier</string>
+    <string name="title">Titre</string>
+    <string name="audience_label">Destinataires</string>
+    <string name="audience_hint">Rien de choisi : tout l’espace. Les groupes sont suivis : un nouveau membre la voit.</string>
+    <string name="audience_everyone">Tout l’espace</string>
+    <string name="audience_for">Pour : %1$s</string>
+    <string name="audience_not_for_you">ne vous est pas adressée</string>
+    <string name="poll_add">Ajouter un sondage</string>
+    <string name="poll_question">Question</string>
+    <string name="poll_option">Option %1$d</string>
+    <string name="poll_add_option">Ajouter une option</string>
+    <string name="poll_multiple">Plusieurs choix</string>
+    <string name="poll_single">Un seul choix</string>
+    <string name="poll_anonymous">Anonyme</string>
+    <string name="poll_closed">Clos</string>
+    <string name="poll_close">Clore le sondage</string>
+    <string name="poll_vote">Voter</string>
+    <string name="poll_change">Changer mon vote</string>
+    <string name="poll_retract">Retirer mon vote</string>
+    <string name="poll_results_after_vote">résultats visibles après votre vote</string>
+    <string name="poll_locked">Des votes ont été reçus : seule la question peut encore changer.</string>
+    <plurals name="poll_voters">
+        <item quantity="one">%d votant</item>
+        <item quantity="other">%d votants</item>
+    </plurals>
+    <!-- Tâches récurrentes -->
+    <string name="repeat_label">Répétition</string>
+    <string name="repeat_biweekly">Toutes les deux semaines</string>
+    <string name="repeat_needs_date">Choisissez d’abord une date</string>
+    <!-- Mots-clés -->
+    <string name="keywords">Mots-clés</string>
+    <string name="keywords_add">Ajouter des mots-clés</string>
+    <string name="keyword_new">Nouveau mot-clé</string>
+    <string name="keywords_hint">Pour retrouver l’élément dans la recherche, même si le mot n’y figure pas.</string>
+    <!-- Éléments personnels -->
+    <string name="personal_badge">Personnel</string>
+    <string name="personal_hint">Visible de vous seul, même pas des administrateurs de l’espace.</string>
+    <string name="personal_make">Rendre personnel</string>
+    <string name="personal_share">Partager avec l’espace</string>
+    <string name="personal_create">Personnel (moi seul)</string>
+    <string name="personal_doc">Document personnel</string>
+    <string name="linked_groups">Groupes reliés</string>
+    <string name="n_announcement">%1$s a publié une annonce</string>
 </resources>

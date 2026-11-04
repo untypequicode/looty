@@ -452,6 +452,14 @@ pub async fn nearest_page_override(pool: &PgPool, page_id: Uuid, user_id: Uuid) 
 /// Accès effectif d'un utilisateur à une page (vérifie aussi l'appartenance au workspace).
 pub async fn page_access(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, PageAccess)> {
     let workspace_id = page_workspace(pool, page_id).await?;
+    // Page personnelle (GLOSSARY) : à son propriétaire seulement, administrateurs compris.
+    let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages_all WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+    if let Some(owner) = owner {
+        return match workspace_role(pool, user.id, workspace_id).await? {
+            Some(role) if owner == user.id => Ok((workspace_id, role, PageAccess::Write)),
+            _ => Err(ApiError::NotFound),
+        };
+    }
     match member_perms(pool, user.id, workspace_id).await? {
         Some((role, perms)) => {
             let ov = if perms.admin { None } else { nearest_page_override(pool, page_id, user.id).await? };
@@ -487,11 +495,14 @@ pub async fn require_page_write(pool: &PgPool, user: &AuthUser, page_id: Uuid) -
 /// (utilisé pour filtrer les listes, la recherche, l'accueil...).
 pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _role: Role) -> ApiResult<HashMap<Uuid, PageAccess>> {
     let perms = member_perms(pool, user.id, workspace_id).await?.map(|(_, p)| p).unwrap_or(Perms::preset(Role::Guest));
-    let tree: Vec<(Uuid, Option<Uuid>)> =
-        sqlx::query_as("SELECT id, parent_id FROM pages WHERE workspace_id = $1")
+    let tree: Vec<(Uuid, Option<Uuid>, Option<Uuid>)> =
+        sqlx::query_as("SELECT id, parent_id, private_to FROM pages WHERE workspace_id = $1")
             .bind(workspace_id)
             .fetch_all(pool)
             .await?;
+    // Pages personnelles : invisibles aux autres, modifiables par leur propriétaire.
+    let private: HashMap<Uuid, Uuid> = tree.iter().filter_map(|(id, _, o)| o.map(|o| (*id, o))).collect();
+    let tree: Vec<(Uuid, Option<Uuid>)> = tree.into_iter().map(|(id, p, _)| (id, p)).collect();
     let overrides: HashMap<Uuid, (String, bool)> = if perms.admin {
         HashMap::new()
     } else {
@@ -528,7 +539,12 @@ pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _
                 break;
             }
         }
-        out.insert(id, effective_page_access(&perms, found));
+        let access = match private.get(&id) {
+            Some(owner) if *owner == user.id => PageAccess::Write,
+            Some(_) => PageAccess::None,
+            None => effective_page_access(&perms, found),
+        };
+        out.insert(id, access);
     }
     Ok(out)
 }
@@ -576,4 +592,55 @@ pub async fn subpage_grants(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) ->
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// Éléments personnels (GLOSSARY) : `private_to` réserve l'élément à une personne, même
+// face aux administrateurs. Pour un autre membre, l'élément n'existe pas (NotFound).
+// ---------------------------------------------------------------------------
+
+fn hidden(owner: Option<Uuid>, user: &AuthUser) -> bool {
+    owner.is_some_and(|o| o != user.id)
+}
+
+/// `task_ctx`, en vérifiant que la tâche (ou son tableau) n'est pas personnelle à quelqu'un d'autre.
+pub async fn task_ctx_for(pool: &PgPool, user: &AuthUser, task_id: Uuid) -> ApiResult<TaskCtx> {
+    let ctx = task_ctx(pool, task_id).await?;
+    let (task_owner, board_owner): (Option<Uuid>, Option<Uuid>) =
+        sqlx::query_as("SELECT t.private_to, b.private_to FROM tasks t JOIN boards b ON b.id = $2 WHERE t.id = $1")
+            .bind(task_id)
+            .bind(ctx.board_id)
+            .fetch_one(pool)
+            .await?;
+    if hidden(task_owner, user) || hidden(board_owner, user) {
+        return Err(ApiError::NotFound);
+    }
+    Ok(ctx)
+}
+
+/// Le tableau n'est pas personnel à quelqu'un d'autre.
+pub async fn check_board(pool: &PgPool, user: &AuthUser, board_id: Uuid) -> ApiResult<()> {
+    let owner: Option<Option<Uuid>> = sqlx::query_scalar("SELECT private_to FROM boards WHERE id = $1").bind(board_id).fetch_optional(pool).await?;
+    match owner {
+        Some(o) if !hidden(o, user) => Ok(()),
+        _ => Err(ApiError::NotFound),
+    }
+}
+
+pub async fn board_workspace_for(pool: &PgPool, user: &AuthUser, board_id: Uuid) -> ApiResult<Uuid> {
+    let ws = board_workspace(pool, board_id).await?;
+    check_board(pool, user, board_id).await?;
+    Ok(ws)
+}
+
+pub async fn column_ctx_for(pool: &PgPool, user: &AuthUser, column_id: Uuid) -> ApiResult<ColumnCtx> {
+    let ctx = column_ctx(pool, column_id).await?;
+    check_board(pool, user, ctx.board_id).await?;
+    Ok(ctx)
+}
+
+pub async fn label_ctx_for(pool: &PgPool, user: &AuthUser, label_id: Uuid) -> ApiResult<(Uuid, Uuid)> {
+    let ctx = label_ctx(pool, label_id).await?;
+    check_board(pool, user, ctx.1).await?;
+    Ok(ctx)
 }

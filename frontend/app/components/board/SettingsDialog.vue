@@ -54,6 +54,11 @@ const colorOpen = ref<Record<string, boolean>>({})
 
     <div v-if="tab === 'automations'" class="pane">
       <div class="field">
+        <label class="field-label">{{ t('keywords.label') }}</label>
+        <AppKeywords kind="board" :id="board.id" class="kw-field" />
+        <p class="field-hint">{{ t('keywords.hint') }}</p>
+      </div>
+      <div class="field">
         <label class="field-label">{{ t('board.doneColumn') }}</label>
         <UiCombobox v-model="doneColumn" :items="columnItems" :width="280">
           <button class="select">{{ columnItems.find((c) => c.value === doneColumn)?.label }}</button>
@@ -106,6 +111,7 @@ const colorOpen = ref<Record<string, boolean>>({})
 .opt-title { display: block; font-weight: 500; }
 .opt-hint { display: block; color: var(--text-3); font-size: var(--fs-sm); margin-top: 2px; line-height: 1.45; }
 .actions { display: flex; justify-content: flex-end; }
+.kw-field { margin: 4px 0 0 -4px; }
 .lbl { display: flex; align-items: center; gap: 10px; }
 .lbl + .lbl { margin-top: -8px; }
 .lbl-name {

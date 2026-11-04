@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   HardDrive, Upload, FolderPlus, Folder, File, FileImage, FileText, FileArchive, FileVideo, FileAudio, Download, Link2, Clock, Pencil,
-  FolderInput, Trash2, MoreHorizontal, Search, X, ChevronRight, Settings, Timer, Eye, ClipboardPaste,
+  FolderInput, Trash2, MoreHorizontal, Search, X, ChevronRight, Settings, Timer, Eye, ClipboardPaste, Hash, LockKeyhole, UsersRound,
 } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -11,6 +11,7 @@ import { useWorkspace } from '~/composables/useWorkspace'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useDrive, fileSize, type DriveItem } from '~/composables/useProjects'
+import { usePersonal } from '~/composables/usePersonalItems'
 import { refDebounced, useEventListener } from '@vueuse/core'
 import { hasModalLayer } from '~/composables/useLayer'
 
@@ -21,7 +22,8 @@ definePageMeta({ layout: 'workspace' })
  * fixé par les administrateurs). Dossiers, envoi par glisser-déposer, liens publics.
  */
 const { t, locale, formatDateTime } = useI18n()
-const { wsId, isAdmin } = useWorkspace()
+const { wsId, isAdmin, workspace } = useWorkspace()
+const { setPersonal } = usePersonal()
 const route = useRoute()
 const router = useRouter()
 const qc = useQueryClient()
@@ -161,6 +163,8 @@ async function remove(i: DriveItem) {
 }
 const canEdit = (i: DriveItem) => !!data.value?.can_upload && (i.uploaded_by === data.value.user_id || data.value.can_manage)
 const menuFor = ref<string | null>(null)
+/** Fichier dont on modifie les mots-clés. */
+const keywordsFor = ref<DriveItem | null>(null)
 function items(i: DriveItem): MenuItem[] {
   const out: MenuItem[] = []
   if (!i.is_dir) out.push({ label: t('drive.preview'), icon: Eye, onSelect: () => (preview.value = i) }, { label: t('drive.download'), icon: Download, onSelect: () => (window.location.href = fileUrl(i)) })
@@ -170,6 +174,13 @@ function items(i: DriveItem): MenuItem[] {
     if (!i.is_dir) {
       out.push({ divider: true }, { heading: t('drive.keepFor') })
       for (const d of dayChoices.value) out.push({ label: dayLabel(d), icon: Clock, onSelect: () => extend(i, d) })
+    }
+    out.push({ divider: true }, { label: `${t('keywords.label')}…`, icon: Hash, onSelect: () => (keywordsFor.value = i) })
+    // Partagé ↔ personnel : réservé à qui l'a envoyé (le serveur le vérifie).
+    if (i.uploaded_by === data.value?.user_id && !workspace.data.value?.personal) {
+      out.push(i.personal
+        ? { label: t('personalItem.makeShared'), icon: UsersRound, onSelect: () => setPersonal('file', i.id, false).then(refresh) }
+        : { label: t('personalItem.makePersonal'), icon: LockKeyhole, onSelect: () => setPersonal('file', i.id, true, i.name).then(refresh) })
     }
     out.push({ divider: true }, { label: t('drive.rename'), icon: Pencil, onSelect: () => rename(i) }, { label: t('drive.move'), icon: FolderInput, onSelect: () => move(i) }, { divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: () => remove(i) })
   }
@@ -259,6 +270,7 @@ useHead({ title: () => t('drive.title') })
                 <component :is="iconOf(i)" :size="16" class="dv-ic" :class="{ dir: i.is_dir }" />
                 <span class="truncate">{{ i.name }}</span>
                 <Link2 v-if="i.shared" :size="12" class="faint" :aria-label="t('drive.shared')" />
+                <LockKeyhole v-if="i.personal" :size="12" class="faint" :aria-label="t('personalItem.title')"><title>{{ t('personalItem.title') }}</title></LockKeyhole>
               </button>
               <div v-if="q && i.folder" class="dv-in faint">{{ i.folder }}</div>
             </td>
@@ -277,11 +289,16 @@ useHead({ title: () => t('drive.title') })
     <DrivePreview v-model="preview" :items="data?.items ?? []" :ws="wsId" />
     <DrivePasteDialog v-model:open="pasteOpen" :initial="pasted" @save="savePasted" />
     <div v-if="dragging" class="dv-drop"><Upload :size="22" /> {{ t('drive.dropHere', { days: dayLabel(days) }) }}</div>
+    <UiDialog :open="!!keywordsFor" :title="t('keywords.label')" :description="keywordsFor?.name" :width="420" @update:open="(o: boolean) => { if (!o) keywordsFor = null }">
+      <AppKeywords v-if="keywordsFor" kind="file" :id="keywordsFor.id" />
+      <p class="dv-kw-hint">{{ t('keywords.hint') }}</p>
+    </UiDialog>
   </div>
 </template>
 
 <style scoped>
 .dv { display: flex; flex-direction: column; height: 100%; min-height: 0; position: relative; }
+.dv-kw-hint { margin-top: 10px; color: var(--text-3); font-size: var(--fs-sm); }
 .dv-search { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border-radius: var(--r-md); background: var(--bg-input); border: 1px solid var(--border); color: var(--text-3); width: 220px; }
 .dv-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); }
 .dv-search button { display: grid; place-items: center; color: var(--text-3); }

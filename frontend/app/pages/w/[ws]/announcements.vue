@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Megaphone, Plus, CheckCheck, Pin, Pencil, Trash2, CalendarX, Vote, X } from 'lucide-vue-next'
+import { Megaphone, Plus, CheckCheck, Pin, Pencil, Trash2, CalendarX, Vote, X, UsersRound, ListFilter } from 'lucide-vue-next'
+import { useGroups, GROUP_PREFIX } from '~/composables/useGroups'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { useAnnouncements, type Announcement, type PollInput } from '~/composables/useAnnouncements'
@@ -9,12 +10,13 @@ import { toast } from '~/composables/useToast'
 definePageMeta({ layout: 'workspace' })
 
 /** Annonces de l'espace : lues par tous, publiées par qui en a le droit. */
-const { wsId, member } = useWorkspace()
+const { wsId, member, members } = useWorkspace()
+const { data: groups } = useGroups(wsId)
 const { t, relativeTime, formatDate } = useI18n()
 const ann = useAnnouncements(wsId)
 
 // Ouvrir la page vaut lecture : les annonces affichées passent en « lu » après un instant.
-watch(() => ann.list.value.filter((a) => !a.read && !a.expired).map((a) => a.id), (ids) => {
+watch(() => ann.list.value.filter((a) => !a.read && !a.expired && a.for_me).map((a) => a.id), (ids) => {
   if (ids.length) setTimeout(() => ids.forEach((id) => ann.markRead(id)), 1500)
 }, { immediate: true })
 
@@ -30,9 +32,41 @@ const pollLocked = computed(() => (editing.value?.poll?.voter_count ?? 0) > 0)
 const pollClosesOpen = ref(false)
 const pollValid = computed(() => !withPoll.value || (poll.question.trim() && poll.options.filter((o) => o.trim()).length >= 2))
 const saving = ref(false)
+
+// Destinataires : groupes (suivis) et personnes ; rien de choisi = tout l'espace.
+const audience = ref<string[]>([])
+const audienceOpen = ref(false)
+const audienceItems = computed(() => [
+  ...(groups.value ?? []).map((g) => ({ value: GROUP_PREFIX + g.id, label: `@${g.name}`, color: g.color, hint: t('memberGroups.count', { count: g.members.length }), keywords: g.name, section: t('memberGroups.section') })),
+  ...(members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, keywords: m.email, section: t('memberGroups.people') })),
+])
+const toAudience = (v: string[]) => ({
+  groups: v.filter((x) => x.startsWith(GROUP_PREFIX)).map((x) => x.slice(GROUP_PREFIX.length)),
+  users: v.filter((x) => !x.startsWith(GROUP_PREFIX)),
+})
+const fromAudience = (a: Announcement['audience']) => [...(a?.groups ?? []).map((g) => GROUP_PREFIX + g), ...(a?.users ?? [])]
+const groupName = (id: string) => groups.value?.find((g) => g.id === id)?.name ?? '…'
+/** « @TD2, Alice » ; vide : tout l'espace. */
+function audienceLabel(a: { groups: string[]; users: string[] } | null | undefined) {
+  if (!a || (!a.groups.length && !a.users.length)) return t('audience.everyone')
+  return [...a.groups.map((g) => `@${groupName(g)}`), ...a.users.map((u) => member(u)?.name ?? '…')].join(', ')
+}
+
+// Filtre des gestionnaires : annonces publiées pour un groupe, une personne, ou tout l'espace.
+const filter = ref<string>('')
+const filterOpen = ref(false)
+const filterItems = computed(() => [{ value: '', label: t('audience.all') }, { value: 'everyone', label: t('audience.everyone') }, ...audienceItems.value])
+const shown = computed(() => ann.list.value.filter((a) => {
+  if (!filter.value) return true
+  if (filter.value === 'everyone') return !a.targeted
+  const v = toAudience([filter.value])
+  return !!a.audience && (v.groups.some((g) => a.audience!.groups.includes(g)) || v.users.some((u) => a.audience!.users.includes(u)))
+}))
+
 function edit(a: Announcement | null) {
   editing.value = a
   Object.assign(form, { title: a?.title ?? '', body: a?.body ?? '', pinned: a?.pinned ?? false, expires_at: a?.expires_at ?? null })
+  audience.value = fromAudience(a?.audience ?? null)
   const p = a?.poll
   withPoll.value = !!p
   Object.assign(poll, p ? { question: p.question, options: p.options.map((o) => o.label), multiple: p.multiple, anonymous: p.anonymous, results_after_vote: p.results_after_vote, closes_at: p.closes_at } : blankPoll())
@@ -43,7 +77,7 @@ async function save() {
   saving.value = true
   try {
     const hadPoll = !!editing.value?.poll
-    const body = { title: form.title.trim(), body: form.body, pinned: form.pinned, expires_at: form.expires_at,
+    const body = { title: form.title.trim(), body: form.body, pinned: form.pinned, expires_at: form.expires_at, audience: toAudience(audience.value),
       ...(withPoll.value ? { poll: { ...poll, options: poll.options.map((o) => o.trim()).filter(Boolean) } } : hadPoll ? { poll: null } : {}) }
     if (editing.value) await ann.update(editing.value.id, body)
     else { await ann.create(body); toast.success(t('announcements.published')) }
@@ -61,6 +95,9 @@ useHead({ title: () => t('announcements.title') })
 <template>
   <div class="page">
     <AppPageHeader :crumbs="[{ label: t('announcements.title'), icon: Megaphone }]">
+      <UiCombobox v-if="ann.canManage.value" v-model="filter" v-model:open="filterOpen" :items="filterItems" :width="260" placement="bottom-end">
+        <UiButton variant="ghost" size="sm" :icon="ListFilter" :class="{ 'an-filter-on': filter }">{{ filter ? filterItems.find((i) => i.value === filter)?.label : t('audience.filter') }}</UiButton>
+      </UiCombobox>
       <UiTooltip :text="t('announcements.markAllRead')">
         <UiButton variant="ghost" size="sm" :icon="CheckCheck" :disabled="!ann.unread.value" :aria-label="t('announcements.markAllRead')" @click="ann.markAllRead()" />
       </UiTooltip>
@@ -69,8 +106,8 @@ useHead({ title: () => t('announcements.title') })
 
     <div class="an-list">
       <div v-if="ann.query.isLoading.value"><div v-for="i in 3" :key="i" class="skeleton" style="height: 96px; margin: 10px 0" /></div>
-      <UiEmpty v-else-if="!ann.list.value.length" :icon="Megaphone" :title="t('announcements.empty')" :description="ann.canManage.value ? t('announcements.emptyManage') : t('announcements.emptyHint')" />
-      <article v-for="a in ann.list.value" :key="a.id" class="an" :class="{ unread: !a.read && !a.expired, expired: a.expired, pinned: a.pinned }">
+      <UiEmpty v-else-if="!shown.length" :icon="Megaphone" :title="t('announcements.empty')" :description="ann.canManage.value ? t('announcements.emptyManage') : t('announcements.emptyHint')" />
+      <article v-for="a in shown" :key="a.id" class="an" :class="{ unread: !a.read && !a.expired && a.for_me, expired: a.expired, pinned: a.pinned }">
         <header class="an-head">
           <UiAvatar :name="a.author_name ?? undefined" :src="a.author_id ? member(a.author_id)?.avatar_url : undefined" :size="26" />
           <div class="an-meta">
@@ -80,8 +117,9 @@ useHead({ title: () => t('announcements.title') })
               <template v-if="a.updated_at !== a.created_at"> · {{ t('announcements.edited') }}</template>
               <template v-if="a.expires_at && !a.expired"> · {{ t('announcements.expires') }} {{ formatDate(a.expires_at) }}</template>
             </span>
+            <span v-if="a.audience" class="an-for"><UsersRound :size="12" /> {{ t('audience.for', { who: audienceLabel(a.audience) }) }}<template v-if="!a.for_me"> · {{ t('audience.notForYou') }}</template></span>
           </div>
-          <span v-if="!a.read && !a.expired" class="an-badge new">{{ t('announcements.unread') }}</span>
+          <span v-if="!a.read && !a.expired && a.for_me" class="an-badge new">{{ t('announcements.unread') }}</span>
           <span v-if="a.pinned && !a.expired" class="an-badge"><Pin :size="11" /> {{ t('announcements.pinnedBadge') }}</span>
           <span v-if="a.expired" class="an-badge"><CalendarX :size="11" /> {{ t('announcements.expired') }}</span>
           <template v-if="ann.canManage.value">
@@ -99,6 +137,12 @@ useHead({ title: () => t('announcements.title') })
       <div class="af">
         <UiInput v-model="form.title" :placeholder="t('announcements.titlePlaceholder')" maxlength="200" :aria-label="t('announcements.titleLabel')" />
         <div class="af-body"><EditorLite v-model="form.body" :placeholder="t('announcements.bodyPlaceholder')" /></div>
+        <div class="af-row">
+          <span><b>{{ t('audience.label') }}</b><small>{{ t('audience.hint') }}</small></span>
+          <UiCombobox v-model="audience" v-model:open="audienceOpen" :items="audienceItems" multiple :width="280" :placeholder="t('audience.placeholder')">
+            <button class="af-date af-audience">{{ audienceLabel(toAudience(audience)) }}</button>
+          </UiCombobox>
+        </div>
         <label class="af-row">
           <span><b>{{ t('announcements.pinned') }}</b><small>{{ t('announcements.pinnedHint') }}</small></span>
           <UiSwitch v-model="form.pinned" />
@@ -150,6 +194,8 @@ useHead({ title: () => t('announcements.title') })
 .an-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .an-title { margin: 0; font-size: var(--fs-md, 15px); font-weight: 600; }
 .an-sub { font-size: var(--fs-sm); color: var(--text-3); }
+.an-for { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; }
+.an-filter-on { color: var(--accent); }
 .an-badge { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs, 11px); padding: 2px 7px; border-radius: 99px; background: var(--bg-hover); color: var(--text-2); white-space: nowrap; }
 .an-badge.new { background: var(--accent); color: #fff; }
 .an-body { margin-top: 10px; }
@@ -163,4 +209,5 @@ useHead({ title: () => t('announcements.title') })
 .af-opt > :nth-child(2) { flex: 1; }
 .af-note { margin: 0; font-size: var(--fs-sm); color: var(--text-3); }
 .af-date { height: 28px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); background: var(--bg-input); }
+.af-audience { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

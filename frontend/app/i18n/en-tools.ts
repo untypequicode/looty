@@ -121,12 +121,12 @@ export default {
     errors: { backup_invalid: 'This file is not a Looty backup.', invalid_upload: 'Upload failed.' },
   },
   memberGroups: {
-    title: 'Groups', description: 'Sets of members with no rights of their own: mention them all at once with @group, or add them together to a task or an event. A person can be in several groups.',
+    title: 'Groups', description: 'Sets of members with no rights of their own: mention them all at once with @group, or link them to a task or an event, which then follows their membership changes. A person can be in several groups.',
     new: 'New group', editTitle: 'Edit “{name}”', namePlaceholder: 'Group name (e.g. Design)', members: 'Members', addMembers: 'Add members',
     count: { zero: 'No members', one: '{count} member', other: '{count} members' }, empty: 'No groups yet.', emptyHint: 'Create a group to mention or assign several people at once.',
     noMembers: 'No members', deleteTitle: 'Delete the group “{name}”?', deleteBody: 'Tasks and events keep their participants; only future mentions of the group go away.',
     created: 'Group created', saved: 'Group saved', deleted: 'Group deleted', readOnly: 'Only people with the “Manage groups” permission can change them.',
-    section: 'Groups', people: 'People', addGroup: { one: 'Adds {count} member', other: 'Adds its {count} members' }, allIn: 'All already added',
+    section: 'Groups', people: 'People', linkedHint: { zero: 'Linked · no members', one: 'Linked · follows its member', other: 'Linked · follows its {count} members' }, linkedTitle: 'Linked group: its members are assigned and follow its changes', addGroup: { one: 'Adds {count} member', other: 'Adds its {count} members' }, allIn: 'All already added',
   },
   errors: { name_taken: 'A group already has this name.', name_required: 'Give the group a name.', backup_newer: 'This backup comes from a newer version of Looty: update the server first.', backup_invalid: 'This file is not a Looty backup.' },
 }

@@ -6,7 +6,7 @@ import kotlinx.serialization.json.JsonObject
 
 @Serializable data class User(val id: String, val name: String = "", val email: String = "", val avatar_url: String? = null, val theme: String? = null, val locale: String? = null, val is_super_admin: Boolean = false)
 @Serializable data class Me(val authenticated: Boolean = false, val user: User? = null)
-@Serializable data class Workspace(val id: String, val name: String, val role: String = "member")
+@Serializable data class Workspace(val id: String, val name: String, val role: String = "member", val personal: Boolean = false)
 @Serializable data class Workspaces(val workspaces: List<Workspace> = emptyList())
 @Serializable data class Member(val user_id: String, val name: String = "", val email: String = "", val avatar_url: String? = null, val role: String = "", val role_id: String? = null, val role_name: String? = null, val role_color: String? = null, val joined_at: String? = null)
 /** Droits du rôle dans l’espace (GET access/me) : none < read < comment < validate < edit < manage. */
@@ -53,6 +53,9 @@ import kotlinx.serialization.json.JsonObject
     val updated_by: String? = null,
     /** HTML du document (lecture seule dans l’application). */
     val content: String? = null,
+    /** Élément personnel : visible de cette seule personne. */
+    val private_to: String? = null,
+    val created_by: String? = null,
 )
 /** Commentaire d'un document (fil : parent_id null ; réponses : parent_id du fil). */
 @Serializable data class DocComment(
@@ -79,7 +82,7 @@ import kotlinx.serialization.json.JsonObject
     val created_at: String,
 )
 
-@Serializable data class BoardSummary(val id: String, val name: String)
+@Serializable data class BoardSummary(val id: String, val name: String, val private_to: String? = null)
 @Serializable data class Column(val id: String, val name: String, val position: Double = 0.0)
 @Serializable data class Board(val id: String, val name: String, val columns: List<Column> = emptyList())
 
@@ -178,6 +181,12 @@ import kotlinx.serialization.json.JsonObject
     val assignees: List<String> = emptyList(),
     val validations: List<String> = emptyList(),
     val updated_at: String? = null,
+    /** Répétition (daily, weekly, biweekly, monthly, yearly) : terminée, la tâche crée la suivante. */
+    val repeat: String? = null,
+    /** Élément personnel : visible de cette seule personne. */
+    val private_to: String? = null,
+    /** Groupes reliés : la tâche suit leurs membres. */
+    val groups: List<String> = emptyList(),
 )
 @Serializable data class ColumnFull(val id: String, val name: String, val position: Double = 0.0, val tasks: List<Task> = emptyList())
 @Serializable data class BoardFull(val id: String, val name: String, val columns: List<ColumnFull> = emptyList(), val labels: List<Label> = emptyList(), val automations: JsonObject? = null) {
@@ -195,7 +204,7 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class DriveItem(
     val id: String, val folder: String = "", val name: String, val is_dir: Boolean = false, val mime: String? = null, val size: Long = 0,
     val created_at: String? = null, val expires_at: String? = null, val uploaded_by: String? = null, val uploaded_by_name: String? = null,
-    val shared: Boolean = false, val children: Long = 0,
+    val shared: Boolean = false, val children: Long = 0, val personal: Boolean = false,
 )
 @Serializable data class DriveList(
     val folder: String = "", val items: List<DriveItem> = emptyList(), val max_days: Int = 30, val quota_bytes: Long = 0, val used_bytes: Long = 0,
@@ -297,3 +306,42 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class SyncReport(val pushed: Int = 0, val pulled: Int = 0, val deleted: Int = 0)
 @Serializable data class SyncResult(val report: SyncReport = SyncReport())
 @Serializable data class WorkspaceDrive(val max_days: Int = 30, val quota_bytes: Long = 0)
+
+// --- Annonces et sondages ---
+/** Destinataires d'une annonce ; vides : tout l'espace. */
+@Serializable data class Audience(val groups: List<String> = emptyList(), val users: List<String> = emptyList())
+@Serializable data class PollOption(val id: String, val label: String, val votes: Int? = null, val voters: List<String>? = null)
+@Serializable data class Poll(
+    val question: String,
+    val multiple: Boolean = false,
+    val anonymous: Boolean = false,
+    val results_after_vote: Boolean = false,
+    val closes_at: String? = null,
+    val closed: Boolean = false,
+    val results_visible: Boolean = true,
+    val voter_count: Int = 0,
+    val my_votes: List<String> = emptyList(),
+    val options: List<PollOption> = emptyList(),
+)
+@Serializable data class Announcement(
+    val id: String,
+    val author_id: String? = null,
+    val author_name: String? = null,
+    val title: String,
+    val body: String = "",
+    val pinned: Boolean = false,
+    val expires_at: String? = null,
+    val created_at: String,
+    val updated_at: String? = null,
+    val read: Boolean = false,
+    val expired: Boolean = false,
+    val targeted: Boolean = false,
+    val for_me: Boolean = true,
+    val audience: Audience? = null,
+    val poll: Poll? = null,
+)
+@Serializable data class AnnouncementList(val announcements: List<Announcement> = emptyList(), val unread: Int = 0, val can_manage: Boolean = false)
+
+// --- Mots-clés ---
+@Serializable data class ItemKeywords(val keywords: List<String> = emptyList(), val can_edit: Boolean = false)
+@Serializable data class KeywordUse(val keyword: String, val count: Long = 0)

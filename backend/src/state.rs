@@ -38,7 +38,14 @@ impl AppState {
         if matches!(kind, "MEMBERS_UPDATED" | "PAGE_PERMISSIONS_UPDATED" | "WORKSPACE_DELETED") {
             let _ = sqlx::query("SELECT pg_notify('looty_access', $1)").bind(workspace_id.to_string()).execute(&self.pool).await;
         }
-        self.hub.broadcast(workspace_id, event).await;
+        // Élément personnel (GLOSSARY) : seul son propriétaire en est prévenu.
+        let owner = ["task", "page", "board", "project", "file"]
+            .iter()
+            .find_map(|k| event.get(*k).and_then(|o| o.get("private_to")).and_then(|v| v.as_str()).and_then(|v| Uuid::parse_str(v).ok()));
+        match owner {
+            Some(user) => self.hub.send_to(workspace_id, user, event).await,
+            None => self.hub.broadcast(workspace_id, event).await,
+        }
     }
 
     /// Événement destiné à une seule personne (tous ses onglets, dans chacun de ses espaces).

@@ -86,8 +86,8 @@ const recentlyUpdated = computed(() =>
   [...(pages.data.value ?? [])].sort((a, b) => +new Date(b.updated_at ?? 0) - +new Date(a.updated_at ?? 0)).slice(0, 6),
 )
 const docTab = ref<'viewed' | 'updated'>('updated')
-watch(recentlyViewed, (v) => { if (v.length && docTab.value === 'updated' && !touchedTab.value) docTab.value = 'viewed' }, { immediate: true })
 const touchedTab = ref(false)
+watch(recentlyViewed, (v) => { if (v.length && docTab.value === 'updated' && !touchedTab.value) docTab.value = 'viewed' }, { immediate: true })
 const docList = computed(() => (docTab.value === 'viewed' ? recentlyViewed.value : recentlyUpdated.value))
 
 function activityText(a: Overview['activity'][number]) {
@@ -137,7 +137,7 @@ const toApprove = computed(() => (myTasks.value ?? []).filter((tk) => tk.is_per_
 const favoritePages = computed(() => (pages.data.value ?? []).filter((p) => p.is_favorite).slice(0, 8))
 const { notifications } = useNotifications()
 const announcements = useAnnouncements(wsId, computed(() => dash.has('announcements')))
-const topAnnouncements = computed(() => announcements.list.value.filter((a) => !a.expired).slice(0, 4))
+const topAnnouncements = computed(() => announcements.list.value.filter((a) => !a.expired && a.for_me).slice(0, 4))
 const unreadNotifs = computed(() => (notifications.value ?? []).filter((n) => !n.read_at).slice(0, 6))
 const { data: mailAccounts } = useMailAccounts()
 const { members } = useWorkspace()

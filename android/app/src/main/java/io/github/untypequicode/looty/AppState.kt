@@ -176,6 +176,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
     val ws: String? get() = (session as? Session.Ready)?.workspaceId
     val me: User? get() = (session as? Session.Ready)?.me
     val unread: Int get() = inbox.data?.count { it.read_at == null } ?: 0
+    /** Espace perso : déjà privé, pas d'éléments personnels à y distinguer. */
+    val isPersonalSpace: Boolean get() = (session as? Session.Ready)?.let { r -> r.workspaces.firstOrNull { it.id == r.workspaceId }?.personal } ?: false
 
     fun start() {
         if (Config.server(getApplication()) == null) { session = Session.NeedServer; return }
@@ -225,7 +227,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun refreshAll() {
         prefetchDocs()
-        loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadDocCommentCounts(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts()
+        loadAccess(); loadMembers(); loadOverview(); loadTasks(); loadPages(); loadDocCommentCounts(); loadInbox(); loadUpcoming(); loadBoards(); loadMailAccounts(); loadAnnouncements()
     }
 
     /** Charge une liste : copie gardée affichée d'abord, puis réponse du serveur ; hors ligne, la copie reste. */
@@ -354,7 +356,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         saveTasksCache()
     }
 
-    suspend fun createTask(boardId: String, title: String, due: LocalDate?, assignMe: Boolean, description: String? = null): Result<String> = runCatching {
+    suspend fun createTask(boardId: String, title: String, due: LocalDate?, assignMe: Boolean, description: String? = null, personal: Boolean = false): Result<String> = runCatching {
         val board = boardColumns(boardId)
         val col = board.columns.minByOrNull { it.position } ?: throw ApiException(0, "no_column")
         val id = java.util.UUID.randomUUID().toString()
@@ -366,6 +368,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
             if (description != null) put("description", description)
             if (due != null) put("due_date", due.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toString())
             if (assignMe) me?.let { putJsonArray("assignees") { add(it.id) } }
+            if (personal) put("personal", true)
         }
         prefs.edit().putString("lastBoard", boardId).apply()
         val queued = write("POST", "/api/boards/columns/${col.id}/tasks", body, title.trim())
@@ -436,10 +439,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun createPage(title: String = "", content: String? = null, parentId: String? = null): Result<String> = runCatching {
+    suspend fun createPage(title: String = "", content: String? = null, parentId: String? = null, personal: Boolean = false): Result<String> = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
         val id = java.util.UUID.randomUUID().toString()
-        val queued = write("POST", "/api/workspaces/$w/pages", buildJsonObject { put("id", id); put("title", title); if (content != null) put("content", content); if (parentId != null) put("parent_id", parentId) }, title.ifBlank { "document" })
+        val queued = write("POST", "/api/workspaces/$w/pages", buildJsonObject { put("id", id); put("title", title); if (content != null) put("content", content); if (parentId != null) put("parent_id", parentId); if (personal) put("personal", true) }, title.ifBlank { "document" })
         if (!queued) loadPages()
         id
     }
@@ -734,9 +737,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
     /** Action qui doit aller au bout même si l'écran ou la feuille qui l'a lancée se ferme. */
     fun launch(block: suspend () -> Unit) { viewModelScope.launch { block() } }
 
-    suspend fun createBoard(name: String): String? = runCatching {
+    suspend fun createBoard(name: String, personal: Boolean = false): String? = runCatching {
         val w = ws ?: throw ApiException(0, "no_workspace")
-        api.post<BoardSummary>("/api/workspaces/$w/boards", buildJsonObject { put("name", name.trim()); put("with_default_columns", true) })
+        api.post<BoardSummary>("/api/workspaces/$w/boards", buildJsonObject { put("name", name.trim()); put("with_default_columns", true); if (personal) put("personal", true) })
     }.onFailure(::fail).getOrNull()?.also { loadBoards(); loadOverview() }?.id
 
     fun renameBoard(boardId: String, name: String) =
@@ -1415,4 +1418,63 @@ class AppState(app: Application) : AndroidViewModel(app) {
             onDone()
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Annonces et sondages
+    // -----------------------------------------------------------------------
+
+    var announcements by mutableStateOf(Loadable<AnnouncementList>()); private set
+    /** Annonces non lues qui me sont adressées. */
+    val unreadAnnouncements: Int get() = announcements.data?.announcements?.count { !it.read && !it.expired && it.for_me } ?: 0
+
+    fun loadAnnouncements() { val w = ws ?: return; load({ announcements }, { announcements = it }, "${w}/announcements") { api.get<AnnouncementList>("/api/workspaces/$w/announcements") } }
+
+    fun markAnnouncementRead(id: String) {
+        val w = ws ?: return
+        val list = announcements.data ?: return
+        if (list.announcements.none { it.id == id && !it.read }) return
+        announcements = announcements.copy(data = list.copy(announcements = list.announcements.map { if (it.id == id) it.copy(read = true) else it }))
+        viewModelScope.launch { runCatching { api.send("POST", "/api/workspaces/$w/announcements/$id/read") }; loadInbox() }
+    }
+
+    suspend fun voteAnnouncement(id: String, options: List<String>): Boolean {
+        val w = ws ?: return false
+        return runCatching { api.send("POST", "/api/workspaces/$w/announcements/$id/vote", buildJsonObject { putJsonArray("options") { options.forEach { add(it) } } }) }
+            .onFailure(::fail).isSuccess.also { if (it) loadAnnouncements() }
+    }
+
+    suspend fun closePoll(id: String): Boolean {
+        val w = ws ?: return false
+        return runCatching { api.send("POST", "/api/workspaces/$w/announcements/$id/poll/close") }.onFailure(::fail).isSuccess.also { if (it) loadAnnouncements() }
+    }
+
+    /** Publie (`id` nul) ou modifie une annonce. `body` : title, body, pinned, expires_at, poll, audience. */
+    suspend fun saveAnnouncement(id: String?, body: JsonObject): Boolean {
+        val w = ws ?: return false
+        return runCatching {
+            if (id == null) api.send("POST", "/api/workspaces/$w/announcements", body) else api.send("PUT", "/api/workspaces/$w/announcements/$id", body)
+        }.onFailure(::fail).isSuccess.also { if (it) loadAnnouncements() }
+    }
+
+    suspend fun deleteAnnouncement(id: String): Boolean {
+        val w = ws ?: return false
+        return runCatching { api.send("DELETE", "/api/workspaces/$w/announcements/$id") }.onFailure(::fail).isSuccess.also { if (it) loadAnnouncements() }
+    }
+
+    // -----------------------------------------------------------------------
+    // Mots-clés et éléments personnels
+    // -----------------------------------------------------------------------
+
+    suspend fun keywords(kind: String, id: String): ItemKeywords? = runCatching { api.get<ItemKeywords>("/api/keywords/$kind/$id") }.getOrNull()
+    suspend fun knownKeywords(): List<KeywordUse> = ws?.let { w -> runCatching { api.get<List<KeywordUse>>("/api/workspaces/$w/keywords") }.getOrNull() }.orEmpty()
+    suspend fun setKeywords(kind: String, id: String, keywords: List<String>): ItemKeywords? =
+        runCatching { api.json.decodeFromString<ItemKeywords>(api.raw("PUT", "/api/keywords/$kind/$id", buildJsonObject { putJsonArray("keywords") { keywords.forEach { add(it) } } }.toString())) }
+            .onFailure(::fail).getOrNull()
+
+    /** Rend un élément personnel (visible de soi seul) ou le repartage avec l'espace. */
+    suspend fun setPersonal(kind: String, id: String, personal: Boolean): Boolean =
+        runCatching { api.send("PUT", "/api/personal/$kind/$id", buildJsonObject { put("personal", personal) }) }.onFailure(::fail).isSuccess.also {
+            if (it) { loadPages(); loadBoards(); loadTasks() }
+        }
+
 }

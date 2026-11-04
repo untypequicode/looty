@@ -194,7 +194,8 @@ pub struct VoteReq {
 
 /// Voter (remplace le vote précédent).
 pub async fn vote(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Json(req): Json<VoteReq>) -> ApiResult<StatusCode> {
-    crate::access::member_perms(&state.pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
+    // Seuls ceux qui voient l'annonce (destinataires, auteur, gestionnaires) votent.
+    crate::announcements::require_visible(&state, &user, ws, id).await?;
     let poll: Option<(bool, bool, Option<DateTime<Utc>>)> = sqlx::query_as(
         "SELECT p.multiple, p.closed, p.closes_at FROM announcement_polls p JOIN announcements a ON a.id = p.announcement_id
          WHERE p.announcement_id = $1 AND a.workspace_id = $2",

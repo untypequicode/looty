@@ -162,6 +162,7 @@ pub async fn export_csv(State(pool): State<PgPool>, user: AuthUser, Path(board_i
         .await?
         .ok_or(ApiError::NotFound)?;
     crate::access::require_perm(&pool, &user, workspace_id, |p| p.boards >= crate::access::level::READ).await?;
+    crate::access::check_board(&pool, &user, board_id).await?;
     let (locale, tz): (Option<String>, Option<String>) = sqlx::query_as("SELECT locale, timezone FROM users WHERE id = $1").bind(user.id).fetch_one(&pool).await?;
     let fr = q.lang.or(locale).as_deref() != Some("en");
     let tz = tz.and_then(|z| z.parse::<chrono_tz::Tz>().ok());
@@ -174,10 +175,11 @@ pub async fn export_csv(State(pool): State<PgPool>, user: AuthUser, Path(board_i
          FROM tasks t
          JOIN board_columns c ON c.id = t.column_id
          LEFT JOIN tasks p ON p.id = t.parent_id
-         WHERE c.board_id = $1
+         WHERE c.board_id = $1 AND (t.private_to IS NULL OR t.private_to = $2)
          ORDER BY c.position, t.parent_id NULLS FIRST, t.position",
     )
     .bind(board_id)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
 

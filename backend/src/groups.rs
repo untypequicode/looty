@@ -140,7 +140,13 @@ async fn update(
         sqlx::query("UPDATE member_groups SET color = $2 WHERE id = $1").bind(id).bind(&color).execute(&state.pool).await?;
     }
     if let Some(members) = p.members.as_deref() {
+        let before = one(&state.pool, ws, id).await?.members;
         set_members(&state.pool, ws, id, members).await?;
+        // Tâches, événements reliés : ils suivent le groupe.
+        let after = one(&state.pool, ws, id).await?.members;
+        let added: Vec<Uuid> = after.iter().filter(|u| !before.contains(u)).copied().collect();
+        let removed: Vec<Uuid> = before.iter().filter(|u| !after.contains(u)).copied().collect();
+        crate::group_links::group_members_changed(&state, ws, id, &added, &removed, user.id).await?;
     }
     changed(&state, ws).await;
     Ok(Json(one(&state.pool, ws, id).await?))
@@ -148,6 +154,8 @@ async fn update(
 
 async fn remove(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
     require_manage(&state, &user, ws).await?;
+    one(&state.pool, ws, id).await?;
+    crate::group_links::group_deleted(&state, id).await?;
     let n = sqlx::query("DELETE FROM member_groups WHERE id = $1 AND workspace_id = $2").bind(id).bind(ws).execute(&state.pool).await?.rows_affected();
     if n == 0 {
         return Err(ApiError::NotFound);

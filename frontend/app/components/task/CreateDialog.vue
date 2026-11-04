@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Kanban, ChevronRight, CalendarDays, Tag, UserRound } from 'lucide-vue-next'
+import { useGroups } from '~/composables/useGroups'
+import { Kanban, ChevronRight, CalendarDays, Tag, UserRound, LockKeyhole } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { Board, Priority } from '~/types'
 import { useUi } from '~/composables/useUi'
@@ -11,7 +12,9 @@ import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 
 const { createTaskOpen, createTaskDefaults } = useUi()
-const { wsId, boards, member } = useWorkspace()
+const { wsId, boards, member, workspace } = useWorkspace()
+const { data: allGroups } = useGroups(wsId)
+const groupName = (id: string) => allGroups.value?.find((g) => g.id === id)?.name ?? '…'
 const { t, formatDate } = useI18n()
 const qc = useQueryClient()
 const route = useRoute()
@@ -22,9 +25,13 @@ const title = ref('')
 const description = ref('')
 const priority = ref<Priority>(0)
 const assignees = ref<string[]>([])
+/** Groupes reliés à la tâche (elle suivra leurs membres). */
+const groupIds = ref<string[] | undefined>([])
 const labelIds = ref<string[]>([])
 const dueDate = ref<string | null>(null)
 const createMore = ref(false)
+/** Tâche personnelle : visible de soi seul (d'office dans un tableau personnel). */
+const personal = ref(false)
 const saving = ref(false)
 const board = ref<Board | null>(null)
 const titleInput = ref<{ focus: () => void } | null>(null)
@@ -51,6 +58,8 @@ watch(createTaskOpen, (v) => {
   description.value = createTaskDefaults.value.description ?? ''
   priority.value = 0
   assignees.value = []
+  groupIds.value = []
+  personal.value = false
   labelIds.value = []
   dueDate.value = createTaskDefaults.value.dueDate ?? null
   columnId.value = createTaskDefaults.value.columnId ?? ''
@@ -71,6 +80,8 @@ async function submit() {
       description: description.value.trim() ? `<p>${description.value.trim().replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!).replace(/\n/g, '</p><p>')}</p>` : null,
       priority: priority.value,
       assignees: assignees.value,
+      groups: personal.value ? [] : groupIds.value ?? [],
+      personal: personal.value,
       labels: labelIds.value,
       due_date: dueDate.value,
     })
@@ -116,13 +127,14 @@ async function onCreateLabel(name: string, color: string) {
         <TaskPriorityPicker v-model="priority">
           <button type="button" class="chip"><TaskPriorityIcon :priority="priority" :size="14" /> {{ t(`priority.${priority}`) }}</button>
         </TaskPriorityPicker>
-        <TaskAssigneePicker v-model="assignees">
+        <TaskAssigneePicker v-model="assignees" v-model:groups="groupIds">
           <button type="button" class="chip">
+            <template v-if="groupIds?.length">{{ groupIds.map((g) => `@${groupName(g)}`).join(', ') }}<template v-if="assignees.length"> +</template></template>
             <template v-if="assignees.length">
               <span class="stack"><UiAvatar v-for="a in assignees.slice(0, 3)" :key="a" :name="member(a)?.name" :src="member(a)?.avatar_url" :size="16" ring /></span>
               {{ assignees.length === 1 ? member(assignees[0])?.name : t('task.nAssignees', { count: assignees.length }) }}
             </template>
-            <template v-else><UserRound :size="14" /> {{ t('task.assignee') }}</template>
+            <template v-else-if="!groupIds?.length"><UserRound :size="14" /> {{ t('task.assignee') }}</template>
           </button>
         </TaskAssigneePicker>
         <TaskLabelPicker v-model="labelIds" :labels="board.labels" can-create @create="onCreateLabel">
@@ -137,6 +149,9 @@ async function onCreateLabel(name: string, color: string) {
         <TaskDatePicker v-model="dueDate">
           <button type="button" class="chip"><CalendarDays :size="14" /> {{ dueDate ? formatDate(dueDate) : t('task.dueDate') }}</button>
         </TaskDatePicker>
+        <button v-if="!board.private_to && !workspace.data.value?.personal" type="button" class="chip" :class="{ on: personal }" :title="t('personalItem.createHint')" :aria-pressed="personal" @click="personal = !personal">
+          <LockKeyhole :size="13" /> {{ t('personalItem.create') }}
+        </button>
       </div>
       <div v-else class="ct-props"><span class="skeleton" style="width: 320px; height: 24px" /></div>
     </form>
@@ -182,6 +197,7 @@ async function onCreateLabel(name: string, color: string) {
   transition: background var(--dur-fast), color var(--dur-fast);
 }
 .chip:hover { background: var(--bg-hover); color: var(--text); }
+.chip.on { background: var(--bg-active); color: var(--text); border-color: var(--border-strong); }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
 .stack { display: inline-flex; }
 .stack > * + * { margin-left: -4px; }

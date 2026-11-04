@@ -263,6 +263,11 @@ async fn delete_workspace(
         return Err(ApiError::Forbidden);
     }
     forbid_personal(&state.pool, workspace_id).await?;
+    // Chacun garde ses éléments personnels, dans son espace perso.
+    let members: Vec<String> = sqlx::query_scalar("SELECT user_id FROM workspace_members WHERE workspace_id = $1").bind(workspace_id).fetch_all(&state.pool).await?;
+    for m in members.iter().filter_map(|m| Uuid::parse_str(m).ok()) {
+        crate::personal::evacuate(&state, workspace_id, m).await?;
+    }
     state.emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_DELETED", "workspace_id": workspace_id })).await;
     sqlx::query("DELETE FROM workspaces WHERE id = $1").bind(workspace_id).execute(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -427,6 +432,7 @@ async fn remove_member(
     if target_role == Role::Owner && owner_count(pool, workspace_id).await? <= 1 {
         return Err(ApiError::Conflict("last_owner".into()));
     }
+    crate::personal::evacuate(&state, workspace_id, member_id).await?;
     sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(workspace_id)
         .bind(member_id.to_string())
@@ -449,6 +455,7 @@ async fn leave_workspace(
     if role == Role::Owner && owner_count(&state.pool, workspace_id).await? <= 1 {
         return Err(ApiError::Conflict("last_owner".into()));
     }
+    crate::personal::evacuate(&state, workspace_id, user.id).await?;
     sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(workspace_id)
         .bind(user.id.to_string())
@@ -690,7 +697,7 @@ async fn get_my_tasks(
             FROM tasks t
             JOIN board_columns c ON c.id = t.column_id
             JOIN boards b ON b.id = c.board_id
-            WHERE b.workspace_id = $2 AND (t.is_completed = false
+            WHERE b.workspace_id = $2 AND (t.private_to IS NULL OR t.private_to::text = $1) AND (t.is_completed = false
                 -- Validation collective terminée par les autres : reste à faire pour qui n'y participe pas.
                 OR (COALESCE(t.is_per_person, FALSE)
                     AND NOT COALESCE((SELECT m.group_tasks FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = $1), TRUE)
@@ -722,6 +729,9 @@ pub struct SearchResult {
     pub date: Option<chrono::DateTime<chrono::Utc>>,
     /// Dossier d'un fichier du Drive.
     pub folder: Option<String>,
+    /// Mot-clé de l'élément qui correspond à la recherche.
+    #[sqlx(default)]
+    pub keyword: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -732,9 +742,22 @@ struct SearchQuery {
 /// Motif LIKE sans majuscules ni accents, à comparer à `looty_fold(colonne)` ;
 /// métacaractères (`%`, `_`, `\`) échappés.
 fn like_pattern(q: &str) -> String {
-    let folded = crate::classes::fold(q);
-    let escaped = folded.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
-    format!("%{}%", escaped)
+    format!("%{}%", escape_like(&crate::classes::fold(q)))
+}
+
+fn escape_like(folded: &str) -> String {
+    folded.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
+/// Terme de recherche → (motif LIKE, mots-clés seulement). `#partiel` ne cherche que les
+/// éléments qui ont exactement ce mot-clé (sans casse ni accents) ; sinon titres, contenus
+/// et mots-clés qui contiennent le terme.
+fn search_terms(q: &str) -> (String, bool) {
+    let q: String = q.chars().take(200).collect();
+    match q.strip_prefix('#').map(|k| k.split_whitespace().collect::<Vec<_>>().join(" ")) {
+        Some(k) if !k.is_empty() => (escape_like(&crate::classes::fold(&k)), true),
+        _ => (like_pattern(&q), false),
+    }
 }
 
 async fn search_workspace(
@@ -749,101 +772,158 @@ async fn search_workspace(
     if q.is_empty() {
         return Ok(Json(serde_json::json!({ "results": [] })));
     }
-    let pattern = like_pattern(&q.chars().take(200).collect::<String>());
+    // $2 : motif ; $3 : mots-clés seulement. Ordre : titre, puis mot-clé, puis contenu.
+    let (pattern, kw_only) = search_terms(q);
     let perms = crate::access::member_perms(&pool, user.id, workspace_id).await?.map(|(_, p)| p);
     let level_of = |f: fn(&crate::access::Perms) -> u8| perms.as_ref().map(f).unwrap_or(crate::access::level::NONE);
 
     let visible = visible_pages(&pool, &user, workspace_id, role).await?;
+    let page_visible = |id: &Uuid| visible.get(id).is_some_and(|a| *a != PageAccess::None);
     // Le contenu HTML est nettoyé des balises pour l'extrait.
     let pages: Vec<SearchResult> = sqlx::query_as(
         "SELECT id, title, 'page' AS type, icon,
                 substring(regexp_replace(coalesce(content, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
-                parent_id, NULL::timestamptz AS date, NULL::text AS folder
+                parent_id, NULL::timestamptz AS date, NULL::text AS folder, looty_keyword(keywords, $2) AS keyword
          FROM pages
-         WHERE workspace_id = $1 AND (looty_fold(title) LIKE $2 OR looty_fold(content) LIKE $2 OR looty_fold(canvas_text) LIKE $2)
-         ORDER BY (looty_fold(title) LIKE $2) DESC, updated_at DESC
+         WHERE workspace_id = $1 AND ((NOT $3 AND (looty_fold(title) LIKE $2 OR looty_fold(content) LIKE $2 OR looty_fold(canvas_text) LIKE $2))
+                                      OR looty_keyword(keywords, $2) IS NOT NULL)
+         ORDER BY (NOT $3 AND looty_fold(title) LIKE $2) DESC, (looty_keyword(keywords, $2) IS NOT NULL) DESC, updated_at DESC
          LIMIT 40",
     )
     .bind(workspace_id)
     .bind(&pattern)
+    .bind(kw_only)
     .fetch_all(&pool)
     .await?;
-    let mut results: Vec<SearchResult> = pages
-        .into_iter()
-        .filter(|p| visible.get(&p.id).is_some_and(|a| *a != PageAccess::None))
-        .take(20)
-        .collect();
+    let mut results: Vec<SearchResult> = pages.into_iter().filter(|p| page_visible(&p.id)).take(20).collect();
 
     if level_of(|p| p.boards) > crate::access::level::NONE {
+        let boards: Vec<SearchResult> = sqlx::query_as(
+            "SELECT id, name AS title, 'board' AS type, NULL::varchar AS icon, NULL::text AS snippet,
+                    NULL::uuid AS parent_id, NULL::timestamptz AS date, NULL::text AS folder, looty_keyword(keywords, $2) AS keyword
+             FROM boards
+             WHERE workspace_id = $1 AND ((NOT $3 AND looty_fold(name) LIKE $2) OR looty_keyword(keywords, $2) IS NOT NULL)
+               AND (private_to IS NULL OR private_to = $4)
+             ORDER BY (NOT $3 AND looty_fold(name) LIKE $2) DESC, name
+             LIMIT 10",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .bind(kw_only)
+        .bind(user.id)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(boards);
+
         let tasks: Vec<SearchResult> = sqlx::query_as(
             "SELECT t.id, t.title, 'task' AS type, NULL::varchar AS icon,
                     substring(regexp_replace(coalesce(t.description, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
-                    b.id AS parent_id, NULL::timestamptz AS date, NULL::text AS folder
+                    b.id AS parent_id, NULL::timestamptz AS date, NULL::text AS folder, looty_keyword(t.keywords, $2) AS keyword
              FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-             WHERE b.workspace_id = $1 AND (looty_fold(t.title) LIKE $2 OR looty_fold(t.description) LIKE $2)
-             ORDER BY (looty_fold(t.title) LIKE $2) DESC, t.updated_at DESC
+             WHERE b.workspace_id = $1 AND ((NOT $3 AND (looty_fold(t.title) LIKE $2 OR looty_fold(t.description) LIKE $2))
+                                            OR looty_keyword(t.keywords, $2) IS NOT NULL)
+               AND (t.private_to IS NULL OR t.private_to = $4)
+             ORDER BY (NOT $3 AND looty_fold(t.title) LIKE $2) DESC, (looty_keyword(t.keywords, $2) IS NOT NULL) DESC, t.updated_at DESC
              LIMIT 20",
         )
         .bind(workspace_id)
         .bind(&pattern)
+        .bind(kw_only)
+        .bind(user.id)
         .fetch_all(&pool)
         .await?;
         results.extend(tasks);
     }
 
+    // Projets : ceux portés par une page suivent l'accès à la page (parent_id), les autres
+    // le droit de lire les documents.
+    let projects: Vec<SearchResult> = sqlx::query_as(
+        "SELECT p.id, COALESCE(NULLIF(pg.title, ''), p.name) AS title, 'project' AS type, pg.icon, p.kind::text AS snippet,
+                pg.id AS parent_id, NULL::timestamptz AS date, NULL::text AS folder, looty_keyword(p.keywords, $2) AS keyword
+         FROM projects p LEFT JOIN pages_all pg ON pg.project_id = p.id
+         WHERE p.workspace_id = $1 AND pg.deleted_at IS NULL
+           AND ((NOT $3 AND looty_fold(p.name) LIKE $2) OR looty_keyword(p.keywords, $2) IS NOT NULL)
+           AND (p.private_to IS NULL OR p.private_to = $4)
+         ORDER BY (NOT $3 AND looty_fold(p.name) LIKE $2) DESC, p.updated_at DESC
+         LIMIT 20",
+    )
+    .bind(workspace_id)
+    .bind(&pattern)
+    .bind(kw_only)
+    .bind(user.id)
+    .fetch_all(&pool)
+    .await?;
+    let read_docs = level_of(|p| p.docs) >= crate::access::level::READ;
+    results.extend(
+        projects
+            .into_iter()
+            .filter(|p| match p.parent_id {
+                Some(page) => page_visible(&page),
+                None => read_docs,
+            })
+            .take(10),
+    );
+
     // Événements de l'espace (si le rôle donne accès à l'agenda), puis ceux des calendriers
     // intégrés de l'espace ou du membre : une série n'y apparaît qu'une fois, à sa prochaine
-    // occurrence (sinon la dernière passée).
+    // occurrence (sinon la dernière passée). Ces derniers n'ont pas de mots-clés.
     let ws_calendar = level_of(|p| p.calendar) >= crate::access::level::READ;
     if ws_calendar {
         let events: Vec<SearchResult> = sqlx::query_as(
             "SELECT e.id, e.summary AS title, 'event' AS type, NULL::varchar AS icon, NULL::text AS snippet,
-                    e.calendar_id AS parent_id, e.starts_at AS date, NULL::text AS folder
+                    e.calendar_id AS parent_id, e.starts_at AS date, NULL::text AS folder, looty_keyword(e.keywords, $2) AS keyword
              FROM workspace_events e
-             WHERE e.workspace_id = $1 AND looty_fold(e.summary) LIKE $2
-             ORDER BY (e.starts_at >= NOW() OR e.recurring) DESC, e.starts_at DESC
+             WHERE e.workspace_id = $1 AND ((NOT $3 AND looty_fold(e.summary) LIKE $2) OR looty_keyword(e.keywords, $2) IS NOT NULL)
+             ORDER BY (NOT $3 AND looty_fold(e.summary) LIKE $2) DESC, (e.starts_at >= NOW() OR e.recurring) DESC, e.starts_at DESC
              LIMIT 10",
         )
         .bind(workspace_id)
         .bind(&pattern)
+        .bind(kw_only)
         .fetch_all(&pool)
         .await?;
         results.extend(events);
     }
-    let subscribed: Vec<SearchResult> = sqlx::query_as(
-        "SELECT id, title, type, icon, snippet, parent_id, date, folder FROM (
-            SELECT DISTINCT ON (e.calendar_id, e.uid)
-                   e.id, e.summary AS title, 'calendar_event' AS type, NULL::varchar AS icon, e.location AS snippet,
-                   e.calendar_id AS parent_id, e.starts_at AS date, NULL::text AS folder, (e.ends_at < NOW()) AS past
-            FROM calendar_events e JOIN calendars c ON c.id = e.calendar_id
-            WHERE c.enabled AND ((c.workspace_id = $1 AND $4) OR c.user_id = $3)
-              AND (looty_fold(e.summary) LIKE $2 OR looty_fold(e.location) LIKE $2 OR looty_fold(e.description) LIKE $2)
-            ORDER BY e.calendar_id, e.uid, (e.ends_at < NOW()),
-                     CASE WHEN e.ends_at < NOW() THEN -extract(epoch FROM e.starts_at) ELSE extract(epoch FROM e.starts_at) END
-         ) s
-         ORDER BY past, abs(extract(epoch FROM date - NOW()))
-         LIMIT 10",
-    )
-    .bind(workspace_id)
-    .bind(&pattern)
-    .bind(user.id)
-    .bind(ws_calendar)
-    .fetch_all(&pool)
-    .await?;
-    results.extend(subscribed);
-
-    // Fichiers et dossiers du Drive (même droit que pour le parcourir : lire les documents).
-    if level_of(|p| p.docs) >= crate::access::level::READ {
-        let files: Vec<SearchResult> = sqlx::query_as(
-            "SELECT id, name AS title, CASE WHEN is_dir THEN 'folder' ELSE 'file' END AS type, NULL::varchar AS icon,
-                    NULLIF(folder, '') AS snippet, NULL::uuid AS parent_id, NULL::timestamptz AS date, folder::text AS folder
-             FROM drive_files
-             WHERE workspace_id = $1 AND looty_fold(name) LIKE $2 AND (expires_at IS NULL OR expires_at > NOW())
-             ORDER BY is_dir DESC, created_at DESC
+    if !kw_only {
+        let subscribed: Vec<SearchResult> = sqlx::query_as(
+            "SELECT id, title, type, icon, snippet, parent_id, date, folder, NULL::text AS keyword FROM (
+                SELECT DISTINCT ON (e.calendar_id, e.uid)
+                       e.id, e.summary AS title, 'calendar_event' AS type, NULL::varchar AS icon, e.location AS snippet,
+                       e.calendar_id AS parent_id, e.starts_at AS date, NULL::text AS folder, (e.ends_at < NOW()) AS past
+                FROM calendar_events e JOIN calendars c ON c.id = e.calendar_id
+                WHERE c.enabled AND ((c.workspace_id = $1 AND $4) OR c.user_id = $3)
+                  AND (looty_fold(e.summary) LIKE $2 OR looty_fold(e.location) LIKE $2 OR looty_fold(e.description) LIKE $2)
+                ORDER BY e.calendar_id, e.uid, (e.ends_at < NOW()),
+                         CASE WHEN e.ends_at < NOW() THEN -extract(epoch FROM e.starts_at) ELSE extract(epoch FROM e.starts_at) END
+             ) s
+             ORDER BY past, abs(extract(epoch FROM date - NOW()))
              LIMIT 10",
         )
         .bind(workspace_id)
         .bind(&pattern)
+        .bind(user.id)
+        .bind(ws_calendar)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(subscribed);
+    }
+
+    // Fichiers et dossiers du Drive (même droit que pour le parcourir : lire les documents).
+    if read_docs {
+        let files: Vec<SearchResult> = sqlx::query_as(
+            "SELECT id, name AS title, CASE WHEN is_dir THEN 'folder' ELSE 'file' END AS type, NULL::varchar AS icon,
+                    NULLIF(folder, '') AS snippet, NULL::uuid AS parent_id, NULL::timestamptz AS date, folder::text AS folder,
+                    looty_keyword(keywords, $2) AS keyword
+             FROM drive_files
+             WHERE workspace_id = $1 AND ((NOT $3 AND looty_fold(name) LIKE $2) OR looty_keyword(keywords, $2) IS NOT NULL)
+               AND (expires_at IS NULL OR expires_at > NOW()) AND (private_to IS NULL OR private_to = $4)
+             ORDER BY (NOT $3 AND looty_fold(name) LIKE $2) DESC, is_dir DESC, created_at DESC
+             LIMIT 10",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .bind(kw_only)
+        .bind(user.id)
         .fetch_all(&pool)
         .await?;
         results.extend(files);
@@ -904,11 +984,12 @@ async fn get_overview(
             max(t.updated_at) AS updated_at
          FROM boards b
          LEFT JOIN board_columns c ON c.board_id = b.id
-         LEFT JOIN tasks t ON t.column_id = c.id
-         WHERE b.workspace_id = $1
+         LEFT JOIN tasks t ON t.column_id = c.id AND (t.private_to IS NULL OR t.private_to = $2)
+         WHERE b.workspace_id = $1 AND (b.private_to IS NULL OR b.private_to = $2)
          GROUP BY b.id ORDER BY max(t.updated_at) DESC NULLS LAST, b.created_at",
     )
     .bind(workspace_id)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
 
@@ -941,9 +1022,11 @@ async fn get_overview(
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          LEFT JOIN users u ON u.id = a.user_id
          WHERE b.workspace_id = $1 AND a.activity_type IN ('create', 'move_column', 'toggle_validation', 'add_assignee', 'update_title')
+           AND (t.private_to IS NULL OR t.private_to = $2)
          ORDER BY a.created_at DESC LIMIT 25",
     )
     .bind(workspace_id)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
 
@@ -985,6 +1068,13 @@ mod tests {
         assert_eq!(like_pattern("Algèbre"), "%algebre%");
         assert_eq!(like_pattern("RÉUNION"), "%reunion%");
         assert_eq!(like_pattern("50%_a\\b"), "%50\\%\\_a\\\\b%");
+    }
+
+    #[test]
+    fn hash_searches_keywords_only() {
+        assert_eq!(search_terms("#Algèbre  linéaire"), ("algebre lineaire".into(), true));
+        assert_eq!(search_terms("#"), ("%#%".into(), false));
+        assert_eq!(search_terms("TP_1"), ("%tp\\_1%".into(), false));
     }
 
     /// `looty_fold` (SQL) et `classes::fold` (Rust) doivent plier les mêmes caractères.

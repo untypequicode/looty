@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, Plus, LayoutGrid, List, Search, Star, Upload, Download } from 'lucide-vue-next'
+import { FileText, Plus, LayoutGrid, List, Search, Star, Upload, Download, LockKeyhole } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -9,7 +9,11 @@ import { motion } from '~/composables/useMotion'
 
 definePageMeta({ layout: 'workspace' })
 
-const { wsId, pages, member } = useWorkspace()
+const { wsId, pages, member, isGuest, workspace } = useWorkspace()
+// Rôles en lecture seule : ils peuvent quand même ranger des documents personnels.
+const canPersonal = computed(() => !isGuest.value && !workspace.data.value?.personal)
+/** Seulement mes éléments personnels. */
+const onlyPersonal = ref(false)
 const { can } = useAccess(wsId)
 const canWrite = computed(() => can.value.editDocs)
 const { toggleFavorite } = usePages()
@@ -23,6 +27,7 @@ const exportOpen = ref(false)
 const list = computed(() => {
   let l = [...(pages.data.value ?? [])]
   if (q.value.trim()) l = l.filter((p) => (p.title || '').toLowerCase().includes(q.value.trim().toLowerCase()))
+  if (onlyPersonal.value) l = l.filter((p) => !!p.private_to)
   const by: Record<string, (a: any, b: any) => number> = {
     updated: (a, b) => +new Date(b.updated_at) - +new Date(a.updated_at),
     created: (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
@@ -44,7 +49,7 @@ useHead({ title: () => t('nav.allDocs') })
       <UiSegmented v-model="view" :options="[{ value: 'list', icon: List, title: t('docs.listView') }, { value: 'grid', icon: LayoutGrid, title: t('docs.gridView') }]" />
       <UiTooltip v-if="canWrite" :text="t('transfer.importTitle')"><UiButton size="sm" variant="ghost" :icon="Upload" :aria-label="t('transfer.importTitle')" @click="importOpen = true" /></UiTooltip>
       <UiTooltip :text="t('transfer.exportWorkspace')"><UiButton size="sm" variant="ghost" :icon="Download" :aria-label="t('transfer.exportWorkspace')" @click="exportOpen = true" /></UiTooltip>
-      <DocNewMenu v-if="canWrite"><UiButton size="sm" variant="primary" :icon="Plus">{{ t('docs.new') }}</UiButton></DocNewMenu>
+      <DocNewMenu v-if="canWrite || canPersonal" :personal-only="!canWrite"><UiButton size="sm" variant="primary" :icon="Plus">{{ t('docs.new') }}</UiButton></DocNewMenu>
     </AppPageHeader>
     <DocImportDialog v-model:open="importOpen" />
     <DocExportDialog v-model:open="exportOpen" />
@@ -52,6 +57,7 @@ useHead({ title: () => t('nav.allDocs') })
     <div ref="root" class="docs">
       <div class="docs-bar">
         <UiInput v-model="q" :icon="Search" size="sm" :placeholder="t('docs.filter')" class="docs-search" />
+        <UiButton v-if="canPersonal" size="sm" variant="ghost" :icon="LockKeyhole" :class="{ 'docs-personal-on': onlyPersonal }" :aria-pressed="onlyPersonal" :title="t('personalItem.filterHint')" @click="onlyPersonal = !onlyPersonal">{{ t('personalItem.filter') }}</UiButton>
         <UiSegmented
           v-model="sort"
           :options="[{ value: 'updated', label: t('docs.sortUpdated') }, { value: 'created', label: t('docs.sortCreated') }, { value: 'popular', label: t('docs.sortPopular') }, { value: 'title', label: t('docs.sortTitle') }]"
@@ -95,6 +101,7 @@ useHead({ title: () => t('nav.allDocs') })
 .docs > * { max-width: 1040px; margin-left: auto; margin-right: auto; }
 .docs-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .docs-search { max-width: 280px; }
+.docs-personal-on { background: var(--bg-active); color: var(--text); }
 .d-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
 .d-card {
   display: flex; flex-direction: column; padding: 14px; min-height: 140px; border-radius: var(--r-lg);

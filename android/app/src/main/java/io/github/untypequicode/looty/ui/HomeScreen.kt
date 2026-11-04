@@ -53,6 +53,14 @@ fun HomeScreen(state: AppState, padding: PaddingValues, onTasks: () -> Unit) {
                     }
                 }
             }
+            // Annonces : épinglées puis récentes non expirées qui me sont adressées.
+            val news = state.announcements.data?.announcements.orEmpty().filter { !it.expired && it.for_me }.take(3)
+            if (news.isNotEmpty()) {
+                item { SectionTitle(stringResource(R.string.announcements), action = { TextButton(onClick = { opener.route("announcements") }) { Text(stringResource(R.string.view_all)) } }) }
+                items(news, key = { "a" + it.id }) { a ->
+                    Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).clickable { opener.route("announcements") }) { AnnouncementCard(state, a, manage = false, compact = true) }
+                }
+            }
             item { SectionTitle(stringResource(R.string.upcoming), action = { TextButton(onClick = { opener.route("calendar") }) { Text(stringResource(R.string.view_all)) } }) }
             val events = state.upcoming.data.orEmpty().take(5)
             if (events.isEmpty()) item { Text(stringResource(R.string.no_events), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }

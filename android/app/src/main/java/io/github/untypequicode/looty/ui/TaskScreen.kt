@@ -103,6 +103,14 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                             val ws = state.ws ?: return@DropdownMenuItem
                             board?.let { openWeb(ctx, Paths.task(ws, it.id, taskId)) }
                         })
+                        // Partagée ↔ personnelle (pas dans un tableau personnel).
+                        if (task != null && edit && state.boards.firstOrNull { it.id == board?.id }?.private_to == null) {
+                            val mine = task.private_to != null && task.private_to == state.me?.id
+                            if (task.private_to == null || mine) DropdownMenuItem(
+                                text = { Text(stringResource(if (mine) R.string.personal_share else R.string.personal_make)) },
+                                leadingIcon = { Icon(if (mine) Icons.Outlined.Groups else Icons.Outlined.Lock, null) },
+                                onClick = { menu = false; state.launch { if (state.setPersonal("task", task.id, !mine)) board?.let { state.loadBoard(it.id) } } })
+                        }
                         if (task != null && edit) DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
                             leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
                             onClick = { menu = false; state.deleteTask(task); onBack() })
@@ -196,9 +204,27 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                         }) } } else null)
                 }
             }
+            // Répétition (avec une date) : terminée, la tâche crée sa prochaine occurrence.
+            var repeatMenu by remember { mutableStateOf(false) }
+            val hasDate = task.due_date != null || task.start_date != null
+            PropRow(Icons.Outlined.Repeat, stringResource(R.string.repeat_label)) {
+                Box {
+                    AssistChip(enabled = edit && hasDate, onClick = { repeatMenu = true }, label = { Text(stringResource(if (!hasDate && task.repeat == null) R.string.repeat_needs_date else repeatLabel(task.repeat))) })
+                    DropdownMenu(expanded = repeatMenu, onDismissRequest = { repeatMenu = false }) {
+                        listOf(null, "daily", "weekly", "biweekly", "monthly", "yearly").forEach { r ->
+                            DropdownMenuItem(text = { Text(stringResource(repeatLabel(r))) }, leadingIcon = { RadioButton(selected = r == task.repeat, onClick = null) }, onClick = {
+                                repeatMenu = false
+                                state.updateTask(task, buildJsonObject { put("repeat", r) }) { it.copy(repeat = r) }
+                            })
+                        }
+                    }
+                }
+            }
             // Assignés
             PropRow(Icons.Outlined.People, stringResource(R.string.assignees)) {
                 Row(Modifier.clip(MaterialTheme.shapes.small).clickable(enabled = edit) { assigneesSheet = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Groupes reliés : la tâche suit leurs membres.
+                    task.groups.forEach { g -> state.groups.firstOrNull { it.id == g }?.let { Text("@" + it.name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(6.dp)) } }
                     if (task.assignees.isEmpty()) Text(stringResource(R.string.unassigned), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     task.assignees.forEach { a -> Avatar(state.members[a]?.name, 28.dp); Spacer(Modifier.width(4.dp)) }
                     if (edit) Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -211,6 +237,11 @@ fun TaskScreen(state: AppState, taskId: String, onBack: () -> Unit, onTask: (Str
                     if (task.labels.isEmpty()) Text(if (edit) stringResource(R.string.add_labels) else "—", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     task.labels.forEach { l -> LabelPill(l) }
                 }
+            }
+            // Mots-clés (recherche)
+            PropRow(Icons.Outlined.Tag, stringResource(R.string.keywords)) { KeywordsRow(state, "task", task.id) }
+            if (task.private_to != null) PropRow(Icons.Outlined.Lock, stringResource(R.string.personal_badge)) {
+                Text(stringResource(R.string.personal_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Validation par personne
             PropRow(Icons.Outlined.Groups, stringResource(R.string.per_person)) {
@@ -623,4 +654,14 @@ private fun describe(a: TaskActivity, state: AppState, board: BoardFull): String
         "update_due_date" -> nv.str("due_date")?.let { localDate(it) }?.let { stringResource(R.string.history_due, dayLabel(it)) } ?: stringResource(R.string.history_due_removed)
         else -> stringResource(R.string.history_updated)
     }
+}
+
+/** Libellé d'une répétition de tâche (`null` : ne se répète pas). */
+fun repeatLabel(r: String?): Int = when (r) {
+    "daily" -> R.string.repeat_daily
+    "weekly" -> R.string.repeat_weekly
+    "biweekly" -> R.string.repeat_biweekly
+    "monthly" -> R.string.repeat_monthly
+    "yearly" -> R.string.repeat_yearly
+    else -> R.string.repeat_none
 }

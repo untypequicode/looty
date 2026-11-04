@@ -120,6 +120,8 @@ struct Item {
     shared: bool,
     /// Dossier : nombre d'éléments directs.
     children: i64,
+    /// Élément personnel (visible de son auteur seulement).
+    personal: bool,
 }
 
 #[derive(Deserialize)]
@@ -134,17 +136,19 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     let search = q.q.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(|s| format!("%{}%", crate::classes::fold(s).replace(['%', '_'], "")));
     let items: Vec<Item> = sqlx::query_as(
         "SELECT f.id, f.folder, f.name, f.is_dir, f.mime, f.size, f.created_at, f.expires_at, f.uploaded_by, u.name AS uploaded_by_name,
-                (f.share_token IS NOT NULL) AS shared,
+                (f.share_token IS NOT NULL) AS shared, (f.private_to IS NOT NULL) AS personal,
                 CASE WHEN f.is_dir THEN (SELECT count(*) FROM drive_files c WHERE c.workspace_id = f.workspace_id
+                     AND (c.private_to IS NULL OR c.private_to = $4)
                      AND c.folder = CASE WHEN f.folder = '' THEN f.name ELSE f.folder || '/' || f.name END) ELSE 0 END AS children
          FROM drive_files f LEFT JOIN users u ON u.id = f.uploaded_by
          WHERE f.workspace_id = $1 AND (($3::text IS NULL AND f.folder = $2) OR ($3::text IS NOT NULL AND looty_fold(f.name) LIKE $3))
-           AND (f.expires_at IS NULL OR f.expires_at > NOW())
+           AND (f.expires_at IS NULL OR f.expires_at > NOW()) AND (f.private_to IS NULL OR f.private_to = $4)
          ORDER BY f.is_dir DESC, lower(f.name)",
     )
     .bind(ws)
     .bind(&folder)
     .bind(&search)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     let s = settings_of(&state, ws).await?;
@@ -212,6 +216,7 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let mut used = used_bytes(&state, ws).await?;
     let mut folder = String::new();
     let mut days: Option<i32> = None;
+    let mut personal = false;
     let mut saved = Vec::new();
     let dir = drive_dir(ws);
     tokio::fs::create_dir_all(&dir).await.map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -224,6 +229,10 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
             }
             Some("days") => {
                 days = field.text().await.ok().and_then(|v| v.trim().parse().ok());
+                continue;
+            }
+            Some("personal") => {
+                personal = matches!(field.text().await.unwrap_or_default().trim(), "1" | "true");
                 continue;
             }
             _ => {}
@@ -260,7 +269,7 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
         let expires = Utc::now() + Duration::days(days_or_max(days, s.drive_max_days) as i64);
         let mime = mime_guess::from_path(&name).first_or_octet_stream().essence_str().to_string();
         let id: Uuid = sqlx::query_scalar(
-            "INSERT INTO drive_files (workspace_id, folder, name, blob_path, mime, size, uploaded_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+            "INSERT INTO drive_files (workspace_id, folder, name, blob_path, mime, size, uploaded_by, expires_at, private_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
         )
         .bind(ws)
         .bind(&sub)
@@ -270,6 +279,7 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
         .bind(size)
         .bind(user.id)
         .bind(expires)
+        .bind(if personal { Some(user.id) } else { folder_owner(&state, ws, &sub).await? })
         .fetch_one(&state.pool)
         .await?;
         saved.push(json!({ "id": id, "folder": sub, "name": name, "size": size, "expires_at": expires }));
@@ -282,6 +292,24 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
 struct FolderReq {
     folder: Option<String>,
     name: String,
+    /// Dossier personnel (visible de son auteur seulement, contenu compris).
+    #[serde(default)]
+    personal: bool,
+}
+
+/// Propriétaire d'un dossier personnel (son contenu l'est aussi).
+async fn folder_owner(state: &AppState, ws: Uuid, path: &str) -> ApiResult<Option<Uuid>> {
+    if path.is_empty() {
+        return Ok(None);
+    }
+    let (parent, name) = path.rsplit_once('/').unwrap_or(("", path));
+    Ok(sqlx::query_scalar("SELECT private_to FROM drive_files WHERE workspace_id = $1 AND folder = $2 AND name = $3 AND is_dir")
+        .bind(ws)
+        .bind(parent)
+        .bind(name)
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten())
 }
 
 async fn create_folder(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(b): Json<FolderReq>) -> ApiResult<Json<Value>> {
@@ -292,11 +320,13 @@ async fn create_folder(State(state): State<AppState>, user: AuthUser, Path(ws): 
     let folder = clean_folder(b.folder.as_deref().unwrap_or(""))?;
     let name = clean_name(&b.name)?;
     ensure_folder(&state, ws, &folder, user.id).await?;
-    let id: Option<Uuid> = sqlx::query_scalar("INSERT INTO drive_files (workspace_id, folder, name, is_dir, uploaded_by) VALUES ($1, $2, $3, TRUE, $4) ON CONFLICT DO NOTHING RETURNING id")
+    let owner = if b.personal { Some(user.id) } else { folder_owner(&state, ws, &folder).await? };
+    let id: Option<Uuid> = sqlx::query_scalar("INSERT INTO drive_files (workspace_id, folder, name, is_dir, uploaded_by, private_to) VALUES ($1, $2, $3, TRUE, $4, $5) ON CONFLICT DO NOTHING RETURNING id")
         .bind(ws)
         .bind(&folder)
         .bind(&name)
         .bind(user.id)
+        .bind(owner)
         .fetch_optional(&state.pool)
         .await?;
     let id = id.ok_or_else(|| ApiError::bad_request("drive_name_taken"))?;
@@ -315,10 +345,14 @@ struct Row {
     expires_at: Option<DateTime<Utc>>,
 }
 
-async fn row(state: &AppState, ws: Uuid, id: Uuid) -> ApiResult<Row> {
-    sqlx::query_as("SELECT id, folder, name, is_dir, blob_path, mime, uploaded_by, expires_at FROM drive_files WHERE id = $1 AND workspace_id = $2 AND (expires_at IS NULL OR expires_at > NOW())")
+async fn row(state: &AppState, ws: Uuid, id: Uuid, user: Uuid) -> ApiResult<Row> {
+    sqlx::query_as(
+        "SELECT id, folder, name, is_dir, blob_path, mime, uploaded_by, expires_at FROM drive_files
+          WHERE id = $1 AND workspace_id = $2 AND (expires_at IS NULL OR expires_at > NOW()) AND (private_to IS NULL OR private_to = $3)",
+    )
         .bind(id)
         .bind(ws)
+        .bind(user)
         .fetch_optional(&state.pool)
         .await?
         .ok_or(ApiError::NotFound)
@@ -339,7 +373,7 @@ struct UpdateReq {
 
 async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Json(b): Json<UpdateReq>) -> ApiResult<Json<Value>> {
     let perms = perms_for(&state, &user, ws).await?;
-    let r = row(&state, ws, id).await?;
+    let r = row(&state, ws, id, user.id).await?;
     if !can_upload(&perms) || (r.uploaded_by != Some(user.id) && !can_manage(&perms)) {
         return Err(ApiError::Forbidden);
     }
@@ -395,7 +429,7 @@ async fn delete_blobs(blobs: Vec<Option<String>>) {
 
 async fn remove(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
     let perms = perms_for(&state, &user, ws).await?;
-    let r = row(&state, ws, id).await?;
+    let r = row(&state, ws, id, user.id).await?;
     if !can_upload(&perms) || (r.uploaded_by != Some(user.id) && !can_manage(&perms)) {
         return Err(ApiError::Forbidden);
     }
@@ -444,13 +478,13 @@ struct DownloadQuery {
 
 async fn download(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Query(q): Query<DownloadQuery>) -> ApiResult<Response> {
     perms_for(&state, &user, ws).await?;
-    let r = row(&state, ws, id).await?;
+    let r = row(&state, ws, id, user.id).await?;
     file_response(&r, q.inline == Some(1)).await
 }
 
 async fn share(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<Json<Value>> {
     let perms = perms_for(&state, &user, ws).await?;
-    let r = row(&state, ws, id).await?;
+    let r = row(&state, ws, id, user.id).await?;
     if r.is_dir || !(perms.share || perms.admin) {
         return Err(ApiError::Forbidden);
     }
@@ -468,7 +502,7 @@ async fn share(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Pa
 
 async fn unshare(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
     let perms = perms_for(&state, &user, ws).await?;
-    row(&state, ws, id).await?;
+    row(&state, ws, id, user.id).await?;
     if !(perms.share || perms.admin) {
         return Err(ApiError::Forbidden);
     }

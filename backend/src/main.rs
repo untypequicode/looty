@@ -32,12 +32,15 @@ mod bg;
 mod events;
 mod activity;
 mod graph;
+mod group_links;
 mod groups;
+mod keywords;
 mod releases;
 mod notifications;
 mod push;
 mod recurrence;
 mod page;
+mod personal;
 mod prefs;
 mod comments;
 mod revisions;
@@ -152,6 +155,9 @@ async fn main() {
         .nest("/workspaces/{workspace_id}/comments", comments::workspace_routes())
         .nest("/workspaces/{workspace_id}/access", roles::workspace_routes())
         .nest("/workspaces/{workspace_id}/groups", groups::workspace_routes())
+        .nest("/workspaces/{workspace_id}/keywords", keywords::workspace_routes())
+        .nest("/keywords", keywords::routes())
+        .nest("/personal", personal::routes())
         .nest("/workspaces/{workspace_id}/announcements", announcements::workspace_routes())
         .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
         .nest("/workspaces/{workspace_id}", classes::workspace_routes())

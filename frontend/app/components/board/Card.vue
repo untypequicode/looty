@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ListTree, Check, Users, Repeat } from 'lucide-vue-next'
+import { CalendarDays, ListTree, Check, Users, Repeat, LockKeyhole } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
@@ -19,7 +19,10 @@ const emit = defineEmits<{
   (e: 'menu', t: Task, ev: MouseEvent): void
 }>()
 
-const { member } = useWorkspace()
+const { member, boards } = useWorkspace()
+const route = useRoute()
+// Tâche personnelle dans un tableau partagé (dans un tableau personnel, toutes le sont).
+const personalMark = computed(() => !!props.task.private_to && !boards.data.value?.find((b) => b.id === route.params.board)?.private_to)
 const { user } = useAuth()
 const { formatDate } = useI18n()
 
@@ -73,7 +76,8 @@ const validationText = computed(() => {
         />
       </span>
     </div>
-    <div v-if="task.priority || task.labels.length || due || subtasks.length || validationText" class="card-meta">
+    <div v-if="task.priority || task.labels.length || due || subtasks.length || validationText || personalMark" class="card-meta">
+      <span v-if="personalMark" class="chip icon-only" :title="$t('personalItem.title')"><LockKeyhole :size="12" /></span>
       <span v-if="task.priority" class="chip icon-only" :title="$t(`priority.${task.priority}`)"><TaskPriorityIcon :priority="task.priority" :size="13" /></span>
       <span v-for="l in task.labels.slice(0, 3)" :key="l.id" class="chip label"><span class="dot" :style="{ background: l.color }" />{{ l.name }}</span>
       <span v-if="task.labels.length > 3" class="chip">+{{ task.labels.length - 3 }}</span>

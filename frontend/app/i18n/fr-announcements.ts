@@ -31,4 +31,9 @@ export default {
     vote: 'Voter', change: 'Changer mon vote', retract: 'Retirer mon vote', close: 'Clore le sondage', voted: 'Voté', toVote: 'Sondage',
   },
   presence: { screens: { announcements: 'Annonces' } },
+  audience: {
+    label: 'Destinataires', hint: 'Tout l’espace, ou seulement des groupes (suivis : un nouveau membre du groupe la voit) et des personnes.',
+    placeholder: 'Groupe ou personne…', everyone: 'Tout l’espace', for: 'Pour : {who}', notForYou: 'ne vous est pas adressée',
+    filter: 'Destinataires', all: 'Toutes les annonces',
+  },
 }

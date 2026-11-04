@@ -66,6 +66,12 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
         }
         item {
             ListItem(headlineContent = { Text(stringResource(R.string.calendar)) }, leadingContent = { Icon(Icons.Outlined.CalendarMonth, null) }, modifier = Modifier.clickable { opener.route("calendar") })
+            // Annonces de l'espace, avec le nombre de non lues.
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.announcements)) },
+                leadingContent = { BadgedBox(badge = { if (state.unreadAnnouncements > 0) Badge { Text(state.unreadAnnouncements.toString()) } }) { Icon(Icons.Outlined.Campaign, null) } },
+                modifier = Modifier.clickable { opener.route("announcements") },
+            )
         }
         item {
             ListItem(

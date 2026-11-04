@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users } from 'lucide-vue-next'
+import { usePersonal } from '~/composables/usePersonalItems'
 import { openMovePage } from '~/composables/useMovePage'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
@@ -26,7 +27,16 @@ definePageMeta({ layout: 'workspace' })
 const route = useRoute()
 const qc = useQueryClient()
 const { t, relativeTime } = useI18n()
-const { wsId, pages, member, isGuest } = useWorkspace()
+const { wsId, pages, member, isGuest, workspace } = useWorkspace()
+const { setPersonal } = usePersonal()
+/** Bascule Partagé / Personnel : l'autrice la rend personnelle, la propriétaire la repartage (pas sous une page personnelle). */
+const personalToggle = computed<MenuItem[]>(() => {
+  const p = live.value
+  if (!p || workspace.data.value?.personal || isGuest.value) return []
+  const parentPersonal = !!pages.data.value?.find((x) => x.id === p.parent_id)?.private_to
+  if (p.private_to) return p.private_to === user.value?.id && !parentPersonal ? [{ label: t('personalItem.makeShared'), icon: Users, onSelect: () => setPersonal('page', p.id, false) }] : []
+  return p.created_by === user.value?.id ? [{ label: t('personalItem.makePersonal'), icon: LockKeyhole, onSelect: () => setPersonal('page', p.id, true, p.title) }] : []
+})
 const { editing, allows } = useAccess(wsId)
 const { user } = useAuth()
 const { updatePage, toggleFavorite, deletePage, duplicatePage, createPage } = usePages()
@@ -233,6 +243,7 @@ const menu = computed<MenuItem[]>(() => {
     { divider: true },
     ...(canManage.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
     ...(canManage.value ? [{ label: t('move.action'), icon: FolderInput, onSelect: () => openMovePage(wsId.value, p) }] : []),
+    ...personalToggle.value,
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },
     { label: t('exportFormats.printPdf'), icon: Printer, onSelect: async () => { const { printToPdf } = await import('~/editor/exportDoc'); printToPdf(title.value, [{ title: title.value || t('docs.untitled'), html: editorInst.value?.getHTML() ?? p.content ?? '' }]) } },
     { label: t('transfer.exportMenu'), icon: FileArchive, onSelect: () => (exportOpen.value = true) },
@@ -298,6 +309,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
       <div class="doc-project-head">
         <span v-if="live.icon" class="doc-project-icon">{{ live.icon }}</span>
         <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
+        <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
       </div>
       <ProjectWorkspace :key="live.project_id" :project-id="live.project_id" embedded class="doc-project-ws" />
     </div>
@@ -305,6 +317,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
       <div class="doc-project-head">
         <span v-if="live.icon" class="doc-project-icon">{{ live.icon }}</span>
         <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
+        <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
       </div>
       <CanvasBoard :key="`canvas-${live.id}`" class="doc-project-ws" :page-id="live.id" :ws-id="wsId" :can-edit="canEdit" :user="cursorUser" @status="(s) => (status = s)" @collaborators="(c) => (collaborators = c)" />
     </div>
@@ -336,8 +349,10 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
               />
               <div class="doc-meta">
                 <UiAvatar v-if="live.updated_by" :name="member(live.updated_by)?.name" :src="member(live.updated_by)?.avatar_url" :size="18" />
+                <span v-if="live.private_to" class="doc-personal" :title="t('personalItem.title')"><LockKeyhole :size="12" /> {{ t('personalItem.badge') }}</span>
                 <span>{{ t('editor.lastEdited', { name: member(live.updated_by ?? live.created_by)?.name ?? '?', time: relativeTime(live.updated_at) }) }}</span>
               </div>
+              <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-kw" />
             </header>
             <DocEditor
               :key="pageId"
@@ -455,6 +470,9 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 }
 .doc-title::placeholder { color: var(--text-4); }
 .doc-meta { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--text-3); font-size: var(--fs-sm); }
+.doc-kw { margin: 8px 0 0 -4px; }
+.doc-personal { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; background: var(--bg-active); color: var(--text-2); font-size: var(--fs-xs); }
+.doc-project-kw { flex: none; max-width: 40%; }
 .children { margin: 8px 0 80px; padding-top: 24px; border-top: 1px solid var(--border); }
 .children h3 { margin: 0 0 12px; font-size: var(--fs-sm); color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .child-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }

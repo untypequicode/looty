@@ -19,16 +19,29 @@ _Avoid_: test du cache, smoke test
 ## Espaces
 
 **Groupe**:
-Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup ou à les ajouter ensemble à une tâche ou un événement. Une personne peut appartenir à plusieurs groupes. Ajouter un groupe à une tâche y ajoute ses membres du moment ; la tâche ne suit pas les changements ultérieurs du groupe.
+Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup, à les assigner ensemble à une tâche ou un événement, ou à leur adresser une annonce. Une personne peut appartenir à plusieurs groupes.
+
+**Groupe relié**:
+Groupe ajouté à une tâche, un événement ou une annonce, qui suit ensuite ses changements : un membre ajouté au groupe y est assigné (ou voit l'annonce), un membre retiré en est retiré, sauf s'il y était aussi individuellement ou par un autre groupe relié. Les tâches terminées ne bougent plus ; supprimer le groupe laisse les personnes en place.
 _Avoid_: équipe, rôle, liste
 
 **Annonce**:
-Information qu'une personne autorisée (droit « Publier des annonces ») passe à tous les membres d'un espace : changement de salle, date d'un partiel… Elle est notifiée, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
+Information qu'une personne autorisée (droit « Publier des annonces ») passe à tout ou partie des membres d'un espace (des groupes reliés et des personnes choisies) : changement de salle, date d'un partiel… Elle est notifiée à ses destinataires, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
 _Avoid_: message, actualité, post, news
 
 **Sondage**:
 Question à options portée par une annonce : chaque membre vote (choix unique ou multiple), change ou retire son vote tant qu'il est ouvert. Il peut être anonyme (seuls les totaux sont visibles), ne montrer les résultats qu'après le vote, et se clore à une date ou à la main.
 _Avoid_: vote, questionnaire, formulaire
+
+**Élément personnel**:
+Document, projet, fichier du Drive, tableau ou tâche d'un espace partagé visible de son seul propriétaire, même pas des administrateurs : son TP sous la page du cours, son notebook dans le projet du groupe. Ce qui est rangé dedans l'est aussi (sous-pages, sous-tâches, tâches d'un tableau personnel). Seule son autrice le rend personnel, seule sa propriétaire le repartage. S'il quitte l'espace, il part dans son espace perso, sous le nom de l'ancien espace. À ne pas confondre avec l'espace perso.
+_Avoid_: privé, élément privé, brouillon
+
+## Recherche
+
+**Mot-clé**:
+Terme libre posé sur un document, un projet, un fichier du Drive, un tableau, une tâche ou un événement pour le retrouver par la recherche, même s'il n'apparaît pas dans son contenu (code du cours, « partiel »…). Il est transverse à l'espace, sans couleur ni droit ; `#mot-clé` dans la recherche ne montre que les éléments qui le portent.
+_Avoid_: tag, étiquette (réservé aux étiquettes colorées d'un tableau)
 
 ## Agenda externe
 

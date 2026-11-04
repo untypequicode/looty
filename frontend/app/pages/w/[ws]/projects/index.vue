@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FolderCode, Plus, Globe, Sigma, CheckCircle2, AlertCircle, NotebookText, Search, FileText, FilePlus2, MoreHorizontal, ExternalLink, Presentation, Mail, BookOpen, BarChart3, LayoutTemplate } from 'lucide-vue-next'
+import { FolderCode, Plus, Globe, Sigma, CheckCircle2, AlertCircle, NotebookText, Search, FileText, FilePlus2, MoreHorizontal, ExternalLink, Presentation, Mail, BookOpen, BarChart3, LayoutTemplate, LockKeyhole } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -154,6 +154,7 @@ useHead({ title: () => t('projects.title') })
             <div class="pl-title">
               <span v-if="p.page_icon" class="pl-emoji">{{ p.page_icon }}</span>
               <span class="pl-name truncate">{{ p.name }}</span>
+              <LockKeyhole v-if="p.personal" :size="12" class="faint" :aria-label="t('personalItem.title')"><title>{{ t('personalItem.title') }}</title></LockKeyhole>
               <UiMenu :open="menuFor === p.id" :items="cardMenu(p)" placement="bottom-end" @update:open="(o: boolean) => (menuFor = o ? p.id : null)">
                 <button class="pl-more" :aria-label="t('common.more')"><MoreHorizontal :size="15" /></button>
               </UiMenu>

@@ -16,8 +16,16 @@ export interface Announcement {
   updated_at: string
   read: boolean
   expired: boolean
+  /** Réservée à certains groupes ou personnes (sinon tout l'espace). */
+  targeted: boolean
+  /** Le membre fait partie des destinataires. */
+  for_me: boolean
+  /** Destinataires choisis (montrés à l'auteur et aux gestionnaires). */
+  audience: Audience | null
   poll: Poll | null
 }
+/** Destinataires d'une annonce ; vides : tout l'espace. Les groupes sont suivis. */
+export interface Audience { groups: string[]; users: string[] }
 
 /** Sondage d'une annonce, tel que le membre le voit (totaux absents tant qu'ils sont cachés). */
 export interface Poll {
@@ -34,7 +42,7 @@ export interface Poll {
 }
 export interface PollInput { question: string; options: string[]; multiple: boolean; anonymous: boolean; results_after_vote: boolean; closes_at: string | null }
 export interface AnnouncementList { announcements: Announcement[]; unread: number; can_manage: boolean }
-export interface AnnouncementInput { title?: string; body?: string; pinned?: boolean; expires_at?: string | null; poll?: PollInput | null }
+export interface AnnouncementInput { title?: string; body?: string; pinned?: boolean; expires_at?: string | null; poll?: PollInput | null; audience?: Audience }
 
 export const announcementsKey = (ws: string) => ['ws', ws, 'announcements'] as const
 
@@ -53,7 +61,7 @@ export function useAnnouncements(ws: Ref<string>, enabled?: Ref<boolean>) {
     if (!old) return old
     const copy: AnnouncementList = { ...old, announcements: old.announcements.map((a) => ({ ...a })) }
     fn(copy)
-    copy.unread = copy.announcements.filter((a) => !a.read && !a.expired).length
+    copy.unread = copy.announcements.filter((a) => !a.read && !a.expired && a.for_me).length
     return copy
   })
 

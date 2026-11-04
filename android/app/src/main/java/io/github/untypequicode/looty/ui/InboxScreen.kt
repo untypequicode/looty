@@ -55,6 +55,7 @@ fun InboxScreen(state: AppState, padding: PaddingValues) {
                         when (kind) {
                             "task" -> opener.task(id)
                             "mail" -> { if (id.isNotEmpty()) state.selectMailAccount(id); opener.route("mail") }
+                            "announcement" -> opener.route("announcements")
                             else -> openWeb(ctx, Paths.notification(ws, n))
                         }
                     },

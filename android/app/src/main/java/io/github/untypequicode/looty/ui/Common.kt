@@ -41,6 +41,7 @@ object Paths {
             "page" -> doc(ws, id)
             "board" -> board(ws, id)
             "mail" -> "/w/$ws/mail?account=$id"
+            "announcement" -> "/w/$ws/announcements"
             else -> "/w/$ws/inbox"
         }
     }
@@ -109,6 +110,7 @@ fun notificationText(n: Notification): String {
         "due_soon" -> stringResource(R.string.n_due_soon)
         "completed" -> stringResource(R.string.n_completed, who)
         "mail" -> stringResource(R.string.n_mail)
+        "announcement" -> stringResource(R.string.n_announcement, who)
         else -> stringResource(R.string.n_other)
     }
 }

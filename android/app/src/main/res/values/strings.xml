@@ -925,4 +925,56 @@
     <string name="enter_manually">Enter manually</string>
     <string name="phone_calendar_creds_title">CalDAV details</string>
     <string name="phone_calendar_creds_message">Enter these in your calendar app (tap to copy). The password is shown only once.</string>
+    <!-- Annonces et sondages -->
+    <string name="announcements">Announcements</string>
+    <string name="announcements_empty">No announcements yet.</string>
+    <string name="announcement_new">New announcement</string>
+    <string name="announcement_edit">Edit announcement</string>
+    <string name="announcement_pinned">Pinned</string>
+    <string name="announcement_expired">Expired</string>
+    <string name="announcement_body">Details</string>
+    <string name="announcement_pin">Pin to the top</string>
+    <string name="announcement_publish">Publish</string>
+    <string name="title">Title</string>
+    <string name="audience_label">Recipients</string>
+    <string name="audience_hint">Nothing selected: the whole workspace. Groups are followed: a new member sees it.</string>
+    <string name="audience_everyone">Whole workspace</string>
+    <string name="audience_for">For: %1$s</string>
+    <string name="audience_not_for_you">not addressed to you</string>
+    <string name="poll_add">Add a poll</string>
+    <string name="poll_question">Question</string>
+    <string name="poll_option">Option %1$d</string>
+    <string name="poll_add_option">Add an option</string>
+    <string name="poll_multiple">Several choices</string>
+    <string name="poll_single">One choice</string>
+    <string name="poll_anonymous">Anonymous</string>
+    <string name="poll_closed">Closed</string>
+    <string name="poll_close">Close the poll</string>
+    <string name="poll_vote">Vote</string>
+    <string name="poll_change">Change my vote</string>
+    <string name="poll_retract">Withdraw my vote</string>
+    <string name="poll_results_after_vote">results shown after you vote</string>
+    <string name="poll_locked">Votes were received: only the question can still change.</string>
+    <plurals name="poll_voters">
+        <item quantity="one">%d voter</item>
+        <item quantity="other">%d voters</item>
+    </plurals>
+    <!-- Tâches récurrentes -->
+    <string name="repeat_label">Repeat</string>
+    <string name="repeat_biweekly">Every two weeks</string>
+    <string name="repeat_needs_date">Set a date first</string>
+    <!-- Mots-clés -->
+    <string name="keywords">Keywords</string>
+    <string name="keywords_add">Add keywords</string>
+    <string name="keyword_new">New keyword</string>
+    <string name="keywords_hint">To find the item in search, even when the word is not in it.</string>
+    <!-- Éléments personnels -->
+    <string name="personal_badge">Personal</string>
+    <string name="personal_hint">Visible only to you, even to the workspace admins.</string>
+    <string name="personal_make">Make personal</string>
+    <string name="personal_share">Share with the workspace</string>
+    <string name="personal_create">Personal (only me)</string>
+    <string name="personal_doc">Personal document</string>
+    <string name="linked_groups">Linked groups</string>
+    <string name="n_announcement">%1$s posted an announcement</string>
 </resources>

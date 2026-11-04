@@ -19,19 +19,23 @@ export function useGroups(wsId: Ref<string>) {
 }
 
 /** Préfixe des valeurs « groupe » dans les listes de choix de personnes. */
-const GROUP = 'group:'
+export const GROUP_PREFIX = 'group:'
+const GROUP = GROUP_PREFIX
 
 /**
- * Choix de personnes avec groupes (assignés d'une tâche, participants d'un événement) :
- * choisir un groupe ajoute ses membres du moment ; le groupe lui-même n'est pas retenu.
+ * Choix de personnes avec groupes (assignés d'une tâche, participants d'un événement).
+ * Sans `linked`, choisir un groupe ajoute ses membres du moment (`expand`) ; avec, le groupe
+ * est relié et l'élément suit ses membres (GLOSSARY).
  */
-export function useGroupChoices(wsId: Ref<string>, selected: () => string[]) {
+export function useGroupChoices(wsId: Ref<string>, selected: () => string[], linked: () => string[] | undefined = () => undefined) {
   const { data: groups } = useGroups(wsId)
   const items = computed(() => {
     const cur = new Set(selected())
+    const link = linked()
     return (groups.value ?? [])
-      .filter((g) => g.members.length)
+      .filter((g) => g.members.length || link?.includes(g.id))
       .map((g) => {
+        if (link) return { value: GROUP + g.id, label: `@${g.name}`, color: g.color, hint: t('memberGroups.linkedHint', { count: g.members.length }), keywords: g.name, section: t('memberGroups.section') }
         const missing = g.members.filter((m) => !cur.has(m)).length
         return {
           value: GROUP + g.id,

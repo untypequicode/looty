@@ -31,6 +31,8 @@ fun QuickAddSheet(state: AppState, onDismiss: () -> Unit, onCreated: () -> Unit)
     var boardId by remember { mutableStateOf(state.lastBoard?.takeIf { id -> state.boards.any { it.id == id } } ?: state.boards.firstOrNull()?.id) }
     var due by remember { mutableStateOf<LocalDate?>(null) }
     var assignMe by remember { mutableStateOf(true) }
+    /** Tâche personnelle : visible de soi seul. */
+    var personal by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var pickDate by remember { mutableStateOf(false) }
     var boardMenu by remember { mutableStateOf(false) }
@@ -42,7 +44,7 @@ fun QuickAddSheet(state: AppState, onDismiss: () -> Unit, onCreated: () -> Unit)
         if (title.isBlank() || busy) return
         busy = true
         scope.launch {
-            state.createTask(b, title, due, assignMe).onSuccess { onCreated() }
+            state.createTask(b, title, due, assignMe, personal = personal).onSuccess { onCreated() }
             busy = false
         }
     }
@@ -79,6 +81,11 @@ fun QuickAddSheet(state: AppState, onDismiss: () -> Unit, onCreated: () -> Unit)
                 Switch(checked = assignMe, onCheckedChange = { assignMe = it })
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.assign_me))
+            }
+            if (!state.isPersonalSpace) Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = personal, onCheckedChange = { personal = it })
+                Spacer(Modifier.width(12.dp))
+                Text(stringResource(R.string.personal_create))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
