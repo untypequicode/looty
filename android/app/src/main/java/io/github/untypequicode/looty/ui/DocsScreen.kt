@@ -11,6 +11,7 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -112,6 +113,7 @@ private fun DocRow(state: AppState, p: Page, depth: Int, hasChildren: Boolean?, 
         DocIcon(p)
         Spacer(Modifier.width(8.dp))
         Text(p.title.ifBlank { stringResource(R.string.untitled) }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (p.private_to != null) Icon(Icons.Outlined.Lock, stringResource(R.string.personal_badge), Modifier.padding(end = 4.dp).size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         if (comments > 0) {
             Icon(Icons.Outlined.ChatBubbleOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(" $comments", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

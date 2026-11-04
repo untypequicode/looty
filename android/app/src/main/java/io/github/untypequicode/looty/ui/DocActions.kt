@@ -70,12 +70,23 @@ fun DocActionsSheet(
                 onDismiss()
                 state.launch { state.createPage(parentId = page.id).onSuccess { id -> state.ws?.let { openWeb(ctx, Paths.doc(it, id)) } }.onFailure { state.lastError = (it as? io.github.untypequicode.looty.api.ApiException)?.code ?: "offline" } }
             }
+            // Document personnel rangé ici (visible de soi seul), même avec un rôle en lecture.
+            if (!state.isPersonalSpace) item(Icons.Outlined.Lock, R.string.personal_doc) {
+                onDismiss()
+                state.launch { state.createPage(parentId = page.id, personal = true).onSuccess { id -> state.ws?.let { openWeb(ctx, Paths.doc(it, id)) } } }
+            }
             item(if (page.is_favorite == true) Icons.Outlined.StarOutline else Icons.Outlined.Star, if (page.is_favorite == true) R.string.remove_favorite else R.string.add_favorite) { onDismiss(); state.toggleFavorite(page) }
             if (write) {
                 item(Icons.Outlined.DriveFileRenameOutline, R.string.rename) { dialog = "rename" }
                 item(Icons.Outlined.EmojiEmotions, R.string.change_icon) { dialog = "icon" }
                 item(Icons.Outlined.DriveFileMove, R.string.move_to_folder) { dialog = "move" }
             }
+            item(Icons.Outlined.Tag, R.string.keywords) { dialog = "keywords" }
+            // Partagé ↔ personnel : l'autrice le rend personnel, la propriétaire le repartage.
+            val me = state.me?.id
+            val parentPersonal = state.pages.data.orEmpty().firstOrNull { it.id == page.parent_id }?.private_to != null
+            if (!state.isPersonalSpace && page.private_to == null && page.created_by == me) item(Icons.Outlined.Lock, R.string.personal_make) { onDismiss(); state.launch { state.setPersonal("page", page.id, true) } }
+            if (!state.isPersonalSpace && page.private_to != null && page.private_to == me && !parentPersonal) item(Icons.Outlined.Groups, R.string.personal_share) { onDismiss(); state.launch { state.setPersonal("page", page.id, false) } }
             item(Icons.Outlined.ChatBubbleOutline, R.string.comments) { onDismiss(); onComments() }
             item(Icons.Outlined.History, R.string.version_history) { onDismiss(); onHistory() }
             if (state.canSharePage(page) || state.isAdmin) item(Icons.Outlined.Share, R.string.share) { dialog = "share" }
@@ -87,6 +98,12 @@ fun DocActionsSheet(
         "icon" -> IconDialog(page.icon, onDismiss = onDismiss) { state.setPageIcon(page, it); onDismiss() }
         "move" -> MovePageSheet(state, page, onDismiss = onDismiss) { state.movePage(page, it); onDismiss() }
         "share" -> ShareSheet(state, page, onDismiss = onDismiss)
+        "keywords" -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.keywords)) },
+            text = { Column { Text(stringResource(R.string.keywords_hint), style = MaterialTheme.typography.bodySmall); Spacer(Modifier.height(8.dp)); KeywordsRow(state, "page", page.id) } },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+        )
         "delete" -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.delete_doc_title, page.title.ifBlank { stringResource(R.string.untitled) })) },

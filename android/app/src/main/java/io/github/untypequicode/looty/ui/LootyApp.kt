@@ -106,6 +106,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             seg.getOrNull(2) == "projects" -> "projects"
             seg.getOrNull(2) == "inbox" -> "inbox"
             seg.getOrNull(2) == "calendar" -> "calendar"
+            seg.getOrNull(2) == "announcements" -> "announcements"
             seg.getOrNull(2) == "mail" && seg.size == 3 -> "mail"
             else -> null
         }
@@ -124,6 +125,10 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
                             scope.launch { state.createPage().onSuccess { id -> state.ws?.let { openWeb(ctx, Paths.doc(it, id)) } } }
                         }) { Icon(Icons.Outlined.NoteAdd, stringResource(R.string.new_doc)) }
                     }
+                    // Document personnel : visible de soi seul, possible même en lecture seule.
+                    if (route == "docs" && !state.isPersonalSpace) IconButton(onClick = {
+                        scope.launch { state.createPage(personal = true).onSuccess { id -> state.ws?.let { openWeb(ctx, Paths.doc(it, id)) } } }
+                    }) { Icon(Icons.Outlined.Lock, stringResource(R.string.personal_doc)) }
                 },
             )
         },
@@ -181,6 +186,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("doc/{id}/history") { e -> DocHistoryScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("notifications") { NotificationsScreen(state, onBack = { nav.popBackStack() }) }
             composable("updates") { UpdatesScreen(state, onBack = { nav.popBackStack() }) }
+            composable("announcements") { AnnouncementsScreen(state, onBack = { nav.popBackStack() }) }
             composable("calendar") { CalendarScreen(state, onBack = { nav.popBackStack() }, onEdit = { id, date -> nav.navigate("event?id=${id.orEmpty()}&date=$date") }) }
             composable("event?id={id}&date={date}") { e ->
                 val id = e.arguments?.getString("id")?.ifEmpty { null }

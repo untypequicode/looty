@@ -135,6 +135,7 @@ object Notifier {
             "mail" -> ctx.getString(R.string.n_mail)
             "moodle" -> ctx.getString(R.string.n_moodle)
             "event_tag" -> ctx.getString(R.string.n_event_tag, who)
+            "announcement" -> ctx.getString(R.string.n_announcement, who)
             else -> ctx.getString(R.string.n_other)
         }
     }
@@ -148,6 +149,7 @@ object Notifier {
             "page" -> "/w/$ws/doc/$id"
             "board" -> "/w/$ws/board/$id"
             "mail" -> "/w/$ws/mail?account=$id"
+            "announcement" -> "/w/$ws/announcements"
             else -> "/w/$ws/inbox"
         }
     }

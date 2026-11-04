@@ -233,10 +233,12 @@ private fun TaskRow(state: AppState, board: BoardFull, t: Task, onClick: () -> U
                 Text(t.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     textDecoration = if (done) TextDecoration.LineThrough else null, color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
             }
-            if (t.labels.isNotEmpty() || due != null || subtasks.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (t.labels.isNotEmpty() || due != null || subtasks.isNotEmpty() || t.private_to != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (t.private_to != null) Icon(Icons.Outlined.Lock, stringResource(R.string.personal_badge), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (due != null) {
                     val overdue = !done && due.isBefore(LocalDate.now())
                     Text(dayLabel(due), style = MaterialTheme.typography.labelMedium, color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (t.repeat != null) Icon(Icons.Outlined.Repeat, stringResource(R.string.repeat_label), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (subtasks.isNotEmpty()) Text("${subtasks.count { it.doneFor(me) }}/${subtasks.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 t.labels.take(3).forEach { l ->
@@ -345,8 +347,10 @@ fun TaskCard(state: AppState, board: BoardFull, t: Task, onClick: () -> Unit, on
                         Icon(Icons.Outlined.Event, null, Modifier.size(14.dp), tint = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.width(3.dp))
                         Text(dayLabel(due), style = MaterialTheme.typography.labelMedium, color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (t.repeat != null) { Spacer(Modifier.width(3.dp)); Icon(Icons.Outlined.Repeat, stringResource(R.string.repeat_label), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
+                if (t.private_to != null) Icon(Icons.Outlined.Lock, stringResource(R.string.personal_badge), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (subtasks.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Checklist, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
