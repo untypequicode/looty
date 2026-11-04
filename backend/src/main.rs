@@ -32,6 +32,7 @@ mod bg;
 mod events;
 mod activity;
 mod graph;
+mod group_links;
 mod groups;
 mod keywords;
 mod releases;

@@ -121,12 +121,12 @@ export default {
     errors: { backup_invalid: 'Ce fichier n’est pas une sauvegarde Looty.', invalid_upload: 'Échec de l’envoi.' },
   },
   memberGroups: {
-    title: 'Groupes', description: 'Des ensembles de membres, sans aucun droit : mentionnez-les d’un coup avec @groupe, ou ajoutez-les ensemble à une tâche ou un événement. Une personne peut faire partie de plusieurs groupes.',
+    title: 'Groupes', description: 'Des ensembles de membres, sans aucun droit : mentionnez-les d’un coup avec @groupe, ou reliez-les à une tâche ou un événement, qui suit alors leurs changements de membres. Une personne peut faire partie de plusieurs groupes.',
     new: 'Nouveau groupe', editTitle: 'Modifier « {name} »', namePlaceholder: 'Nom du groupe (ex. Design)', members: 'Membres', addMembers: 'Ajouter des membres',
     count: { zero: 'Aucun membre', one: '{count} membre', other: '{count} membres' }, empty: 'Aucun groupe pour l’instant.', emptyHint: 'Créez un groupe pour mentionner ou assigner plusieurs personnes d’un coup.',
     noMembers: 'Aucun membre', deleteTitle: 'Supprimer le groupe « {name} » ?', deleteBody: 'Les tâches et événements gardent leurs participants ; seules les mentions futures du groupe disparaissent.',
     created: 'Groupe créé', saved: 'Groupe enregistré', deleted: 'Groupe supprimé', readOnly: 'Seules les personnes qui ont la permission « Gérer les groupes » peuvent les modifier.',
-    section: 'Groupes', people: 'Personnes', addGroup: { one: 'Ajoute {count} membre', other: 'Ajoute ses {count} membres' }, allIn: 'Tous déjà ajoutés',
+    section: 'Groupes', people: 'Personnes', linkedHint: { zero: 'Relié · aucun membre', one: 'Relié · suit son membre', other: 'Relié · suit ses {count} membres' }, linkedTitle: 'Groupe relié : ses membres sont assignés et suivent ses changements', addGroup: { one: 'Ajoute {count} membre', other: 'Ajoute ses {count} membres' }, allIn: 'Tous déjà ajoutés',
   },
   errors: { name_taken: 'Un groupe porte déjà ce nom.', name_required: 'Donnez un nom au groupe.', backup_newer: 'Cette sauvegarde vient d’une version plus récente de Looty : mettez d’abord le serveur à jour.', backup_invalid: 'Ce fichier n’est pas une sauvegarde Looty.' },
 }

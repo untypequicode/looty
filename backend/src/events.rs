@@ -399,8 +399,10 @@ struct EventReq {
     keep_recurrence: bool,
     /// Calendrier Looty de l'espace (défaut : calendrier par défaut).
     calendar_id: Option<Uuid>,
-    /// Membres mentionnés (notifiés).
+    /// Membres mentionnés individuellement (notifiés).
     members: Option<Vec<Uuid>>,
+    /// Groupes reliés : leurs membres sont mentionnés et suivent le groupe.
+    groups: Option<Vec<Uuid>>,
     /// Étiquettes du tableau (calendrier d'un tableau).
     label_ids: Option<Vec<Uuid>>,
 }
@@ -623,7 +625,12 @@ struct EventDetail {
     created_by_name: Option<String>,
     updated_at: DateTime<Utc>,
     calendar_id: Option<Uuid>,
+    /// Toutes les personnes mentionnées (individuellement ou par un groupe relié).
     members: Vec<Uuid>,
+    /// Personnes mentionnées individuellement.
+    direct_members: Vec<Uuid>,
+    /// Groupes reliés.
+    groups: Vec<Uuid>,
     label_ids: Vec<Uuid>,
     board_id: Option<Uuid>,
     /// Tâches liées (toutes occurrences).
@@ -693,6 +700,8 @@ async fn get_one(State(state): State<AppState>, user: AuthUser, Path((ws, id)): 
         updated_at,
         calendar_id: sqlx::query_scalar("SELECT COALESCE(calendar_id, (SELECT c.id FROM looty_calendars c WHERE c.workspace_id = e.workspace_id AND c.is_default)) FROM workspace_events e WHERE e.id = $1").bind(id).fetch_one(&state.pool).await?,
         members: sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1 ORDER BY created_at").bind(id).fetch_all(&state.pool).await?,
+        direct_members: sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1 AND NOT via_group ORDER BY created_at").bind(id).fetch_all(&state.pool).await?,
+        groups: sqlx::query_scalar("SELECT group_id FROM event_groups WHERE event_id = $1").bind(id).fetch_all(&state.pool).await?,
         label_ids: sqlx::query_scalar("SELECT label_id FROM event_labels WHERE event_id = $1").bind(id).fetch_all(&state.pool).await?,
         board_id: event_board(&state.pool, id).await?,
         tasks: linked_tasks(&state, id).await?,
@@ -723,19 +732,46 @@ async fn calendar_for(state: &AppState, ws: Uuid, wanted: Option<Uuid>) -> ApiRe
     Ok(sqlx::query_scalar("SELECT id FROM looty_calendars WHERE workspace_id = $1 AND is_default").bind(ws).fetch_one(&state.pool).await?)
 }
 
-/// Remplace les membres mentionnés ; les nouveaux sont notifiés.
-async fn set_members(state: &AppState, ws: Uuid, event: Uuid, title: &str, members: &[Uuid], actor: Uuid) -> ApiResult<()> {
+/// Remplace les membres mentionnés individuellement (`members`, sinon inchangés) et les
+/// groupes reliés (`groups`, sinon inchangés) ; les nouvelles personnes sont notifiées.
+async fn set_members(state: &AppState, ws: Uuid, event: Uuid, title: &str, members: Option<&[Uuid]>, groups: Option<&[Uuid]>, actor: Uuid) -> ApiResult<()> {
     let before: Vec<Uuid> = sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1").bind(event).fetch_all(&state.pool).await?;
-    sqlx::query("DELETE FROM event_members WHERE event_id = $1 AND NOT (user_id = ANY($2))").bind(event).bind(members).execute(&state.pool).await?;
-    for &u in members.iter().take(100) {
+    let direct: Vec<Uuid> = match members {
+        Some(m) => m.iter().take(100).copied().collect(),
+        None => sqlx::query_scalar("SELECT user_id FROM event_members WHERE event_id = $1 AND NOT via_group").bind(event).fetch_all(&state.pool).await?,
+    };
+    if let Some(groups) = groups {
+        sqlx::query("DELETE FROM event_groups WHERE event_id = $1").bind(event).execute(&state.pool).await?;
+        sqlx::query(
+            "INSERT INTO event_groups (event_id, group_id) SELECT $1, g FROM unnest($2::uuid[]) g
+              WHERE EXISTS (SELECT 1 FROM member_groups mg WHERE mg.id = g AND mg.workspace_id = $3) ON CONFLICT DO NOTHING",
+        )
+        .bind(event)
+        .bind(groups)
+        .bind(ws)
+        .execute(&state.pool)
+        .await?;
+    }
+    let from_groups: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT DISTINCT gm.user_id FROM event_groups eg JOIN member_group_members gm ON gm.group_id = eg.group_id WHERE eg.event_id = $1",
+    )
+    .bind(event)
+    .fetch_all(&state.pool)
+    .await?;
+    let mut wanted: Vec<(Uuid, bool)> = direct.iter().map(|&u| (u, false)).collect();
+    wanted.extend(from_groups.iter().filter(|u| !direct.contains(u)).map(|&u| (u, true)));
+    let keep: Vec<Uuid> = wanted.iter().map(|(u, _)| *u).collect();
+    sqlx::query("DELETE FROM event_members WHERE event_id = $1 AND NOT (user_id = ANY($2))").bind(event).bind(&keep).execute(&state.pool).await?;
+    for &(u, via_group) in &wanted {
         let n = sqlx::query(
-            "INSERT INTO event_members (event_id, user_id)
-             SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $3 AND m.user_id = $2::varchar)
-             ON CONFLICT DO NOTHING",
+            "INSERT INTO event_members (event_id, user_id, via_group)
+             SELECT $1, $2, $4 WHERE EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $3 AND m.user_id = $2::varchar)
+             ON CONFLICT (event_id, user_id) DO UPDATE SET via_group = EXCLUDED.via_group",
         )
         .bind(event)
         .bind(u)
         .bind(ws)
+        .bind(via_group)
         .execute(&state.pool)
         .await?
         .rows_affected();
@@ -764,14 +800,15 @@ async fn move_to_calendar(State(state): State<AppState>, user: AuthUser, Path((w
 
 #[derive(Deserialize)]
 struct MembersReq {
-    members: Vec<Uuid>,
+    members: Option<Vec<Uuid>>,
+    groups: Option<Vec<Uuid>>,
 }
 
 async fn set_members_route(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Json(p): Json<MembersReq>) -> ApiResult<StatusCode> {
     crate::access::require_perm(&state.pool, &user, ws, |p| p.calendar >= crate::access::level::EDIT).await?;
     let (e, _, _) = load(&state, ws, id).await?;
     let title = master_event(&e.ics).map(|m| m.summary).unwrap_or_default();
-    set_members(&state, ws, id, &title, &p.members, user.id).await?;
+    set_members(&state, ws, id, &title, p.members.as_deref(), p.groups.as_deref(), user.id).await?;
     changed(&state, ws).await;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -801,8 +838,8 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     .bind(calendar_for(&state, ws, p.calendar_id).await?)
     .fetch_one(&state.pool)
     .await?;
-    if let Some(members) = &p.members {
-        set_members(&state, ws, id, &m.summary, members, user.id).await?;
+    if p.members.is_some() || p.groups.is_some() {
+        set_members(&state, ws, id, &m.summary, p.members.as_deref(), p.groups.as_deref(), user.id).await?;
     }
     if let Some(labels) = &p.label_ids {
         set_labels(&state.pool, id, labels).await?;
@@ -831,8 +868,8 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
     .bind(match p.calendar_id { Some(c) => Some(calendar_for(&state, ws, Some(c)).await?), None => None })
     .execute(&state.pool)
     .await?;
-    if let Some(members) = &p.members {
-        set_members(&state, ws, id, &m.summary, members, user.id).await?;
+    if p.members.is_some() || p.groups.is_some() {
+        set_members(&state, ws, id, &m.summary, p.members.as_deref(), p.groups.as_deref(), user.id).await?;
     }
     match &p.label_ids {
         Some(labels) => set_labels(&state.pool, id, labels).await?,

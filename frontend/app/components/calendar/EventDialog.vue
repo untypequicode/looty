@@ -8,7 +8,7 @@ import { useWorkspace, useMyTasks } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { useCalendarInvalidate, useLootyCalendars, type EventDetail } from '~/composables/useCalendar'
-import { useGroupChoices } from '~/composables/useGroups'
+import { useGroupChoices, GROUP_PREFIX } from '~/composables/useGroups'
 
 const open = defineModel<boolean>('open', { default: false })
 /** Événement à modifier, ou valeurs initiales d'une création (début, journée entière). */
@@ -49,19 +49,31 @@ const labelItems = computed(() => boardLabels.value.map((l) => ({ value: l.id, l
 // Autre tableau : ses étiquettes seulement.
 watch(boardLabels, (ls) => { if (ls.length) labelIds.value = labelIds.value.filter((id) => ls.some((l) => l.id === id)) })
 const calItems = computed(() => (lootyCals.value ?? []).map((c) => ({ value: c.id, label: c.name, hint: c.board_name ?? undefined })))
-// Groupes : les choisir ajoute leurs membres du moment.
-const groupChoices = useGroupChoices(wsId, () => tagged.value)
+// Groupes reliés : l'événement suit leurs membres (GLOSSARY).
+const eventGroups = ref<string[]>([])
+const groupChoices = useGroupChoices(wsId, () => tagged.value, () => eventGroups.value)
 const memberItems = computed(() => {
   const people = (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email }))
   const groups = groupChoices.items.value
   return groups.length ? [...people.map((p) => ({ ...p, section: t('memberGroups.people') })), ...groups] : people
 })
-const taggedModel = computed({ get: () => tagged.value, set: (v: string[]) => { tagged.value = groupChoices.expand(v) } })
+const taggedModel = computed({
+  get: () => [...tagged.value, ...eventGroups.value.map((g) => GROUP_PREFIX + g)],
+  set: (v: string[]) => {
+    eventGroups.value = v.filter((x) => x.startsWith(GROUP_PREFIX)).map((x) => x.slice(GROUP_PREFIX.length))
+    tagged.value = v.filter((x) => !x.startsWith(GROUP_PREFIX))
+  },
+})
+const taggedLabel = computed(() => [
+  ...eventGroups.value.map((g) => `@${groupChoices.groups.value?.find((x) => x.id === g)?.name ?? '…'}`),
+  ...tagged.value.map((id) => members.data.value?.find((m) => m.user_id === id)?.name).filter(Boolean),
+].join(', '))
 const calOpen = ref(false)
 const memberOpen = ref(false)
 watch(() => [props.event, props.defaults, lootyCals.value] as const, () => {
   calendarId.value = props.event?.calendar_id ?? props.defaults?.calendarId ?? lootyCals.value?.find((c) => c.is_default)?.id ?? null
-  tagged.value = [...(props.event?.members ?? [])]
+  tagged.value = [...(props.event?.direct_members ?? props.event?.members ?? [])]
+  eventGroups.value = [...(props.event?.groups ?? [])]
   labelIds.value = [...(props.event?.label_ids ?? [])]
   taskIds.value = (props.event?.tasks ?? []).map((x) => x.id)
 }, { immediate: true })
@@ -150,6 +162,7 @@ async function save() {
     keep_recurrence: form.freq === 'custom',
     calendar_id: calendarId.value ?? undefined,
     members: tagged.value,
+    groups: eventGroups.value,
     label_ids: boardId.value ? labelIds.value : [],
   }
   try {
@@ -223,7 +236,7 @@ async function save() {
       <div class="evf-row">
         <Users :size="15" class="evf-ic" />
         <UiCombobox v-model:open="memberOpen" v-model="taggedModel" multiple :items="memberItems" :width="280">
-          <button type="button" class="evf-select">{{ tagged.length ? tagged.map((id) => members.data.value?.find((m) => m.user_id === id)?.name).filter(Boolean).join(', ') : t('planning.tagMembers') }}</button>
+          <button type="button" class="evf-select">{{ taggedLabel || t('planning.tagMembers') }}</button>
         </UiCombobox>
       </div>
       <div class="evf-row"><MapPin :size="15" class="evf-ic" /><UiInput v-model="form.location" class="evf-grow" :placeholder="t('event.location')" maxlength="500" /></div>

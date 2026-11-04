@@ -31,4 +31,9 @@ export default {
     vote: 'Vote', change: 'Change my vote', retract: 'Withdraw my vote', close: 'Close the poll', voted: 'Voted', toVote: 'Poll',
   },
   presence: { screens: { announcements: 'Announcements' } },
+  audience: {
+    label: 'Recipients', hint: 'The whole workspace, or only some groups (followed: a new group member sees it) and people.',
+    placeholder: 'Group or person…', everyone: 'Whole workspace', for: 'For: {who}', notForYou: 'not addressed to you',
+    filter: 'Recipients', all: 'All announcements',
+  },
 }

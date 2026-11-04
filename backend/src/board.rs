@@ -110,6 +110,8 @@ pub struct TaskWithEnrichment {
     pub labels: Vec<Label>,
     pub assignees: Vec<String>,
     pub validations: Vec<String>,
+    /// Groupes reliés (GLOSSARY) : la tâche suit leurs membres.
+    pub groups: Vec<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -177,6 +179,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tasks/{task_id}/move", put(move_task))
         .route("/tasks/{task_id}/labels/{label_id}", post(add_task_label).delete(remove_task_label))
         .route("/tasks/{task_id}/assignees/{user_id}", post(add_task_assignee).delete(remove_task_assignee))
+        .route("/tasks/{task_id}/groups/{group_id}", post(crate::group_links::add_task_group).delete(crate::group_links::remove_task_group))
         .route("/tasks/{task_id}/subtasks", post(create_subtask))
         .route("/tasks/{task_id}/toggle_validation", put(toggle_task_validation))
         .route("/tasks/{task_id}/attachments", get(get_task_attachments).post(upload_attachment))
@@ -241,7 +244,8 @@ pub async fn load_task_enriched(pool: &PgPool, task_id: Uuid) -> ApiResult<TaskW
         .bind(task_id)
         .fetch_all(pool)
         .await?;
-    Ok(TaskWithEnrichment { task, labels, assignees, validations })
+    let groups: Vec<Uuid> = sqlx::query_scalar("SELECT group_id FROM task_groups WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
+    Ok(TaskWithEnrichment { task, labels, assignees, validations, groups })
 }
 
 pub(crate) async fn emit_task(state: &AppState, workspace_id: Uuid, kind: &str, task_id: Uuid) {
@@ -250,7 +254,7 @@ pub(crate) async fn emit_task(state: &AppState, workspace_id: Uuid, kind: &str, 
     }
 }
 
-async fn log_activity(
+pub(crate) async fn log_activity(
     pool: &PgPool,
     task_id: Uuid,
     user_id: Uuid,
@@ -365,7 +369,12 @@ async fn spawn_next_occurrence(state: &AppState, task_id: Uuid, actor: Uuid) -> 
         .bind(next_id)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO task_assignees (task_id, user_id) SELECT $2, user_id FROM task_assignees WHERE task_id = $1 ON CONFLICT DO NOTHING")
+    sqlx::query("INSERT INTO task_groups (task_id, group_id) SELECT $2, group_id FROM task_groups WHERE task_id = $1 ON CONFLICT DO NOTHING")
+        .bind(task_id)
+        .bind(next_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO task_assignees (task_id, user_id, via_group) SELECT $2, user_id, via_group FROM task_assignees WHERE task_id = $1 ON CONFLICT DO NOTHING")
         .bind(task_id)
         .bind(next_id)
         .execute(&mut *tx)
@@ -587,6 +596,17 @@ async fn get_board(
     for (t, u) in assignees {
         assignees_of.entry(t).or_default().push(u);
     }
+    let task_groups: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        "SELECT tg.task_id, tg.group_id FROM task_groups tg JOIN tasks t ON tg.task_id = t.id
+         JOIN board_columns c ON t.column_id = c.id WHERE c.board_id = $1",
+    )
+    .bind(board_id)
+    .fetch_all(&pool)
+    .await?;
+    let mut groups_of: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for (t, g) in task_groups {
+        groups_of.entry(t).or_default().push(g);
+    }
     let mut validations_of: HashMap<Uuid, Vec<String>> = HashMap::new();
     for (t, u) in validations {
         validations_of.entry(t).or_default().push(u);
@@ -600,6 +620,7 @@ async fn get_board(
             labels: labels_of.remove(&id).unwrap_or_default(),
             assignees: assignees_of.remove(&id).unwrap_or_default(),
             validations: validations_of.remove(&id).unwrap_or_default(),
+            groups: groups_of.remove(&id).unwrap_or_default(),
         });
     }
     let columns = columns
@@ -841,6 +862,8 @@ pub struct CreateTaskReq {
     pub due_date: Option<DateTime<Utc>>,
     pub labels: Option<Vec<Uuid>>,
     pub assignees: Option<Vec<String>>,
+    /// Groupes à relier : leurs membres sont assignés et la tâche suit le groupe.
+    pub groups: Option<Vec<Uuid>>,
     pub priority: Option<i32>,
     pub is_per_person: Option<bool>,
     pub require_all_validations: Option<bool>,
@@ -958,6 +981,9 @@ async fn create_task(
         }
     }
 
+    if let Some(groups) = &req.groups {
+        crate::group_links::link_new_task(&state, ctx.workspace_id, task_id, groups, user.id).await?;
+    }
     let t = load_task_enriched(pool, task_id).await?;
     state.emit(ctx.workspace_id, serde_json::json!({ "type": "TASK_CREATED", "task": &t })).await;
     Ok(Json(t))
@@ -1269,6 +1295,8 @@ async fn add_task_assignee(
     if !is_member(&state.pool, ctx.workspace_id, &target).await? {
         return Err(ApiError::bad_request("not_a_member"));
     }
+    // Assignation individuelle : elle tient même si la personne quitte un groupe relié.
+    sqlx::query("UPDATE task_assignees SET via_group = FALSE WHERE task_id = $1 AND user_id = $2").bind(task_id).bind(&target).execute(&state.pool).await?;
     let n = sqlx::query("INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
         .bind(task_id)
         .bind(&target)

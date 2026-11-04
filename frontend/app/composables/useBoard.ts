@@ -80,7 +80,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
   }
 
   // ---- Tâches ----
-  async function createTask(columnId: string, data: Omit<Partial<Task>, 'labels' | 'assignees'> & { title: string; labels?: string[]; assignees?: string[]; at_top?: boolean }) {
+  async function createTask(columnId: string, data: Omit<Partial<Task>, 'labels' | 'assignees'> & { title: string; labels?: string[]; assignees?: string[]; groups?: string[]; at_top?: boolean }) {
     const t = await api<Task>(`/api/boards/columns/${columnId}/tasks`, {
       method: 'POST',
       body: {
@@ -91,6 +91,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
         start_date: data.start_date ?? null,
         labels: data.labels ?? [],
         assignees: data.assignees ?? [],
+        groups: data.groups ?? [],
         at_top: data.at_top ?? false,
       },
     })
@@ -198,6 +199,17 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
     ])
   }
 
+  /** Groupes reliés : en relier un assigne ses membres, le délier retire ceux venus par lui. */
+  async function setGroups(taskId: string, groupIds: string[]) {
+    const cur = findTask(taskId)?.groups ?? []
+    await Promise.all([
+      ...groupIds.filter((g) => !cur.includes(g)).map((g) => api(`/api/boards/tasks/${taskId}/groups/${g}`, { method: 'POST' })),
+      ...cur.filter((g) => !groupIds.includes(g)).map((g) => api(`/api/boards/tasks/${taskId}/groups/${g}`, { method: 'DELETE' })),
+    ])
+    const r = await api<{ task: Task }>(`/api/boards/tasks/${taskId}`)
+    upsertTaskInBoards(qc, r.task)
+  }
+
   async function createSubtask(parentId: string, title: string) {
     const t = await api<Task>(`/api/boards/tasks/${parentId}/subtasks`, { method: 'POST', body: { title } })
     upsertTaskInBoards(qc, t)
@@ -262,7 +274,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
 
   return {
     board, findTask,
-    createTask, updateTask, moveTask, toggleDone, deleteTask, setLabel, setLabels, setAssignee, setAssignees, createSubtask,
+    createTask, updateTask, moveTask, toggleDone, deleteTask, setLabel, setLabels, setAssignee, setAssignees, setGroups, createSubtask,
     createColumn, renameColumn, moveColumn, deleteColumn,
     createLabel, updateLabel, deleteLabel, saveAutomations,
   }

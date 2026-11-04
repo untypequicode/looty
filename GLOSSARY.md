@@ -19,11 +19,14 @@ _Avoid_: test du cache, smoke test
 ## Espaces
 
 **Groupe**:
-Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup ou à les ajouter ensemble à une tâche ou un événement. Une personne peut appartenir à plusieurs groupes. Ajouter un groupe à une tâche y ajoute ses membres du moment ; la tâche ne suit pas les changements ultérieurs du groupe.
+Ensemble nommé de membres d'un espace, sans aucun droit, qui sert à mentionner plusieurs personnes d'un coup, à les assigner ensemble à une tâche ou un événement, ou à leur adresser une annonce. Une personne peut appartenir à plusieurs groupes.
+
+**Groupe relié**:
+Groupe ajouté à une tâche, un événement ou une annonce, qui suit ensuite ses changements : un membre ajouté au groupe y est assigné (ou voit l'annonce), un membre retiré en est retiré, sauf s'il y était aussi individuellement ou par un autre groupe relié. Les tâches terminées ne bougent plus ; supprimer le groupe laisse les personnes en place.
 _Avoid_: équipe, rôle, liste
 
 **Annonce**:
-Information qu'une personne autorisée (droit « Publier des annonces ») passe à tous les membres d'un espace : changement de salle, date d'un partiel… Elle est notifiée, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
+Information qu'une personne autorisée (droit « Publier des annonces ») passe à tout ou partie des membres d'un espace (des groupes reliés et des personnes choisies) : changement de salle, date d'un partiel… Elle est notifiée à ses destinataires, chacun la voit lue ou non lue, elle peut être épinglée et expirer.
 _Avoid_: message, actualité, post, news
 
 **Sondage**:

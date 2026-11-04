@@ -137,7 +137,7 @@ const toApprove = computed(() => (myTasks.value ?? []).filter((tk) => tk.is_per_
 const favoritePages = computed(() => (pages.data.value ?? []).filter((p) => p.is_favorite).slice(0, 8))
 const { notifications } = useNotifications()
 const announcements = useAnnouncements(wsId, computed(() => dash.has('announcements')))
-const topAnnouncements = computed(() => announcements.list.value.filter((a) => !a.expired).slice(0, 4))
+const topAnnouncements = computed(() => announcements.list.value.filter((a) => !a.expired && a.for_me).slice(0, 4))
 const unreadNotifs = computed(() => (notifications.value ?? []).filter((n) => !n.read_at).slice(0, 6))
 const { data: mailAccounts } = useMailAccounts()
 const { members } = useWorkspace()

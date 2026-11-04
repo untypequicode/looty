@@ -7,7 +7,7 @@ import { useAccess } from '~/composables/useAccess'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { useLootyCalendars, useCalendarInvalidate, type CalEvent, type EventDetail } from '~/composables/useCalendar'
-import { useGroupChoices } from '~/composables/useGroups'
+import { useGroupChoices, GROUP_PREFIX } from '~/composables/useGroups'
 
 /**
  * Planification d'un événement Looty (détail) : membres mentionnés, calendrier (déplacer),
@@ -31,16 +31,21 @@ const refresh = () => { qc.invalidateQueries({ queryKey: key.value }); invalidat
 
 // Membres mentionnés
 const tagged = computed(() => detail.value?.members ?? props.event.members ?? [])
-// Groupes : les choisir ajoute leurs membres du moment.
-const groupChoices = useGroupChoices(wsId, () => tagged.value)
+// Groupes reliés : l'événement suit leurs membres (GLOSSARY).
+const linkedGroups = computed(() => detail.value?.groups ?? [])
+const direct = computed(() => detail.value?.direct_members ?? tagged.value)
+const groupChoices = useGroupChoices(wsId, () => tagged.value, () => linkedGroups.value)
+const memberModel = computed(() => [...direct.value, ...linkedGroups.value.map((g) => GROUP_PREFIX + g)])
 const memberItems = computed(() => {
   const people = (members.data.value ?? []).map((m) => ({ value: m.user_id, label: m.name, hint: m.email }))
   const groups = groupChoices.items.value
   return groups.length ? [...people.map((p) => ({ ...p, section: t('memberGroups.people') })), ...groups] : people
 })
 const memberOpen = ref(false)
-async function setMembers(ids: string[]) {
-  await api(`/api/workspaces/${wsId.value}/events/${props.event.event_id}/members`, { method: 'PUT', body: { members: ids } })
+async function setMembers(values: string[]) {
+  const groups = values.filter((x) => x.startsWith(GROUP_PREFIX)).map((x) => x.slice(GROUP_PREFIX.length))
+  const ids = values.filter((x) => !x.startsWith(GROUP_PREFIX))
+  await api(`/api/workspaces/${wsId.value}/events/${props.event.event_id}/members`, { method: 'PUT', body: { members: ids, groups } })
   refresh()
 }
 
@@ -110,10 +115,11 @@ async function addTask() {
     <div class="ep-row">
       <Users :size="13" class="faint" />
       <div class="ep-avatars">
+        <span v-for="g in linkedGroups" :key="g" class="ep-group" :title="t('memberGroups.linkedTitle')">@{{ groupChoices.groups.value?.find((x) => x.id === g)?.name ?? '…' }}</span>
         <UiTooltip v-for="id in tagged" :key="id" :text="member(id)?.name ?? ''"><UiAvatar :name="member(id)?.name" :src="member(id)?.avatar_url" :size="20" /></UiTooltip>
         <span v-if="!tagged.length" class="faint ep-none">{{ t('planning.noMembers') }}</span>
       </div>
-      <UiCombobox v-if="canWrite" v-model:open="memberOpen" multiple :items="memberItems" :model-value="tagged" :width="280" placement="bottom-end" @update:model-value="(v) => setMembers(groupChoices.expand(v as string[]))">
+      <UiCombobox v-if="canWrite" v-model:open="memberOpen" multiple :items="memberItems" :model-value="memberModel" :width="280" placement="bottom-end" @update:model-value="(v) => setMembers(v as string[])">
         <button class="ep-link">{{ t('planning.tag') }}</button>
       </UiCombobox>
     </div>
@@ -155,6 +161,7 @@ async function addTask() {
 .ep { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
 .ep-row { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); }
 .ep-avatars { flex: 1; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
+.ep-group { font-size: var(--fs-xs); padding: 1px 6px; border-radius: 999px; background: var(--bg-active); color: var(--text-2); }
 .ep-none { font-size: var(--fs-sm); margin: 0; }
 .ep-link { color: var(--accent); font-size: var(--fs-sm); display: inline-flex; align-items: center; gap: 4px; }
 .ep-select { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--text-2); }

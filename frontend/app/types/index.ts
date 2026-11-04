@@ -98,6 +98,8 @@ export interface Task {
   labels: Label[]
   assignees: string[]
   validations: string[]
+  /** Groupes reliés : la tâche suit leurs membres. */
+  groups?: string[]
   previous_column_id?: string | null
   /** Répétition : terminée, la tâche crée sa prochaine occurrence. */
   repeat?: TaskRepeat | null

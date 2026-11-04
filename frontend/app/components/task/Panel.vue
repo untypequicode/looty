@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { CalendarSync, CalendarRange, ExternalLink, Repeat } from 'lucide-vue-next'
 import type { CalEvent, EventDetail } from '~/composables/useCalendar'
 import { isTimed, timeOf } from '~/utils/dates'
-import { api } from '~/composables/api'
+import { api, errorMessage } from '~/composables/api'
 import type { Board, Task, Priority, TaskRepeat } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardActions, columnProgress, allTasks } from '~/composables/useBoard'
@@ -18,6 +18,7 @@ import { useShortcuts } from '~/composables/useShortcuts'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { motion } from '~/composables/useMotion'
 import { toast } from '~/composables/useToast'
+import { useGroups } from '~/composables/useGroups'
 
 const props = defineProps<{ board: Board; taskId: string; order: string[]; canWrite: boolean; canValidate?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'navigate', id: string): void }>()
@@ -90,6 +91,12 @@ const assigneeModel = computed({
   get: () => task.value?.assignees ?? [],
   set: (ids: string[]) => task.value && actions.setAssignees(task.value.id, ids),
 })
+const groupsModel = computed({
+  get: () => task.value?.groups ?? [],
+  set: (ids: string[] | undefined) => { if (task.value) actions.setGroups(task.value.id, ids ?? []).catch((e) => toast.error(errorMessage(e))) },
+})
+const { data: allGroups } = useGroups(wsId)
+const linkedGroups = computed(() => (task.value?.groups ?? []).map((id) => allGroups.value?.find((g) => g.id === id)).filter((g) => !!g))
 const labelModel = computed({
   get: () => task.value?.labels.map((l) => l.id) ?? [],
   set: (ids: string[]) => task.value && actions.setLabels(task.value.id, ids, props.board.labels),
@@ -265,8 +272,9 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
           </div>
           <div class="prop">
             <span class="prop-label">{{ t('task.assignees') }}</span>
-            <TaskAssigneePicker v-model="assigneeModel">
-              <button class="prop-val" :disabled="!canWrite">
+            <TaskAssigneePicker v-model="assigneeModel" v-model:groups="groupsModel">
+              <button class="prop-val wrap" :disabled="!canWrite">
+                <span v-for="g in linkedGroups" :key="g!.id" class="lbl" :title="t('memberGroups.linkedTitle')"><span class="dot" :style="{ background: g!.color }" />@{{ g!.name }}</span>
                 <template v-if="task.assignees.length">
                   <span class="avatars"><UiAvatar v-for="a in task.assignees.slice(0, 4)" :key="a" :name="member(a)?.name" :src="member(a)?.avatar_url" :size="18" ring /></span>
                   <span class="truncate">{{ task.assignees.length === 1 ? member(task.assignees[0])?.name : t('task.nAssignees', { count: task.assignees.length }) }}</span>

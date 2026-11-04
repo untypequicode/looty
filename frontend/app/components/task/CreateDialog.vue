@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useGroups } from '~/composables/useGroups'
 import { Kanban, ChevronRight, CalendarDays, Tag, UserRound } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { Board, Priority } from '~/types'
@@ -12,6 +13,8 @@ import { toast } from '~/composables/useToast'
 
 const { createTaskOpen, createTaskDefaults } = useUi()
 const { wsId, boards, member } = useWorkspace()
+const { data: allGroups } = useGroups(wsId)
+const groupName = (id: string) => allGroups.value?.find((g) => g.id === id)?.name ?? '…'
 const { t, formatDate } = useI18n()
 const qc = useQueryClient()
 const route = useRoute()
@@ -22,6 +25,8 @@ const title = ref('')
 const description = ref('')
 const priority = ref<Priority>(0)
 const assignees = ref<string[]>([])
+/** Groupes reliés à la tâche (elle suivra leurs membres). */
+const groupIds = ref<string[] | undefined>([])
 const labelIds = ref<string[]>([])
 const dueDate = ref<string | null>(null)
 const createMore = ref(false)
@@ -51,6 +56,7 @@ watch(createTaskOpen, (v) => {
   description.value = createTaskDefaults.value.description ?? ''
   priority.value = 0
   assignees.value = []
+  groupIds.value = []
   labelIds.value = []
   dueDate.value = createTaskDefaults.value.dueDate ?? null
   columnId.value = createTaskDefaults.value.columnId ?? ''
@@ -71,6 +77,7 @@ async function submit() {
       description: description.value.trim() ? `<p>${description.value.trim().replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!).replace(/\n/g, '</p><p>')}</p>` : null,
       priority: priority.value,
       assignees: assignees.value,
+      groups: groupIds.value ?? [],
       labels: labelIds.value,
       due_date: dueDate.value,
     })
@@ -116,13 +123,14 @@ async function onCreateLabel(name: string, color: string) {
         <TaskPriorityPicker v-model="priority">
           <button type="button" class="chip"><TaskPriorityIcon :priority="priority" :size="14" /> {{ t(`priority.${priority}`) }}</button>
         </TaskPriorityPicker>
-        <TaskAssigneePicker v-model="assignees">
+        <TaskAssigneePicker v-model="assignees" v-model:groups="groupIds">
           <button type="button" class="chip">
+            <template v-if="groupIds?.length">{{ groupIds.map((g) => `@${groupName(g)}`).join(', ') }}<template v-if="assignees.length"> +</template></template>
             <template v-if="assignees.length">
               <span class="stack"><UiAvatar v-for="a in assignees.slice(0, 3)" :key="a" :name="member(a)?.name" :src="member(a)?.avatar_url" :size="16" ring /></span>
               {{ assignees.length === 1 ? member(assignees[0])?.name : t('task.nAssignees', { count: assignees.length }) }}
             </template>
-            <template v-else><UserRound :size="14" /> {{ t('task.assignee') }}</template>
+            <template v-else-if="!groupIds?.length"><UserRound :size="14" /> {{ t('task.assignee') }}</template>
           </button>
         </TaskAssigneePicker>
         <TaskLabelPicker v-model="labelIds" :labels="board.labels" can-create @create="onCreateLabel">

@@ -55,7 +55,12 @@ export interface EventDetail {
   created_by_name?: string | null
   updated_at: string
   calendar_id?: string | null
+  /** Toutes les personnes mentionnées (individuellement ou par un groupe relié). */
   members?: string[]
+  /** Personnes mentionnées individuellement. */
+  direct_members?: string[]
+  /** Groupes reliés : l'événement suit leurs membres. */
+  groups?: string[]
   /** Étiquettes du tableau (calendrier d'un tableau). */
   label_ids?: string[]
   board_id?: string | null
