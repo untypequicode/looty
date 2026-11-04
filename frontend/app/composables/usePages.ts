@@ -58,10 +58,10 @@ export function usePages() {
     qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, ...patch } : old))
   }
 
-  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas' } = {}) {
+  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas'; personal?: boolean } = {}) {
     const page = await api<Page>(`/api/workspaces/${wsId.value}/pages`, {
       method: 'POST',
-      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView },
+      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView, personal: opts.personal ?? false },
     })
     qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => (old && !old.some((p) => p.id === page.id) ? [...old, { ...page, content: null, can_edit: true }] : old))
     // Droits calculés par le serveur (sous-pages permises par un partage…).
@@ -70,8 +70,8 @@ export function usePages() {
   }
 
   // `project` : la page porte un nouveau projet (LaTeX, site, notebook).
-  async function createAndOpen(parentId?: string | null, project?: NewPageProject) {
-    const page = await createPage({ parentId, project, title: project ? translate(`projects.pageKinds.${project.kind}`) : undefined })
+  async function createAndOpen(parentId?: string | null, project?: NewPageProject, personal = false) {
+    const page = await createPage({ parentId, project, personal, title: project ? translate(`projects.pageKinds.${project.kind}`) : undefined })
     await navigateTo(links.doc(wsId.value, page.id))
     return page
   }

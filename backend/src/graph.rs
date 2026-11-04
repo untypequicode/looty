@@ -84,22 +84,24 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     let see_boards = perms.boards > crate::access::level::NONE;
     let see_events = perms.calendar > crate::access::level::NONE;
     let boards: Vec<(Uuid, String)> =
-        sqlx::query_as("SELECT id, name FROM boards WHERE workspace_id = $1 AND $2").bind(ws).bind(see_boards).fetch_all(&state.pool).await?;
+        sqlx::query_as("SELECT id, name FROM boards WHERE workspace_id = $1 AND $2 AND (private_to IS NULL OR private_to = $3)").bind(ws).bind(see_boards).bind(user.id).fetch_all(&state.pool).await?;
     let tasks: Vec<(Uuid, String, bool, Option<Uuid>, Uuid, Option<String>)> = sqlx::query_as(
         "SELECT t.id, t.title, t.is_completed, t.parent_id, b.id, t.description FROM tasks t
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-         WHERE b.workspace_id = $1 AND $2 ORDER BY t.updated_at DESC LIMIT 5000",
+         WHERE b.workspace_id = $1 AND $2 AND (t.private_to IS NULL OR t.private_to = $3) ORDER BY t.updated_at DESC LIMIT 5000",
     )
     .bind(ws)
     .bind(see_boards)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     let comments: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT cm.task_id, cm.content FROM task_comments cm JOIN tasks t ON t.id = cm.task_id
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-         WHERE b.workspace_id = $1 AND (cm.content LIKE '%/doc/%' OR cm.content LIKE '%task%')",
+         WHERE b.workspace_id = $1 AND (cm.content LIKE '%/doc/%' OR cm.content LIKE '%task%') AND (t.private_to IS NULL OR t.private_to = $2)",
     )
     .bind(ws)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     let relations: Vec<(Uuid, Uuid, Uuid)> =
@@ -241,7 +243,7 @@ async fn check_item(state: &AppState, user: &AuthUser, ws: Uuid, kind: &str, id:
             let (pws, _, access) = crate::access::page_access(&state.pool, user, id).await?;
             pws == ws && !matches!(access, PageAccess::None)
         }
-        "task" => crate::access::task_ctx(&state.pool, id).await?.workspace_id == ws,
+        "task" => crate::access::task_ctx_for(&state.pool, &user, id).await?.workspace_id == ws,
         "event" => sqlx::query_scalar::<_, i64>("SELECT count(*) FROM workspace_events WHERE id = $1 AND workspace_id = $2").bind(id).bind(ws).fetch_one(&state.pool).await? > 0,
         _ => false,
     };

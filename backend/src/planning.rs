@@ -38,9 +38,11 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
         "SELECT c.id, c.name, c.color, c.board_id, b.name AS board_name, c.is_default, c.position,
                 (SELECT count(*) FROM workspace_events e WHERE e.calendar_id = c.id) AS event_count
          FROM looty_calendars c LEFT JOIN boards b ON b.id = c.board_id
-         WHERE c.workspace_id = $1 ORDER BY c.is_default DESC, c.position, c.created_at",
+         WHERE c.workspace_id = $1 AND (b.private_to IS NULL OR b.private_to = $2)
+         ORDER BY c.is_default DESC, c.position, c.created_at",
     )
     .bind(ws)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))

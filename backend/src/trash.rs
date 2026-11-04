@@ -196,12 +196,13 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
              FROM tasks_all t
              JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
              LEFT JOIN users u ON u.id = t.deleted_by
-             WHERE b.workspace_id = $1 AND t.deleted_at IS NOT NULL
+             WHERE b.workspace_id = $1 AND t.deleted_at IS NOT NULL AND (t.private_to IS NULL OR t.private_to = $3)
                AND NOT EXISTS (SELECT 1 FROM tasks_all p WHERE p.id = t.parent_id AND p.trash_batch = t.trash_batch)
              ORDER BY t.deleted_at DESC LIMIT 500",
         )
         .bind(ws)
         .bind(days)
+        .bind(user.id)
         .fetch_all(&state.pool)
         .await?
     } else {
@@ -216,7 +217,7 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
          LEFT JOIN users u ON u.id = p.deleted_by
          WHERE p.workspace_id = $1 AND p.deleted_at IS NOT NULL
            AND NOT EXISTS (SELECT 1 FROM pages_all q WHERE q.id = p.parent_id AND q.trash_batch = p.trash_batch)
-           AND ($3 OR p.deleted_by = $4)
+           AND ($3 OR p.deleted_by = $4) AND (p.private_to IS NULL OR p.private_to = $4)
          ORDER BY p.deleted_at DESC LIMIT 500",
     )
     .bind(ws)
@@ -264,20 +265,21 @@ struct TaskEntry {
     deleted_by: Option<Uuid>,
 }
 
-async fn trashed_task(state: &AppState, id: Uuid) -> ApiResult<TaskEntry> {
+async fn trashed_task(state: &AppState, id: Uuid, user: Uuid) -> ApiResult<TaskEntry> {
     sqlx::query_as(
         "SELECT b.workspace_id, t.parent_id, t.trash_batch, t.deleted_by FROM tasks_all t
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-         WHERE t.id = $1 AND t.deleted_at IS NOT NULL",
+         WHERE t.id = $1 AND t.deleted_at IS NOT NULL AND (t.private_to IS NULL OR t.private_to = $2)",
     )
     .bind(id)
+    .bind(user)
     .fetch_optional(&state.pool)
     .await?
     .ok_or(ApiError::NotFound)
 }
 
 async fn restore_task(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
-    let e = trashed_task(&state, id).await?;
+    let e = trashed_task(&state, id, user.id).await?;
     crate::access::require_perm(&state.pool, &user, e.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let ids: Vec<Uuid> = sqlx::query_scalar(
         "UPDATE tasks_all SET deleted_at = NULL, deleted_by = NULL, trash_batch = NULL
@@ -301,7 +303,7 @@ async fn restore_task(State(state): State<AppState>, user: AuthUser, Path(id): P
 }
 
 async fn delete_task(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
-    let e = trashed_task(&state, id).await?;
+    let e = trashed_task(&state, id, user.id).await?;
     let role = require_member(&state.pool, &user, e.workspace_id).await?;
     if !role.is_admin() && e.deleted_by != Some(user.id) {
         return Err(ApiError::Forbidden);
@@ -320,8 +322,11 @@ struct PageEntry {
 }
 
 async fn trashed_page(state: &AppState, user: &AuthUser, id: Uuid) -> ApiResult<(PageEntry, crate::access::Role)> {
-    let e: PageEntry = sqlx::query_as("SELECT workspace_id, parent_id, trash_batch, deleted_by FROM pages_all WHERE id = $1 AND deleted_at IS NOT NULL")
+    let e: PageEntry = sqlx::query_as(
+        "SELECT workspace_id, parent_id, trash_batch, deleted_by FROM pages_all WHERE id = $1 AND deleted_at IS NOT NULL AND (private_to IS NULL OR private_to = $2)",
+    )
         .bind(id)
+        .bind(user.id)
         .fetch_optional(&state.pool)
         .await?
         .ok_or(ApiError::NotFound)?;

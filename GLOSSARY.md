@@ -33,6 +33,10 @@ _Avoid_: message, actualité, post, news
 Question à options portée par une annonce : chaque membre vote (choix unique ou multiple), change ou retire son vote tant qu'il est ouvert. Il peut être anonyme (seuls les totaux sont visibles), ne montrer les résultats qu'après le vote, et se clore à une date ou à la main.
 _Avoid_: vote, questionnaire, formulaire
 
+**Élément personnel**:
+Document, projet, fichier du Drive, tableau ou tâche d'un espace partagé visible de son seul propriétaire, même pas des administrateurs : son TP sous la page du cours, son notebook dans le projet du groupe. Ce qui est rangé dedans l'est aussi (sous-pages, sous-tâches, tâches d'un tableau personnel). Seule son autrice le rend personnel, seule sa propriétaire le repartage. S'il quitte l'espace, il part dans son espace perso, sous le nom de l'ancien espace. À ne pas confondre avec l'espace perso.
+_Avoid_: privé, élément privé, brouillon
+
 ## Recherche
 
 **Mot-clé**:

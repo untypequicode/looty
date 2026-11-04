@@ -2,21 +2,26 @@
 import { useUi } from '~/composables/useUi'
 import { useBoards } from '~/composables/useBoards'
 import { useI18n } from '~/composables/useI18n'
+import { useWorkspace } from '~/composables/useWorkspace'
 
 const { createBoardOpen, createBoardIn } = useUi()
 const { createBoard } = useBoards()
 const { t } = useI18n()
 const name = ref('')
 const withColumns = ref(true)
+/** Tableau personnel : visible de soi seul (pas dans l'espace perso, déjà privé). */
+const personal = ref(false)
+const { workspace } = useWorkspace()
+const canBePersonal = computed(() => !createBoardIn.value && !workspace.data.value?.personal)
 const loading = ref(false)
 
-watch(createBoardOpen, (v) => { if (v) { name.value = ''; withColumns.value = true } else createBoardIn.value = '' })
+watch(createBoardOpen, (v) => { if (v) { name.value = ''; withColumns.value = true; personal.value = false } else createBoardIn.value = '' })
 
 async function submit() {
   if (!name.value.trim()) return
   loading.value = true
   try {
-    await createBoard(name.value.trim(), withColumns.value, createBoardIn.value || undefined)
+    await createBoard(name.value.trim(), withColumns.value, createBoardIn.value || undefined, personal.value && canBePersonal.value)
     createBoardOpen.value = false
   } finally {
     loading.value = false
@@ -33,6 +38,13 @@ async function submit() {
         <span>
           <span class="opt-title">{{ t('board.defaultColumns') }}</span>
           <span class="opt-hint">{{ t('board.defaultColumnsHint') }}</span>
+        </span>
+      </label>
+      <label v-if="canBePersonal" class="opt">
+        <UiSwitch v-model="personal" />
+        <span>
+          <span class="opt-title">{{ t('personalItem.create') }}</span>
+          <span class="opt-hint">{{ t('personalItem.createHint') }}</span>
         </span>
       </label>
     </form>

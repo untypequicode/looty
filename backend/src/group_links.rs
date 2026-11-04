@@ -10,7 +10,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::access::{task_ctx, AuthUser};
+use crate::access::AuthUser;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -80,8 +80,12 @@ async fn drop_orphans(state: &AppState, task: Uuid, only: Option<&[Uuid]>) -> Ap
 
 /// Relie un groupe à une tâche : ses membres du moment y sont assignés.
 pub async fn add_task_group(State(state): State<AppState>, user: AuthUser, Path((task, group)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
+    let personal: bool = sqlx::query_scalar("SELECT private_to IS NOT NULL FROM tasks WHERE id = $1").bind(task).fetch_one(&state.pool).await?;
+    if personal {
+        return Err(ApiError::bad_request("personal_item"));
+    }
     let people = group_people(&state, ctx.workspace_id, group).await?;
     sqlx::query("INSERT INTO task_groups (task_id, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(task).bind(group).execute(&state.pool).await?;
     assign_via_group(&state, ctx.workspace_id, task, &people, user.id).await?;
@@ -91,7 +95,7 @@ pub async fn add_task_group(State(state): State<AppState>, user: AuthUser, Path(
 
 /// Délie un groupe d'une tâche : les personnes venues seulement par lui sont désassignées.
 pub async fn remove_task_group(State(state): State<AppState>, user: AuthUser, Path((task, group)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     sqlx::query("DELETE FROM task_groups WHERE task_id = $1 AND group_id = $2").bind(task).bind(group).execute(&state.pool).await?;
     drop_orphans(&state, task, None).await?;

@@ -86,8 +86,8 @@ const recentlyUpdated = computed(() =>
   [...(pages.data.value ?? [])].sort((a, b) => +new Date(b.updated_at ?? 0) - +new Date(a.updated_at ?? 0)).slice(0, 6),
 )
 const docTab = ref<'viewed' | 'updated'>('updated')
-watch(recentlyViewed, (v) => { if (v.length && docTab.value === 'updated' && !touchedTab.value) docTab.value = 'viewed' }, { immediate: true })
 const touchedTab = ref(false)
+watch(recentlyViewed, (v) => { if (v.length && docTab.value === 'updated' && !touchedTab.value) docTab.value = 'viewed' }, { immediate: true })
 const docList = computed(() => (docTab.value === 'viewed' ? recentlyViewed.value : recentlyUpdated.value))
 
 function activityText(a: Overview['activity'][number]) {

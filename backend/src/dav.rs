@@ -230,6 +230,7 @@ async fn calendars(state: &AppState, user: &DavUser) -> Result<Vec<Calendar>, Ap
         "SELECT b.id, b.name, w.name, w.id FROM boards b
          JOIN workspaces w ON w.id = b.workspace_id
          JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $1
+         WHERE b.private_to IS NULL OR b.private_to::text = $1
          ORDER BY w.name, b.created_at",
     )
     .bind(user.id.to_string())
@@ -335,6 +336,7 @@ async fn items(state: &AppState, user: &DavUser, kind: CalKind, only: Option<Uui
          LEFT JOIN dav_task_resources r ON r.task_id = t.id
          WHERE (($2::uuid IS NULL AND EXISTS(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)) OR b.id = $2)
            AND ($3::uuid IS NULL OR t.id = $3) AND b.workspace_id = ANY($4)
+           AND (t.private_to IS NULL OR t.private_to::text = $1) AND (b.private_to IS NULL OR b.private_to::text = $1)
          ORDER BY t.created_at",
     )
     .bind(user.id.to_string())

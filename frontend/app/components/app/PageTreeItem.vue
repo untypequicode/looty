@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput } from 'lucide-vue-next'
+import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput, LockKeyhole } from 'lucide-vue-next'
 import { openMovePage, draggingPage, useMovePage } from '~/composables/useMovePage'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
@@ -142,6 +142,7 @@ async function onDrop(e: DragEvent) {
         @blur="commitRename"
       />
       <span v-else class="tree-label truncate">{{ node.title || $t('docs.untitled') }}</span>
+      <LockKeyhole v-if="node.private_to" :size="12" class="tree-perm" :aria-label="$t('personalItem.title')"><title>{{ $t('personalItem.title') }}</title></LockKeyhole>
       <UsersRound v-if="node.has_permissions" :size="12" class="tree-perm" :aria-label="$t('pagePerms.badge')"><title>{{ $t('pagePerms.badge') }}</title></UsersRound>
       <Globe v-if="node.is_public" :size="12" class="tree-perm" :aria-label="$t('share.public')"><title>{{ $t('share.public') }}</title></Globe>
       <span class="tree-actions" @click.prevent.stop>

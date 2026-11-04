@@ -190,6 +190,7 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       if (ev.task) qc.invalidateQueries({ queryKey: ['activities', ev.task.id] })
       break
     case 'TASK_DELETED':
+      if (ev.except && ev.except === selfId) break
       removeTaskFromBoards(qc, ev.task_id)
       qc.invalidateQueries({ queryKey: wsKeys.myTasks(wsId) })
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'overview'] })
@@ -238,6 +239,8 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.invalidateQueries({ queryKey: ['page-permissions', ev.page_id] })
       break
     case 'PAGE_DELETED':
+      // Devenue personnelle : disparaît pour les autres, pas pour sa propriétaire.
+      if (ev.except && ev.except === selfId) break
       qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) => old?.filter((p) => p.id !== ev.page_id))
       break
 

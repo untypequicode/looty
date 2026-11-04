@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useGroups } from '~/composables/useGroups'
-import { Kanban, ChevronRight, CalendarDays, Tag, UserRound } from 'lucide-vue-next'
+import { Kanban, ChevronRight, CalendarDays, Tag, UserRound, LockKeyhole } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { Board, Priority } from '~/types'
 import { useUi } from '~/composables/useUi'
@@ -12,7 +12,7 @@ import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 
 const { createTaskOpen, createTaskDefaults } = useUi()
-const { wsId, boards, member } = useWorkspace()
+const { wsId, boards, member, workspace } = useWorkspace()
 const { data: allGroups } = useGroups(wsId)
 const groupName = (id: string) => allGroups.value?.find((g) => g.id === id)?.name ?? '…'
 const { t, formatDate } = useI18n()
@@ -30,6 +30,8 @@ const groupIds = ref<string[] | undefined>([])
 const labelIds = ref<string[]>([])
 const dueDate = ref<string | null>(null)
 const createMore = ref(false)
+/** Tâche personnelle : visible de soi seul (d'office dans un tableau personnel). */
+const personal = ref(false)
 const saving = ref(false)
 const board = ref<Board | null>(null)
 const titleInput = ref<{ focus: () => void } | null>(null)
@@ -57,6 +59,7 @@ watch(createTaskOpen, (v) => {
   priority.value = 0
   assignees.value = []
   groupIds.value = []
+  personal.value = false
   labelIds.value = []
   dueDate.value = createTaskDefaults.value.dueDate ?? null
   columnId.value = createTaskDefaults.value.columnId ?? ''
@@ -77,7 +80,8 @@ async function submit() {
       description: description.value.trim() ? `<p>${description.value.trim().replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!).replace(/\n/g, '</p><p>')}</p>` : null,
       priority: priority.value,
       assignees: assignees.value,
-      groups: groupIds.value ?? [],
+      groups: personal.value ? [] : groupIds.value ?? [],
+      personal: personal.value,
       labels: labelIds.value,
       due_date: dueDate.value,
     })
@@ -145,6 +149,9 @@ async function onCreateLabel(name: string, color: string) {
         <TaskDatePicker v-model="dueDate">
           <button type="button" class="chip"><CalendarDays :size="14" /> {{ dueDate ? formatDate(dueDate) : t('task.dueDate') }}</button>
         </TaskDatePicker>
+        <button v-if="!board.private_to && !workspace.data.value?.personal" type="button" class="chip" :class="{ on: personal }" :title="t('personalItem.createHint')" :aria-pressed="personal" @click="personal = !personal">
+          <LockKeyhole :size="13" /> {{ t('personalItem.create') }}
+        </button>
       </div>
       <div v-else class="ct-props"><span class="skeleton" style="width: 320px; height: 24px" /></div>
     </form>
@@ -190,6 +197,7 @@ async function onCreateLabel(name: string, color: string) {
   transition: background var(--dur-fast), color var(--dur-fast);
 }
 .chip:hover { background: var(--bg-hover); color: var(--text); }
+.chip.on { background: var(--bg-active); color: var(--text); border-color: var(--border-strong); }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
 .stack { display: inline-flex; }
 .stack > * + * { margin-left: -4px; }

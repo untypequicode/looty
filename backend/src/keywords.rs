@@ -109,12 +109,12 @@ async fn access(state: &AppState, user: &AuthUser, kind: Kind, id: Uuid) -> ApiR
             Ok(crate::projects::project_for(state, user, id, crate::projects::Need::Write).await.is_ok())
         }
         Kind::Task => {
-            let ws = crate::access::task_ctx(pool, id).await?.workspace_id;
+            let ws = crate::access::task_ctx_for(pool, user, id).await?.workspace_id;
             by_domain(Some(ws), |p| p.boards).await
         }
-        Kind::Board => by_domain(Some(crate::access::board_workspace(pool, id).await?), |p| p.boards).await,
+        Kind::Board => by_domain(Some(crate::access::board_workspace_for(pool, user, id).await?), |p| p.boards).await,
         Kind::File => {
-            let ws = sqlx::query_scalar("SELECT workspace_id FROM drive_files WHERE id = $1").bind(id).fetch_optional(pool).await?;
+            let ws = sqlx::query_scalar("SELECT workspace_id FROM drive_files WHERE id = $1 AND (private_to IS NULL OR private_to = $2)").bind(id).bind(user.id).fetch_optional(pool).await?;
             by_domain(ws, |p| p.docs).await
         }
         Kind::Event => {
@@ -177,17 +177,18 @@ async fn list_workspace(State(state): State<AppState>, user: AuthUser, Path(ws):
     crate::access::require_member(&state.pool, &user, ws).await?;
     let rows: Vec<KeywordUse> = sqlx::query_as(
         "WITH k AS (
-            SELECT unnest(keywords) AS k FROM pages WHERE workspace_id = $1
-            UNION ALL SELECT unnest(t.keywords) FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id WHERE b.workspace_id = $1
-            UNION ALL SELECT unnest(keywords) FROM boards WHERE workspace_id = $1
-            UNION ALL SELECT unnest(keywords) FROM projects WHERE workspace_id = $1
-            UNION ALL SELECT unnest(keywords) FROM drive_files WHERE workspace_id = $1
+            SELECT unnest(keywords) AS k FROM pages WHERE workspace_id = $1 AND (private_to IS NULL OR private_to = $2)
+            UNION ALL SELECT unnest(t.keywords) FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id WHERE b.workspace_id = $1 AND (t.private_to IS NULL OR t.private_to = $2)
+            UNION ALL SELECT unnest(keywords) FROM boards WHERE workspace_id = $1 AND (private_to IS NULL OR private_to = $2)
+            UNION ALL SELECT unnest(keywords) FROM projects WHERE workspace_id = $1 AND (private_to IS NULL OR private_to = $2)
+            UNION ALL SELECT unnest(keywords) FROM drive_files WHERE workspace_id = $1 AND (private_to IS NULL OR private_to = $2)
             UNION ALL SELECT unnest(keywords) FROM workspace_events WHERE workspace_id = $1
          ), f AS (SELECT looty_fold(k) AS f, k, count(*) AS n FROM k GROUP BY 1, 2)
          SELECT DISTINCT ON (f) k AS keyword, sum(n) OVER (PARTITION BY f)::bigint AS count
          FROM f ORDER BY f, n DESC, k",
     )
     .bind(ws)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     let mut rows = rows;

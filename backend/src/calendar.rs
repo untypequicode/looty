@@ -817,7 +817,20 @@ async fn events(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     }
     // Calendrier de l'espace masqué par le rôle : seulement les calendriers personnels.
     let shared = if perms.calendar >= crate::access::level::READ {
-        crate::events::occurrences(&state.pool, ws, q.from, q.to, perms.calendar >= crate::access::level::EDIT).await?
+        // Sans le calendrier d'un tableau personnel d'autrui.
+        let hidden: Vec<String> = sqlx::query_scalar(
+            "SELECT lc.id::text FROM looty_calendars lc JOIN boards b ON b.id = lc.board_id
+              WHERE lc.workspace_id = $1 AND b.private_to IS NOT NULL AND b.private_to <> $2",
+        )
+        .bind(ws)
+        .bind(user.id)
+        .fetch_all(&state.pool)
+        .await?;
+        crate::events::occurrences(&state.pool, ws, q.from, q.to, perms.calendar >= crate::access::level::EDIT)
+            .await?
+            .into_iter()
+            .filter(|o| !o["calendar_id"].as_str().is_some_and(|c| hidden.iter().any(|h| h == c)))
+            .collect()
     } else {
         Vec::new()
     };

@@ -98,6 +98,7 @@ async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          LEFT JOIN users u ON u.id = a.user_id
          WHERE b.workspace_id = $1 AND a.created_at < $2 AND ($3::uuid IS NULL OR a.user_id = $3) AND $5
+           AND (t.private_to IS NULL OR t.private_to = $6)
          ORDER BY a.created_at DESC LIMIT $4",
     )
     .bind(ws)
@@ -105,6 +106,7 @@ async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     .bind(q.user)
     .bind(limit)
     .bind(see_boards)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
 
@@ -115,6 +117,7 @@ async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          LEFT JOIN users u ON u.id::text = cm.user_id::text
          WHERE b.workspace_id = $1 AND cm.created_at < $2 AND ($3::text IS NULL OR cm.user_id::text = $3) AND $5
+           AND (t.private_to IS NULL OR t.private_to = $6)
          ORDER BY cm.created_at DESC LIMIT $4",
     )
     .bind(ws)
@@ -122,6 +125,7 @@ async fn feed(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     .bind(&who)
     .bind(limit)
     .bind(see_boards)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
 

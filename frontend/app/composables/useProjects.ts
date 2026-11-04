@@ -18,6 +18,8 @@ export interface ProjectSummary {
   page_icon: string | null
   /** Début du fichier principal (aperçu). */
   snippet: string | null
+  /** Élément personnel (visible de son auteur seulement). */
+  personal?: boolean
 }
 export interface Project {
   id: string
@@ -185,6 +187,8 @@ export interface DriveItem {
   uploaded_by_name: string | null
   shared: boolean
   children: number
+  /** Élément personnel (visible de son auteur seulement). */
+  personal?: boolean
 }
 export interface DriveListing {
   folder: string

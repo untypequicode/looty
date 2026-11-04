@@ -19,6 +19,10 @@ use crate::state::AppState;
 pub struct Page {
     pub id: Uuid,
     pub workspace_id: Uuid,
+    /// Élément personnel : seule cette personne voit la page (GLOSSARY).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub private_to: Option<Uuid>,
     pub parent_id: Option<Uuid>,
     pub icon: Option<String>,
     pub title: String,
@@ -69,7 +73,7 @@ pub struct Page {
 }
 
 /// Version allégée pour les listes / l'arbre (sans le contenu HTML).
-const PAGE_LIST_COLUMNS: &str = "p.id, p.workspace_id, p.parent_id, p.icon, p.title, NULL::text AS content,
+const PAGE_LIST_COLUMNS: &str = "p.id, p.workspace_id, p.private_to, p.parent_id, p.icon, p.title, NULL::text AS content,
     p.created_by, p.updated_by, p.position, p.created_at, p.updated_at, p.share_token, p.is_public,
     p.project_id, (SELECT kind FROM projects pr WHERE pr.id = p.project_id) AS project_kind, p.default_view, p.canvas_count,
     EXISTS(SELECT 1 FROM page_permissions pp WHERE pp.page_id = p.id) AS has_permissions";
@@ -95,6 +99,10 @@ pub struct CreatePage {
     pub project: Option<NewProject>,
     /// « canvas » : la page s'ouvre sur son canevas.
     pub default_view: Option<String>,
+    /// Page personnelle (GLOSSARY) : visible de son autrice seulement. Toute personne qui lit
+    /// les documents peut en créer, même sous une page partagée qu'elle ne peut que lire.
+    #[serde(default)]
+    pub personal: bool,
 }
 
 #[derive(Deserialize)]
@@ -241,7 +249,20 @@ async fn create_page(
         .await?
         .is_some_and(|(_, p)| p.docs >= crate::access::level::EDIT);
     let mut via_share = false;
+    let member_reads = crate::access::member_perms(pool, user.id, workspace_id).await?.is_some_and(|(_, p)| p.docs >= crate::access::level::READ);
+    // Sous sa propre page personnelle : la nouvelle page l'est aussi, quel que soit le rôle.
+    let under_own: bool = match payload.parent_id {
+        Some(p) => sqlx::query_scalar::<_, Option<Uuid>>("SELECT private_to FROM pages WHERE id = $1").bind(p).fetch_optional(pool).await?.flatten() == Some(user.id),
+        None => false,
+    };
     match payload.parent_id {
+        Some(parent) if (payload.personal || under_own) && member_reads => {
+            let (ws, _, _) = crate::access::require_page_read(pool, &user, parent).await?;
+            if ws != workspace_id {
+                return Err(ApiError::NotFound);
+            }
+        }
+        None if payload.personal && member_reads => {}
         Some(parent) if role_edit => {
             let (ws, _) = require_page_write(pool, &user, parent).await?;
             if ws != workspace_id {
@@ -299,6 +320,15 @@ async fn create_page(
     .bind(default_view)
     .fetch_one(pool)
     .await?;
+    // Personnelle si demandé, ou sous une page personnelle.
+    let parent_owner: Option<Uuid> = match payload.parent_id {
+        Some(p) => sqlx::query_scalar("SELECT private_to FROM pages WHERE id = $1").bind(p).fetch_one(pool).await?,
+        None => None,
+    };
+    if let Some(owner) = parent_owner.or(payload.personal.then_some(user.id)) {
+        sqlx::query("UPDATE pages_all SET private_to = $2 WHERE id = $1").bind(page.id).bind(owner).execute(pool).await?;
+        page.private_to = Some(owner);
+    }
 
     if via_share {
         // La nouvelle page reste accessible à son auteur, même si le partage parent ne couvre
@@ -317,6 +347,7 @@ async fn create_page(
         let name = if page.title.trim().is_empty() { "Sans titre".to_string() } else { page.title.clone() };
         let project = crate::projects::insert_project(&state, workspace_id, user.id, &np.kind, &name, np.template.as_deref()).await?;
         sqlx::query("UPDATE pages SET project_id = $2 WHERE id = $1").bind(page.id).bind(project.id).execute(pool).await?;
+        sqlx::query("UPDATE projects SET private_to = $2 WHERE id = $1").bind(project.id).bind(page.private_to).execute(pool).await?;
         page.project_id = Some(project.id);
         page.project_kind = Some(project.kind);
     }
@@ -404,6 +435,28 @@ async fn update_page(
     .bind(payload.default_view.as_deref().map(check_view).transpose()?)
     .fetch_one(pool)
     .await?;
+    // Rangée sous une page personnelle : elle et ses sous-pages le deviennent aussi.
+    let mut page = page;
+    if let Some(Some(parent)) = payload.parent_id {
+        let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages WHERE id = $1").bind(parent).fetch_one(pool).await?;
+        if owner.is_some() && page.private_to != owner {
+            let ids: Vec<Uuid> = sqlx::query_scalar(
+                "WITH RECURSIVE sub AS (SELECT id, 0 AS depth FROM pages_all WHERE id = $1
+                    UNION ALL SELECT p.id, sub.depth + 1 FROM pages_all p JOIN sub ON p.parent_id = sub.id WHERE sub.depth < 64)
+                 UPDATE pages_all SET private_to = $2 WHERE id IN (SELECT id FROM sub) RETURNING id",
+            )
+            .bind(page_id)
+            .bind(owner)
+            .fetch_all(pool)
+            .await?;
+            sqlx::query("DELETE FROM page_permissions WHERE page_id = ANY($1)").bind(&ids).execute(pool).await?;
+            for p in &ids {
+                state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": p, "except": owner })).await;
+            }
+            state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
+            page.private_to = owner;
+        }
+    }
     if let Some((old_title, old_parent, old_content)) = before {
         if old_title != page.title {
             crate::activity::log_page(pool, page_id, workspace_id, user.id, "rename").await;
@@ -476,6 +529,27 @@ async fn move_to_workspace(
         }
     }
 
+    move_tree(pool, workspace_id, page_id, &ids, target, payload.parent_id, user.id).await?;
+
+    crate::activity::log_page(pool, page_id, target, user.id, "move").await;
+    for id in live.iter().rev() {
+        state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": id })).await;
+    }
+    // Documents ouverts ailleurs : le serveur de collaboration revérifie les droits.
+    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
+    let moved: Vec<Page> = sqlx::query_as("SELECT * FROM pages WHERE id = ANY($1)").bind(&live).fetch_all(pool).await?;
+    for mut p in moved {
+        p.content = None;
+        state.emit(target, serde_json::json!({ "type": "PAGE_CREATED", "page": p })).await;
+    }
+    Ok(Json(serde_json::json!({ "workspace_id": target, "page_id": page_id, "moved": live.len() })))
+}
+
+/// Déplace une page (et `ids`, elle et ses sous-pages) vers un autre espace, sous `parent`
+/// (ou à la racine) : projet, commentaires et historique suivent ; partages individuels et
+/// liens vers l'ancien espace retirés.
+pub(crate) async fn move_tree(pool: &PgPool, workspace_id: Uuid, page_id: Uuid, ids: &[Uuid], target: Uuid, parent: Option<Uuid>, actor: Uuid) -> ApiResult<()> {
+    let ids = ids.to_vec();
     let mut tx = pool.begin().await?;
     sqlx::query(
         "UPDATE pages_all SET parent_id = $2, updated_by = $4, updated_at = NOW(),
@@ -483,9 +557,9 @@ async fn move_to_workspace(
          WHERE id = $1",
     )
     .bind(page_id)
-    .bind(payload.parent_id)
+    .bind(parent)
     .bind(target)
-    .bind(user.id)
+    .bind(actor)
     .execute(&mut *tx)
     .await?;
     sqlx::query("UPDATE pages_all SET workspace_id = $2 WHERE id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
@@ -503,19 +577,7 @@ async fn move_to_workspace(
     sqlx::query("UPDATE item_links SET workspace_id = $2 WHERE source_id = ANY($1) AND target_id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
     sqlx::query("DELETE FROM item_links WHERE workspace_id = $2 AND (source_id = ANY($1) OR target_id = ANY($1))").bind(&ids).bind(workspace_id).execute(&mut *tx).await?;
     tx.commit().await?;
-
-    crate::activity::log_page(pool, page_id, target, user.id, "move").await;
-    for id in live.iter().rev() {
-        state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": id })).await;
-    }
-    // Documents ouverts ailleurs : le serveur de collaboration revérifie les droits.
-    state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
-    let moved: Vec<Page> = sqlx::query_as("SELECT * FROM pages WHERE id = ANY($1)").bind(&live).fetch_all(pool).await?;
-    for mut p in moved {
-        p.content = None;
-        state.emit(target, serde_json::json!({ "type": "PAGE_CREATED", "page": p })).await;
-    }
-    Ok(Json(serde_json::json!({ "workspace_id": target, "page_id": page_id, "moved": live.len() })))
+    Ok(())
 }
 
 async fn delete_page(

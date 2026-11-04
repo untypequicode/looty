@@ -263,6 +263,11 @@ async fn delete_workspace(
         return Err(ApiError::Forbidden);
     }
     forbid_personal(&state.pool, workspace_id).await?;
+    // Chacun garde ses éléments personnels, dans son espace perso.
+    let members: Vec<String> = sqlx::query_scalar("SELECT user_id FROM workspace_members WHERE workspace_id = $1").bind(workspace_id).fetch_all(&state.pool).await?;
+    for m in members.iter().filter_map(|m| Uuid::parse_str(m).ok()) {
+        crate::personal::evacuate(&state, workspace_id, m).await?;
+    }
     state.emit(workspace_id, serde_json::json!({ "type": "WORKSPACE_DELETED", "workspace_id": workspace_id })).await;
     sqlx::query("DELETE FROM workspaces WHERE id = $1").bind(workspace_id).execute(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -427,6 +432,7 @@ async fn remove_member(
     if target_role == Role::Owner && owner_count(pool, workspace_id).await? <= 1 {
         return Err(ApiError::Conflict("last_owner".into()));
     }
+    crate::personal::evacuate(&state, workspace_id, member_id).await?;
     sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(workspace_id)
         .bind(member_id.to_string())
@@ -449,6 +455,7 @@ async fn leave_workspace(
     if role == Role::Owner && owner_count(&state.pool, workspace_id).await? <= 1 {
         return Err(ApiError::Conflict("last_owner".into()));
     }
+    crate::personal::evacuate(&state, workspace_id, user.id).await?;
     sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
         .bind(workspace_id)
         .bind(user.id.to_string())
@@ -690,7 +697,7 @@ async fn get_my_tasks(
             FROM tasks t
             JOIN board_columns c ON c.id = t.column_id
             JOIN boards b ON b.id = c.board_id
-            WHERE b.workspace_id = $2 AND (t.is_completed = false
+            WHERE b.workspace_id = $2 AND (t.private_to IS NULL OR t.private_to::text = $1) AND (t.is_completed = false
                 -- Validation collective terminée par les autres : reste à faire pour qui n'y participe pas.
                 OR (COALESCE(t.is_per_person, FALSE)
                     AND NOT COALESCE((SELECT m.group_tasks FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = $1), TRUE)
@@ -796,12 +803,14 @@ async fn search_workspace(
                     NULL::uuid AS parent_id, NULL::timestamptz AS date, NULL::text AS folder, looty_keyword(keywords, $2) AS keyword
              FROM boards
              WHERE workspace_id = $1 AND ((NOT $3 AND looty_fold(name) LIKE $2) OR looty_keyword(keywords, $2) IS NOT NULL)
+               AND (private_to IS NULL OR private_to = $4)
              ORDER BY (NOT $3 AND looty_fold(name) LIKE $2) DESC, name
              LIMIT 10",
         )
         .bind(workspace_id)
         .bind(&pattern)
         .bind(kw_only)
+        .bind(user.id)
         .fetch_all(&pool)
         .await?;
         results.extend(boards);
@@ -813,12 +822,14 @@ async fn search_workspace(
              FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
              WHERE b.workspace_id = $1 AND ((NOT $3 AND (looty_fold(t.title) LIKE $2 OR looty_fold(t.description) LIKE $2))
                                             OR looty_keyword(t.keywords, $2) IS NOT NULL)
+               AND (t.private_to IS NULL OR t.private_to = $4)
              ORDER BY (NOT $3 AND looty_fold(t.title) LIKE $2) DESC, (looty_keyword(t.keywords, $2) IS NOT NULL) DESC, t.updated_at DESC
              LIMIT 20",
         )
         .bind(workspace_id)
         .bind(&pattern)
         .bind(kw_only)
+        .bind(user.id)
         .fetch_all(&pool)
         .await?;
         results.extend(tasks);
@@ -832,12 +843,14 @@ async fn search_workspace(
          FROM projects p LEFT JOIN pages_all pg ON pg.project_id = p.id
          WHERE p.workspace_id = $1 AND pg.deleted_at IS NULL
            AND ((NOT $3 AND looty_fold(p.name) LIKE $2) OR looty_keyword(p.keywords, $2) IS NOT NULL)
+           AND (p.private_to IS NULL OR p.private_to = $4)
          ORDER BY (NOT $3 AND looty_fold(p.name) LIKE $2) DESC, p.updated_at DESC
          LIMIT 20",
     )
     .bind(workspace_id)
     .bind(&pattern)
     .bind(kw_only)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
     let read_docs = level_of(|p| p.docs) >= crate::access::level::READ;
@@ -903,13 +916,14 @@ async fn search_workspace(
                     looty_keyword(keywords, $2) AS keyword
              FROM drive_files
              WHERE workspace_id = $1 AND ((NOT $3 AND looty_fold(name) LIKE $2) OR looty_keyword(keywords, $2) IS NOT NULL)
-               AND (expires_at IS NULL OR expires_at > NOW())
+               AND (expires_at IS NULL OR expires_at > NOW()) AND (private_to IS NULL OR private_to = $4)
              ORDER BY (NOT $3 AND looty_fold(name) LIKE $2) DESC, is_dir DESC, created_at DESC
              LIMIT 10",
         )
         .bind(workspace_id)
         .bind(&pattern)
         .bind(kw_only)
+        .bind(user.id)
         .fetch_all(&pool)
         .await?;
         results.extend(files);
@@ -970,11 +984,12 @@ async fn get_overview(
             max(t.updated_at) AS updated_at
          FROM boards b
          LEFT JOIN board_columns c ON c.board_id = b.id
-         LEFT JOIN tasks t ON t.column_id = c.id
-         WHERE b.workspace_id = $1
+         LEFT JOIN tasks t ON t.column_id = c.id AND (t.private_to IS NULL OR t.private_to = $2)
+         WHERE b.workspace_id = $1 AND (b.private_to IS NULL OR b.private_to = $2)
          GROUP BY b.id ORDER BY max(t.updated_at) DESC NULLS LAST, b.created_at",
     )
     .bind(workspace_id)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
 
@@ -1007,9 +1022,11 @@ async fn get_overview(
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
          LEFT JOIN users u ON u.id = a.user_id
          WHERE b.workspace_id = $1 AND a.activity_type IN ('create', 'move_column', 'toggle_validation', 'add_assignee', 'update_title')
+           AND (t.private_to IS NULL OR t.private_to = $2)
          ORDER BY a.created_at DESC LIMIT 25",
     )
     .bind(workspace_id)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
 

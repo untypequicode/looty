@@ -152,6 +152,11 @@ pub(crate) async fn project_for(state: &AppState, user: &AuthUser, id: Uuid, nee
         }
         return Ok((p, perms));
     }
+    // Projet personnel (GLOSSARY) : à son propriétaire seulement.
+    let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM projects WHERE id = $1").bind(id).fetch_one(&state.pool).await?;
+    if owner.is_some_and(|o| o != user.id) {
+        return Err(ApiError::NotFound);
+    }
     let perms = require_ws(state, user, p.workspace_id, need).await?;
     Ok((p, perms))
 }
@@ -215,6 +220,8 @@ struct ProjectSummary {
     /// Page qui porte le projet (dans les documents).
     page_id: Option<Uuid>,
     page_icon: Option<String>,
+    /// Élément personnel (visible de son auteur seulement).
+    personal: bool,
     /// Début du fichier principal (aperçu sur la carte).
     snippet: Option<String>,
 }
@@ -236,14 +243,16 @@ async fn list_projects(State(state): State<AppState>, user: AuthUser, Path(ws): 
     let rows: Vec<ProjectSummary> = sqlx::query_as(
         "SELECT p.id, p.kind, p.name, p.slug, p.published, GREATEST(p.updated_at, COALESCE(MAX(f.updated_at), p.updated_at)) AS updated_at, p.last_build_ok,
                 count(f.id) FILTER (WHERE NOT f.is_dir) AS files, u.name AS created_by_name, pg.id AS page_id, pg.icon AS page_icon,
+                (p.private_to IS NOT NULL) AS personal,
                 (SELECT left(m.content, 400) FROM project_files m WHERE m.project_id = p.id AND m.content IS NOT NULL
                    AND m.path = COALESCE(p.settings->>'main', p.settings->>'entry', 'index.html') LIMIT 1) AS snippet
          FROM projects p LEFT JOIN project_files f ON f.project_id = p.id LEFT JOIN users u ON u.id = p.created_by
          LEFT JOIN pages_all pg ON pg.project_id = p.id
-         WHERE p.workspace_id = $1 AND pg.deleted_at IS NULL
+         WHERE p.workspace_id = $1 AND pg.deleted_at IS NULL AND (p.private_to IS NULL OR p.private_to = $2)
          GROUP BY p.id, u.name, pg.id, pg.icon ORDER BY 6 DESC",
     )
     .bind(ws)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     // Projets des pages : selon l'accès à la page ; les autres : droit de lecture des documents.
@@ -278,6 +287,9 @@ struct CreateProject {
     name: String,
     /// Modèle de départ (site : blank|starter ; latex : article|report|beamer|letter|blank ; notebook : starter|data|blank).
     template: Option<String>,
+    /// Projet personnel (visible de son auteur seulement).
+    #[serde(default)]
+    personal: bool,
 }
 
 /// Notebook Jupyter (nbformat 4.5) : cellules (type, source) sans sortie.
@@ -371,7 +383,11 @@ fn template_files(kind: &str, template: &str, name: &str) -> Vec<(&'static str, 
 
 async fn create_project(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<CreateProject>) -> ApiResult<Json<Project>> {
     require_ws(&state, &user, ws, Need::Write).await?;
-    Ok(Json(insert_project(&state, ws, user.id, &p.kind, &p.name, p.template.as_deref()).await?))
+    let project = insert_project(&state, ws, user.id, &p.kind, &p.name, p.template.as_deref()).await?;
+    if p.personal {
+        sqlx::query("UPDATE projects SET private_to = $2 WHERE id = $1").bind(project.id).bind(user.id).execute(&state.pool).await?;
+    }
+    Ok(Json(project))
 }
 
 /// Nouveau projet à partir d'un modèle (droits vérifiés par l'appelant).

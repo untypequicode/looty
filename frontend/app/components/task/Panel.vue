@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isDesktop, openInDesktop } from '~/composables/useDesktop'
-import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow } from 'lucide-vue-next'
+import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow, LockKeyhole } from 'lucide-vue-next'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
 import { CalendarSync, CalendarRange, ExternalLink, Repeat } from 'lucide-vue-next'
@@ -19,6 +19,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { motion } from '~/composables/useMotion'
 import { toast } from '~/composables/useToast'
 import { useGroups } from '~/composables/useGroups'
+import { usePersonal } from '~/composables/usePersonalItems'
 
 const props = defineProps<{ board: Board; taskId: string; order: string[]; canWrite: boolean; canValidate?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'navigate', id: string): void }>()
@@ -185,6 +186,15 @@ async function moveToBoard(dest: { id: string; name: string }) {
 }
 
 const menuOpen = ref(false)
+const { setPersonal } = usePersonal()
+// Partagée ↔ personnelle : l'autrice la rend personnelle, la propriétaire la repartage
+// (sauf dans un tableau ou sous une tâche personnels).
+const personalItems = computed<MenuItem[]>(() => {
+  const tk = task.value
+  if (!tk || !props.canWrite || props.board.private_to || parent.value?.private_to) return []
+  if (tk.private_to) return tk.private_to === user.value?.id ? [{ divider: true }, { label: t('personalItem.makeShared'), icon: Users, onSelect: () => setPersonal('task', tk.id, false) }] : []
+  return [{ divider: true }, { label: t('personalItem.makePersonal'), icon: LockKeyhole, onSelect: () => setPersonal('task', tk.id, true, tk.title) }]
+})
 const menu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, shortcut: ['mod', '.'], onSelect: copyLink },
   { label: t('task.copyId'), icon: Copy, onSelect: () => { navigator.clipboard.writeText(props.taskId); toast.success(t('common.copied')) } },
@@ -192,6 +202,7 @@ const menu = computed<MenuItem[]>(() => [
   ...(props.canWrite && task.value && otherBoards.value.length
     ? [{ divider: true }, { heading: t('task.moveToBoard') }, ...otherBoards.value.map((b) => ({ label: b.name, icon: Kanban, onSelect: () => moveToBoard(b) }))]
     : []),
+  ...personalItems.value,
   ...(props.canWrite && task.value ? [{ divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: async () => { if (await actions.deleteTask(task.value!)) close() } }] : []),
 ])
 

@@ -80,7 +80,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
   }
 
   // ---- Tâches ----
-  async function createTask(columnId: string, data: Omit<Partial<Task>, 'labels' | 'assignees'> & { title: string; labels?: string[]; assignees?: string[]; groups?: string[]; at_top?: boolean }) {
+  async function createTask(columnId: string, data: Omit<Partial<Task>, 'labels' | 'assignees'> & { title: string; labels?: string[]; assignees?: string[]; groups?: string[]; personal?: boolean; at_top?: boolean }) {
     const t = await api<Task>(`/api/boards/columns/${columnId}/tasks`, {
       method: 'POST',
       body: {
@@ -92,6 +92,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
         labels: data.labels ?? [],
         assignees: data.assignees ?? [],
         groups: data.groups ?? [],
+        personal: data.personal ?? false,
         at_top: data.at_top ?? false,
       },
     })

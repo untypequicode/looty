@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::access::{
-    board_workspace, column_ctx, is_member, label_ctx, require_member, task_ctx, AuthUser,
+    is_member, require_member, task_ctx, AuthUser,
 };
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -28,6 +28,9 @@ pub struct Board {
     pub automations: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Tableau personnel : seule cette personne le voit, ses tâches comprises (GLOSSARY).
+    #[sqlx(default)]
+    pub private_to: Option<Uuid>,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -41,7 +44,7 @@ pub struct BoardColumn {
 }
 
 pub const TASK_COLUMNS: &str = "id, column_id, parent_id, title, description, position, previous_column_id, \
-    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start, repeat";
+    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start, repeat, private_to";
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Task {
@@ -69,6 +72,9 @@ pub struct Task {
     /// la tâche crée sa prochaine occurrence.
     #[sqlx(default)]
     pub repeat: Option<String>,
+    /// Élément personnel : seule cette personne voit la tâche (GLOSSARY).
+    #[sqlx(default)]
+    pub private_to: Option<Uuid>,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -364,7 +370,7 @@ async fn spawn_next_occurrence(state: &AppState, task_id: Uuid, actor: Uuid) -> 
         .bind(next_id)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("UPDATE tasks SET keywords = (SELECT keywords FROM tasks WHERE id = $1) WHERE id = $2")
+    sqlx::query("UPDATE tasks SET keywords = o.keywords, private_to = o.private_to FROM tasks o WHERE o.id = $1 AND tasks.id = $2")
         .bind(task_id)
         .bind(next_id)
         .execute(&mut *tx)
@@ -463,10 +469,11 @@ async fn list_boards(
     }
     Ok(Json(
         sqlx::query_as(
-            "SELECT id, workspace_id, name, automations, created_at, updated_at FROM boards
-             WHERE workspace_id = $1 ORDER BY created_at ASC",
+            "SELECT id, workspace_id, name, automations, created_at, updated_at, private_to FROM boards
+             WHERE workspace_id = $1 AND (private_to IS NULL OR private_to = $2) ORDER BY created_at ASC",
         )
         .bind(workspace_id)
+        .bind(user.id)
         .fetch_all(&pool)
         .await?,
     ))
@@ -477,6 +484,9 @@ pub struct CreateBoardReq {
     pub name: String,
     /// Crée les colonnes par défaut (À faire / En cours / Terminé).
     pub with_default_columns: Option<bool>,
+    /// Tableau personnel (visible de son auteur seulement).
+    #[serde(default)]
+    pub personal: bool,
 }
 
 async fn create_board(
@@ -489,11 +499,13 @@ async fn create_board(
     let name = check_name(&req.name, 120)?;
     let mut tx = state.pool.begin().await?;
     let mut board: Board = sqlx::query_as(
-        "INSERT INTO boards (workspace_id, name) VALUES ($1, $2)
-         RETURNING id, workspace_id, name, automations, created_at, updated_at",
+        "INSERT INTO boards (workspace_id, name, created_by, private_to) VALUES ($1, $2, $3, $4)
+         RETURNING id, workspace_id, name, automations, created_at, updated_at, private_to",
     )
     .bind(workspace_id)
     .bind(name)
+    .bind(user.id)
+    .bind(req.personal.then_some(user.id))
     .fetch_one(&mut *tx)
     .await?;
     if req.with_default_columns.unwrap_or(true) {
@@ -535,13 +547,16 @@ async fn get_board(
     Path(board_id): Path<Uuid>,
 ) -> ApiResult<Json<BoardFull>> {
     let board: Board = sqlx::query_as(
-        "SELECT id, workspace_id, name, automations, created_at, updated_at FROM boards WHERE id = $1",
+        "SELECT id, workspace_id, name, automations, created_at, updated_at, private_to FROM boards WHERE id = $1",
     )
     .bind(board_id)
     .fetch_optional(&pool)
     .await?
     .ok_or(ApiError::NotFound)?;
     crate::access::require_perm(&pool, &user, board.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
+    if board.private_to.is_some_and(|o| o != user.id) {
+        return Err(ApiError::NotFound);
+    }
 
     let columns: Vec<BoardColumn> = sqlx::query_as(
         "SELECT id, board_id, name, position, created_at, updated_at FROM board_columns
@@ -557,10 +572,12 @@ async fn get_board(
             .await?;
     let tasks: Vec<Task> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {} FROM tasks t WHERE t.column_id IN (SELECT id FROM board_columns WHERE board_id = $1)
+           AND (t.private_to IS NULL OR t.private_to = $2)
          ORDER BY t.position ASC",
         TASK_COLUMNS.split(", ").map(|c| format!("t.{c}")).collect::<Vec<_>>().join(", ")
     )))
     .bind(board_id)
+    .bind(user.id)
     .fetch_all(&pool)
     .await?;
 
@@ -653,7 +670,7 @@ async fn update_board(
     Path(board_id): Path<Uuid>,
     Json(req): Json<UpdateBoardReq>,
 ) -> ApiResult<Json<Board>> {
-    let ws = board_workspace(&state.pool, board_id).await?;
+    let ws = crate::access::board_workspace_for(&state.pool, &user, board_id).await?;
     crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = req.name.as_deref().map(|n| check_name(n, 120)).transpose()?;
     if let Some(a) = &req.automations {
@@ -679,7 +696,7 @@ async fn delete_board(
     user: AuthUser,
     Path(board_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let ws = board_workspace(&state.pool, board_id).await?;
+    let ws = crate::access::board_workspace_for(&state.pool, &user, board_id).await?;
     // Supprimer un tableau entier est réservé aux admins du workspace.
     crate::access::require_ws_admin(&state.pool, &user, ws).await?;
     sqlx::query("DELETE FROM boards WHERE id = $1").bind(board_id).execute(&state.pool).await?;
@@ -702,7 +719,7 @@ async fn create_column(
     Path(board_id): Path<Uuid>,
     Json(req): Json<ColumnNameReq>,
 ) -> ApiResult<Json<BoardColumn>> {
-    let ws = board_workspace(&state.pool, board_id).await?;
+    let ws = crate::access::board_workspace_for(&state.pool, &user, board_id).await?;
     crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = check_name(&req.name, 80)?;
     let col: BoardColumn = sqlx::query_as(
@@ -724,7 +741,7 @@ async fn update_column(
     Path(column_id): Path<Uuid>,
     Json(req): Json<ColumnNameReq>,
 ) -> ApiResult<Json<BoardColumn>> {
-    let ctx = column_ctx(&state.pool, column_id).await?;
+    let ctx = crate::access::column_ctx_for(&state.pool, &user, column_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     let name = check_name(&req.name, 80)?;
     let col: BoardColumn = sqlx::query_as(
@@ -744,7 +761,7 @@ async fn delete_column(
     user: AuthUser,
     Path(column_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let ctx = column_ctx(&state.pool, column_id).await?;
+    let ctx = crate::access::column_ctx_for(&state.pool, &user, column_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     sqlx::query("DELETE FROM board_columns WHERE id = $1").bind(column_id).execute(&state.pool).await?;
     state
@@ -767,7 +784,7 @@ async fn move_column(
     Path(column_id): Path<Uuid>,
     Json(req): Json<MoveColumnReq>,
 ) -> ApiResult<Json<BoardColumn>> {
-    let ctx = column_ctx(&state.pool, column_id).await?;
+    let ctx = crate::access::column_ctx_for(&state.pool, &user, column_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::MANAGE).await?;
     if !req.position.is_finite() {
         return Err(ApiError::bad_request("invalid_position"));
@@ -800,7 +817,7 @@ async fn create_label(
     Path(board_id): Path<Uuid>,
     Json(req): Json<LabelReq>,
 ) -> ApiResult<Json<Label>> {
-    let ws = board_workspace(&state.pool, board_id).await?;
+    let ws = crate::access::board_workspace_for(&state.pool, &user, board_id).await?;
     crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let label: Label = sqlx::query_as(
         "INSERT INTO labels (board_id, name, color) VALUES ($1, $2, $3) RETURNING id, board_id, name, color, created_at",
@@ -820,7 +837,7 @@ async fn update_label(
     Path(label_id): Path<Uuid>,
     Json(req): Json<LabelReq>,
 ) -> ApiResult<Json<Label>> {
-    let (ws, _) = label_ctx(&state.pool, label_id).await?;
+    let (ws, _) = crate::access::label_ctx_for(&state.pool, &user, label_id).await?;
     crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     let label: Label = sqlx::query_as(
         "UPDATE labels SET name = $1, color = $2 WHERE id = $3 RETURNING id, board_id, name, color, created_at",
@@ -839,7 +856,7 @@ async fn delete_label(
     user: AuthUser,
     Path(label_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let (ws, board_id) = label_ctx(&state.pool, label_id).await?;
+    let (ws, board_id) = crate::access::label_ctx_for(&state.pool, &user, label_id).await?;
     crate::access::require_perm(&state.pool, &user, ws, |p| p.boards >= crate::access::level::MANAGE).await?;
     sqlx::query("DELETE FROM labels WHERE id = $1").bind(label_id).execute(&state.pool).await?;
     state
@@ -864,6 +881,9 @@ pub struct CreateTaskReq {
     pub assignees: Option<Vec<String>>,
     /// Groupes à relier : leurs membres sont assignés et la tâche suit le groupe.
     pub groups: Option<Vec<Uuid>>,
+    /// Tâche personnelle (visible de son auteur seulement) ; d'office dans un tableau personnel.
+    #[serde(default)]
+    pub personal: bool,
     pub priority: Option<i32>,
     pub is_per_person: Option<bool>,
     pub require_all_validations: Option<bool>,
@@ -878,7 +898,7 @@ async fn get_task(
     user: AuthUser,
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let ctx = task_ctx(&pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&pool, &user, task_id).await?;
     crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     let t = load_task_enriched(&pool, task_id).await?;
     Ok(Json(serde_json::json!({ "task": t, "board_id": ctx.board_id, "workspace_id": ctx.workspace_id })))
@@ -891,7 +911,7 @@ async fn create_task(
     Json(req): Json<CreateTaskReq>,
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
-    let ctx = column_ctx(pool, column_id).await?;
+    let ctx = crate::access::column_ctx_for(pool, &user, column_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     // Rejeu d'une création faite hors ligne : la tâche existe déjà ?
     if let Some(id) = req.id {
@@ -945,8 +965,12 @@ async fn create_task(
         .execute(&mut *tx)
         .await?;
     }
+    // Tâche personnelle (demandée, ou dans un tableau personnel) : seul son propriétaire y est assigné.
+    let board_owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM boards WHERE id = $1").bind(ctx.board_id).fetch_one(&mut *tx).await?;
+    let owner = board_owner.or(req.personal.then_some(user.id));
+    sqlx::query("UPDATE tasks SET private_to = $2 WHERE id = $1").bind(task_id).bind(owner).execute(&mut *tx).await?;
     let mut assigned = Vec::new();
-    for uid in req.assignees.iter().flatten() {
+    for uid in req.assignees.iter().flatten().filter(|u| owner.is_none_or(|o| o.to_string() == **u)) {
         let n = sqlx::query(
             "INSERT INTO task_assignees (task_id, user_id)
              SELECT $1, $2 WHERE EXISTS(SELECT 1 FROM workspace_members WHERE workspace_id = $3 AND user_id = $2)
@@ -981,7 +1005,7 @@ async fn create_task(
         }
     }
 
-    if let Some(groups) = &req.groups {
+    if let Some(groups) = req.groups.as_ref().filter(|_| owner.is_none()) {
         crate::group_links::link_new_task(&state, ctx.workspace_id, task_id, groups, user.id).await?;
     }
     let t = load_task_enriched(pool, task_id).await?;
@@ -1018,7 +1042,7 @@ async fn update_task(
     Json(req): Json<UpdateTaskReq>,
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let old = fetch_task(pool, task_id).await?;
 
@@ -1112,7 +1136,7 @@ async fn delete_task(
     user: AuthUser,
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     crate::trash::trash_task(&state, task_id, Some(user.id)).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -1136,9 +1160,9 @@ async fn move_task(
     Json(req): Json<MoveTaskReq>,
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
-    let dest = column_ctx(pool, req.column_id).await?;
+    let dest = crate::access::column_ctx_for(pool, &user, req.column_id).await?;
     if dest.workspace_id != ctx.workspace_id {
         return Err(ApiError::bad_request("invalid_column"));
     }
@@ -1156,6 +1180,15 @@ async fn move_task(
     .bind(req.column_id)
     .bind(req.position)
     .bind(task_id)
+    .execute(pool)
+    .await?;
+    // Vers un tableau personnel : la tâche et ses sous-tâches le deviennent aussi.
+    sqlx::query(
+        "WITH RECURSIVE sub AS (SELECT id FROM tasks WHERE id = $1 UNION ALL SELECT t.id FROM tasks t JOIN sub ON t.parent_id = sub.id)
+         UPDATE tasks SET private_to = b.private_to FROM boards b WHERE b.id = $2 AND b.private_to IS NOT NULL AND tasks.id IN (SELECT id FROM sub)",
+    )
+    .bind(task_id)
+    .bind(dest.board_id)
     .execute(pool)
     .await?;
 
@@ -1251,9 +1284,9 @@ async fn add_task_label(
     user: AuthUser,
     Path((task_id, label_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
-    let (_, label_board) = label_ctx(&state.pool, label_id).await?;
+    let (_, label_board) = crate::access::label_ctx_for(&state.pool, &user, label_id).await?;
     if label_board != ctx.board_id {
         return Err(ApiError::bad_request("label_not_in_board"));
     }
@@ -1272,7 +1305,7 @@ async fn remove_task_label(
     user: AuthUser,
     Path((task_id, label_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     sqlx::query("DELETE FROM task_labels WHERE task_id = $1 AND label_id = $2")
         .bind(task_id)
@@ -1289,11 +1322,16 @@ async fn add_task_assignee(
     user: AuthUser,
     Path((task_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let target = target_user_id.to_string();
     if !is_member(&state.pool, ctx.workspace_id, &target).await? {
         return Err(ApiError::bad_request("not_a_member"));
+    }
+    // Tâche personnelle : personne d'autre que son propriétaire.
+    let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM tasks WHERE id = $1").bind(task_id).fetch_one(&state.pool).await?;
+    if owner.is_some_and(|o| o != target_user_id) {
+        return Err(ApiError::bad_request("personal_item"));
     }
     // Assignation individuelle : elle tient même si la personne quitte un groupe relié.
     sqlx::query("UPDATE task_assignees SET via_group = FALSE WHERE task_id = $1 AND user_id = $2").bind(task_id).bind(&target).execute(&state.pool).await?;
@@ -1327,7 +1365,7 @@ async fn remove_task_assignee(
     user: AuthUser,
     Path((task_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let target = target_user_id.to_string();
     sqlx::query("DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2")
@@ -1352,12 +1390,13 @@ async fn create_subtask(
     Json(req): Json<CreateSubtaskReq>,
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, parent_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, parent_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let title = check_name(&req.title, 255)?;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO tasks (column_id, parent_id, title, position, priority)
-         VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position), 0) + 65536 FROM tasks WHERE parent_id = $2), 0)
+        "INSERT INTO tasks (column_id, parent_id, title, position, priority, private_to)
+         VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position), 0) + 65536 FROM tasks WHERE parent_id = $2), 0,
+                 (SELECT private_to FROM tasks WHERE id = $2))
          RETURNING id",
     )
     .bind(ctx.column_id)
@@ -1376,7 +1415,7 @@ async fn toggle_task_validation(
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::VALIDATE).await?;
     let mut task = fetch_task(pool, task_id).await?;
     let was_completed = task.is_completed;
@@ -1460,7 +1499,7 @@ async fn get_task_attachments(
     user: AuthUser,
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<TaskAttachment>>> {
-    let ctx = task_ctx(&pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&pool, &user, task_id).await?;
     crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     Ok(Json(
         sqlx::query_as(
@@ -1480,7 +1519,7 @@ async fn upload_attachment(
     mut multipart: Multipart,
 ) -> ApiResult<Json<TaskAttachment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
@@ -1515,7 +1554,7 @@ async fn delete_attachment(
     user: AuthUser,
     Path((task_id, attachment_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let path: String = sqlx::query_scalar("DELETE FROM task_attachments WHERE id = $1 AND task_id = $2 RETURNING file_path")
         .bind(attachment_id)
@@ -1535,7 +1574,7 @@ async fn get_task_activities(
     user: AuthUser,
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<TaskActivity>>> {
-    let ctx = task_ctx(&pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&pool, &user, task_id).await?;
     crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     Ok(Json(
         sqlx::query_as(
@@ -1554,7 +1593,7 @@ async fn restore_task_activity(
     Path((task_id, activity_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<TaskWithEnrichment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::EDIT).await?;
     let activity: TaskActivity = sqlx::query_as(
         "SELECT id, task_id, user_id, activity_type, old_value, new_value, created_at
@@ -1664,7 +1703,7 @@ async fn get_task_comments(
     user: AuthUser,
     Path(task_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<TaskComment>>> {
-    let ctx = task_ctx(&pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&pool, &user, task_id).await?;
     crate::access::require_perm(&pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::READ).await?;
     Ok(Json(
         sqlx::query_as(
@@ -1684,7 +1723,7 @@ async fn add_task_comment(
     Json(payload): Json<CommentBody>,
 ) -> ApiResult<Json<TaskComment>> {
     let pool = &state.pool;
-    let ctx = task_ctx(pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
     // Les lecteurs peuvent commenter (comme dans Linear), mais doivent être membres.
     crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::COMMENT).await?;
     let content = comment_content(&payload.content)?;
@@ -1715,6 +1754,9 @@ async fn add_task_comment(
     let data = serde_json::json!({ "title": title, "board_id": ctx.board_id, "comment_id": comment.id });
     // Membres et groupes mentionnés (chaque membre du groupe, une seule fois).
     let mentioned = crate::groups::mentioned_people(pool, ctx.workspace_id, &extract_mentions(&content)).await?;
+    // Tâche personnelle : personne d'autre que son propriétaire n'est prévenu.
+    let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM tasks WHERE id = $1").bind(task_id).fetch_one(pool).await?;
+    let mentioned: Vec<Uuid> = mentioned.into_iter().filter(|m| owner.is_none_or(|o| o == *m)).collect();
     for m in &mentioned {
         crate::notifications::notify(pool, &state.hub, ctx.workspace_id, *m, Some(user.id), "mention", &target, data.clone()).await;
     }
@@ -1740,7 +1782,7 @@ async fn edit_task_comment(
     Path((task_id, comment_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<CommentBody>,
 ) -> ApiResult<Json<TaskComment>> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     crate::access::require_perm(&state.pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::COMMENT).await?;
     let content = comment_content(&payload.content)?;
     // Seul l'auteur peut modifier son commentaire.
@@ -1766,7 +1808,7 @@ async fn delete_task_comment(
     user: AuthUser,
     Path((task_id, comment_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let ctx = task_ctx(&state.pool, task_id).await?;
+    let ctx = crate::access::task_ctx_for(&state.pool, &user, task_id).await?;
     let role = require_member(&state.pool, &user, ctx.workspace_id).await?;
     // L'auteur ou un admin du workspace.
     let n = sqlx::query("DELETE FROM task_comments WHERE id = $1 AND task_id = $2 AND (user_id = $3 OR $4)")
@@ -1824,7 +1866,11 @@ async fn require_board_editor(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) 
 /// (droits vérifiés ici), puis applique l'état « terminé » éventuel.
 pub async fn dav_create_task(state: &AppState, user_id: Uuid, board_id: Uuid, f: &crate::ical::TodoFields) -> ApiResult<Uuid> {
     let pool = &state.pool;
-    let workspace_id: Uuid = sqlx::query_scalar("SELECT workspace_id FROM boards WHERE id = $1").bind(board_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
+    let (workspace_id, owner): (Uuid, Option<Uuid>) =
+        sqlx::query_as("SELECT workspace_id, private_to FROM boards WHERE id = $1").bind(board_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
+    if owner.is_some_and(|o| o != user_id) {
+        return Err(ApiError::NotFound);
+    }
     require_board_editor(pool, user_id, workspace_id).await?;
     let column_id: Uuid = sqlx::query_scalar("SELECT id FROM board_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1")
         .bind(board_id).fetch_optional(pool).await?.ok_or_else(|| ApiError::bad_request("board_has_no_column"))?;

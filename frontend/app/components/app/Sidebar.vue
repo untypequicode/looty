@@ -2,11 +2,12 @@
 import {
   NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
-  GraduationCap, FolderCode, HardDrive, Eye, PenTool, Megaphone,
+  GraduationCap, FolderCode, HardDrive, Eye, PenTool, Megaphone, LockKeyhole, UsersRound,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { usePersonalSpace } from '~/composables/usePersonal'
+import { usePersonal } from '~/composables/usePersonalItems'
 import { draggingPage, useMovePage } from '~/composables/useMovePage'
 import { api } from '~/composables/api'
 import { useQueryClient } from '@tanstack/vue-query'
@@ -27,7 +28,8 @@ import { useAuth } from '~/composables/useAuth'
 import { toast } from '~/composables/useToast'
 import { translate as t } from '~/composables/useI18n'
 
-const { wsId, boards, pages, members, guests, canWriteRole, isGuest, role } = useWorkspace()
+const { wsId, boards, pages, members, guests, canWriteRole, isGuest, role, workspace } = useWorkspace()
+const isPersonalSpace = computed(() => !!workspace.data.value?.personal)
 const { can } = useAccess(wsId)
 // Documents : le rôle les montre, ou des pages sont partagées individuellement (invités, rôles sans documents).
 const seesSomeDocs = computed(() => can.value.seeDocs || isGuest.value || (pages.data.value?.length ?? 0) > 0)
@@ -90,13 +92,19 @@ async function commitRenameBoard() {
 }
 
 const tabsApi = useTabs(wsId)
-function boardMenu(b: { id: string; name: string }): MenuItem[] {
+const { setPersonal } = usePersonal()
+function boardMenu(b: { id: string; name: string; private_to?: string | null }): MenuItem[] {
+  // Partagé ↔ personnel : l'auteur le rend personnel, le propriétaire le repartage.
+  const personalItem: MenuItem[] = isPersonalSpace.value ? [] : b.private_to
+    ? [{ label: t('personalItem.makeShared'), icon: UsersRound, onSelect: () => setPersonal('board', b.id, false) }]
+    : canManageBoards.value ? [{ label: t('personalItem.makePersonal'), icon: LockKeyhole, onSelect: () => setPersonal('board', b.id, true, b.name) }] : []
   return [
     ...(tabsEnabled.value ? [{ label: t('tabs.openInNew'), icon: SquareArrowOutUpRight, onSelect: () => tabsApi.open(links.board(wsId.value, b.id)) }] : []),
     { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + links.board(wsId.value, b.id)); toast.success(t('common.linkCopied')) } },
     ...(canManageBoards.value
       ? [
           { label: t('common.rename'), icon: Pencil, onSelect: () => startRenameBoard(b.id, b.name) },
+          ...personalItem,
           { divider: true },
           { label: t('common.delete'), icon: Trash2, danger: true, onSelect: () => deleteBoard(b) },
         ]
@@ -259,7 +267,7 @@ async function onRootDrop(e: DragEvent) {
             <AppSidebarItem
               v-else
               :to="links.board(wsId, b.id)"
-              :icon="Kanban"
+              :icon="b.private_to ? LockKeyhole : Kanban"
               :label="b.name"
               @dblclick.prevent="canManageBoards && startRenameBoard(b.id, b.name)"
               @contextmenu.prevent="boardMenuOpen[b.id] = true"

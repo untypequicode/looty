@@ -59,6 +59,8 @@ export interface BoardSummary {
   id: string
   workspace_id: string
   name: string
+  /** Élément personnel : seule cette personne le voit (GLOSSARY). */
+  private_to?: string | null
   automations?: BoardAutomation
   created_at?: string
   updated_at?: string
@@ -100,6 +102,8 @@ export interface Task {
   validations: string[]
   /** Groupes reliés : la tâche suit leurs membres. */
   groups?: string[]
+  /** Élément personnel : seule cette personne la voit (GLOSSARY). */
+  private_to?: string | null
   previous_column_id?: string | null
   /** Répétition : terminée, la tâche crée sa prochaine occurrence. */
   repeat?: TaskRepeat | null
@@ -112,6 +116,8 @@ export type TaskRepeat = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
 export interface Page {
   id: string
   workspace_id: string
+  /** Élément personnel : seule cette personne la voit (GLOSSARY). */
+  private_to?: string | null
   parent_id?: string | null
   icon?: string | null
   title: string
