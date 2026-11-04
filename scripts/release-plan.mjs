@@ -34,15 +34,17 @@ if (errors.length) {
 const force = (process.argv.includes('--force') ? process.argv[process.argv.indexOf('--force') + 1] ?? '' : '').split(',').filter(Boolean)
 const tags = new Set(execSync('git tag -l', { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean))
 const out = []
+const planned = []
 for (const platform of Object.keys(builds)) {
   const r = latest(platform)
   const tag = r ? `${platform}-v${r.version}` : ''
   const todo = r && (force.includes(platform) || !tags.has(tag))
   out.push(`${platform}=${todo ? r.version : ''}`)
+  planned.push(Boolean(todo))
   // Dernière version (publiée ou non) : apps jointes à la release principale.
   out.push(`latest_${platform}=${r ? r.version : ''}`)
   console.error(`${platform}: ${r ? r.version : '—'} ${todo ? '→ release ' + tag : '(already released)'}`)
 }
 // Seules les plateformes à publier comptent (les lignes latest_* sont toujours remplies).
-out.push(`any=${Object.keys(builds).some((p) => !out.includes(`${p}=`)) ? 'true' : 'false'}`)
+out.push(`any=${planned.some(Boolean) ? 'true' : 'false'}`)
 console.log(out.join('\n'))

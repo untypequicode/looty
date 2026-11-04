@@ -4,6 +4,48 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.27.0",
+      "date": "2026-11-04",
+      "title": {
+        "en": "Keywords, personal items and group links",
+        "fr": "Mots-clés, éléments personnels et liens avec les groupes"
+      },
+      "notes": {
+        "en": [
+          "**Keywords**: add keywords to documents, projects, tasks and other items, then find them from search.",
+          "**Personal items**: personal documents, boards and other items stay in your personal space while opening in the workspace you are using.",
+          "**Group links**: connect tasks and events with groups, and target announcements to specific people or groups."
+        ],
+        "fr": [
+          "**Mots-clés** : ajoutez des mots-clés aux documents, projets, tâches et autres éléments, puis retrouvez-les dans la recherche.",
+          "**Éléments personnels** : les documents, tableaux et autres éléments personnels restent dans votre espace perso tout en s’ouvrant dans l’espace que vous utilisez.",
+          "**Liens avec les groupes** : reliez tâches et événements aux groupes, et ciblez les annonces sur des personnes ou des groupes précis."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.24.0",
+      "date": "2026-11-04",
+      "title": {
+        "en": "Announcements, polls and recurring tasks",
+        "fr": "Annonces, sondages et tâches récurrentes"
+      },
+      "notes": {
+        "en": [
+          "**Announcements and polls**: read workspace announcements and participate in their polls from Android.",
+          "**Recurring tasks**: create and manage tasks that repeat on a schedule.",
+          "**Keywords and personal items**: use keywords and access your personal items from the mobile app."
+        ],
+        "fr": [
+          "**Annonces et sondages** : consultez les annonces de l’espace et participez à leurs sondages depuis Android.",
+          "**Tâches récurrentes** : créez et gérez des tâches qui se répètent selon une périodicité.",
+          "**Mots-clés et éléments personnels** : utilisez les mots-clés et accédez à vos éléments personnels depuis l’application mobile."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.26.0",
       "date": "2026-11-02",
       "title": {
