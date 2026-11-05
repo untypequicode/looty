@@ -1,0 +1,77 @@
+# Instance de démonstration publique de Looty (GLOSSARY : Démo) : une pile à part, à côté de votre vraie instance.
+#
+#   curl -LO https://raw.githubusercontent.com/untypequicode/looty/main/docker-compose.demo.yml
+#   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.demo.example
+#   docker compose -f docker-compose.demo.yml up -d
+#
+# À lancer dans son propre dossier (ex. /srv/looty-demo) : la pile s'appelle « looty-demo », ses conteneurs, son réseau
+# et ses volumes (demo_postgres, demo_uploads) ne se mélangent donc pas à ceux de votre instance. Rien n'y est
+# conservé : pas de connexion, pas de comptes réels, chaque visiteur a sa copie jetable (supprimée après 24 h).
+# Aucun fournisseur OIDC, aucun SMTP : la démo n'en a pas besoin.
+name: looty-demo
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: looty_demo
+      POSTGRES_USER: looty
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-demo}
+    volumes:
+      - demo_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U looty -d looty_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/untypequicode/looty-backend:${LOOTY_VERSION:-latest}
+    environment:
+      DATABASE_URL: postgres://looty:${DB_PASSWORD:-demo}@postgres:5432/looty_demo
+      PORT: 8080
+      BASE_URL: https://${DEMO_DOMAIN:-demo.looty.untypequicode.fr}
+      LOOTY_DEMO: "true"
+      LOOTY_DEMO_MAX_COPIES: ${LOOTY_DEMO_MAX_COPIES:-30}
+      LOOTY_DEMO_COPIES_PER_IP_HOUR: ${LOOTY_DEMO_COPIES_PER_IP_HOUR:-5}
+      LOOTY_DEMO_MAX_FILE_MB: ${LOOTY_DEMO_MAX_FILE_MB:-2}
+      LOOTY_DEMO_MAX_COPY_MB: ${LOOTY_DEMO_MAX_COPY_MB:-20}
+    volumes:
+      - demo_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.looty-demo-api.rule=Host(`${DEMO_DOMAIN:-demo.looty.untypequicode.fr}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/pages`) || PathPrefix(`/dav`) || Path(`/.well-known/caldav`))"
+      - "traefik.http.services.looty-demo-api.loadbalancer.server.port=8080"
+    restart: unless-stopped
+
+  collaboration:
+    image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
+    environment:
+      DATABASE_URL: postgres://looty:${DB_PASSWORD:-demo}@postgres:5432/looty_demo
+      BACKEND_URL: http://backend:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.looty-demo-collab.rule=Host(`${DEMO_DOMAIN:-demo.looty.untypequicode.fr}`) && PathPrefix(`/collab`)"
+      - "traefik.http.middlewares.looty-demo-collab-strip.stripprefix.prefixes=/collab"
+      - "traefik.http.routers.looty-demo-collab.middlewares=looty-demo-collab-strip"
+      - "traefik.http.services.looty-demo-collab.loadbalancer.server.port=8082"
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.looty-demo-web.rule=Host(`${DEMO_DOMAIN:-demo.looty.untypequicode.fr}`)"
+      - "traefik.http.services.looty-demo-web.loadbalancer.server.port=3000"
+    restart: unless-stopped
+
+volumes:
+  demo_postgres:
+  demo_uploads:
