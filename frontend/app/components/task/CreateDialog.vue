@@ -89,13 +89,15 @@ async function loadBoard(id: string | null) {
 
 watch(createTaskOpen, (v) => {
   if (!v) return
-  title.value = createTaskDefaults.value.title ?? ''
-  description.value = textToHtml(createTaskDefaults.value.description ?? '')
-  priority.value = 0
-  assignees.value = []
+  const d = createTaskDefaults.value
+  if (d.full) full.value = true
+  title.value = d.title ?? ''
+  description.value = textToHtml(d.description ?? '')
+  priority.value = d.priority ?? 0
+  assignees.value = [...(d.assignees ?? [])]
   groupIds.value = []
   personal.value = false
-  labelIds.value = []
+  labelIds.value = [...(d.labels ?? [])]
   startDate.value = null
   dueDate.value = createTaskDefaults.value.dueDate ?? null
   repeat.value = null
@@ -133,6 +135,7 @@ async function submit() {
       event_start: linkedEvent.value?.starts_at ?? null,
       is_per_person: perPerson.value,
       require_all_validations: requireAll.value,
+      at_top: !!createTaskDefaults.value.atTop,
     })
     toast.success(t('task.created'), { action: { label: t('common.open'), run: () => navigateTo(links.task(wsId.value, boardId.value!, task.id)) } })
     if (createMore.value) {

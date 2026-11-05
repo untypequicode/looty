@@ -26,6 +26,8 @@ const emit = defineEmits<{
   (e: 'move', taskId: string, columnId: string, position: number): void
   (e: 'move-column', columnId: string, position: number): void
   (e: 'create', columnId: string, title: string, atTop: boolean): void
+  /** Formulaire complet de création dans cette colonne, avec le titre déjà saisi. */
+  (e: 'expand', columnId: string, title: string, atTop: boolean): void
   (e: 'create-column', name: string): void
   (e: 'rename-column', id: string, name: string): void
   (e: 'delete-column', col: Column): void
@@ -181,6 +183,7 @@ const sortableOpts = computed(() => ({
             start-open
             :placeholder="$t('task.titlePlaceholder')"
             @create="(title) => emit('create', col.id, title, true)"
+            @expand="(title) => emit('expand', col.id, title, true)"
             @close="topAdd[col.id] = false"
           />
           <VueDraggable
@@ -206,7 +209,7 @@ const sortableOpts = computed(() => ({
               @menu="(task, ev) => emit('menu', task, ev)"
             />
           </VueDraggable>
-          <BoardQuickAdd v-if="canWrite" :placeholder="$t('task.titlePlaceholder')" @create="(title) => emit('create', col.id, title, false)" />
+          <BoardQuickAdd v-if="canWrite" :placeholder="$t('task.titlePlaceholder')" @create="(title) => emit('create', col.id, title, false)" @expand="(title) => emit('expand', col.id, title, false)" />
         </div>
       </section>
 

@@ -88,15 +88,20 @@ async function onToggle(tk: Task, ev?: MouseEvent) {
   if (ev?.currentTarget) motion.pulse(ev.currentTarget as Element)
   await actions.toggleDone(tk.id, user.value?.id)
 }
-async function onCreate(columnId: string, title: string, atTop: boolean) {
-  // Les filtres actifs pré-remplissent la nouvelle tâche (comme Linear)
-  await actions.createTask(columnId, {
-    title,
-    at_top: atTop,
+/** Les filtres actifs pré-remplissent la nouvelle tâche (comme Linear). */
+function filterDefaults() {
+  return {
     assignees: filters.assignees.value.filter((a) => a !== 'none'),
     labels: filters.labels.value,
     priority: (filters.priorities.value.length === 1 ? Number(filters.priorities.value[0]) : 0) as Priority,
-  })
+  }
+}
+async function onCreate(columnId: string, title: string, atTop: boolean) {
+  await actions.createTask(columnId, { title, at_top: atTop, ...filterDefaults() })
+}
+/** Ajout rapide d'une colonne → formulaire complet, colonne et titre repris. */
+function onExpand(columnId: string, title: string, atTop: boolean) {
+  openCreateTask({ boardId: boardId.value, columnId, title, atTop, full: true, ...filterDefaults() })
 }
 async function onSetDone(columnId: string) {
   const cur = board.value?.automations ?? {}
@@ -299,6 +304,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
           @move="(id, col, pos) => actions.moveTask(id, col, pos)"
           @move-column="(id, pos) => actions.moveColumn(id, pos)"
           @create="onCreate"
+          @expand="onExpand"
           @create-column="(name) => actions.createColumn(name)"
           @rename-column="(id, name) => actions.renameColumn(id, name)"
           @delete-column="(c) => actions.deleteColumn(c)"
@@ -315,6 +321,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
           @toggle="onToggle"
           @menu="openMenu"
           @create="onCreate"
+          @expand="onExpand"
         />
         <BoardCalendarView v-else-if="view === 'calendar'" :board="visible!" :full-board="board" @open="openTask" />
         <BoardTimeline v-else :board="visible!" :full-board="board" :can-write="canWrite" @open="openTask" @reschedule="onReschedule" />

@@ -9,6 +9,7 @@ import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { useBoardQuery, useBoardActions } from '~/composables/useBoard'
 import { promptDialog } from '~/composables/useConfirm'
+import { useUi } from '~/composables/useUi'
 import { useQueryClient } from '@tanstack/vue-query'
 
 /**
@@ -24,6 +25,7 @@ const { user } = useAuth()
 const { wsId, boards } = useWorkspace()
 const { allows } = useAccess(wsId)
 const qc = useQueryClient()
+const { openCreateTask } = useUi()
 const boardId = computed(() => (props.node.attrs.boardId as string) || null)
 const { data: board, isError } = useBoardQuery(boardId)
 const actions = useBoardActions(boardId)
@@ -54,6 +56,9 @@ function set(attrs: Record<string, unknown>) {
 const open = (task: Task) => navigateTo(links.task(wsId.value, boardId.value!, task.id))
 function onCreate(columnId: string, title: string, atTop: boolean) {
   actions.createTask(columnId, { title, at_top: atTop, assignees: filter.value === 'mine' && user.value ? [user.value.id] : [] })
+}
+function onExpand(columnId: string, title: string, atTop: boolean) {
+  openCreateTask({ boardId: boardId.value!, columnId, title, atTop, full: true, assignees: filter.value === 'mine' && user.value ? [user.value.id] : [] })
 }
 async function newBoard() {
   const name = await promptDialog({ title: t('blocks.newBoard'), placeholder: t('blocks.boardName'), confirmLabel: t('common.create') })
@@ -97,8 +102,9 @@ async function newBoard() {
             @toggle="(tk) => actions.toggleDone(tk.id, user?.id)"
             @move="(id, col, pos) => actions.moveTask(id, col, pos)"
             @create="onCreate"
+            @expand="onExpand"
           />
-          <BoardListView v-else :board="visible" :full-board="board!" :can-write="canWrite" :can-validate="canWrite" @open="open" @toggle="(tk) => actions.toggleDone(tk.id, user?.id)" @create="onCreate" />
+          <BoardListView v-else :board="visible" :full-board="board!" :can-write="canWrite" :can-validate="canWrite" @open="open" @toggle="(tk) => actions.toggleDone(tk.id, user?.id)" @create="onCreate" @expand="onExpand" />
         </div>
       </template>
       <div v-else class="bb-loading"><UiSpinner /></div>

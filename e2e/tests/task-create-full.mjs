@@ -67,5 +67,32 @@ ok('validation par personne enregistrée', created?.is_per_person === true && cr
 await open()
 ok('formulaire complet mémorisé', await dialog.locator('.ct-side').isVisible())
 await p.keyboard.press('Escape')
+await p.waitForTimeout(300)
+
+// Depuis l'ajout rapide d'une colonne : le formulaire complet s'ouvre dans cette colonne, titre repris,
+// même quand la préférence est la création rapide.
+await p.evaluate(() => localStorage.removeItem('looty.createTask.full'))
+const third = (await api(`/api/boards/${board.id}`)).columns[2]
+const colEl = p.locator(`section.col[data-column-id="${third.id}"]`)
+await colEl.locator('.qa-btn').click()
+await colEl.locator('.qa textarea').fill('Depuis la colonne')
+await colEl.locator('.qa-full').click()
+await p.waitForTimeout(600)
+ok('colonne : formulaire complet ouvert', await dialog.locator('.ct-side').isVisible())
+ok('colonne : titre repris', (await dialog.locator('.ct-title input').inputValue()) === 'Depuis la colonne')
+ok('colonne : statut de la colonne', (await dialog.locator('.ct-side .prop').first().innerText()).includes(third.name))
+await dialog.getByRole('button', { name: /^(Create task|Créer la tâche)/ }).click()
+await p.waitForTimeout(1000)
+const fromCol = (await api(`/api/boards/${board.id}`)).columns[2].tasks.find((t) => t.title === 'Depuis la colonne')
+ok('colonne : tâche créée dans la colonne', !!fromCol)
+
+// Raccourci Ctrl+Entrée dans l'ajout rapide.
+await colEl.locator('.qa-btn').click()
+await colEl.locator('.qa textarea').fill('Raccourci')
+await p.keyboard.press('Control+Enter')
+await p.waitForTimeout(600)
+ok('colonne : Ctrl+Entrée ouvre le formulaire complet', await dialog.locator('.ct-side').isVisible() && (await dialog.locator('.ct-title input').inputValue()) === 'Raccourci')
+await p.keyboard.press('Escape')
+ok('colonne : aucune tâche créée par le raccourci', !(await tasks()).some((t) => t.title === 'Raccourci'))
 ok('aucune erreur page', !errors.length, errors.join(' | '))
 await browser.close()
