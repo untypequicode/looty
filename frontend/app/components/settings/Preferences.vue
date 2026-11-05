@@ -9,6 +9,7 @@ import { shareLocation } from '~/composables/useRealtime'
 import { tabsEnabled } from '~/composables/useTabs'
 import { useUserPrefs } from '~/composables/usePrefs'
 import { useAuth } from '~/composables/useAuth'
+import { isAndroidBrowser, androidBannerHidden } from '~/composables/useAppHandoff'
 
 const { prefs, update: updatePrefs } = useUserPrefs()
 const spellOn = computed({ get: () => prefs.value.spellcheck !== false, set: (v: boolean) => updatePrefs({ spellcheck: v }) })
@@ -17,6 +18,8 @@ const spellLang = computed({ get: () => prefs.value.spellLang ?? '', set: (v: st
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
 const { sidebarCollapsed } = useUi()
+// Bannière « Ouvrir dans l'app Looty » : choix de cet appareil (navigateur Android seulement).
+const androidBanner = computed({ get: () => !androidBannerHidden.value, set: (v: boolean) => { androidBannerHidden.value = !v } })
 
 async function persist(body: Record<string, string>) {
   await api('/api/user/preferences', { method: 'PUT', body })
@@ -72,6 +75,9 @@ const themes = computed(() => [
     </SettingsRow>
     <SettingsRow :label="t('presence.share')" :hint="t('presence.shareHint')">
       <UiSwitch v-model="shareLocation" />
+    </SettingsRow>
+    <SettingsRow v-if="isAndroidBrowser" :label="t('handoff.showBanner')" :hint="t('handoff.showBannerHint')">
+      <UiSwitch v-model="androidBanner" />
     </SettingsRow>
   </SettingsSection>
   <SettingsSection :title="t('spell.title')">

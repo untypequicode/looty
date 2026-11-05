@@ -6,6 +6,7 @@ import { useBoardQuery, useBoardActions, allTasks, positionBetween } from '~/com
 import { useBoardFilters } from '~/composables/useBoardFilters'
 import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
+import { useAndroidHandoff } from '~/composables/useAppHandoff'
 import { useBoards } from '~/composables/useBoards'
 import { useAuth } from '~/composables/useAuth'
 import { useUi } from '~/composables/useUi'
@@ -20,6 +21,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const { wsId, isAdmin, members } = useWorkspace()
+const { openInAppItems } = useAndroidHandoff()
 // Droits du rôle et mode d'édition personnel (tableaux).
 const { can } = useAccess(wsId)
 const canWrite = computed(() => can.value.editTasks)
@@ -75,6 +77,7 @@ const settingsOpen = ref(false)
 const boardMenuOpen = ref(false)
 const boardMenu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.href.split('?')[0]!); toast.success(t('common.linkCopied')) } },
+  ...openInAppItems(links.board(wsId.value, boardId.value)),
   { label: t('board.exportCsv'), icon: FileSpreadsheet, onSelect: () => { window.location.href = `/api/boards/${boardId.value}/export.csv?lang=${locale.value}` } },
   ...(canManage.value ? [
     { label: t('common.rename'), icon: Pencil, onSelect: startRename },
