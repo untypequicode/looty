@@ -13,11 +13,11 @@
       "notes": {
         "en": [
           "**Open in the Looty app**: in a browser on Android, a banner at the bottom of every workspace page opens the same page in the Android app, or the download page when the app is not installed. Nothing happens on its own: you tap **Open**.",
-          "Hide it with **✕**: the choice is kept on that device, and **Settings → Preferences** turns it back on. **Open in the Looty app** stays in the menu of documents, tasks, boards and projects."
+          "Hide it with **✕**: the choice is kept on that device, and **Settings → Preferences** turns it back on. **Open in the Looty app** stays in the workspace menu and in the menus of documents, tasks, boards, projects, Mail and Moodle."
         ],
         "fr": [
           "**Ouvrir dans l’app Looty** : dans un navigateur sur Android, une bannière en bas de chaque page de l’espace ouvre la même page dans l’app Android, ou la page de téléchargement si l’app n’est pas installée. Rien ne se fait tout seul : on touche **Ouvrir**.",
-          "Masquez-la avec **✕** : le choix est gardé sur cet appareil, et **Réglages → Préférences** la réaffiche. **Ouvrir dans l’app Looty** reste dans le menu des documents, des tâches, des tableaux et des projets."
+          "Masquez-la avec **✕** : le choix est gardé sur cet appareil, et **Réglages → Préférences** la réaffiche. **Ouvrir dans l’app Looty** reste dans le menu de l’espace et dans ceux des documents, des tâches, des tableaux, des projets, de Mail et de Moodle."
         ]
       }
     },
