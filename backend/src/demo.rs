@@ -211,6 +211,7 @@ async fn seed(state: &AppState, lang: Lang, copy: Option<Uuid>) -> Result<Value,
 /// Crée la copie d'un visiteur de la démo : comptes des cinq personnages et espace « Looty Démo », générés par
 /// l'API comme le modèle de `seed-demo`. Renvoie les identifiants des personnages, dans l'ordre de `CHARACTERS`.
 pub async fn create_copy(state: &AppState, lang: Lang, copy: Uuid) -> Result<Vec<Uuid>, String> {
+    tokio::fs::create_dir_all(crate::upload::UPLOAD_DIR).await.map_err(|e| e.to_string())?;
     let out = seed(state, lang, Some(copy)).await?;
     out["characters"].as_array().into_iter().flatten().map(id).collect()
 }

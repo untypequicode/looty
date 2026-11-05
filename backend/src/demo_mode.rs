@@ -54,6 +54,22 @@ pub async fn guard(
     if unavailable(req.method().as_str(), req.uri().path()) {
         return refuse(axum::http::StatusCode::FORBIDDEN, "demo_unavailable");
     }
+    // Copie du visiteur : une copie expirée n'est plus utilisable, même avant le passage du ménage.
+    let session = req.extensions().get::<Session>().cloned();
+    let copy: Option<Uuid> = match &session {
+        Some(s) => s.get(SESSION_COPY_KEY).await.ok().flatten(),
+        None => None,
+    };
+    if let Some(copy) = copy {
+        let alive: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM demo_copies WHERE id = $1 AND expires_at > now())")
+            .bind(copy)
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or(true);
+        if !alive && !req.uri().path().starts_with("/api/auth/demo/") {
+            return refuse(axum::http::StatusCode::UNAUTHORIZED, "unauthorized");
+        }
+    }
     // Envois : taille par fichier, puis budget de la copie du visiteur.
     let upload = req.headers().get(axum::http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("multipart/"));
     let length = req.headers().get(axum::http::header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<i64>().ok());
@@ -61,22 +77,37 @@ pub async fn guard(
     if length.is_some_and(|l| l > limits.max_file_bytes) || (upload && length.is_none()) {
         return refuse(axum::http::StatusCode::PAYLOAD_TOO_LARGE, "demo_file_too_large");
     }
-    if let (true, Some(length), Some(session)) = (upload, length, req.extensions().get::<Session>().cloned()) {
-        if let Ok(Some(copy)) = session.get::<Uuid>(SESSION_COPY_KEY).await {
-            let reserved = sqlx::query("UPDATE demo_copies SET bytes_used = bytes_used + $2 WHERE id = $1 AND bytes_used + $2 <= $3")
-                .bind(copy)
-                .bind(length)
-                .bind(limits.max_copy_bytes)
-                .execute(&state.pool)
-                .await
-                .map(|r| r.rows_affected())
-                .unwrap_or(0);
-            if reserved == 0 {
-                return refuse(axum::http::StatusCode::PAYLOAD_TOO_LARGE, "demo_quota_exceeded");
-            }
+    let mut reserved: Option<(Uuid, i64)> = None;
+    if let (true, Some(length), Some(copy)) = (upload, length, copy) {
+        let ok = sqlx::query("UPDATE demo_copies SET bytes_used = bytes_used + $2 WHERE id = $1 AND bytes_used + $2 <= $3")
+            .bind(copy)
+            .bind(length)
+            .bind(limits.max_copy_bytes)
+            .execute(&state.pool)
+            .await
+            .map(|r| r.rows_affected())
+            .unwrap_or(0);
+        if ok == 0 {
+            return refuse(axum::http::StatusCode::PAYLOAD_TOO_LARGE, "demo_quota_exceeded");
         }
+        reserved = Some((copy, length));
     }
-    next.run(req).await
+    // Les fichiers enregistrés pendant la requête portent l'identifiant de la copie (voir `upload::save_field`) :
+    // le ménage les retrouve même si rien ne les référence.
+    let res = match copy {
+        Some(copy) => DEMO_COPY.scope(copy, next.run(req)).await,
+        None => next.run(req).await,
+    };
+    // Un envoi refusé ne consomme pas le budget.
+    if let (Some((copy, length)), false) = (reserved, res.status().is_success()) {
+        let _ = sqlx::query("UPDATE demo_copies SET bytes_used = GREATEST(bytes_used - $2, 0) WHERE id = $1").bind(copy).bind(length).execute(&state.pool).await;
+    }
+    res
+}
+
+tokio::task_local! {
+    /// Copie de démo de la requête en cours.
+    pub static DEMO_COPY: Uuid;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +284,15 @@ async fn remove_copy(state: &AppState, copy: Uuid) -> Result<(), String> {
 
     for name in files.iter().filter(|n| crate::upload::is_safe_name(n)) {
         let _ = tokio::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(name)).await;
+    }
+    // Fichiers envoyés par les visiteurs de la copie, référencés ou non (`upload::save_field`).
+    if let Ok(mut dir) = tokio::fs::read_dir(crate::upload::UPLOAD_DIR).await {
+        let prefix = format!("{copy}_");
+        while let Ok(Some(entry)) = dir.next_entry().await {
+            if entry.file_name().to_string_lossy().starts_with(&prefix) {
+                let _ = tokio::fs::remove_file(entry.path()).await;
+            }
+        }
     }
     for w in &workspaces {
         let _ = tokio::fs::remove_dir_all(std::path::Path::new(crate::upload::UPLOAD_DIR).join("drive").join(w.to_string())).await;
@@ -527,8 +567,11 @@ mod copy_tests {
 
     impl Visitor {
         async fn upload(&mut self, bytes: usize) -> (u16, Value) {
+            self.upload_to("/api/upload", bytes).await
+        }
+        async fn upload_to(&mut self, path: &str, bytes: usize) -> (u16, Value) {
             let (ct, body) = multipart(bytes);
-            let req = Request::builder().method("POST").uri("/api/upload").header(header::CONTENT_TYPE, ct).header(header::CONTENT_LENGTH, body.len()).header(header::COOKIE, &self.cookie).body(Body::from(body)).unwrap();
+            let req = Request::builder().method("POST").uri(path).header(header::CONTENT_TYPE, ct).header(header::CONTENT_LENGTH, body.len()).header(header::COOKIE, &self.cookie).body(Body::from(body)).unwrap();
             let res = self.app.clone().oneshot(req).await.unwrap();
             let status = res.status().as_u16();
             let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -613,6 +656,49 @@ mod copy_tests {
         assert_eq!(b.enter("noah").await.0, 200);
         let (_, hits) = a.call("GET", "/api/users/search?q=maya", None).await;
         assert_eq!(hits.as_array().unwrap().len(), 1, "only visitor A's Maya: {hits}");
+    }
+
+    #[sqlx::test]
+    async fn an_expired_copy_can_no_longer_be_used_before_the_cleanup_runs(pool: sqlx::PgPool) {
+        let mut v = Visitor::new(&pool).await;
+        assert_eq!(v.enter("maya").await.0, 200);
+        assert_eq!(v.call("GET", "/api/workspaces", None).await.0, 200);
+        sqlx::query("UPDATE demo_copies SET expires_at = now() - interval '1 minute'").execute(&pool).await.unwrap();
+        assert_eq!(v.call("GET", "/api/workspaces", None).await.0, 401);
+    }
+
+    #[sqlx::test]
+    async fn a_failed_upload_does_not_use_up_the_copy_budget(pool: sqlx::PgPool) {
+        let mut v = Visitor::with(&pool, |l| {
+            l.max_file_bytes = 2_000;
+            l.max_copy_bytes = 3_000;
+        })
+        .await;
+        assert_eq!(v.enter("maya").await.0, 200);
+        for _ in 0..3 {
+            let (status, _) = v.upload_to("/api/projects/00000000-0000-0000-0000-000000000000/upload", 800).await;
+            assert_eq!(status, 404);
+        }
+        for _ in 0..3 {
+            assert_eq!(v.upload(800).await.0, 200);
+        }
+    }
+
+    #[sqlx::test]
+    async fn uploads_of_an_expired_copy_are_deleted_even_when_nothing_references_them(pool: sqlx::PgPool) {
+        let (mut a, mut b) = (Visitor::new(&pool).await, Visitor::new(&pool).await);
+        assert_eq!(a.enter("maya").await.0, 200);
+        assert_eq!(b.enter("maya").await.0, 200);
+        let (_, fa) = a.upload(500).await;
+        let (_, fb) = b.upload(500).await;
+        let path = |f: &Value| std::path::Path::new("uploads").join(f["url"].as_str().unwrap().trim_start_matches("/uploads/"));
+        assert!(path(&fa).exists() && path(&fb).exists());
+        sqlx::query("UPDATE demo_copies SET expires_at = now() - interval '1 minute' WHERE id = (SELECT demo_copy_id FROM users WHERE id = (SELECT id FROM users ORDER BY created_at LIMIT 1))").execute(&pool).await.unwrap();
+        let mut state = crate::state::AppState::new(pool.clone(), "http://localhost".into());
+        state.demo = true;
+        assert_eq!(purge_expired(&state).await.unwrap(), 1);
+        assert!(!path(&fa).exists(), "the expired copy's upload must go");
+        assert!(path(&fb).exists(), "the other copy keeps its upload");
     }
 }
 
