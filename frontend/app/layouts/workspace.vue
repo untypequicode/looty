@@ -374,7 +374,7 @@ function onEdgeStart(e: TouchEvent) {
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  height: 100dvh;
+  height: calc(100dvh - var(--demo-banner-h, 0px));
   overflow: hidden;
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }

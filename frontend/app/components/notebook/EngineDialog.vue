@@ -2,6 +2,7 @@
 import { Cpu, Server, PlugZap, Trash2, CircleCheck, CircleAlert } from 'lucide-vue-next'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
+import { useDemo } from '~/composables/useDemo'
 import { toast } from '~/composables/useToast'
 
 /**
@@ -17,6 +18,7 @@ const props = defineProps<{ projectId: string; engine: 'pyodide' | 'jupyter'; ke
 /** `kernel` : noyau choisi pour ce notebook (absent : celui du projet) ; `spec` : décrit le noyau utilisé. */
 const emit = defineEmits<{ (e: 'apply', engine: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec: KernelSpec }): void }>()
 const { t } = useI18n()
+const { isDemo, unavailableLabel } = useDemo()
 
 const choice = ref<'pyodide' | 'jupyter'>(props.engine)
 const config = ref<Config | null>(null)
@@ -121,7 +123,7 @@ function apply() {
 <template>
   <UiDialog v-model:open="open" :title="t('notebook.jupyter.title')" :description="t('notebook.jupyter.description')" :width="560">
     <div class="ed">
-      <UiSegmented v-model="choice" size="md" :options="[{ value: 'pyodide', label: t('notebook.jupyter.pyodide'), icon: Cpu }, { value: 'jupyter', label: t('notebook.jupyter.remote'), icon: Server }]" />
+      <UiSegmented v-model="choice" size="md" :options="[{ value: 'pyodide', label: t('notebook.jupyter.pyodide'), icon: Cpu }, { value: 'jupyter', label: isDemo ? `${t('notebook.jupyter.remote')} · ${unavailableLabel()}` : t('notebook.jupyter.remote'), icon: Server, disabled: isDemo, title: isDemo ? unavailableLabel() : undefined }]" />
       <p v-if="choice === 'pyodide'" class="ed-hint">{{ t('notebook.jupyter.pyodideHint') }}</p>
 
       <template v-else>

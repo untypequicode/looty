@@ -28,6 +28,12 @@ services:
       CALDAV_ALLOW_PRIVATE: ${CALDAV_ALLOW_PRIVATE:-false}
       # Autorise les serveurs Jupyter des notebooks sur le réseau local / http
       JUPYTER_ALLOW_PRIVATE: ${JUPYTER_ALLOW_PRIVATE:-false}
+      # Démo publique : voir .env.example (jamais sur une vraie instance).
+      LOOTY_DEMO: ${LOOTY_DEMO:-false}
+      LOOTY_DEMO_MAX_COPIES: ${LOOTY_DEMO_MAX_COPIES:-30}
+      LOOTY_DEMO_COPIES_PER_IP_HOUR: ${LOOTY_DEMO_COPIES_PER_IP_HOUR:-5}
+      LOOTY_DEMO_MAX_FILE_MB: ${LOOTY_DEMO_MAX_FILE_MB:-2}
+      LOOTY_DEMO_MAX_COPY_MB: ${LOOTY_DEMO_MAX_COPY_MB:-20}
       # E-mails : à configurer dans Administration > E-mail, ou ici (repli).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}

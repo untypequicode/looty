@@ -23,7 +23,14 @@ export default {
     invalid_url: 'URL invalide (https:// requis)', invalid_avatar_url: 'URL d’avatar invalide', empty_file: 'Fichier vide',
     no_file: 'Aucun fichier', not_restorable: 'Cette action ne peut pas être restaurée', invalid_issuer: 'URL d’émetteur invalide',
     missing_fields: 'Champs requis manquants', missing_secret: 'Secret client requis', invalid_umami_id: 'Identifiant Umami invalide',
-    internal_error: 'Erreur serveur',
+    internal_error: 'Erreur serveur', demo_unavailable: 'Indisponible dans la démo', demo_full: 'La démo est pleine pour le moment, réessayez dans quelques minutes',
+    demo_rate_limited: 'Trop de visites de la démo depuis votre réseau, réessayez plus tard', demo_file_too_large: 'Les fichiers de la démo sont limités à 2 Mo',
+    demo_quota_exceeded: 'Cette copie de la démo a atteint sa limite d’envoi (20 Mo)',
+  },
+  demo: {
+    unavailable: 'Indisponible dans la démo', banner: 'Démo : vos changements sont effacés au bout de 24 h.', host: 'Héberger Looty →',
+    enter: 'Entrer dans la démo', pick: 'Choisissez un personnage pour explorer Looty avec ses droits.', switch: 'Changer de personnage',
+    roles: { admin: 'Admin', member: 'Membre', viewer: 'Lecture seule' },
   },
   nav: {
     main: 'Navigation principale', home: 'Accueil', inbox: 'Boîte de réception', myTasks: 'Mes tâches', myTasksShort: 'Mes tâches',

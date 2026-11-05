@@ -635,7 +635,7 @@ fn status(code: StatusCode) -> Response {
 
 fn error_response(e: ApiError) -> Response {
     match e {
-        ApiError::Forbidden => status(StatusCode::FORBIDDEN),
+        ApiError::Forbidden | ApiError::DemoUnavailable => status(StatusCode::FORBIDDEN),
         ApiError::NotFound => status(StatusCode::NOT_FOUND),
         ApiError::Unauthorized => unauthorized(),
         ApiError::BadRequest(_) => status(StatusCode::BAD_REQUEST),

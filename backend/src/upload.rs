@@ -62,7 +62,11 @@ pub async fn save_field(field: Field<'_>) -> ApiResult<SavedFile> {
     if data.is_empty() {
         return Err(ApiError::bad_request("empty_file"));
     }
-    let name = format!("{}.{}", Uuid::new_v4(), ext);
+    // Démo : le nom commence par l'identifiant de la copie, pour que le ménage retrouve ses fichiers.
+    let name = match crate::demo_mode::DEMO_COPY.try_with(|c| *c) {
+        Ok(copy) => format!("{copy}_{}.{ext}", Uuid::new_v4()),
+        Err(_) => format!("{}.{}", Uuid::new_v4(), ext),
+    };
     let path = PathBuf::from(UPLOAD_DIR).join(&name);
     let mut f = tokio::fs::File::create(&path).await.map_err(|e| ApiError::Internal(e.to_string()))?;
     f.write_all(&data).await.map_err(|e| ApiError::Internal(e.to_string()))?;

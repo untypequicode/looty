@@ -9,6 +9,8 @@ use axum::{
 pub enum ApiError {
     Unauthorized,
     Forbidden,
+    /// Fonction indisponible dans la démo (GLOSSARY : *Démo*).
+    DemoUnavailable,
     NotFound,
     BadRequest(String),
     Conflict(String),
@@ -28,6 +30,7 @@ impl IntoResponse for ApiError {
         let (status, msg) = match self {
             ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
             ApiError::Forbidden => (StatusCode::FORBIDDEN, "forbidden".to_string()),
+            ApiError::DemoUnavailable => (StatusCode::FORBIDDEN, "demo_unavailable".to_string()),
             ApiError::NotFound => (StatusCode::NOT_FOUND, "not_found".to_string()),
             ApiError::BadRequest(m) => (StatusCode::BAD_REQUEST, m),
             ApiError::Conflict(m) => (StatusCode::CONFLICT, m),

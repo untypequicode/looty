@@ -123,10 +123,11 @@ struct CreateTokenRequest {
 }
 
 async fn create_token(
-    State(pool): State<PgPool>,
+    State(state): State<crate::state::AppState>,
     user: AuthUser,
     Json(p): Json<CreateTokenRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let pool = state.pool.clone();
     let name = p.name.trim();
     if name.is_empty() || name.chars().count() > 80 {
         return Err(ApiError::bad_request("invalid_name"));
@@ -134,6 +135,10 @@ async fn create_token(
     let scope = p.scope.as_deref().unwrap_or("api");
     if !matches!(scope, "api" | "caldav" | "ics") {
         return Err(ApiError::bad_request("invalid_scope"));
+    }
+    // Mots de passe d'application et flux d'abonnement : indisponibles dans la démo (jetons d'API seulement).
+    if state.demo && scope != "api" {
+        return Err(ApiError::DemoUnavailable);
     }
     if p.calendar_id.is_some() && scope != "ics" {
         return Err(ApiError::bad_request("invalid_scope"));

@@ -2,10 +2,19 @@
 import { LogIn, Sparkles } from 'lucide-vue-next'
 import gsap from 'gsap'
 import { api } from '~/composables/api'
-import { useI18n } from '~/composables/useI18n'
+import { useI18n, currentLocale } from '~/composables/useI18n'
+import { useDemo } from '~/composables/useDemo'
+import { useQuery } from '@tanstack/vue-query'
 
 const route = useRoute()
 const { t } = useI18n()
+const { isDemo } = useDemo()
+const { data: cast } = useQuery({
+  queryKey: ['demo-characters'],
+  queryFn: () => api<{ key: string; name: string; role: string; color: [string, string] }[]>('/api/auth/demo/characters', { silent: true }),
+  enabled: isDemo,
+})
+const initials = (name: string) => name.split(' ').map((p) => p[0]).join('')
 const providers = ref<{ id: string; name: string }[]>([])
 const loading = ref(true)
 const redirecting = ref<string | null>(null)
@@ -39,6 +48,17 @@ async function login(id: string) {
     redirecting.value = null
   }
 }
+
+// Démo : « Entrer dans la démo » crée la copie du visiteur et le connecte comme le personnage choisi.
+async function enterDemo(key: string) {
+  redirecting.value = key
+  try {
+    await api('/api/auth/demo/enter', { method: 'POST', body: { character: key, lang: currentLocale() } })
+    window.location.href = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+  } catch {
+    redirecting.value = null
+  }
+}
 useHead({ title: () => t('auth.login') })
 </script>
 
@@ -50,7 +70,15 @@ useHead({ title: () => t('auth.login') })
       <h1>{{ t('auth.title') }}</h1>
       <p class="muted">{{ t('auth.subtitle') }}</p>
       <div v-if="error" class="error">{{ error }}</div>
-      <div class="providers">
+      <div v-if="isDemo" class="providers">
+        <h2 class="demo-title">{{ t('demo.enter') }}</h2>
+        <p class="faint">{{ t('demo.pick') }}</p>
+        <button v-for="c in cast ?? []" :key="c.key" class="character" :disabled="!!redirecting" @click="enterDemo(c.key)">
+          <span class="avatar" :style="{ background: `linear-gradient(135deg, ${c.color[0]}, ${c.color[1]})` }">{{ initials(c.name) }}</span>
+          <span class="who"><strong>{{ c.name }}</strong><small>{{ t(`demo.roles.${c.role}`) }}</small></span>
+        </button>
+      </div>
+      <div v-else class="providers">
         <template v-if="loading">
           <div class="skeleton" style="height: 38px" />
         </template>
@@ -96,4 +124,14 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font
   margin-bottom: 16px; padding: 10px 12px; border-radius: var(--r-md);
   background: var(--red-soft); color: var(--red); font-size: var(--fs-md);
 }
+.demo-title { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
+.character {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; text-align: left; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-elevated, transparent); color: inherit;
+}
+.character:hover:not(:disabled) { border-color: var(--accent); }
+.character:disabled { opacity: .6; cursor: default; }
+.character .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 13px; }
+.character .who { display: flex; flex-direction: column; }
+.character small { color: var(--text-muted, inherit); opacity: .7; }
 </style>
