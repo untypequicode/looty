@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, AppWindow, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users } from 'lucide-vue-next'
 import { usePersonal } from '~/composables/usePersonalItems'
 import { openMovePage } from '~/composables/useMovePage'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
@@ -18,7 +18,7 @@ import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { motion } from '~/composables/useMotion'
 import { exportMarkdown } from '~/editor/export'
-import { isDesktop, openInDesktop } from '~/composables/useDesktop'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { useComments, type ItemComment } from '~/composables/useComments'
 import { replaceCommentMark, findCommentMark } from '~/editor/commentMark'
 
@@ -27,6 +27,7 @@ definePageMeta({ layout: 'workspace' })
 const route = useRoute()
 const qc = useQueryClient()
 const { t, relativeTime } = useI18n()
+const { openInAppItems } = useAppHandoff()
 const { wsId, pages, member, isGuest, workspace } = useWorkspace()
 const { setPersonal } = usePersonal()
 /** Bascule Partagé / Personnel : l'autrice la rend personnelle, la propriétaire la repartage (pas sous une page personnelle). */
@@ -231,7 +232,7 @@ const menu = computed<MenuItem[]>(() => {
   if (!p) return []
   return [
     { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + links.doc(wsId.value, p.id)); toast.success(t('common.linkCopied')) } },
-    ...(isDesktop ? [] : [{ label: t('desktop.openInApp'), icon: AppWindow, onSelect: () => openInDesktop(links.doc(wsId.value, p.id)) }]),
+    ...openInAppItems(links.doc(wsId.value, p.id)),
     { label: t('reader.open'), icon: BookOpenText, shortcut: ['mod', 'alt', 'R'], onSelect: () => navigateTo(links.read(wsId.value, p.id)) },
     { label: t('history.title'), icon: History, onSelect: () => (historyOpen.value = true) },
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },

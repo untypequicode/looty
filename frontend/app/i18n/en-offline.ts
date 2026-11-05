@@ -1,5 +1,11 @@
 export default {
   desktop: { openInApp: 'Open in the desktop app' },
+  handoff: {
+    open: 'Open',
+    openInApp: 'Open in the Looty app',
+    showBanner: 'Offer to open pages in the Looty app',
+    showBannerHint: 'Shows a banner in this device’s browser to switch to the Android app.',
+  },
   errors: { offline_unavailable: 'Not available offline' },
   offline: {
     banner: 'Offline — showing saved data',

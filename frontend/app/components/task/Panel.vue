@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { isDesktop, openInDesktop } from '~/composables/useDesktop'
-import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, AppWindow, LockKeyhole } from 'lucide-vue-next'
+import { useAppHandoff } from '~/composables/useAppHandoff'
+import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, LockKeyhole } from 'lucide-vue-next'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
 import { CalendarSync, CalendarRange, ExternalLink, Repeat } from 'lucide-vue-next'
@@ -28,12 +28,13 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'navigate', id: string): void
 // celle-ci) et dans les menus, sélecteurs et fenêtres ouverts depuis le panneau.
 const panelEl = ref<HTMLElement | null>(null)
 onClickOutside(panelEl, () => emit('close'), {
-  ignore: ['[data-task-id]', '.tl-name', '.tl-bar', '.popover', '.menu', '.combo', '[role="dialog"]', '.dialog-overlay', '.toast', '.toaster'],
+  ignore: ['[data-task-id]', '.tl-name', '.tl-bar', '.popover', '.menu', '.combo', '[role="dialog"]', '.dialog-overlay', '.toast', '.toaster', '.android-banner'],
 })
 
 const { wsId, member, boards } = useWorkspace()
 const { user } = useAuth()
 const { t, formatDate, relativeTime } = useI18n()
+const { openInAppItems } = useAppHandoff()
 const { isMobile } = useBreakpoint()
 const boardId = computed(() => props.board.id)
 const actions = useBoardActions(boardId)
@@ -198,7 +199,7 @@ const personalItems = computed<MenuItem[]>(() => {
 const menu = computed<MenuItem[]>(() => [
   { label: t('common.copyLink'), icon: Link2, shortcut: ['mod', '.'], onSelect: copyLink },
   { label: t('task.copyId'), icon: Copy, onSelect: () => { navigator.clipboard.writeText(props.taskId); toast.success(t('common.copied')) } },
-  ...(isDesktop ? [] : [{ label: t('desktop.openInApp'), icon: AppWindow, onSelect: () => openInDesktop(links.task(wsId.value, props.board.id, props.taskId)) }]),
+  ...openInAppItems(links.task(wsId.value, props.board.id, props.taskId)),
   ...(props.canWrite && task.value && otherBoards.value.length
     ? [{ divider: true }, { heading: t('task.moveToBoard') }, ...otherBoards.value.map((b) => ({ label: b.name, icon: Kanban, onSelect: () => moveToBoard(b) }))]
     : []),

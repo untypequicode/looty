@@ -1,5 +1,11 @@
 export default {
   desktop: { openInApp: 'Ouvrir dans l’application de bureau' },
+  handoff: {
+    open: 'Ouvrir',
+    openInApp: 'Ouvrir dans l’app Looty',
+    showBanner: 'Proposer d’ouvrir les pages dans l’app Looty',
+    showBannerHint: 'Affiche une bannière dans le navigateur de cet appareil pour passer à l’app Android.',
+  },
   errors: { offline_unavailable: 'Indisponible hors ligne' },
   offline: {
     banner: 'Hors ligne — données enregistrées',

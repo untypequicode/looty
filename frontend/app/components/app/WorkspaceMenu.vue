@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useSharedPages } from '~/composables/useShared'
 import { useAccess } from '~/composables/useAccess'
-import { ChevronDown, Check, Plus, Settings, UserPlus, LogOut, Sun, Moon, Monitor, Languages, Shield, Sparkles, Share2 } from 'lucide-vue-next'
+import { ChevronDown, Check, Plus, Settings, UserPlus, LogOut, Sun, Moon, Monitor, Languages, Shield, Sparkles, Share2, Smartphone } from 'lucide-vue-next'
 import { useReleases } from '~/composables/useReleases'
+import { isAndroidBrowser, useAppHandoff } from '~/composables/useAppHandoff'
 import { useWorkspaces, useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useTheme } from '~/composables/useTheme'
@@ -24,6 +25,9 @@ const { user, logout } = useAuth()
 const { mode, setTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
 const { appUpdate } = useReleases()
+// Navigateur Android : passer à l'app sur la page ouverte, même bannière masquée (ADR 0004).
+const { intentUrl } = useAppHandoff()
+const route = useRoute()
 const open = ref(false)
 const createOpen = ref(false)
 const newName = ref('')
@@ -97,6 +101,7 @@ async function createWorkspace() {
       <button v-if="shared?.length" class="ws-row" @click="go('/shared')"><Share2 :size="15" class="faint" />{{ t('shared.title') }}<span class="ws-badge">{{ shared.length }}</span></button>
       <div class="ws-sep" />
       <button class="ws-row" @click="go(links.settings(wsId, 'profile'))"><Settings :size="15" class="faint" />{{ t('nav.settings') }}</button>
+      <a v-if="isAndroidBrowser" class="ws-row" :href="intentUrl(route.fullPath)" @click="open = false"><Smartphone :size="15" class="faint" />{{ t('handoff.openInApp') }}</a>
       <button class="ws-row" @click="go(`/w/${wsId}/whats-new`)"><Sparkles :size="15" class="faint" />{{ t('releases.whatsNew') }}<span v-if="appUpdate" class="ws-badge">{{ t('releases.updateShort') }}</span></button>
       <button v-if="can.invite && !personal.inside.value" class="ws-row" @click="go(links.settings(wsId, 'members'))"><UserPlus :size="15" class="faint" />{{ t('workspace.inviteMembers') }}</button>
       <button v-if="user?.is_super_admin" class="ws-row" @click="go(links.settings(wsId, 'admin'))"><Shield :size="15" class="faint" />{{ t('nav.admin') }}</button>

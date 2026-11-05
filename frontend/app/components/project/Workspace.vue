@@ -12,6 +12,7 @@ import { useI18n } from '~/composables/useI18n'
 import { useDemo } from '~/composables/useDemo'
 import { useAuth } from '~/composables/useAuth'
 import { useWorkspace } from '~/composables/useWorkspace'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
@@ -30,6 +31,7 @@ const { t, relativeTime } = useI18n()
 const { isDemo, unavailableLabel } = useDemo()
 const { user } = useAuth()
 const { wsId } = useWorkspace()
+const { openInAppItems } = useAppHandoff()
 const { isMobile } = useBreakpoint()
 // `embedded` : affiché dans une page des documents (pas d'en-tête de page, ni de titre d'onglet).
 const props = defineProps<{ projectId: string; embedded?: boolean }>()
@@ -266,6 +268,7 @@ const mobilePane = ref<'files' | 'code' | 'preview'>('code')
 const columns = computed(() => [showTree.value ? '220px' : '', 'minmax(0, 1fr)', showPreview.value && !isNotebook.value ? 'minmax(0, 1fr)' : ''].filter(Boolean).join(' '))
 const moreOpen = ref(false)
 const moreItems = computed<MenuItem[]>(() => [
+  ...(props.embedded ? [] : openInAppItems(`/w/${wsId.value}/projects/${id.value}`)),
   ...(isIpynb.value && current.value ? [{ label: t('notebook.download'), icon: Download, onSelect: () => window.open(`/api/projects/${id.value}/files/${current.value!.id}/raw`, '_blank') }] : []),
   { label: t('projects.downloadZip'), icon: Download, onSelect: () => (window.location.href = `/api/projects/${id.value}/download`) },
   ...(canWrite.value ? [{ label: t('projects.renameProject'), icon: Pencil, onSelect: renameProject }] : []),

@@ -295,6 +295,7 @@ function onEdgeStart(e: TouchEvent) {
       <AppShellScope v-if="showTabs" :ws="wsId"><AppTabBar /></AppShellScope>
       <AppUpdateBanner />
       <AppOfflineBanner />
+      <AppAndroidBanner />
       <div ref="panesEl" class="panes" :class="{ split: !!sideTab, resizing }">
         <div class="pane-main" :class="{ focused: !!sideTab && !tabs.focusSide.value }" :style="sideTab ? { flex: `0 0 calc(${tabs.ratio.value * 100}% - 3px)` } : undefined" @pointerdown.capture="sideTab && tabs.setFocus('main')">
           <slot />
