@@ -4,6 +4,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.31.0",
+      "date": "2026-11-05",
+      "title": {
+        "en": "Notebooks: images, Jupyter-style editing, public reading",
+        "fr": "Notebooks : images, édition à la Jupyter, lecture publique"
+      },
+      "notes": {
+        "en": [
+          "**Before updating a self-hosted server**: `docker-compose.prod.yml` now stores PostgreSQL in `./data/postgres` (or `LOOTY_DB_DATA`) instead of the `postgres_data_18` Docker volume. If your installation still uses that volume, **do not just pull**: move the database first as the README explains (*Move the database*), otherwise the new compose file starts on an empty database.",
+          "**Images in notebooks**: paste or drop an image on a text cell and it is saved in `images/` next to the notebook and shown in the cell. Other files become a link, and on a code cell their path is inserted. Relative paths such as `![](figures/plot.png)` show the project file.",
+          "**Notebooks from JupyterLab keep their pasted images** (cell attachments): they were lost on the next save.",
+          "**Jupyter-style editing**: command mode (arrows or J/K, Enter, A/B, DD, M/Y, C/X/V, Z to restore a deleted cell, Shift+M to merge), copy and paste of whole cells (also from JupyterLab), Duplicate, drag to reorder, collapsible input and output, a table of contents, Ctrl+Shift+- to split a cell, and the run time under each code cell.",
+          "**Public links and reading mode show the project**: a page that carries a notebook shows it read-only (text, code, saved outputs, images) with a notebook picker and **Download the .ipynb**; a LaTeX project shows its last compiled PDF with **Download the PDF**. Page / Notebook (or PDF) tabs, the project open first. Visitors never see the other project files and cannot run or compile anything.",
+          "**Demo**: a standalone `docker-compose.demo.yml` to run a public demo next to a real instance, with a slimmer PostgreSQL and a required `DB_PASSWORD`."
+        ],
+        "fr": [
+          "**Avant de mettre à jour un serveur auto-hébergé** : `docker-compose.prod.yml` range désormais PostgreSQL dans `./data/postgres` (ou `LOOTY_DB_DATA`) au lieu du volume Docker `postgres_data_18`. Si votre installation utilise encore ce volume, **ne faites pas qu’un pull** : déplacez d’abord la base comme l’explique le README (*Move the database*), sinon le nouveau fichier compose démarre sur une base vide.",
+          "**Images dans les notebooks** : collez ou glissez une image sur une cellule de texte, elle est enregistrée dans `images/` à côté du notebook et s’affiche dans la cellule. Les autres fichiers deviennent un lien, et sur une cellule de code leur chemin est inséré. Les chemins relatifs comme `![](figures/plot.png)` affichent le fichier du projet.",
+          "**Les notebooks venus de JupyterLab gardent leurs images collées** (pièces jointes des cellules) : elles étaient perdues au premier enregistrement.",
+          "**Édition à la Jupyter** : mode commande (flèches ou J/K, Entrée, A/B, DD, M/Y, C/X/V, Z pour rétablir une cellule supprimée, Maj+M pour fusionner), copier-coller de cellules entières (y compris depuis JupyterLab), Dupliquer, glisser pour réordonner, entrée et sortie repliables, sommaire, Ctrl+Maj+- pour scinder une cellule, et durée d’exécution sous chaque cellule de code.",
+          "**Le lien public et le mode lecture montrent le projet** : une page qui porte un notebook l’affiche en lecture seule (texte, code, sorties enregistrées, images), avec un choix du notebook et **Télécharger le .ipynb** ; un projet LaTeX affiche son dernier PDF compilé avec **Télécharger le PDF**. Onglets Page / Notebook (ou PDF), le projet ouvert d’abord. Le visiteur ne voit jamais les autres fichiers du projet et ne peut rien exécuter ni compiler.",
+          "**Démo** : un `docker-compose.demo.yml` autonome pour faire tourner une démo publique à côté d’une vraie instance, avec un PostgreSQL allégé et un `DB_PASSWORD` obligatoire."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.30.0",
       "date": "2026-11-05",
       "title": {
