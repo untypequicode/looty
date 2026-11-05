@@ -9,7 +9,9 @@ import { useJupyterKernel } from '~/composables/useJupyterKernel'
 import type { KernelSpec } from '~/components/notebook/EngineDialog.vue'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
-import type { NbAttachments } from '~/editor/notebookMarkdown'
+import { projectResolver, type NbAttachments } from '~/editor/notebookMarkdown'
+import { planUploads, insertionText } from '~/editor/notebookFiles'
+import { useProjectActions } from '~/composables/useProjects'
 
 /**
  * Notebook Jupyter partagé : cellules édités à plusieurs en direct (document Yjs
@@ -139,6 +141,27 @@ function clearOutput(c: CellVM) {
   delete local[c.id]
 }
 function clearAll() { for (const c of cells.value) if (c.type === 'code') clearOutput(c) }
+
+// --- Fichiers du projet dans les cellules (ADR 0006) ---
+const projectActions = useProjectActions(computed(() => props.projectId))
+const filesByPath = computed(() => new Map((props.projectFiles ?? []).filter((f) => !f.is_dir).map((f) => [f.path, f])))
+/** Images et liens relatifs des cellules Markdown : fichiers du projet. */
+const resolveLink = computed(() => projectResolver(props.path, filesByPath.value.keys(), ([p]) => {
+  const f = p ? filesByPath.value.get(p) : undefined
+  return f ? `/api/projects/${props.projectId}/files/${f.id}/raw?v=${f.size}` : null
+}))
+/** Fichiers collés ou glissés sur une cellule : envoyés dans le projet, texte à insérer en retour. */
+async function uploadForCell(c: CellVM, files: File[], pasted: boolean): Promise<string | null> {
+  if (ro.value) return null
+  const kind = c.type === 'code' ? 'code' : 'markdown'
+  const planned = planUploads(files, { notebookPath: props.path, cell: kind, pasted, existing: filesByPath.value.keys() })
+  try {
+    for (const folder of new Set(planned.map((p) => p.folder))) {
+      await projectActions.upload(planned.filter((p) => p.folder === folder).map((p) => new File([p.file], p.name, { type: p.file.type })), folder)
+    }
+  } catch { return null /* toast par api() */ }
+  return insertionText(planned, kind, props.path)
+}
 
 // --- Moteur d'exécution (métadonnées du notebook, partagées) ---
 const ymeta = ydoc.getMap<string>('meta')
@@ -310,6 +333,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
           v-for="(c, i) in cells" :key="c.key" :ref="(el: any) => { if (el) cellRefs.set(c.id, el); else cellRefs.delete(c.id) }"
           :id="c.id" :type="c.type" :ytext="c.ytext" :attachments="c.attachments" :count="shownCount(c)" :outputs="shown(c)" :running="running === c.id" :queued="queued.has(c.id) && running !== c.id"
           :selected="selectedId === c.id" :read-only="ro" :awareness="provider.awareness"
+          :resolve="resolveLink" :on-files="ro ? null : (fl: File[], pasted: boolean) => uploadForCell(c, fl, pasted)"
           @select="selectedId = c.id" @run="(m) => runAt(i, m)" @add="(w, ty) => addAt(w === 'above' ? i : i + 1, ty)" @remove="removeAt(i)" @move="(d) => moveAt(i, d)" @clear="clearOutput(c)" @retype="(ty) => retype(c, ty)"
         />
         <div v-if="!ro" class="nb-end">

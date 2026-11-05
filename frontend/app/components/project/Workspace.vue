@@ -16,6 +16,7 @@ import { useBreakpoint } from '~/composables/useBreakpoint'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { isDesktop } from '~/composables/useDesktop'
+import { isNotebookDrop } from '~/editor/notebookFiles'
 import {
   useProject, useProjectActions, buildFileTree, parseLatexLog, fileSize,
   type TreeNode, type CompileResult, type LatexIssue,
@@ -281,12 +282,18 @@ async function deleteProject() {
 }
 const editingIn = computed(() => (current.value?.updated_by_name ? t('projects.editedBy', { name: current.value.updated_by_name, time: relativeTime(current.value.updated_at) }) : ''))
 const dropActive = ref(false)
+// Fichier glissé sur une cellule de notebook : la cellule s'en charge (lien inséré), pas d'envoi global.
+function onDragOver(e: DragEvent) { dropActive.value = canWrite.value && !isNotebookDrop(e) && Array.from(e.dataTransfer?.types ?? []).includes('Files') }
+function onDrop(e: DragEvent) {
+  dropActive.value = false
+  if (canWrite.value && !isNotebookDrop(e)) doUpload(e.dataTransfer?.files ?? [], folderOf(null))
+}
 
 if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.title') })
 </script>
 
 <template>
-  <div class="pj" @dragover.prevent="dropActive = canWrite" @dragleave.self="dropActive = false" @drop.prevent="dropActive = false; canWrite && doUpload($event.dataTransfer?.files ?? [], folderOf(null))">
+  <div class="pj" @dragover.prevent="onDragOver" @dragleave.self="dropActive = false" @drop.prevent="onDrop">
     <component :is="embedded ? 'div' : AppPageHeader" v-bind="embedded ? { class: 'pj-bar' } : { crumbs: [{ label: t('projects.title'), icon: FolderCode, to: `/w/${wsId}/projects` }, { label: project?.name ?? '…' }] }">
       <span v-if="embedded && project" class="pj-bar-kind"><component :is="isSite ? Globe : isNotebook ? NotebookText : Sigma" :size="13" /> {{ isSite ? t('projects.site') : isNotebook ? 'Notebook' : 'LaTeX' }}</span>
       <span v-if="embedded" class="pj-bar-space" />

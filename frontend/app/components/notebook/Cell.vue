@@ -11,6 +11,7 @@ import { markdown } from '@codemirror/lang-markdown'
 import { yCollab } from 'y-codemirror.next'
 import type { NbOutput } from '~/composables/useNotebookKernel'
 import { renderMarkdown, type NbAttachments } from '~/editor/notebookMarkdown'
+import { hasFiles, markNotebookDrop } from '~/editor/notebookFiles'
 import { useI18n } from '~/composables/useI18n'
 
 /**
@@ -29,6 +30,10 @@ const props = defineProps<{
   selected: boolean
   readOnly: boolean
   awareness: any
+  /** Chemin relatif (image, lien) → adresse du fichier du projet. */
+  resolve?: ((href: string) => string | null) | null
+  /** Envoi des fichiers collés ou glissés ; renvoie le texte à insérer. */
+  onFiles?: ((files: File[], pasted: boolean) => Promise<string | null>) | null
 }>()
 const emit = defineEmits<{
   select: []
@@ -44,7 +49,7 @@ const { t } = useI18n()
 const host = ref<HTMLElement | null>(null)
 const editing = ref(props.type !== 'markdown')
 const src = ref(props.ytext.toString())
-const html = computed(() => (props.type === 'markdown' ? renderMarkdown(src.value, { attachments: props.attachments }) : ''))
+const html = computed(() => (props.type === 'markdown' ? renderMarkdown(src.value, { attachments: props.attachments, resolve: props.resolve }) : ''))
 const onText = () => { src.value = props.ytext.toString() }
 props.ytext.observe(onText)
 let view: EditorView | null = null
@@ -100,6 +105,58 @@ function onFocusOut(e: FocusEvent) {
   if (e.relatedTarget && (e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return
   if (src.value.trim()) editing.value = false
 }
+// --- Fichiers collés ou glissés (ADR 0006) ---
+const dropping = ref(false)
+const acceptsFiles = () => !props.readOnly && !!props.onFiles && props.type !== 'raw'
+function onDragOver(e: DragEvent) {
+  if (!acceptsFiles() || !hasFiles(e.dataTransfer)) return
+  e.preventDefault()
+  markNotebookDrop(e)
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  dropping.value = true
+}
+function onDrop(e: DragEvent) {
+  dropping.value = false
+  if (!acceptsFiles() || !hasFiles(e.dataTransfer)) return
+  // Avant l'éditeur (qui insérerait le texte des fichiers) et avant le dépôt global du projet.
+  e.preventDefault()
+  e.stopPropagation()
+  markNotebookDrop(e)
+  const at = view && editing.value ? view.posAtCoords({ x: e.clientX, y: e.clientY }) : null
+  void insertFiles([...(e.dataTransfer?.files ?? [])], false, at)
+}
+function onPaste(e: ClipboardEvent) {
+  if (!acceptsFiles()) return
+  const files = [...(e.clipboardData?.files ?? [])]
+  if (!files.length) return
+  e.preventDefault()
+  e.stopPropagation()
+  void insertFiles(files, true, null)
+}
+/** Envoie les fichiers, puis insère le lien au curseur (à la fin d'une cellule rendue, qui passe en édition). */
+async function insertFiles(files: File[], pasted: boolean, at: number | null) {
+  if (!files.length || !props.onFiles) return
+  let index = at ?? (view && editing.value ? view.state.selection.main.head : props.ytext.length)
+  let prefix = ''
+  if (!editing.value || !view) {
+    index = props.ytext.length
+    const cur = props.ytext.toString()
+    prefix = cur && !cur.endsWith('\n') ? '\n\n' : ''
+    editing.value = true
+  }
+  emit('select')
+  const rel = Y.createRelativePositionFromTypeIndex(props.ytext, index)
+  const text = await props.onFiles(files, pasted)
+  if (!text || !props.ytext.doc) return
+  const pos = Y.createAbsolutePositionFromRelativePosition(rel, props.ytext.doc)?.index ?? props.ytext.length
+  props.ytext.doc.transact(() => props.ytext.insert(pos, prefix + text))
+  await nextTick()
+  if (view) {
+    const end = Math.min(view.state.doc.length, pos + prefix.length + text.length)
+    view.dispatch({ selection: { anchor: end } })
+    view.focus()
+  }
+}
 defineExpose({ focus: () => { if (props.type === 'markdown') editing.value = true; nextTick(() => view?.focus()) } })
 
 const prompt = computed(() => (props.running ? '*' : props.queued ? '…' : props.count ?? ' '))
@@ -107,7 +164,10 @@ const hasOutputs = computed(() => props.outputs.length > 0)
 </script>
 
 <template>
-  <div class="cell" :class="[type, { selected, running }]" :data-cell="id" @click="emit('select')" @focusout="onFocusOut">
+  <div
+    class="cell" :class="[type, { selected, running, dropping }]" :data-cell="id" @click="emit('select')" @focusout="onFocusOut"
+    @dragover.capture="onDragOver" @dragleave="dropping = false" @drop.capture="onDrop" @paste.capture="onPaste"
+  >
     <div class="cell-gutter">
       <button v-if="type === 'code'" class="cell-run" :disabled="running" :aria-label="t('notebook.run')" :title="`${t('notebook.run')} (Shift+Enter)`" @click.stop="emit('run', 'stay')">
         <Loader2 v-if="running || queued" :size="14" class="spin" /><Play v-else :size="14" />
@@ -133,6 +193,8 @@ const hasOutputs = computed(() => props.outputs.length > 0)
 
 <style scoped>
 .cell { position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 6px; padding: 4px 8px 4px 0; border-left: 3px solid transparent; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.cell.dropping { box-shadow: inset 0 0 0 2px var(--accent); }
+.cell-md :deep(img) { max-width: 100%; height: auto; }
 .cell.selected { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 40%, transparent); }
 .cell-gutter { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 8px 0 0 0; font-family: var(--font-mono, monospace); font-size: 11px; color: var(--text-3); user-select: none; }
 .cell-run { display: grid; place-items: center; width: 24px; height: 22px; border-radius: var(--r-sm); color: var(--text-2); opacity: .55; }
