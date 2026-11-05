@@ -1,4 +1,4 @@
-# Publication automatique : à chaque push sur main, chaque plateforme dont la dernière
+# Publication automatique : après chaque run « CI » réussi d'un push sur main, chaque plateforme dont la dernière
 # version de backend/releases.json n'a pas encore de tag (<plateforme>-v<version>) est
 # construite puis publiée sur GitHub :
 #   web      → images Docker (amd64 + arm64) sur ghcr.io, docker-compose.yml épinglé
@@ -8,12 +8,19 @@
 # puis le site de téléchargement et le dépôt apt (scripts/publish-apps.sh).
 # Les notes viennent de releases.json (anglais, français dépliable).
 # Lancement manuel : republier une plateforme avec « force ».
+#
+# Tests : Release démarre quand le run « CI » d'un push sur main a réussi (workflow_run), et publie
+# exactement ce commit (head_sha, sortie `sha` du plan) : la CI n'est ni relancée ni attendue par un
+# runner. Un changement de releases.json (dans backend/) fait toujours vérifier tout le serveur par la
+# CI. Sans version à publier, seul le plan tourne (quelques secondes). En lancement manuel, Release
+# lance la CI elle-même.
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths: ['backend/releases.json']
   workflow_dispatch:
     inputs:
       force:
@@ -24,6 +31,8 @@ on:
 permissions:
   contents: write
   packages: write
+  # Lecture des runs « Nix cache » de ce commit (job plan).
+  actions: read
 
 concurrency:
   group: release
@@ -32,8 +41,12 @@ concurrency:
 jobs:
   plan:
     name: What to release
+    # Seulement après une CI réussie d'un push (pas d'un lancement manuel de la CI).
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     outputs:
+      # Commit testé par la CI (github.sha serait le dernier commit de main, peut-être plus récent).
+      sha: ${{ github.event.workflow_run.head_sha || github.sha }}
       web: ${{ steps.plan.outputs.web }}
       desktop: ${{ steps.plan.outputs.desktop }}
       android: ${{ steps.plan.outputs.android }}
@@ -41,33 +54,55 @@ jobs:
       latest_web: ${{ steps.plan.outputs.latest_web }}
       latest_desktop: ${{ steps.plan.outputs.latest_desktop }}
       latest_android: ${{ steps.plan.outputs.latest_android }}
+      nix_cache: ${{ steps.nix.outputs.ran }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
       - id: plan
         run: node scripts/release-plan.mjs --force "${{ inputs.force }}" >> "$GITHUB_OUTPUT"
+      # « Nix cache » a-t-il tourné sur ce push (desktop/, flake…) ? Il vérifie alors déjà le cache de
+      # ce commit, et le job nix-verify d'ici serait un doublon. Son run est créé au moment du push,
+      # donc existe déjà quand la CI est finie.
+      - id: nix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          ran=false
+          if [ -n "$SHA" ] && [ -n "$(gh run list --workflow nix-cache.yml --commit "$SHA" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')" ]; then
+            ran=true
+          fi
+          echo "ran=$ran" >> "$GITHUB_OUTPUT"
 
+  # Lancement manuel : la CI n'a pas précédé ce run, elle est faite ici. Après un push, la CI a déjà
+  # réussi sur ce commit (déclencheur workflow_run) : job sauté.
   tests:
     name: Tests
     needs: plan
-    if: needs.plan.outputs.any == 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.plan.outputs.any == 'true'
     uses: ./.github/workflows/ci.yml
 
+  # tests est sauté après un push : seul un échec ou une annulation bloque.
   docker:
     name: Docker images
     needs: [plan, tests]
-    if: needs.plan.outputs.web != ''
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && needs.plan.outputs.web != '' }}
     uses: ./.github/workflows/docker-publish.yml
     with:
       version: ${{ needs.plan.outputs.web }}
+      ref: ${{ needs.plan.outputs.sha }}
     secrets: inherit
 
   desktop:
     name: Desktop
     needs: [plan, tests]
-    if: needs.plan.outputs.desktop != ''
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && needs.plan.outputs.desktop != '' }}
     uses: ./.github/workflows/desktop.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
     secrets: inherit
 
   # Paquet Nix de la release : épinglé dans le cache binaire (jamais évincé), puis vérifié.
@@ -75,7 +110,7 @@ jobs:
   nix-pin:
     name: Nix pin ${{ matrix.system }}
     needs: [plan, desktop]
-    if: needs.plan.outputs.desktop != '' && needs.desktop.result == 'success'
+    if: ${{ !cancelled() && needs.plan.outputs.desktop != '' && needs.desktop.result == 'success' }}
     runs-on: ${{ matrix.runner }}
     env:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -89,6 +124,8 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
@@ -108,32 +145,37 @@ jobs:
           cachix push "$CACHE" "$out"
           cachix pin "$CACHE" "release-$VERSION-${{ matrix.system }}" "$out"
 
+  # Sauté quand « Nix cache » a tourné sur ce push : il fait déjà cette vérification, sur ce commit.
   nix-verify:
     name: Nix cache check
-    needs: nix-pin
-    if: needs.nix-pin.result == 'success'
+    needs: [plan, nix-pin]
+    if: ${{ !cancelled() && needs.nix-pin.result == 'success' && needs.plan.outputs.nix_cache != 'true' }}
     permissions:
       contents: read
       issues: write
     uses: ./.github/workflows/nix-verify.yml
     with:
-      ref: ${{ github.sha }}
+      ref: ${{ needs.plan.outputs.sha }}
 
   android:
     name: Android
     needs: [plan, tests]
-    if: needs.plan.outputs.android != ''
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && needs.plan.outputs.android != '' }}
     uses: ./.github/workflows/android.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
     secrets: inherit
 
   publish:
     name: GitHub releases
-    needs: [plan, docker, desktop, android]
+    needs: [plan, tests, docker, desktop, android]
     # Publie ce qui a été construit, même si une autre plateforme a été sautée.
     if: always() && needs.plan.outputs.any == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
       # Seulement le .deb et l'APK (pas les empreintes ni les traces de build Docker,
       # dont les .dockerbuild ne sont pas des archives zip et font échouer le téléchargement).
       - uses: actions/download-artifact@v8
@@ -172,7 +214,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: web-v${{ needs.plan.outputs.web }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.plan.outputs.sha }}
           name: Looty ${{ needs.plan.outputs.web }}
           body_path: out/web/notes.md
           files: out/web/docker-compose.yml
@@ -182,7 +224,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: desktop-v${{ needs.plan.outputs.desktop }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.plan.outputs.sha }}
           name: Looty for Linux and Windows ${{ needs.plan.outputs.desktop }}
           body_path: out/desktop/notes.md
           files: |
@@ -197,6 +239,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DESKTOP: ${{ needs.plan.outputs.desktop }}
+          SHA: ${{ needs.plan.outputs.sha }}
         run: |
           sig=$(ls out/desktop/*-setup.exe.sig 2> /dev/null | head -1 || true)
           if [ -z "$sig" ]; then echo "No updater signature (TAURI_SIGNING_PRIVATE_KEY missing): manifest not updated"; exit 0; fi
@@ -207,14 +250,14 @@ jobs:
               version: v, notes: "https://github.com/" + repo + "/releases/tag/desktop-v" + v, pub_date: new Date().toISOString(),
               platforms: { "windows-x86_64": { signature: fs.readFileSync(sigFile, "utf8").trim(), url: "https://github.com/" + repo + "/releases/download/desktop-v" + v + "/" + exe } },
             }, null, 2))' "$DESKTOP" "$exe" "$sig" "$GITHUB_REPOSITORY"
-          gh release view updater > /dev/null 2>&1 || gh release create updater --target "$GITHUB_SHA" --prerelease --title "Updater manifest" --notes "Fixed address read by the Windows app to find its updates (latest.json). Do not delete."
+          gh release view updater > /dev/null 2>&1 || gh release create updater --target "$SHA" --prerelease --title "Updater manifest" --notes "Fixed address read by the Windows app to find its updates (latest.json). Do not delete."
           gh release upload updater latest.json --clobber
       - name: Android release
         if: needs.plan.outputs.android != ''
         uses: softprops/action-gh-release@v3
         with:
           tag_name: android-v${{ needs.plan.outputs.android }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.plan.outputs.sha }}
           name: Looty for Android ${{ needs.plan.outputs.android }}
           body_path: out/android/notes.md
           files: out/android/*.apk

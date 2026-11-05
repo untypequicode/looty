@@ -10,9 +10,19 @@ on:
   workflow_dispatch:
   # Appelé par « Release » (publication automatique depuis backend/releases.json).
   workflow_call:
+    inputs:
+      ref:
+        description: Commit à construire (par défaut celui de l'appelant)
+        type: string
+        required: false
 
 permissions:
   contents: read
+
+# Pull request : un nouveau push annule le run précédent. Ailleurs : groupe propre à chaque run.
+concurrency:
+  group: android-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   apk:
@@ -22,6 +32,8 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

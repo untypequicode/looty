@@ -15,8 +15,10 @@ text of the GitHub releases.
 4. Merge into `main`.
 
 The **Release** workflow then does everything else: for each platform whose latest version in
-`releases.json` has no tag yet, it runs the tests (the **CI** workflow), builds, creates the tag
-`<platform>-v<version>` and publishes the GitHub release with the notes and the files.
+`releases.json` has no tag yet, it builds, creates the tag `<platform>-v<version>` and publishes the GitHub
+release with the notes and the files. It starts once the **CI** run of that push on `main` has passed (it does
+not run the tests a second time) and publishes exactly the commit CI tested. A release that failed is retried
+after the next green CI on `main`, or by hand.
 
 | Platform | Version to bump | Built and published |
 |---|---|---|
@@ -106,13 +108,13 @@ workflow (run it by hand with `force` to rebuild one).
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| **CI** | pull requests and `main` (server code), called by Release | backend tests, translations check, frontend build, collaboration server check |
-| **Release** | `backend/releases.json` changed on `main`, or by hand | everything in this document |
+| **CI** | pull requests and `main` (server code), called by Release when run by hand | backend tests, translations and type check, collaboration server check, browser tests (which build the frontend) |
+| **Release** | after a green **CI** run of a push on `main` (does nothing when every version is already tagged), or by hand | everything in this document |
 | **Docker** | called by Release, or by hand | multi-arch images on ghcr.io |
 | **Desktop** | pull requests touching `desktop/`, called by Release | `.deb` (install-tested) and Windows installer |
 | **Android** | pull requests touching `android/`, called by Release | APK |
 | **Nix cache** | pull requests and `main` touching `desktop/` or the flake | desktop package and dev shells for x86_64 and aarch64, pushed and pinned in Cachix from `main` |
-| **Nix cache check** | after **Nix cache** on `main`, called by Release, every Monday, by hand | builds everything from the cache only; opens an issue if something would be compiled |
+| **Nix cache check** | after **Nix cache** on `main`, called by Release (when Nix cache did not run on that commit), every Monday, by hand | builds everything from the cache only; opens an issue if something would be compiled |
 | **Site** | `site/` changes, tags `site-v*` | site tests and its Docker image |
 | **Site sync** | by hand | refills the download site from the latest GitHub releases |
 
