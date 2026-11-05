@@ -24,28 +24,43 @@ import kotlin.concurrent.thread
 
 /** Premier lancement (ou « Changer de serveur ») : adresse du serveur Looty. */
 class SetupActivity : ComponentActivity() {
+    companion object {
+        /** Instance d'où vient un lien reçu (adresse préremplie). */
+        const val EXTRA_SERVER = "server"
+        /** Page /w/… de ce lien, ouverte une fois connecté à cette instance. */
+        const val EXTRA_PATH = "path"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val current = Config.server(this) ?: ""
+        val fromLink = intent.getStringExtra(EXTRA_SERVER)
+        val current = fromLink ?: Config.server(this) ?: ""
         setContent {
             val dark = isSystemInDarkTheme()
             val accent = Color(0xFF5E6AD2)
             MaterialTheme(colorScheme = if (dark) darkColorScheme(primary = accent, background = Color(0xFF0B0B0D), surface = Color(0xFF0B0B0D)) else lightColorScheme(primary = accent, background = Color(0xFFFCFCFD), surface = Color(0xFFFCFCFD))) {
-                Surface(Modifier.fillMaxSize()) { Setup(current, ::done) }
+                Surface(Modifier.fillMaxSize()) { Setup(current, fromLink != null, ::done) }
             }
         }
     }
 
     private fun done(origin: String) {
         Config.setServer(this, origin)
-        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(MainActivity.EXTRA_RELOAD, true))
+        val main = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(MainActivity.EXTRA_RELOAD, true)
+        // La page du lien, si l'on s'est bien connecté à son instance (pas à une autre adresse saisie).
+        val path = intent.getStringExtra(EXTRA_PATH)
+        val server = intent.getStringExtra(EXTRA_SERVER)
+        if (path != null && server != null && InstanceLinks.origin(server) == InstanceLinks.origin(origin)) {
+            main.data = android.net.Uri.parse("looty:/$path")
+        }
+        startActivity(main)
         finish()
     }
 }
 
 @Composable
-private fun Setup(initial: String, onDone: (String) -> Unit) {
+private fun Setup(initial: String, fromLink: Boolean, onDone: (String) -> Unit) {
     var url by remember { mutableStateOf(initial.removePrefix("https://")) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Int?>(null) }
@@ -83,7 +98,7 @@ private fun Setup(initial: String, onDone: (String) -> Unit) {
     ) {
         Text(stringResource(R.string.setup_title), fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.setup_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(if (fromLink) R.string.setup_from_link else R.string.setup_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
             value = url,

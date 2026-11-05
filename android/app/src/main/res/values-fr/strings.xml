@@ -3,6 +3,10 @@
     <string name="change_server">Changer de serveur</string>
     <string name="setup_title">Se connecter à Looty</string>
     <string name="setup_hint">Saisissez l’adresse de votre serveur Looty.</string>
+    <string name="setup_from_link">Pour ouvrir ce lien, connectez-vous à l’instance Looty d’où il vient.</string>
+    <string name="link_foreign_title">Lien d’une autre instance</string>
+    <string name="link_foreign_body">Ce lien vient de %1$s, pas de votre instance (%2$s).</string>
+    <string name="link_open_browser">Ouvrir dans le navigateur</string>
     <string name="setup_url">Adresse du serveur</string>
     <string name="setup_connect">Continuer</string>
     <string name="setup_checking">Vérification…</string>

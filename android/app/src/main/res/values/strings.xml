@@ -4,6 +4,10 @@
     <string name="change_server">Change server</string>
     <string name="setup_title">Connect to Looty</string>
     <string name="setup_hint">Enter the address of your Looty server.</string>
+    <string name="setup_from_link">To open this link, connect to the Looty instance it comes from.</string>
+    <string name="link_foreign_title">Link from another instance</string>
+    <string name="link_foreign_body">This link comes from %1$s, not from your instance (%2$s).</string>
+    <string name="link_open_browser">Open in browser</string>
     <string name="setup_url">Server address</string>
     <string name="setup_connect">Continue</string>
     <string name="setup_checking">Checking…</string>
