@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.demo.example
 docker-compose.override.yml
 digest.txt
 
