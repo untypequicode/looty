@@ -25,6 +25,7 @@ mod moodle_content;
 mod moodle_grades;
 mod moodle_cache;
 mod projects;
+mod public_project;
 mod jupyter;
 mod latex;
 mod drive;
@@ -157,6 +158,9 @@ fn app(state: state::AppState) -> Router {
         .route("/ics/{file}", get(ics_feed::feed))
         .route("/upload", post(upload::upload_file))
         .route("/public/pages/{token}", get(page::get_public_page))
+        .route("/public/pages/{token}/notebook", get(public_project::notebook))
+        .route("/public/pages/{token}/files/{*path}", get(public_project::image))
+        .route("/public/pages/{token}/output.pdf", get(public_project::pdf))
         .nest("/auth", auth::routes().nest("/demo", demo_mode::routes()))
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes().merge(prefs::user_routes()))

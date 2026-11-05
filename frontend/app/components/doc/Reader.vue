@@ -5,6 +5,7 @@ import { useUserPrefs } from '~/composables/usePrefs'
 import { useI18n } from '~/composables/useI18n'
 import { useShortcuts } from '~/composables/useShortcuts'
 import { isNativeApp, nativeBack } from '~/composables/useNative'
+import { isEmptyPage, type ReaderProject } from '~/composables/useProjectReader'
 
 /**
  * Vue de lecture : interface réduite au texte, réglages de lecture (taille, police, largeur,
@@ -28,7 +29,9 @@ const props = withDefaults(defineProps<{
   editTo?: string | null
   /** Réglages de lecture : compte (synchronisés) ou navigateur (visiteurs sans compte). */
   storage?: 'account' | 'local'
-}>(), { outline: () => [], storage: 'account', crumb: '' })
+  /** Notebook ou projet LaTeX porté par la page (onglet ouvert par défaut). */
+  project?: ReaderProject | null
+}>(), { outline: () => [], storage: 'account', crumb: '', project: null })
 
 const { t, relativeTime } = useI18n()
 const index = computed(() => props.outline.findIndex((e) => e.id === props.currentId))
@@ -79,8 +82,10 @@ function onScroll() {
 watch(() => props.page?.content, () => nextTick(() => setTimeout(() => {
   collect()
   const saved = Number(localStorage.getItem(posKey.value) || 0)
-  if (scroller.value) scroller.value.scrollTop = route.hash ? 0 : saved
-  if (route.hash) document.getElementById(route.hash.slice(1))?.scrollIntoView()
+  // Ancre d'un titre (les onglets #page, #notebook, #pdf n'en sont pas).
+  const anchor = /^#(page|notebook|pdf)$/.test(route.hash) ? '' : route.hash
+  if (scroller.value) scroller.value.scrollTop = anchor ? 0 : saved
+  if (anchor) document.getElementById(anchor.slice(1))?.scrollIntoView()
   onScroll()
 }, 60)), { immediate: true })
 function jump(id: string) {
@@ -98,6 +103,17 @@ useShortcuts([
 ])
 
 const native = isNativeApp
+
+// --- Onglets « Page » / « Notebook » (ou « PDF ») : projet ouvert par défaut, choix dans l'adresse ---
+const router = useRouter()
+const projectTab = computed(() => (props.project?.kind === 'latex' ? 'pdf' : 'notebook'))
+/** Texte de la page vide : le projet seul, sans barre d'onglets. */
+const showTabs = computed(() => !!props.project && !isEmptyPage(props.page?.content))
+const tab = computed<'page' | 'project'>(() => (!props.project ? 'page' : showTabs.value && route.hash === '#page' ? 'page' : 'project'))
+function setTab(next: 'page' | 'project') {
+  router.replace({ query: route.query, hash: next === 'page' ? '#page' : `#${projectTab.value}` })
+}
+watch(tab, () => nextTick(() => { collect(); onScroll() }))
 </script>
 
 <template>
@@ -173,12 +189,17 @@ const native = isNativeApp
     </Transition>
 
     <main ref="scroller" class="rd-scroll" @scroll.passive="onScroll" @click="settingsOpen = false">
-      <article v-if="page" ref="article" class="rd-article">
+      <article v-if="page" ref="article" class="rd-article" :class="{ wide: project && tab === 'project' }">
         <p v-if="page.icon" class="rd-icon">{{ page.icon }}</p>
         <h1 class="rd-title">{{ page.title || t('docs.untitled') }}</h1>
         <p v-if="page.updated_at" class="rd-meta">{{ t('reader.updated', { time: relativeTime(page.updated_at) }) }}</p>
         <slot name="before" />
-        <DocViewer :html="page.content" class="rd-content" />
+        <div v-if="showTabs" class="rd-tabs" role="tablist" data-testid="rd-tabs">
+          <button role="tab" :aria-selected="tab === 'page'" :class="{ on: tab === 'page' }" @click="setTab('page')">{{ t('reader.tabPage') }}</button>
+          <button role="tab" :aria-selected="tab === 'project'" :class="{ on: tab === 'project' }" @click="setTab('project')">{{ project?.kind === 'latex' ? 'PDF' : t('reader.tabNotebook') }}</button>
+        </div>
+        <DocProjectView v-if="project && tab === 'project'" :project="project" :name="page.title" class="rd-project" />
+        <DocViewer v-else :html="page.content" class="rd-content" />
         <nav v-if="prev || next" class="rd-nav">
           <button v-if="prev" class="rd-nav-btn" @click="navigateTo(prev.to)"><ChevronLeft :size="16" /><span><small>{{ t('reader.previous') }}</small>{{ prev.title || t('docs.untitled') }}</span></button>
           <span v-else />
@@ -206,6 +227,12 @@ const native = isNativeApp
 .rd :deep(.btn) { color: var(--r-text); }
 .rd-scroll { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
 .rd-article { max-width: var(--r-width); margin: 0 auto; padding: 48px 24px 120px; }
+.rd-article.wide { max-width: max(var(--r-width), 980px); }
+.rd-tabs { display: flex; gap: 4px; margin: -12px 0 28px; border-bottom: 1px solid color-mix(in srgb, var(--r-text) 10%, transparent); }
+.rd-tabs button { padding: 8px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--r-muted); font-size: var(--fs-sm); font-weight: 500; }
+.rd-tabs button:hover { color: var(--r-text); }
+.rd-tabs button.on { color: var(--r-text); border-bottom-color: var(--accent); }
+.rd-project { color: var(--r-text); }
 .rd-icon { font-size: 48px; margin: 0 0 8px; line-height: 1; }
 .rd-title { font-size: calc(var(--r-size) * 2); line-height: 1.2; letter-spacing: -.015em; margin: 0; }
 .rd-meta { color: var(--r-muted); font-size: var(--fs-sm); margin: 12px 0 32px; }

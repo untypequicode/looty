@@ -66,7 +66,7 @@ export default {
     quotaLabel: 'Espace disponible', quotaHint: 'Taille totale des fichiers du drive de cet espace.',
   },
   notebook: {
-    run: 'Exécuter', runAll: 'Tout exécuter', restart: 'Redémarrer Python', clearAll: 'Effacer les sorties', clearOutput: 'Effacer la sortie', addCode: 'Code', addText: 'Texte',
+    run: 'Exécuter', runAll: 'Tout exécuter', restart: 'Redémarrer Python', clearAll: 'Effacer les sorties', clearOutput: 'Effacer la sortie', addCode: 'Code', addText: 'Texte', unreadable: 'Ce notebook n’est pas un fichier .ipynb lisible.',
     toc: 'Sommaire', tocEmpty: 'Aucun titre : commencez une cellule de texte par # pour en ajouter.', duplicate: 'Dupliquer',
     modeCommand: 'Commande', modeEdit: 'Édition',
     shortcutsHint: 'Mode commande (Échap) : ↑/↓ ou J/K pour naviguer, Entrée pour éditer, A/B ajouter au-dessus/en dessous, DD supprimer, Z rétablir la dernière cellule supprimée, M texte, Y code, C/X/V copier/couper/coller, Maj+M fusionner avec la suivante. En édition : Ctrl+Maj+- scinde la cellule.',

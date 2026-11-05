@@ -22,6 +22,9 @@ export default {
   exportFormats: { htmlHint: 'Web pages you can open in any browser, with images and formulas.', pdfHint: 'Print or save as PDF (one page after the other).', print: 'Print / PDF', printPdf: 'Print or save as PDF' },
   reader: {
     title: 'Reading view', open: 'Reading view', leave: 'Back to the document', edit: 'Edit', outline: 'Contents', onThisPage: 'On this page', settings: 'Text settings',
+    tabPage: 'Page', tabNotebook: 'Notebook', pickNotebook: 'Notebook to show', downloadIpynb: 'Download the .ipynb', downloadPdf: 'Download the PDF',
+    noNotebook: 'This project has no notebook.', notebookFailed: 'The notebook could not be loaded.',
+    noPdf: 'No PDF yet', noPdfHint: 'This LaTeX document has never been compiled. The PDF will show here after the first compilation.',
     size: 'Text size', smaller: 'Smaller', larger: 'Larger', font: 'Font', fonts: { serif: 'Serif', sans: 'Sans', legible: 'Legible' },
     width: 'Line width', widths: { narrow: 'Narrow', normal: 'Normal', wide: 'Wide' }, spacing: 'Line spacing', tight: 'Tight', normal: 'Normal', loose: 'Loose',
     theme: 'Theme', themes: { auto: 'Like the app', light: 'Light', sepia: 'Sepia', dark: 'Dark' },

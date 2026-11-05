@@ -66,7 +66,7 @@ export default {
     quotaLabel: 'Available space', quotaHint: 'Total size of the files in this workspace’s drive.',
   },
   notebook: {
-    run: 'Run', runAll: 'Run all', restart: 'Restart Python', clearAll: 'Clear outputs', clearOutput: 'Clear output', addCode: 'Code', addText: 'Text',
+    run: 'Run', runAll: 'Run all', restart: 'Restart Python', clearAll: 'Clear outputs', clearOutput: 'Clear output', addCode: 'Code', addText: 'Text', unreadable: 'This notebook is not a readable .ipynb file.',
     toc: 'Table of contents', tocEmpty: 'No headings: start a text cell with # to add one.', duplicate: 'Duplicate',
     modeCommand: 'Command', modeEdit: 'Edit',
     shortcutsHint: 'Command mode (Esc): ↑/↓ or J/K to move, Enter to edit, A/B add above/below, DD delete, Z restore the last deleted cell, M text, Y code, C/X/V copy/cut/paste, Shift+M merge with the next cell. While editing: Ctrl+Shift+- splits the cell.',

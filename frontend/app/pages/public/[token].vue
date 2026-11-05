@@ -3,14 +3,17 @@ import { workspacePreamble } from '~/editor/mathScope'
 import { FileQuestion } from 'lucide-vue-next'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
+import { publicProject, type PublicProjectSummary } from '~/composables/useProjectReader'
 
 /**
  * Lien public : la page dans la vue de lecture complète (polices, taille, largeur, thème,
- * sommaire, progression). Réglages gardés dans le navigateur du visiteur.
+ * sommaire, progression). Réglages gardés dans le navigateur du visiteur. Le notebook ou le PDF
+ * LaTeX porté par la page s'affiche en lecture seule (GLOSSARY : *Lien public*).
  */
 const route = useRoute()
 const { t } = useI18n()
-const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string; latex_preamble?: string } | null>(null)
+const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string; latex_preamble?: string; project?: PublicProjectSummary | null } | null>(null)
+const project = computed(() => publicProject(String(route.params.token), page.value?.project))
 const missing = ref(false)
 
 onMounted(async () => {
@@ -26,7 +29,7 @@ useHead({ title: () => (page.value ? `${page.value.icon ? `${page.value.icon} ` 
 </script>
 
 <template>
-  <DocReader :page="page" :error="missing" :current-id="String(route.params.token)" storage="local" crumb="Looty">
+  <DocReader :page="page" :error="missing" :current-id="String(route.params.token)" storage="local" crumb="Looty" :project="project">
     <template #error>
       <UiEmpty :icon="FileQuestion" :title="t('public.notFound')" :description="t('public.notFoundHint')" />
     </template>

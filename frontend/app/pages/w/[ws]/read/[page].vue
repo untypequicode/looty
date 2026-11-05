@@ -6,6 +6,8 @@ import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { workspacePreamble } from '~/editor/mathScope'
 import type { ReaderEntry } from '~/components/doc/Reader.vue'
+import { useProject } from '~/composables/useProjects'
+import { memberProject } from '~/composables/useProjectReader'
 
 /** Vue de lecture des cours : la page, le plan du cours (page racine et sous-pages). */
 definePageMeta({ layout: 'default' })
@@ -21,6 +23,10 @@ const { data: page, error } = useQuery({
   enabled: computed(() => !!pageId.value && !!wsId.value),
   staleTime: 0,
 })
+// Notebook ou projet LaTeX porté par la page : lu par les routes des membres.
+const projectId = computed(() => page.value?.project_id ?? '')
+const projectDetail = useProject(projectId)
+const project = computed(() => (projectId.value ? memberProject(projectDetail.data.value) : null))
 watch(pageId, (id) => { if (id) api(`/api/workspaces/${wsId.value}/pages/${id}/view`, { method: 'POST', silent: true }).catch(() => {}) }, { immediate: true })
 
 // Préambule LaTeX de l'espace (hors de la mise en page « workspace »).
@@ -56,6 +62,6 @@ useHead({ title: () => (page.value ? `${page.value.icon ? `${page.value.icon} ` 
 <template>
   <DocReader
     :page="page" :error="!!error" :current-id="pageId" :crumb="crumb" :outline="outline" :prev="prev" :next="next"
-    :back-to="links.doc(wsId, pageId)" :edit-to="page?.can_edit !== false ? links.doc(wsId, pageId) : null"
+    :back-to="links.doc(wsId, pageId)" :edit-to="page?.can_edit !== false ? links.doc(wsId, pageId) : null" :project="project"
   />
 </template>
