@@ -80,6 +80,20 @@ The production compose file expects a [Traefik](https://traefik.io) reverse prox
 
 Backups: `scripts/backup.sh` and `scripts/restore.sh`.
 
+**Move the database.** By default PostgreSQL's data lives in the Docker volume `postgres_data_18`. To keep it in a folder of your choice instead (no version in the name, easy to back up), set `LOOTY_DB_DATA` in `.env` to an absolute path. To move an existing database without losing anything, from the folder of your compose file:
+
+```sh
+docker compose exec -T postgres pg_dump -U "$DB_USER" -Fc "$DB_NAME" > looty-backup.dump   # safety net
+docker compose down                                                                          # never with -v
+VOL=$(docker volume ls -q | grep postgres_data_18)                                           # e.g. looty_postgres_data_18
+sudo mkdir -p /srv/looty/postgres
+docker run --rm -v "$VOL":/from -v /srv/looty/postgres:/to alpine cp -a /from/. /to/
+echo 'LOOTY_DB_DATA=/srv/looty/postgres' >> .env
+docker compose up -d
+```
+
+The old volume is left untouched: delete it (`docker volume rm "$VOL"`) once everything works, or remove the line from `.env` to go back.
+
 **Public demo.** To run a demo (visitors pick a character and get a throwaway copy of the « Looty Demo » workspace, deleted after 24 h), use `docker-compose.demo.yml` and `.env.demo.example` in their own folder: a separate stack (`looty-demo`, own database and volumes) that can run next to a real instance. It needs no OIDC provider and no SMTP.
 
 ## Repository
