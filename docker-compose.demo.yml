@@ -1,7 +1,7 @@
 # Instance de démonstration publique de Looty (GLOSSARY : Démo) : une pile à part, à côté de votre vraie instance.
 #
 #   curl -LO https://raw.githubusercontent.com/untypequicode/looty/main/docker-compose.demo.yml
-#   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.demo.example
+#   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/demo.env.example
 #   docker compose -f docker-compose.demo.yml up -d
 #
 # À lancer dans son propre dossier (ex. /srv/looty-demo) : la pile s'appelle « looty-demo », ses conteneurs, son réseau
