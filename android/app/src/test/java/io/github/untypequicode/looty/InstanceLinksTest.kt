@@ -41,6 +41,18 @@ class InstanceLinksTest {
         assertEquals(null, InstanceLinks.resolve("looty://sso/ws1", app))
     }
 
+    @Test fun malformedEscapesNeverCrash() {
+        // N'importe quelle page web peut envoyer ce lien : il est ignoré, l'app ne plante pas.
+        assertEquals(null, InstanceLinks.resolve("looty://w/ws1?server=%zz", app))
+        assertEquals(Screen.Native("ws1", "doc/p1"), InstanceLinks.screen("/w/ws1/doc/p1?q=100%"))
+        // Caractères bruts que java.net.URI refuse : le lien s'ouvre quand même.
+        assertEquals(LinkAction.Open("/w/ws1/doc/p1?q=a b|c"), InstanceLinks.resolve("looty://w/ws1/doc/p1?q=a b|c&server=https%3A%2F%2Flooty.mon-asso.fr", app))
+    }
+
+    @Test fun appLinkOfAPageOpensThatPage() {
+        assertEquals(LinkAction.Open("/w/ws1/board/b1?task=t1"), InstanceLinks.resolve(InstanceLinks.appLink("/w/ws1/board/b1?task=t1"), app))
+    }
+
     @Test fun sameInstanceWrittenDifferentlyStillOpens() {
         // Schéma et hôte en majuscules, port par défaut explicite, barre finale.
         assertEquals(LinkAction.Open("/w/ws1/calendar"), InstanceLinks.resolve("looty://w/ws1/calendar?server=HTTPS%3A%2F%2FLooty.Mon-Asso.FR%3A443%2F", app))
@@ -61,6 +73,7 @@ class InstanceLinksTest {
 
     @Test fun boardAndDocumentLinksOpenTheirNativeScreens() {
         assertEquals(Screen.Native("ws1", "task/t1"), InstanceLinks.screen("/w/ws1/board/b1?task=t1"))
+        assertEquals(Screen.Native("ws1", "task/t1"), InstanceLinks.screen("/w/ws1/my-tasks?task=t1"))
         assertEquals(Screen.Native("ws1", "board/b1"), InstanceLinks.screen("/w/ws1/board/b1"))
         assertEquals(Screen.Native("ws1", "doc/p1/comments"), InstanceLinks.screen("/w/ws1/doc/p1?comment=c1"))
         assertEquals(Screen.Native("ws1", "doc/p1/history"), InstanceLinks.screen("/w/ws1/doc/p1?history=1"))

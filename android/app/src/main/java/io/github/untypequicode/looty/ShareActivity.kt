@@ -74,7 +74,7 @@ class ShareActivity : ComponentActivity() {
         // Lien vers une page de l'instance de l'app : on ouvre la page plutôt que d'en faire une tâche (ADR 0004).
         val page = if (uris.isEmpty()) InstanceLinks.sharedPage(text, Config.server(this)) else null
         if (page != null) {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("looty:/$page"), this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(InstanceLinks.appLink(page)), this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             finish()
             return
         }

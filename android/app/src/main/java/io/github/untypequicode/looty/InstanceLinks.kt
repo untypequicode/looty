@@ -27,18 +27,28 @@ object InstanceLinks {
         data class Web(val path: String) : Screen
     }
 
+    /** « a=1&b » → [« a=1 », « b »] (valeurs encore encodées). */
+    private fun params(query: String) = query.split('&').filter { it.isNotEmpty() }
+
+    /** Décodage d'une valeur de requête ; null si un échappement est invalide (« %zz »), sans exception. */
+    private fun decode(s: String): String? = runCatching { URLDecoder.decode(s.replace("+", "%2B"), "UTF-8") }.getOrNull()
+
+    /** Lien de l'app (looty://w/…) vers la page [path] (/w/…), sans instance : celle de l'app. */
+    fun appLink(path: String) = "looty:/$path"
+
     fun screen(path: String): Screen {
-        val uri = runCatching { URI(path) }.getOrNull() ?: return Screen.Web(path)
-        val seg = uri.path.orEmpty().split('/').filter { it.isNotEmpty() }
+        // Découpage à la main : java.net.URI refuse des liens que le navigateur laisse passer.
+        val bare = path.substringBefore('#')
+        val seg = bare.substringBefore('?').split('/').filter { it.isNotEmpty() }
         val ws = seg.getOrNull(1)
         if (seg.firstOrNull() != "w" || ws == null) return Screen.Web(path)
-        val query = uri.rawQuery?.split('&').orEmpty().filter { it.isNotEmpty() }
-            .associate { it.substringBefore('=') to URLDecoder.decode(it.substringAfter('=', ""), "UTF-8") }
+        val query = params(bare.substringAfter('?', "")).associate { it.substringBefore('=') to it.substringAfter('=', "").let { v -> decode(v) ?: v } }
         val page = seg.getOrNull(2)
         val id = seg.getOrNull(3)
+        val task = query["task"]?.takeIf { it.isNotEmpty() }
         val route = when {
             page == "task" && id != null -> "task/$id"
-            page == "board" && !query["task"].isNullOrEmpty() -> "task/${query["task"]}"
+            (page == "board" || page == "my-tasks") && task != null -> "task/$task"
             page == "board" && id != null -> "board/$id"
             page == "doc" && id != null && "comment" in query -> "doc/$id/comments"
             page == "doc" && id != null && "history" in query -> "doc/$id/history"
@@ -56,12 +66,13 @@ object InstanceLinks {
     }
 
     fun resolve(link: String, appInstance: String?): LinkAction? {
-        val uri = runCatching { URI(link) }.getOrNull() ?: return null
-        if (uri.scheme != "looty" || uri.host != "w") return null
-        val params = uri.rawQuery?.split('&').orEmpty().filter { it.isNotEmpty() }
-        val server = params.firstOrNull { it.startsWith("server=") }?.let { URLDecoder.decode(it.removePrefix("server="), "UTF-8") }
-        val rest = params.filterNot { it.startsWith("server=") }
-        val path = "/w" + uri.rawPath.orEmpty() + if (rest.isEmpty()) "" else "?" + rest.joinToString("&")
+        if (!link.startsWith("looty://w")) return null
+        val tail = link.removePrefix("looty://w").substringBefore('#')
+        if (tail.isNotEmpty() && tail[0] != '/' && tail[0] != '?') return null
+        val all = params(tail.substringAfter('?', ""))
+        val server = all.firstOrNull { it.startsWith("server=") }?.let { decode(it.removePrefix("server=")) ?: return null }
+        val rest = all.filterNot { it.startsWith("server=") }
+        val path = "/w" + tail.substringBefore('?') + if (rest.isEmpty()) "" else "?" + rest.joinToString("&")
         // Sans server : lien produit par l'app elle-même (notification, widget, raccourci).
         val app = appInstance?.let { origin(it) }
         if (server == null) return if (app == null) null else LinkAction.Open(path)

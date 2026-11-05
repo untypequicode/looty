@@ -60,26 +60,30 @@ class MainActivity : ComponentActivity() {
             // Lien d'une instance alors que l'app n'en a pas : se connecter à celle-là, puis ouvrir la page.
             val connect = linkAction(intent) as? InstanceLinks.LinkAction.Connect
             startActivity(Intent(this, SetupActivity::class.java).apply {
-                if (connect != null) putExtra(SetupActivity.EXTRA_SERVER, connect.instance).putExtra(SetupActivity.EXTRA_PATH, connect.path)
+                if (connect != null) putExtra(SetupActivity.EXTRA_INSTANCE, connect.instance).putExtra(SetupActivity.EXTRA_PATH, connect.path)
             })
             finish()
             return
         }
         if (savedInstanceState == null) state.start()
-        handleLink(intent)
+        // Recréation (rotation…) ou retour par les récents : le lien a déjà été traité.
+        if (savedInstanceState == null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0) handleLink(intent)
         setContent {
             LootyTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    val f = foreign
-                    if (f != null) {
-                        BackHandler { foreign = null }
-                        ForeignLink(f, onBrowser = { openInBrowser(f.webUrl); foreign = null }, onClose = { foreign = null })
-                    } else when (val s = state.session) {
+                    when (val s = state.session) {
                         is Session.Ready -> LootyApp(state) { openLogin() }
                         is Session.NeedLogin -> SignIn { openLogin() }
                         is Session.Offline -> Offline { state.start() }
                         Session.NeedServer -> {}
                         Session.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicatorCompat() }
+                    }
+                    // Par-dessus l'app, qui garde ses écrans ouverts : fermer y ramène.
+                    foreign?.let { f ->
+                        BackHandler { foreign = null }
+                        Surface(Modifier.fillMaxSize()) {
+                            ForeignLink(f, onBrowser = { openInBrowser(f.webUrl); foreign = null }, onClose = { foreign = null })
+                        }
                     }
                 }
             }
@@ -144,7 +148,7 @@ private fun SignIn(onSignIn: () -> Unit) {
 }
 
 /** « https://autre.fr » → « autre.fr » (l'origine entière si seul le schéma diffère). */
-private fun shown(origin: String, other: String): String =
+private fun displayOrigin(origin: String, other: String): String =
     origin.substringAfter("://").let { if (it == other.substringAfter("://")) origin else it }
 
 /** Lien d'une autre instance : l'app ne l'ouvre pas, le navigateur le peut (ADR 0004). */
@@ -156,7 +160,7 @@ private fun ForeignLink(link: InstanceLinks.LinkAction.Foreign, onBrowser: () ->
         Text(stringResource(R.string.link_foreign_title), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
-            stringResource(R.string.link_foreign_body, shown(link.linkInstance, link.appInstance), shown(link.appInstance, link.linkInstance)),
+            stringResource(R.string.link_foreign_body, displayOrigin(link.linkInstance, link.appInstance), displayOrigin(link.appInstance, link.linkInstance)),
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))

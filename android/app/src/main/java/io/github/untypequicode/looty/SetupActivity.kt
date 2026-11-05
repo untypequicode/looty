@@ -26,7 +26,7 @@ import kotlin.concurrent.thread
 class SetupActivity : ComponentActivity() {
     companion object {
         /** Instance d'où vient un lien reçu (adresse préremplie). */
-        const val EXTRA_SERVER = "server"
+        const val EXTRA_INSTANCE = "instance"
         /** Page /w/… de ce lien, ouverte une fois connecté à cette instance. */
         const val EXTRA_PATH = "path"
     }
@@ -34,7 +34,7 @@ class SetupActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val fromLink = intent.getStringExtra(EXTRA_SERVER)
+        val fromLink = intent.getStringExtra(EXTRA_INSTANCE)
         val current = fromLink ?: Config.server(this) ?: ""
         setContent {
             val dark = isSystemInDarkTheme()
@@ -50,9 +50,9 @@ class SetupActivity : ComponentActivity() {
         val main = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(MainActivity.EXTRA_RELOAD, true)
         // La page du lien, si l'on s'est bien connecté à son instance (pas à une autre adresse saisie).
         val path = intent.getStringExtra(EXTRA_PATH)
-        val server = intent.getStringExtra(EXTRA_SERVER)
+        val server = intent.getStringExtra(EXTRA_INSTANCE)
         if (path != null && server != null && InstanceLinks.origin(server) == InstanceLinks.origin(origin)) {
-            main.data = android.net.Uri.parse("looty:/$path")
+            main.data = android.net.Uri.parse(InstanceLinks.appLink(path))
         }
         startActivity(main)
         finish()
