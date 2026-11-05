@@ -67,6 +67,11 @@ export default {
   },
   notebook: {
     run: 'Exécuter', runAll: 'Tout exécuter', restart: 'Redémarrer Python', clearAll: 'Effacer les sorties', clearOutput: 'Effacer la sortie', addCode: 'Code', addText: 'Texte',
+    toc: 'Sommaire', tocEmpty: 'Aucun titre : commencez une cellule de texte par # pour en ajouter.', duplicate: 'Dupliquer',
+    modeCommand: 'Commande', modeEdit: 'Édition',
+    shortcutsHint: 'Mode commande (Échap) : ↑/↓ ou J/K pour naviguer, Entrée pour éditer, A/B ajouter au-dessus/en dessous, DD supprimer, Z rétablir la dernière cellule supprimée, M texte, Y code, C/X/V copier/couper/coller, Maj+M fusionner avec la suivante. En édition : Ctrl+Maj+- scinde la cellule.',
+    dragHint: 'Glisser pour déplacer la cellule', hideInput: 'Replier l’entrée', showInput: 'Déplier l’entrée', hideOutput: 'Replier la sortie', showOutput: 'Déplier la sortie',
+    outputHidden: 'Sortie repliée', expandOutput: 'Afficher toute la sortie', collapseOutput: 'Réduire la sortie', duration: 'Exécutée en {time}',
     addAbove: 'Ajouter une cellule au-dessus', addBelow: 'Ajouter une cellule en dessous', moveUp: 'Monter', moveDown: 'Descendre', toText: 'Transformer en texte', toCode: 'Transformer en code',
     starting: 'Démarrage de Python…', busy: 'Exécution…', ready: 'Python prêt', off: 'Python (démarre à la première exécution)', download: 'Télécharger le notebook (.ipynb)',
     pyodideHint: 'Python s’exécute dans votre navigateur (Pyodide), pas sur le serveur. Les bibliothèques comme NumPy, pandas et Matplotlib se chargent toutes seules au premier import ; utilisez %pip install pour les autres. Les fichiers du projet se lisent directement. Les sorties sont partagées avec toutes les personnes qui modifient.',

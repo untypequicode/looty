@@ -101,6 +101,8 @@ export function useNotebookKernel(opts: { signature?: () => string; files?: () =
       const result = await new Promise<{ ok: boolean; outputs: NbOutput[] }>((resolve) => {
         pending.set(id, { outputs: [], onUpdate, resolve })
         worker!.postMessage({ type: 'run', id, code })
+        // Début de l'exécution (après celles en attente) : cellule « en cours », durée mesurée d'ici.
+        onUpdate([])
       })
       if (state.value === 'busy') state.value = 'idle'
       return result

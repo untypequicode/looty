@@ -67,6 +67,11 @@ export default {
   },
   notebook: {
     run: 'Run', runAll: 'Run all', restart: 'Restart Python', clearAll: 'Clear outputs', clearOutput: 'Clear output', addCode: 'Code', addText: 'Text',
+    toc: 'Table of contents', tocEmpty: 'No headings: start a text cell with # to add one.', duplicate: 'Duplicate',
+    modeCommand: 'Command', modeEdit: 'Edit',
+    shortcutsHint: 'Command mode (Esc): ↑/↓ or J/K to move, Enter to edit, A/B add above/below, DD delete, Z restore the last deleted cell, M text, Y code, C/X/V copy/cut/paste, Shift+M merge with the next cell. While editing: Ctrl+Shift+- splits the cell.',
+    dragHint: 'Drag to move the cell', hideInput: 'Collapse input', showInput: 'Expand input', hideOutput: 'Collapse output', showOutput: 'Expand output',
+    outputHidden: 'Output collapsed', expandOutput: 'Show the whole output', collapseOutput: 'Shrink the output', duration: 'Ran in {time}',
     addAbove: 'Add a cell above', addBelow: 'Add a cell below', moveUp: 'Move up', moveDown: 'Move down', toText: 'Turn into text', toCode: 'Turn into code',
     starting: 'Starting Python…', busy: 'Running…', ready: 'Python ready', off: 'Python (starts on first run)', download: 'Download the notebook (.ipynb)',
     pyodideHint: 'Python runs in your browser (Pyodide), not on the server. Libraries such as NumPy, pandas and Matplotlib load automatically on first import; use %pip install for others. Project files can be read directly. Outputs are shared with everyone editing.',
