@@ -1,23 +1,59 @@
 # Vérifications du serveur (backend, interface, collaboration) sur les pull requests et sur main.
 # Aussi appelé par « Release » avant toute publication. Les applications ont leurs propres workflows
 # (Android, Desktop, Nix cache, Site), lancés quand leurs dossiers changent.
+#
+# Le workflow tourne sur chaque pull request, même sans changement du serveur : ses jobs sont obligatoires
+# pour fusionner dans main (règle « main: CI required »). Le job `changes` regarde les dossiers modifiés ;
+# sans changement du serveur, les vérifications sont sautées, ce que GitHub compte comme réussi.
 name: CI
 
 on:
   push:
     branches: [main]
-    paths: ['backend/**', 'frontend/**', 'collaboration/**', 'e2e/**', 'scripts/**', '.github/workflows/ci.yml']
   pull_request:
-    paths: ['backend/**', 'frontend/**', 'collaboration/**', 'e2e/**', 'scripts/**', '.github/workflows/ci.yml']
   workflow_dispatch:
   workflow_call:
+    inputs:
+      all:
+        description: Tout vérifier, quels que soient les fichiers modifiés (appel par « Release »)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-24.04
+    outputs:
+      server: ${{ steps.diff.outputs.server }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          ALL: ${{ inputs.all }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$ALL" = "true" ] || [ "$EVENT" = "workflow_dispatch" ]; then echo server=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" = "pull_request" ]; then base=$(git merge-base "$PR_BASE" HEAD); else base="$PUSH_BEFORE"; fi
+          # Premier push d'une branche ou commit de base introuvable : tout vérifier.
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then echo server=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          git diff --name-only "$base" HEAD | tee /tmp/changed
+          if grep -qE '^(backend|frontend|collaboration|e2e|scripts)/|^\.github/workflows/ci\.yml$' /tmp/changed; then
+            echo server=true >> "$GITHUB_OUTPUT"
+          else
+            echo server=false >> "$GITHUB_OUTPUT"
+          fi
+
   backend:
     name: Backend tests
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -30,6 +66,8 @@ jobs:
 
   frontend:
     name: Frontend build
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -54,6 +92,8 @@ jobs:
 
   collaboration:
     name: Collaboration server
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -70,6 +110,8 @@ jobs:
 
   e2e:
     name: Browser tests
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-24.04
     services:
       postgres:

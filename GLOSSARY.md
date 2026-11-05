@@ -2,6 +2,20 @@
 
 Looty est une application de notes, documents et projets, disponible en web, bureau et Android. Ce glossaire fixe le vocabulaire partagé du produit.
 
+## Instances
+
+**Instance**:
+Une installation de Looty à une adresse donnée (`looty.mon-asso.fr`), avec ses comptes et ses espaces. Looty ne propose pas d'hébergement : chaque instance est auto-hébergée par quelqu'un.
+_Avoid_: serveur (seul), hébergement, tenant
+
+**Instance de l'app**:
+L'instance à laquelle une app Android ou bureau est connectée ; un lien d'une autre instance ne s'ouvre pas dans l'app.
+_Avoid_: serveur connecté, compte
+
+**Démo**:
+L'instance publique `demo.looty.untypequicode.fr`, remplie de données fictives et remise à zéro régulièrement, où l'on entre sans compte en choisissant un personnage. Chaque visiteur a sa propre copie de l'espace « Looty Démo » ; les fonctions qui chargent le serveur ou sortent vers l'extérieur y sont marquées « Indisponible dans la démo ». Ce n'est pas un hébergement : rien n'y est conservé.
+_Avoid_: bac à sable, essai, instance de test
+
 ## Distribution Nix
 
 **Cache binaire**:
