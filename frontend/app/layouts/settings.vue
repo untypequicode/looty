@@ -76,6 +76,7 @@ useShortcuts([{ keys: 'escape', handler: () => { if (document.querySelector('[ro
     <main class="st-main">
       <button class="st-menu" @click="navOpen = true"><Menu :size="18" /> {{ t('nav.settings') }}</button>
       <slot />
+      <AppAndroidBanner />
     </main>
   </div>
 </template>

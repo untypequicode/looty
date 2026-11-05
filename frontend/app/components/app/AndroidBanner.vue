@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Smartphone, X } from 'lucide-vue-next'
 import { useI18n } from '~/composables/useI18n'
-import { isAndroidBrowser, androidBannerHidden, useAndroidHandoff } from '~/composables/useAppHandoff'
+import { isAndroidBrowser, androidBannerHidden, useAppHandoff } from '~/composables/useAppHandoff'
 import { isPane } from '~/composables/usePane'
 
 const { t } = useI18n()
 const route = useRoute()
-const { intentUrl } = useAndroidHandoff()
+const { intentUrl } = useAppHandoff()
 // Navigateur Android seulement ; jamais de redirection automatique.
 const show = computed(() => isAndroidBrowser && !isPane && !androidBannerHidden.value)
 </script>
@@ -14,7 +14,7 @@ const show = computed(() => isAndroidBrowser && !isPane && !androidBannerHidden.
 <template>
   <div v-if="show" class="android-banner" role="status">
     <Smartphone :size="14" />
-    <span>{{ t('handoff.banner') }}</span>
+    <span>{{ t('handoff.openInApp') }}</span>
     <a class="android-banner-open" :href="intentUrl(route.fullPath)">{{ t('handoff.open') }}</a>
     <button class="android-banner-x" :aria-label="t('common.close')" @click="androidBannerHidden = true"><X :size="13" /></button>
   </div>

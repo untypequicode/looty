@@ -18,7 +18,7 @@ import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { motion } from '~/composables/useMotion'
 import { exportMarkdown } from '~/editor/export'
-import { useAndroidHandoff } from '~/composables/useAppHandoff'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { useComments, type ItemComment } from '~/composables/useComments'
 import { replaceCommentMark, findCommentMark } from '~/editor/commentMark'
 
@@ -27,7 +27,7 @@ definePageMeta({ layout: 'workspace' })
 const route = useRoute()
 const qc = useQueryClient()
 const { t, relativeTime } = useI18n()
-const { openInAppItems } = useAndroidHandoff()
+const { openInAppItems } = useAppHandoff()
 const { wsId, pages, member, isGuest, workspace } = useWorkspace()
 const { setPersonal } = usePersonal()
 /** Bascule Partagé / Personnel : l'autrice la rend personnelle, la propriétaire la repartage (pas sous une page personnelle). */

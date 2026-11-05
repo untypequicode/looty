@@ -1,7 +1,6 @@
 export default {
   desktop: { openInApp: 'Ouvrir dans l’application de bureau' },
   handoff: {
-    banner: 'Ouvrir dans l’app Looty',
     open: 'Ouvrir',
     openInApp: 'Ouvrir dans l’app Looty',
     showBanner: 'Proposer d’ouvrir les pages dans l’app Looty',

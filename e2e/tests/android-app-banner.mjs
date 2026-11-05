@@ -55,6 +55,15 @@ await sw.click(); await a.waitForTimeout(300)
 await a.goto(B + taskPath, { waitUntil: 'networkidle' }); await a.waitForTimeout(1000)
 ok('banner back after turning the setting on', await a.locator('.android-banner').count() === 1)
 
+// Autres pages /w/… : agenda, mode lecture.
+await a.goto(`${B}/w/${WS}/calendar`, { waitUntil: 'networkidle' }); await a.waitForTimeout(800)
+ok('banner on the calendar', await a.locator('.android-banner').count() === 1)
+const doc = await api(`/api/workspaces/${WS}/pages`, 'POST', { title: 'Fiche de révision' })
+await a.goto(`${B}/w/${WS}/read/${doc.id}`, { waitUntil: 'networkidle' }); await a.waitForTimeout(800)
+const readHref = await a.locator('.android-banner a.android-banner-open').getAttribute('href')
+ok('reader page banner opens the reader', readHref?.startsWith(`intent://w/${WS}/read/${doc.id}?server=`), readHref)
+await api(`/api/workspaces/${WS}/pages/${doc.id}`, 'DELETE')
+
 await api(`/api/boards/${board.id}`, 'DELETE')
 ok('no page errors', errors.length === 0, errors.join(' | '))
 await browser.close()

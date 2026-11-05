@@ -5,6 +5,7 @@ import {
 } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MenuItem } from '~/components/ui/Menu.vue'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { api, errorMessage, moodleOffline } from '~/composables/api'
 import { fileSize } from '~/composables/useProjects'
 import { useI18n } from '~/composables/useI18n'
@@ -245,7 +246,9 @@ async function disconnect() {
   invalidate()
 }
 const moreOpen = ref(false)
+const { openInAppItems } = useAppHandoff()
 const moreItems = computed<MenuItem[]>(() => [
+  ...openInAppItems(route.path),
   { label: t('moodle.syncCalendar'), icon: RefreshCw, onSelect: syncCalendar },
   { label: conn.value?.notify ? t('moodle.notifyOff') : t('moodle.notifyOn'), icon: conn.value?.notify ? BellOff : Bell, onSelect: toggleNotify },
   ...(board.customized.value ? [{ label: t('moodle.board.reset'), icon: LayoutDashboard, onSelect: resetBoard }] : []),

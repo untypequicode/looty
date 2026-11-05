@@ -21,7 +21,7 @@ export const isAndroidBrowser = typeof window !== 'undefined'
   && !window.matchMedia?.('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches
 
 /** Bannière « Ouvrir dans l'app Looty » masquée sur cet appareil. */
-export const androidBannerHidden = useLocalStorage('looty.androidBanner.hidden', false)
+export const androidBannerHidden = useLocalStorage('looty.android.bannerhidden', false)
 
 /**
  * Lien `intent://` qui ouvre la page `path` (/w/…) dans l'app Android (`looty://w/…`), avec l'instance
@@ -35,7 +35,7 @@ export function androidIntentUrl(path: string, origin: string, fallback: string)
 }
 
 /** Lien vers l'app Android pour une page, avec la page de téléchargement du serveur en repli. */
-export function useAndroidHandoff() {
+export function useAppHandoff() {
   const { data } = useReleases()
   const { t } = useI18n()
   const download = computed(() => data.value?.latest.android?.url ?? DEFAULT_DOWNLOAD)

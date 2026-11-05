@@ -12,7 +12,7 @@ import { useI18n } from '~/composables/useI18n'
 import { useDemo } from '~/composables/useDemo'
 import { useAuth } from '~/composables/useAuth'
 import { useWorkspace } from '~/composables/useWorkspace'
-import { useAndroidHandoff } from '~/composables/useAppHandoff'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
@@ -31,7 +31,7 @@ const { t, relativeTime } = useI18n()
 const { isDemo, unavailableLabel } = useDemo()
 const { user } = useAuth()
 const { wsId } = useWorkspace()
-const { openInAppItems } = useAndroidHandoff()
+const { openInAppItems } = useAppHandoff()
 const { isMobile } = useBreakpoint()
 // `embedded` : affiché dans une page des documents (pas d'en-tête de page, ni de titre d'onglet).
 const props = defineProps<{ projectId: string; embedded?: boolean }>()

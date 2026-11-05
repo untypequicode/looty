@@ -6,7 +6,7 @@ import { useBoardQuery, useBoardActions, allTasks, positionBetween } from '~/com
 import { useBoardFilters } from '~/composables/useBoardFilters'
 import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links } from '~/composables/useWorkspace'
-import { useAndroidHandoff } from '~/composables/useAppHandoff'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { useBoards } from '~/composables/useBoards'
 import { useAuth } from '~/composables/useAuth'
 import { useUi } from '~/composables/useUi'
@@ -21,7 +21,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const { wsId, isAdmin, members } = useWorkspace()
-const { openInAppItems } = useAndroidHandoff()
+const { openInAppItems } = useAppHandoff()
 // Droits du rôle et mode d'édition personnel (tableaux).
 const { can } = useAccess(wsId)
 const canWrite = computed(() => can.value.editTasks)

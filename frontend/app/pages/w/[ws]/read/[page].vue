@@ -63,5 +63,8 @@ useHead({ title: () => (page.value ? `${page.value.icon ? `${page.value.icon} ` 
   <DocReader
     :page="page" :error="!!error" :current-id="pageId" :crumb="crumb" :outline="outline" :prev="prev" :next="next"
     :back-to="links.doc(wsId, pageId)" :edit-to="page?.can_edit !== false ? links.doc(wsId, pageId) : null" :project="project"
-  />
+  >
+    <!-- Bannière fixe en bas : dans le lecteur, pour garder une seule racine de page. -->
+    <template #actions><AppAndroidBanner /></template>
+  </DocReader>
 </template>

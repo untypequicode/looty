@@ -8,6 +8,7 @@ import type { Component } from 'vue'
 import { useQueryClient, type InfiniteData } from '@tanstack/vue-query'
 import { useLocalStorage, refDebounced } from '@vueuse/core'
 import type { MenuItem } from '~/components/ui/Menu.vue'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { useBreakpoint } from '~/composables/useBreakpoint'
@@ -348,7 +349,9 @@ async function refresh() {
   }
 }
 const moreOpen = ref(false)
+const { openInAppItems } = useAppHandoff()
 const moreItems = computed<MenuItem[]>(() => [
+  ...openInAppItems(route.path),
   ...(account.value?.webmail_url ? [{ label: t('mail.openWebmail'), icon: ExternalLink, onSelect: openWebmail }, { divider: true }] : []),
   { label: t('mail.editAccount'), icon: Pencil, onSelect: () => { editing.value = account.value; dialogOpen.value = true } },
   { label: t('mail.addAccount'), icon: Plus, onSelect: addAccount },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useAndroidHandoff } from '~/composables/useAppHandoff'
+import { useAppHandoff } from '~/composables/useAppHandoff'
 import { X, ChevronUp, ChevronDown, Link2, MoreHorizontal, Trash2, CalendarDays, CalendarClock, UserRound, Tag, Users, Kanban, CornerLeftUp, Copy, LockKeyhole } from 'lucide-vue-next'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useQuery } from '@tanstack/vue-query'
@@ -34,7 +34,7 @@ onClickOutside(panelEl, () => emit('close'), {
 const { wsId, member, boards } = useWorkspace()
 const { user } = useAuth()
 const { t, formatDate, relativeTime } = useI18n()
-const { openInAppItems } = useAndroidHandoff()
+const { openInAppItems } = useAppHandoff()
 const { isMobile } = useBreakpoint()
 const boardId = computed(() => props.board.id)
 const actions = useBoardActions(boardId)
