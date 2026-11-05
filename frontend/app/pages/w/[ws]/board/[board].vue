@@ -292,6 +292,7 @@ useHead({ title: () => board.value?.name ?? t('nav.boards') })
           :can-manage="canManage"
           :can-validate="canValidate"
           :focused-id="focusedId"
+          :sorted="filters.sort.value !== 'manual'"
           @open="openTask"
           @toggle="onToggle"
           @menu="openMenu"

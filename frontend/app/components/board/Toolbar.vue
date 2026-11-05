@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { Search, ListFilter, SlidersHorizontal, X, Check, UserRound, Tag, Signal, CalendarDays } from 'lucide-vue-next'
+import { Search, ListFilter, SlidersHorizontal, X, Check, UserRound, Tag, Signal, CalendarDays, ArrowUpDown } from 'lucide-vue-next'
 import type { Board } from '~/types'
 import type { DueFilter, BoardFilters } from '~/composables/useBoardFilters'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { PRIORITIES } from '~/composables/useBoard'
+import { TASK_SORT_KEYS, type SortDir, type TaskSortKey } from '~/utils/taskSort'
 
 const props = defineProps<{ board: Board; filters: any; total: number; shown: number }>()
 const { members, member } = useWorkspace()
@@ -13,6 +14,7 @@ const { t } = useI18n()
 const f = props.filters as BoardFilters
 const filterOpen = ref(false)
 const displayOpen = ref(false)
+const sortOpen = ref(false)
 const tab = ref<'assignee' | 'label' | 'priority' | 'due'>('assignee')
 const search = ref<HTMLInputElement | null>(null)
 const searchOpen = ref(!!f.q.value)
@@ -35,6 +37,10 @@ const chips = computed<{ key: string; label: string; color?: string; remove: () 
   ...f.priorities.value.map((p) => ({ key: `p${p}`, label: t(`priority.${p}`), remove: () => toggle(f.priorities, p) })),
   ...f.due.value.map((d) => ({ key: `d${d}`, label: t(`filters.due.${d}`), remove: () => toggle(f.due as any, d) })),
 ])
+
+// Libellés du sens selon le type de valeur triée.
+const dirKind = (k: TaskSortKey) => (['due', 'start', 'created', 'updated'].includes(k) ? 'date' : k === 'priority' || k === 'status' ? k : 'text')
+const dirOptions = computed(() => (['asc', 'desc'] as SortDir[]).map((d) => ({ value: d, label: t(`boardSort.dir.${dirKind(f.sort.value)}.${d}`) })))
 
 function openSearch() {
   searchOpen.value = true
@@ -90,6 +96,28 @@ defineExpose({ openSearch, openFilters: () => (filterOpen.value = true) })
               </button>
             </template>
           </div>
+        </div>
+      </UiPopover>
+
+      <UiPopover v-model:open="sortOpen" :width="260" placement="bottom-start">
+        <template #trigger>
+          <UiButton size="sm" variant="ghost" :icon="ArrowUpDown" class="tb-sort" :class="{ active: f.sort.value !== 'manual' }">
+            {{ f.sort.value === 'manual' ? t('boardSort.label') : t('boardSort.by', { key: t(`boardSort.keys.${f.sort.value}`) }) }}
+          </UiButton>
+        </template>
+        <div class="sort-opts">
+          <button v-for="k in TASK_SORT_KEYS" :key="k" class="fm-opt" :data-sort="k" @click="f.sort.value = k">
+            <span class="fm-check" :class="{ on: f.sort.value === k }"><Check :size="11" :stroke-width="3" /></span>
+            {{ t(`boardSort.keys.${k}`) }}
+          </button>
+        </div>
+        <div class="sort-foot">
+          <template v-if="f.sort.value !== 'manual'">
+            <span>{{ t('boardSort.direction') }}</span>
+            <UiSegmented v-model="f.sortDir.value" :options="dirOptions" />
+            <p class="faint sort-hint">{{ t('boardSort.sortedHint') }}</p>
+          </template>
+          <p v-else class="faint sort-hint">{{ t('boardSort.manualHint') }}</p>
         </div>
       </UiPopover>
 
@@ -163,6 +191,9 @@ defineExpose({ openSearch, openFilters: () => (filterOpen.value = true) })
 .fm-check { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid var(--text-3); display: grid; place-items: center; color: transparent; flex: none; }
 .fm-check.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .fm-empty { padding: 12px; font-size: var(--fs-sm); }
+.sort-opts { padding: 4px; display: flex; flex-direction: column; gap: 1px; }
+.sort-foot { border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); color: var(--text-2); }
+.sort-hint { font-size: var(--fs-xs); margin: 0; }
 .disp { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
 .disp-row { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 4px; cursor: pointer; }
 .disp-col { display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 8px; font-size: var(--fs-sm); color: var(--text-2); }

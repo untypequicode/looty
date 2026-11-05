@@ -16,6 +16,8 @@ const props = defineProps<{
   canManage?: boolean
   canValidate?: boolean
   focusedId?: string | null
+  /** Tri actif : on ne réordonne plus dans une colonne, une carte déplacée va en bas de sa nouvelle colonne. */
+  sorted?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'open', t: Task): void
@@ -56,10 +58,16 @@ function onTaskEnd(evt: any) {
     for (const col of cols.value) {
       const i = col.tasks.findIndex((x) => x.id === id)
       if (i === -1) continue
+      const original = allTasks(props.fullBoard).find((x) => x.id === id)
+      if (original && original.column_id === col.id && ((evt.oldIndex === evt.newIndex && evt.from === evt.to) || props.sorted)) return
+      if (props.sorted) {
+        // L'ordre affiché vient du tri : la carte prend la dernière place manuelle de la colonne.
+        const last = props.fullBoard.columns.find((c) => c.id === col.id)?.tasks.reduce<number | undefined>((m, x) => (m == null || x.position > m ? x.position : m), undefined)
+        emit('move', id, col.id, positionBetween(last, undefined))
+        return
+      }
       const before = col.tasks[i - 1]?.position
       const after = col.tasks[i + 1]?.position
-      const original = allTasks(props.fullBoard).find((x) => x.id === id)
-      if (original && original.column_id === col.id && evt.oldIndex === evt.newIndex && evt.from === evt.to) return
       emit('move', id, col.id, positionBetween(before, after))
       return
     }
@@ -123,6 +131,8 @@ const sortableOpts = computed(() => ({
   scrollSensitivity: 90,
   bubbleScroll: true,
   emptyInsertThreshold: 48,
+  // Tri actif : glisser vers une autre colonne reste possible, pas dans la même.
+  sort: !props.sorted,
 }))
 </script>
 
