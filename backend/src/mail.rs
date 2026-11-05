@@ -111,7 +111,16 @@ pub struct Email {
     pub html: String,
 }
 
+/// Le domaine `.invalid` (RFC 2606) ne reçoit jamais de courrier : comptes de la démo (`seed-demo`).
+fn deliverable(address: &str) -> bool {
+    let a = address.trim().to_ascii_lowercase();
+    !(a.ends_with(".invalid") || a.ends_with("@invalid"))
+}
+
 pub async fn send(c: &MailConfig, e: &Email) -> ApiResult<()> {
+    if !deliverable(&e.to) {
+        return Ok(());
+    }
     let name = c.from_name.replace(['<', '>', '"', ','], "");
     let from: Mailbox = format!("{} <{}>", if name.trim().is_empty() { "Looty" } else { name.trim() }, c.from_address)
         .parse()
@@ -247,4 +256,17 @@ async fn test(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<s
     let mail = crate::delivery::render_email(&state.base_url, fr, subject, line, None, &state.base_url, None);
     send(&c, &Email { to: email.clone(), to_name: name, subject: subject.into(), text: mail.0, html: mail.1 }).await?;
     Ok(Json(serde_json::json!({ "sent_to": email })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn addresses_in_the_invalid_domain_are_never_delivered() {
+        assert!(!deliverable("maya.fr@demo.looty.invalid"));
+        assert!(!deliverable("someone@INVALID"));
+        assert!(deliverable("maya@looty.fr"));
+        assert!(deliverable("ops@invalid.example.org"));
+    }
 }

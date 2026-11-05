@@ -45,17 +45,28 @@ impl Lang {
     }
 }
 
+/// Rôle d'un personnage dans l'espace modèle (rôle prédéfini de l'espace : propriétaire, membre, lecteur).
 #[derive(Clone, Copy, PartialEq)]
-enum Role {
+enum Cast {
     Admin,
     Member,
     Viewer,
 }
 
+impl Cast {
+    fn as_str(self) -> &'static str {
+        match self {
+            Cast::Admin => "admin",
+            Cast::Member => "member",
+            Cast::Viewer => "viewer",
+        }
+    }
+}
+
 struct Character {
     key: &'static str,
     name: &'static str,
-    role: Role,
+    role: Cast,
     color: (&'static str, &'static str),
     /// Tâches de son espace perso : (fr, en, échéance en jours).
     personal: [(&'static str, &'static str, i64); 3],
@@ -71,7 +82,7 @@ const CHARACTERS: [Character; 5] = [
     Character {
         key: "maya",
         name: "Maya Chen",
-        role: Role::Admin,
+        role: Cast::Admin,
         color: ("#7170ff", "#c084fc"),
         personal: [
             ("Préparer l'entretien annuel de Léo", "Prepare Leo's yearly review", 3),
@@ -82,7 +93,7 @@ const CHARACTERS: [Character; 5] = [
     Character {
         key: "leo",
         name: "Léo Martin",
-        role: Role::Member,
+        role: Cast::Member,
         color: ("#4ea7fc", "#2dd4bf"),
         personal: [
             ("Mettre à jour mon portable", "Update my laptop", 0),
@@ -93,7 +104,7 @@ const CHARACTERS: [Character; 5] = [
     Character {
         key: "sara",
         name: "Sara Okafor",
-        role: Role::Member,
+        role: Cast::Member,
         color: ("#f2994a", "#f43f5e"),
         personal: [
             ("Répondre aux journalistes", "Answer the journalists", 1),
@@ -104,7 +115,7 @@ const CHARACTERS: [Character; 5] = [
     Character {
         key: "ines",
         name: "Inès Moreau",
-        role: Role::Member,
+        role: Cast::Member,
         color: ("#b18cff", "#ec4899"),
         personal: [
             ("Ranger la bibliothèque d'icônes", "Tidy up the icon library", 3),
@@ -115,7 +126,7 @@ const CHARACTERS: [Character; 5] = [
     Character {
         key: "noah",
         name: "Noah Fischer",
-        role: Role::Viewer,
+        role: Cast::Viewer,
         color: ("#4cb782", "#0ea5e9"),
         personal: [
             ("Envoyer mes retours sur la bêta", "Send my beta feedback", 2),
@@ -125,8 +136,14 @@ const CHARACTERS: [Character; 5] = [
     },
 ];
 
+/// Domaine des comptes de la démo : jamais de courrier (`mail::send` l'ignore), et ils ne comptent pas
+/// comme premier compte de l'instance (`auth`).
+const EMAIL_DOMAIN: &str = "demo.looty.invalid";
+/// Motif `LIKE` des adresses des personnages.
+pub const EMAIL_PATTERN: &str = "%@demo.looty.invalid";
+
 fn email(c: &Character, lang: Lang) -> String {
-    format!("{}.{}@demo.looty.invalid", c.key, lang.code())
+    format!("{}.{}@{EMAIL_DOMAIN}", c.key, lang.code())
 }
 
 /// Point d'entrée de la commande ; renvoie le code de sortie.
@@ -169,6 +186,7 @@ pub async fn run(state: AppState, args: &[String]) -> i32 {
 async fn seed(state: &AppState, lang: Lang) -> Result<Value, String> {
     let pool = &state.pool;
     let mut ids = Vec::new();
+    // Un personnage suspendu par un administrateur est réactivé : le modèle est recréé tel quel.
     for c in &CHARACTERS {
         let id: Uuid = sqlx::query_scalar(
             "INSERT INTO users (email, name) VALUES ($1, $2) ON CONFLICT (email) DO UPDATE SET is_suspended = FALSE RETURNING id",
@@ -194,7 +212,11 @@ struct Api {
 }
 
 impl Api {
+    /// Jetons créés ensemble ou pas du tout ; ceux d'une génération interrompue sont d'abord retirés.
     async fn new(state: &AppState, users: &[Uuid]) -> Result<Self, String> {
+        let db = |e: sqlx::Error| e.to_string();
+        let mut tx = state.pool.begin().await.map_err(db)?;
+        sqlx::query("DELETE FROM api_tokens WHERE name = $1 AND user_id = ANY($2)").bind(TOKEN_NAME).bind(users).execute(&mut *tx).await.map_err(db)?;
         let mut tokens = HashMap::new();
         for &u in users {
             let raw = format!("looty_{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
@@ -202,11 +224,12 @@ impl Api {
                 .bind(u)
                 .bind(TOKEN_NAME)
                 .bind(crate::access::hash_token(&raw))
-                .execute(&state.pool)
+                .execute(&mut *tx)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(db)?;
             tokens.insert(u, raw);
         }
+        tx.commit().await.map_err(db)?;
         Ok(Api { app: crate::app(state.clone()), pool: state.pool.clone(), tokens })
     }
 
@@ -349,14 +372,18 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
         });
         let avatar = match kept {
             Some(url) => url,
-            None => api.upload(u, &format!("{}.svg", c.key), "image/svg+xml", &avatar_svg(c)).await?["url"].as_str().unwrap_or_default().to_string(),
+            None => {
+                let up = api.upload(u, &format!("{}.svg", c.key), "image/svg+xml", &avatar_svg(c)).await?;
+                up["url"].as_str().ok_or_else(|| format!("avatar upload: {up}"))?.to_string()
+            }
         };
         api.put(u, "/api/user/profile", json!({ "name": c.name, "avatar_url": avatar })).await?;
         api.put(u, "/api/user/preferences", json!({ "locale": lang.code(), "timezone": TZ.name() })).await?;
         api.put(u, "/api/user/releases/seen", json!({ "version": env!("CARGO_PKG_VERSION") })).await?;
     }
 
-    // --- Idempotence : l'ancien espace modèle, puis le contenu des espaces perso.
+    // --- Idempotence : l'ancien espace modèle (tout espace partagé dont l'admin de la démo est propriétaire :
+    // ces comptes ne servent qu'à lui), puis le contenu des espaces perso.
     let old: Vec<Uuid> = sqlx::query_scalar(
         "SELECT w.id FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
           WHERE m.user_id = $1 AND m.role = 'owner' AND w.personal_of IS NULL",
@@ -387,14 +414,12 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
     let ws = api.post(admin, "/api/workspaces", json!({ "name": t("Looty Démo", "Looty Demo") })).await?;
     let w = id(&ws["workspace"])?;
     let roles = api.get(admin, &format!("/api/workspaces/{w}/access/roles")).await?;
-    let role = |preset: &str| roles.as_array().and_then(|r| r.iter().find(|x| x["preset"] == preset)).map(id).transpose();
-    let (member_role, viewer_role) = (role("member")?, role("viewer")?);
     for (c, &u) in CHARACTERS.iter().zip(ids) {
-        let role_id = match c.role {
-            Role::Admin => continue,
-            Role::Member => member_role,
-            Role::Viewer => viewer_role,
-        };
+        // L'admin a créé l'espace (propriétaire) ; les autres reçoivent le rôle prédéfini du même nom.
+        if c.role == Cast::Admin {
+            continue;
+        }
+        let role_id = roles.as_array().and_then(|r| r.iter().find(|x| x["preset"] == c.role.as_str())).map(id).transpose()?;
         api.post(admin, &format!("/api/workspaces/{w}/access/members/add"), json!({ "user_id": u, "role_id": role_id })).await?;
     }
     let modes = json!({ "modes": { "docs": "write", "boards": "write", "calendar": "write" }, "modesChosen": true });
@@ -422,35 +447,48 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
         labels.push(id(&api.post(admin, &format!("/api/boards/{board}/labels"), json!({ "name": name, "color": color })).await?)?);
     }
     let (l_design, l_tech, l_marketing, l_bug) = (labels[0], labels[1], labels[2], labels[3]);
-    // (colonne, titre fr, titre en, étiquette, personne, priorité, échéance)
-    let tasks: [(usize, &str, &str, Uuid, usize, i32, i64); 11] = [
-        (0, "Préparer la semaine de lancement", "Plan the launch week", l_marketing, SARA, 2, 9),
-        (0, "Écrire les notes de version", "Write the release notes", l_marketing, MAYA, 1, 7),
-        (0, "Tourner la vidéo de démo", "Record the demo video", l_design, INES, 2, 10),
-        (1, "Mode hors ligne de l'app mobile", "Offline mode for the mobile app", l_tech, LEO, 4, 5),
-        (1, "Textes de la page tarifs", "Pricing page copy", l_marketing, SARA, 2, 4),
-        (2, "Corriger la synchro de l'agenda sur Android", "Fix calendar sync on Android", l_bug, LEO, 4, 1),
-        (2, "Audit d'accessibilité", "Accessibility audit", l_design, INES, 3, 2),
-        (3, "Mettre en place la CI", "Set up the CI pipeline", l_tech, LEO, 2, -2),
-        (3, "Choisir la nouvelle icône", "Choose the new icon", l_design, INES, 1, -4),
-        (3, "Synthèse des retours de la bêta", "Summarize the beta feedback", l_marketing, SARA, 1, -3),
-        (1, "Plan de la conférence de presse", "Press conference outline", l_marketing, MAYA, 0, 8),
+    /// Tâche du tableau : colonne, titre, étiquette, personne assignée, priorité, échéance (jours ouvrés).
+    struct BoardTask {
+        col: usize,
+        title: (&'static str, &'static str),
+        label: Uuid,
+        who: usize,
+        priority: i32,
+        due: i64,
+        keywords: &'static [&'static str],
+    }
+    const TODO: usize = 0;
+    const DOING: usize = 1;
+    const REVIEW: usize = 2;
+    const DONE: usize = 3;
+    let task = |col, title, label, who, priority, due, keywords| BoardTask { col, title, label, who, priority, due, keywords };
+    let tasks = [
+        task(TODO, ("Préparer la semaine de lancement", "Plan the launch week"), l_marketing, SARA, 2, 9, &["v2"]),
+        task(TODO, ("Écrire les notes de version", "Write the release notes"), l_marketing, MAYA, 1, 7, &[]),
+        task(TODO, ("Tourner la vidéo de démo", "Record the demo video"), l_design, INES, 2, 10, &[]),
+        task(DOING, ("Mode hors ligne de l'app mobile", "Offline mode for the mobile app"), l_tech, LEO, 4, 5, &["mobile", "v2"]),
+        task(DOING, ("Textes de la page tarifs", "Pricing page copy"), l_marketing, SARA, 2, 4, &[]),
+        task(DOING, ("Plan de la conférence de presse", "Press conference outline"), l_marketing, MAYA, 0, 8, &[]),
+        task(REVIEW, ("Corriger la synchro de l'agenda sur Android", "Fix calendar sync on Android"), l_bug, LEO, 4, 1, &["mobile"]),
+        task(REVIEW, ("Audit d'accessibilité", "Accessibility audit"), l_design, INES, 3, 2, &[]),
+        task(DONE, ("Mettre en place la CI", "Set up the CI pipeline"), l_tech, LEO, 2, -2, &[]),
+        task(DONE, ("Choisir la nouvelle icône", "Choose the new icon"), l_design, INES, 1, -4, &[]),
+        task(DONE, ("Synthèse des retours de la bêta", "Summarize the beta feedback"), l_marketing, SARA, 1, -3, &[]),
     ];
     let col_path = |c: usize| format!("/api/boards/columns/{}/tasks", cols[c]);
-    let mut made = Vec::new();
-    for (col, fr, en, label, who, priority, due) in tasks {
-        let task = api
-            .post(admin, &col_path(col), json!({ "title": t(fr, en), "priority": priority, "due_date": clock.at(due, 18, 0), "labels": [label], "assignees": [ids[who].to_string()] }))
-            .await?;
-        let task_id = id(&task)?;
-        if col == 3 {
-            api.put(ids[who], &format!("/api/boards/tasks/{task_id}/toggle_validation"), json!({})).await?;
+    for bt in tasks {
+        let body = json!({ "title": t(bt.title.0, bt.title.1), "priority": bt.priority, "due_date": clock.at(bt.due, 18, 0), "labels": [bt.label], "assignees": [ids[bt.who].to_string()] });
+        let task_id = id(&api.post(admin, &col_path(bt.col), body).await?)?;
+        if bt.col == DONE {
+            api.put(ids[bt.who], &format!("/api/boards/tasks/{task_id}/toggle_validation"), json!({})).await?;
         }
-        made.push(task_id);
+        if !bt.keywords.is_empty() {
+            api.put(admin, &format!("/api/keywords/task/{task_id}"), json!({ "keywords": bt.keywords })).await?;
+        }
     }
     // Groupe relié et sous-tâches.
     let onboarding = id(&api
-        .post(admin, &col_path(1), json!({
+        .post(admin, &col_path(DOING), json!({
             "title": t("Refondre l'accueil des nouveaux comptes", "Redesign the onboarding flow"),
             "description": t("<p>Moins d'écrans, un premier tableau prêt à l'emploi.</p>", "<p>Fewer screens and a ready-to-use first board.</p>"),
             "priority": 3, "start_date": clock.at(-3, 9, 0), "due_date": clock.at(3, 18, 0), "labels": [l_design], "groups": [design],
@@ -459,19 +497,17 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
     for (fr, en) in [("Maquettes", "Wireframes"), ("Tests utilisateurs", "User testing"), ("Écrans finaux", "Final screens")] {
         api.post(ids[INES], &format!("/api/boards/tasks/{onboarding}/subtasks"), json!({ "title": t(fr, en) })).await?;
     }
-    api.post(admin, &col_path(1), json!({
+    api.post(admin, &col_path(DOING), json!({
         "title": t("Revue de sécurité avant la sortie", "Security review before release"), "priority": 3,
         "due_date": clock.at(6, 18, 0), "labels": [l_tech], "groups": [tech],
     })).await?;
     // Tâche récurrente.
-    api.post(admin, &col_path(0), json!({
+    api.post(admin, &col_path(TODO), json!({
         "title": t("Point hebdo avec les clients de la bêta", "Weekly check-in with beta customers"), "priority": 1,
         "due_date": clock.at(2, 17, 0), "labels": [l_marketing], "assignees": [ids[SARA].to_string()], "repeat": "weekly",
     })).await?;
     // Tâche personnelle sur le tableau partagé.
-    api.post(ids[INES], &col_path(0), json!({ "title": t("Mes pistes pour le logo animé", "My ideas for the animated logo"), "personal": true, "due_date": clock.at(4, 18, 0) })).await?;
-    api.put(admin, &format!("/api/keywords/task/{}", made[3]), json!({ "keywords": ["mobile", "v2"] })).await?;
-    api.put(admin, &format!("/api/keywords/task/{}", made[0]), json!({ "keywords": [t("lancement", "launch")] })).await?;
+    api.post(ids[INES], &col_path(TODO), json!({ "title": t("Mes pistes pour le logo animé", "My ideas for the animated logo"), "personal": true, "due_date": clock.at(4, 18, 0) })).await?;
 
     // --- Documents.
     let pages_path = format!("/api/workspaces/{w}/pages");
@@ -488,15 +524,18 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
     page(ids[LEO], t("Guide technique", "Engineering handbook"), "📚", handbook(lang), None, false).await?;
     page(ids[INES], t("Charte graphique", "Brand guidelines"), "🎨", brand(lang), None, false).await?;
 
-    // --- Projets : notebook (Pyodide) et petit site.
-    let nb_page = page(ids[SARA], t("Analyse de la bêta", "Beta analysis"), "📊", String::new(), None, false).await?;
-    let nb_page = api.post(ids[SARA], &format!("/api/workspaces/{w}/pages/{}/project", id(&nb_page)?), json!({ "kind": "notebook", "template": "blank" })).await?;
-    let notebook = Uuid::parse_str(nb_page["project_id"].as_str().unwrap_or_default()).map_err(|e| e.to_string())?;
+    // --- Projets : notebook (Pyodide) et petit site, chacun porté par une page.
+    let project_page = |who: Uuid, title: &'static str, icon: &'static str, kind: &'static str, template: &'static str| {
+        let path = &pages_path;
+        async move {
+            let p = api.post(who, path, json!({ "title": title, "icon": icon, "project": { "kind": kind, "template": template } })).await?;
+            p["project_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()).ok_or_else(|| format!("missing project_id in {p}"))
+        }
+    };
+    let notebook = project_page(ids[SARA], t("Analyse de la bêta", "Beta analysis"), "📊", "notebook", "blank").await?;
     set_file(api, ids[SARA], notebook, "notebook.ipynb", &notebook_content(lang)).await?;
-    api.put(ids[SARA], &format!("/api/keywords/project/{notebook}"), json!({ "keywords": [t("bêta", "beta"), "analyse"] })).await?;
-    let site_page = page(ids[INES], t("Site de lancement", "Launch site"), "🌐", String::new(), None, false).await?;
-    let site_page = api.post(ids[INES], &format!("/api/workspaces/{w}/pages/{}/project", id(&site_page)?), json!({ "kind": "site", "template": "starter" })).await?;
-    let site = Uuid::parse_str(site_page["project_id"].as_str().unwrap_or_default()).map_err(|e| e.to_string())?;
+    api.put(ids[SARA], &format!("/api/keywords/project/{notebook}"), json!({ "keywords": [t("bêta", "beta"), t("analyse", "analysis")] })).await?;
+    let site = project_page(ids[INES], t("Site de lancement", "Launch site"), "🌐", "site", "starter").await?;
     for (path, content) in site_files(lang, &clock) {
         set_file(api, ids[INES], site, path, &content).await?;
     }
@@ -561,7 +600,7 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
         }
         characters.push(json!({
             "id": u, "email": email(c, lang), "name": c.name,
-            "role": match c.role { Role::Admin => "admin", Role::Member => "member", Role::Viewer => "viewer" },
+            "role": c.role.as_str(),
             "personal_tasks": c.personal.len(),
         }));
     }

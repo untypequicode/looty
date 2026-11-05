@@ -18,11 +18,19 @@ const session = async (email) => {
   }
 }
 
+const NAMES = { fr: 'Looty Démo', en: 'Looty Demo' }
+// Nombre de tâches dans l'espace perso de la personne connectée.
+const personalTasks = async (as) => {
+  const { id } = await as('/api/workspaces/personal')
+  const boards = await as(`/api/workspaces/${id}/boards`)
+  return (await Promise.all(boards.map((b) => as(`/api/boards/${b.id}`)))).flatMap((b) => b.columns.flatMap((c) => c.tasks)).length
+}
+
 const first = seed()
 const DAY = 86_400_000
 for (const lang of ['fr', 'en']) {
   const out = first[lang]
-  const name = lang === 'fr' ? 'Looty Démo' : 'Looty Demo'
+  const name = NAMES[lang]
   ok(`${lang}: command reports the workspace and five characters`, out?.workspace && out.characters?.length === 5, JSON.stringify(out))
   const admin = out.characters.find((c) => c.role === 'admin')
   const viewer = out.characters.find((c) => c.role === 'viewer')
@@ -83,10 +91,7 @@ for (const lang of ['fr', 'en']) {
 
   // Espace perso : quelques tâches pour chaque personnage.
   for (const c of out.characters) {
-    const me = await session(c.email)
-    const { id } = await me('/api/workspaces/personal')
-    const pb = await me(`/api/workspaces/${id}/boards`)
-    const n = (await Promise.all(pb.map((b) => me(`/api/boards/${b.id}`)))).flatMap((b) => b.columns.flatMap((c) => c.tasks)).length
+    const n = await personalTasks(await session(c.email))
     ok(`${lang}: ${c.name} has personal tasks`, n >= 2, String(n))
   }
 }
@@ -98,11 +103,9 @@ for (const lang of ['fr', 'en']) {
   const admin = again[lang].characters.find((c) => c.role === 'admin')
   const as = await session(admin.email)
   const list = await as('/api/workspaces')
-  const named = (list.workspaces ?? list).filter((w) => w.name === (lang === 'fr' ? 'Looty Démo' : 'Looty Demo'))
+  const named = (list.workspaces ?? list).filter((w) => w.name === NAMES[lang])
   ok(`${lang}: still one demo workspace after a second run`, named.length === 1 && named[0].id === again[lang].workspace, JSON.stringify(named))
-  const { id } = await as('/api/workspaces/personal')
-  const pb = await as(`/api/workspaces/${id}/boards`)
-  const n = (await Promise.all(pb.map((b) => as(`/api/boards/${b.id}`)))).flatMap((b) => b.columns.flatMap((c) => c.tasks)).length
+  const n = await personalTasks(as)
   const before = first[lang].characters.find((c) => c.role === 'admin')
   ok(`${lang}: personal tasks not duplicated`, n === before.personal_tasks && n === admin.personal_tasks, `${n} / ${before.personal_tasks}`)
 }

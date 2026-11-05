@@ -38,8 +38,13 @@ for (const lang of langs) for (const theme of themes) {
   const ctx = await browser.newContext({ viewport: { width: 1560, height: 960 }, deviceScaleFactor: 1.5, locale: lang === 'fr' ? 'fr-FR' : 'en-US', timezoneId: 'Europe/Paris' })
   await ctx.addInitScript(([lang, theme]) => { localStorage.setItem('looty.locale', lang); localStorage.setItem('looty.theme', theme) }, [lang, theme])
   const page = await ctx.newPage()
-  // Profil, langue, nouveautés vues et modes d'affichage : déjà réglés par seed-demo.
+  // Profil, langue et modes d'affichage : déjà réglés par seed-demo.
   await page.goto(`${B}/api/auth/dev-login?email=${encodeURIComponent(admin.email)}&redirect=/`); await page.waitForTimeout(800)
+  // Fenêtre « Nouveautés » masquée pour la version du serveur capturé (qui peut différer de celle de SEED).
+  await page.evaluate(async () => {
+    const { version } = await (await fetch('/api/health')).json()
+    await fetch('/api/user/releases/seen', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version }) })
+  })
   for (const [name, path] of Object.entries(screens(demo[lang]))) {
     if (only.length && !only.includes(name)) continue
     await page.goto(B + path, { waitUntil: 'networkidle' }); await page.waitForTimeout(name === 'doc' ? 3500 : 1800)
