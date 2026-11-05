@@ -6,8 +6,9 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
-      # Par défaut le volume nommé postgres_data_18 ; LOOTY_DB_DATA=/chemin/absolu le place ailleurs (voir .env.example).
-      - ${LOOTY_DB_DATA:-postgres_data_18}:/var/lib/postgresql
+      # Les données sont dans le dossier ./data/postgres (à côté de ce fichier) ; LOOTY_DB_DATA=/chemin/absolu les place ailleurs.
+      # Depuis la 0.30 : plus de volume nommé. Si Looty tourne déjà avec le volume postgres_data_18, déplacez-le (README, « Move the database »).
+      - ${LOOTY_DB_DATA:-./data/postgres}:/var/lib/postgresql
     healthcheck:
       test:
         [
@@ -83,6 +84,3 @@ services:
       - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
     restart: unless-stopped
-
-volumes:
-  postgres_data_18:
