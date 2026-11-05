@@ -15,6 +15,11 @@ permissions:
   contents: read
   packages: write
 
+# Pull request : un nouveau push annule le run précédent. Ailleurs : groupe propre à chaque run.
+concurrency:
+  group: site-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Tests and build

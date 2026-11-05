@@ -19,6 +19,11 @@ on:
 permissions:
   contents: read
 
+# Pull request : un nouveau push annule le run précédent. Ailleurs : groupe propre à chaque run.
+concurrency:
+  group: nix-cache-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   # Après le push sur main : prouve que le cache suffit, sans rien compiler.
   verify:
