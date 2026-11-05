@@ -398,7 +398,8 @@ async fn resolve_user(
             id
         }
         None => {
-            let user_count: i64 = sqlx::query_scalar("SELECT count(*) FROM users").fetch_one(pool).await.map_err(db)?;
+            // Les personnages de la démo (`seed-demo`) ne prennent pas la place du premier compte (administrateur).
+            let user_count: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE email NOT LIKE $1").bind(crate::demo::EMAIL_PATTERN).fetch_one(pool).await.map_err(db)?;
             let first = user_count == 0;
             if !first {
                 let allow: bool = sqlx::query_scalar("SELECT allow_public_signups FROM global_settings WHERE id = 1")
@@ -490,7 +491,8 @@ async fn dev_login_handler(
     }
     let email = q.email.trim().to_lowercase();
     let name = q.name.unwrap_or_else(|| email.split('@').next().unwrap_or("dev").to_string());
-    let first: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM users)")
+    let first: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM users WHERE email NOT LIKE $1)")
+        .bind(crate::demo::EMAIL_PATTERN)
         .fetch_one(&state.pool)
         .await
         .unwrap_or(false);

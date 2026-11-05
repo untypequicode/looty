@@ -64,8 +64,7 @@ WEB_DIR=web/dist DATA_DIR=/tmp/site UPLOAD_TOKEN=secret PORT=8080 server/target/
 Captures et aperçus (pile de développement en marche, voir `tools/`) :
 
 ```sh
-node tools/seed-demo.mjs                        # espace « Acme Studio »
-WS=… BOARD=… DOC=… CHROMIUM=… node tools/screenshots.mjs   # public/shots/*.webp
+CHROMIUM=… node tools/screenshots.mjs           # public/shots/*.webp, sur l'espace « Looty Démo » (régénéré)
 CHROMIUM=… node tools/og.mjs                    # public/og-en.png, og-fr.png (aperçus des réseaux sociaux)
 ```
 

@@ -14,6 +14,7 @@ mod ics_feed;
 mod dav;
 mod db;
 mod delivery;
+mod demo;
 mod error;
 mod mail;
 mod mailbox;
@@ -63,7 +64,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 use time::Duration;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_sessions::{Expiry, SessionManagerLayer};
@@ -81,6 +82,13 @@ async fn main() {
         )
         .init();
 
+    // `backend seed-demo [fr] [en]` : génère l'espace « Looty Démo » (GLOSSARY : Démo) et s'arrête.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("seed-demo") {
+        let pool = db::init_db().await.expect("Failed to initialize database");
+        std::process::exit(demo::run(state::AppState::new(pool, base_url()), &args[1..]).await);
+    }
+
     if std::env::var("LOOTY_DEV_LOGIN").as_deref() == Ok("true") {
         tracing::warn!("LOOTY_DEV_LOGIN is enabled: passwordless login at /api/auth/dev-login. NEVER enable this in production.");
     }
@@ -89,26 +97,11 @@ async fn main() {
     backup::start_scheduler(pool.clone());
     seed_default_provider(&pool).await;
 
-    let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
-    let secure_cookies = base_url.starts_with("https://");
-
     let session_store = session_store::PgSessionStore::new(pool.clone());
     session_store.migrate().await.expect("Failed to migrate session store");
     session_store.start_cleanup();
-    let session_layer = SessionManagerLayer::new(session_store)
-        .with_name("looty_session")
-        .with_secure(secure_cookies)
-        .with_http_only(true)
-        .with_same_site(tower_sessions::cookie::SameSite::Lax)
-        .with_expiry(Expiry::OnInactivity(Duration::days(14)));
 
-    let state = state::AppState {
-        pool: pool.clone(),
-        oidc_clients: Arc::new(dashmap::DashMap::new()),
-        hub: Arc::new(ws::Hub::new()),
-        base_url,
-        caldav_notify: Arc::new(tokio::sync::Notify::new()),
-    };
+    let state = state::AppState::new(pool.clone(), base_url());
     caldav::start_sync_loop(state.clone(), state.caldav_notify.clone());
     delivery::start_worker(state.clone());
     calendar::start_sync_loop(state.clone());
@@ -117,6 +110,30 @@ async fn main() {
     trash::start_purge_loop(state.clone());
     drive::start_purge_loop(state.clone());
     jupyter::start_reaper();
+    let app = app(state);
+
+    tokio::fs::create_dir_all(upload::UPLOAD_DIR).await.ok();
+
+    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080);
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    tracing::info!("Listening on {}", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("bind failed");
+    axum::serve(listener, app).await.expect("server error");
+}
+
+fn base_url() -> String {
+    std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3000".to_string())
+}
+
+/// Toutes les routes HTTP (API, fichiers, CalDAV) avec la session et les en-têtes de sécurité.
+/// La commande `seed-demo` l'appelle aussi, sans ouvrir de port, pour passer par l'API.
+fn app(state: state::AppState) -> Router {
+    let session_layer = SessionManagerLayer::new(session_store::PgSessionStore::new(state.pool.clone()))
+        .with_name("looty_session")
+        .with_secure(state.base_url.starts_with("https://"))
+        .with_http_only(true)
+        .with_same_site(tower_sessions::cookie::SameSite::Lax)
+        .with_expiry(Expiry::OnInactivity(Duration::days(14)));
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -173,7 +190,7 @@ async fn main() {
         .nest("/trash", trash::routes())
         .nest("/boards", board::routes());
 
-    let app = Router::new()
+    Router::new()
         .route("/uploads/{name}", get(upload::serve_upload))
         .merge(projects::public_routes())
         .nest("/api", api)
@@ -192,15 +209,7 @@ async fn main() {
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_FRAME_OPTIONS,
             HeaderValue::from_static("DENY"),
-        ));
-
-    tokio::fs::create_dir_all(upload::UPLOAD_DIR).await.ok();
-
-    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080);
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    tracing::info!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("bind failed");
-    axum::serve(listener, app).await.expect("server error");
+        ))
 }
 
 /// Crée le fournisseur OIDC par défaut à partir des variables d'environnement si aucun n'existe.

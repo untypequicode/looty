@@ -293,7 +293,7 @@ struct CreateProject {
 }
 
 /// Notebook Jupyter (nbformat 4.5) : cellules (type, source) sans sortie.
-fn notebook_json(cells: &[(&str, &str)]) -> String {
+pub(crate) fn notebook_json(cells: &[(&str, &str)]) -> String {
     let cells: Vec<Value> = cells
         .iter()
         .map(|(kind, source)| {
