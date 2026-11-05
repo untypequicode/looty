@@ -20,6 +20,19 @@ export default {
     showSubtasks: 'Show sub-tasks as cards', showing: '{shown} of {total}', unassigned: 'Unassigned',
     due: { overdue: 'Overdue', today: 'Today', week: 'This week', none: 'No due date' },
   },
+  boardSort: {
+    label: 'Sort', by: 'Sort: {key}', direction: 'Order',
+    keys: {
+      manual: 'Manual order', due: 'Due date', start: 'Start date', created: 'Created', updated: 'Last updated',
+      priority: 'Priority', title: 'Title', status: 'Status', assignee: 'Assignee', label: 'Label', group: 'Group',
+    },
+    dir: {
+      date: { asc: 'Earliest first', desc: 'Latest first' }, text: { asc: 'A → Z', desc: 'Z → A' },
+      priority: { asc: 'Urgent first', desc: 'Low first' }, status: { asc: 'To do first', desc: 'Done first' },
+    },
+    manualHint: 'Drag and drop cards to reorder them.',
+    sortedHint: 'Tasks without a value stay at the bottom. A card dropped in another column follows the sort there.',
+  },
   history: {
     created: 'created the task', moved: 'moved from {from} to {to}', completed: 'completed the task', reopened: 'reopened the task',
     assigned: 'assigned {name}', unassigned: 'unassigned {name}', labelAdded: 'added label {name}', labelRemoved: 'removed label {name}',

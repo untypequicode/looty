@@ -20,6 +20,19 @@ export default {
     showSubtasks: 'Afficher les sous-tâches comme cartes', showing: '{shown} sur {total}', unassigned: 'Non assignée',
     due: { overdue: 'En retard', today: 'Aujourd’hui', week: 'Cette semaine', none: 'Sans échéance' },
   },
+  boardSort: {
+    label: 'Trier', by: 'Tri : {key}', direction: 'Ordre',
+    keys: {
+      manual: 'Ordre manuel', due: 'Échéance', start: 'Date de début', created: 'Date de création', updated: 'Dernière modification',
+      priority: 'Priorité', title: 'Titre', status: 'Statut', assignee: 'Personne assignée', label: 'Label', group: 'Groupe',
+    },
+    dir: {
+      date: { asc: 'Plus tôt d’abord', desc: 'Plus tard d’abord' }, text: { asc: 'A → Z', desc: 'Z → A' },
+      priority: { asc: 'Urgente d’abord', desc: 'Basse d’abord' }, status: { asc: 'À faire d’abord', desc: 'Terminées d’abord' },
+    },
+    manualHint: 'Glissez-déposez les cartes pour les réordonner.',
+    sortedHint: 'Les tâches sans valeur restent en bas. Une carte déposée dans une autre colonne y suit le tri.',
+  },
   history: {
     created: 'a créé la tâche', moved: 'a déplacé de {from} vers {to}', completed: 'a terminé la tâche', reopened: 'a rouvert la tâche',
     assigned: 'a assigné {name}', unassigned: 'a retiré {name}', labelAdded: 'a ajouté le label {name}', labelRemoved: 'a retiré le label {name}',

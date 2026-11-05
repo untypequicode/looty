@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.28.0",
+      "date": "2026-11-05",
+      "title": {
+        "en": "Sort tasks and create them with every field",
+        "fr": "Tri des tâches et création avec tous les champs"
+      },
+      "notes": {
+        "en": [
+          "**Sort tasks in boards**: sort each column by due date, start date, creation or last update, priority, title, status, assignee, label or group, in either order. Tasks without a value stay at the bottom, the sort is kept in the link, and **Manual order** brings back drag-and-drop reordering.",
+          "**Full task form**: **New task** can show every property of the task panel (status, priority, people and groups, labels, dates, repeat, linked event, per-person validation). Quick create stays the default."
+        ],
+        "fr": [
+          "**Tri des tâches dans les tableaux** : triez chaque colonne par échéance, date de début, création ou dernière modification, priorité, titre, statut, personne assignée, label ou groupe, dans un sens ou dans l’autre. Les tâches sans valeur restent en bas, le tri est gardé dans le lien, et **Ordre manuel** rétablit le glisser-déposer.",
+          "**Formulaire complet de tâche** : **Nouvelle tâche** peut afficher toutes les propriétés du panneau de la tâche (statut, priorité, personnes et groupes, labels, dates, répétition, événement lié, validation par personne). La création rapide reste le choix par défaut."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.27.0",
       "date": "2026-11-04",
       "title": {

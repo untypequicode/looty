@@ -1,12 +1,15 @@
 import { computed, type Ref } from 'vue'
 import type { Board, Task } from '~/types'
 import { useAuth } from './useAuth'
+import { useWorkspace } from './useWorkspace'
+import { useGroups } from './useGroups'
+import { TASK_SORT_KEYS, defaultSortDir, sortTasks, type SortDir, type TaskSortKey } from '~/utils/taskSort'
 
 export type DueFilter = 'overdue' | 'today' | 'week' | 'none'
 
 /**
- * Filtres du tableau, stockés dans l'URL (?q=&assignee=&label=&priority=&due=&done=)
- * pour qu'un lien partagé ouvre exactement la même vue filtrée.
+ * Filtres et tri du tableau, stockés dans l'URL (?q=&assignee=&label=&priority=&due=&done=&sort=&dir=)
+ * pour qu'un lien partagé ouvre exactement la même vue filtrée et triée.
  */
 export function useBoardFilters(board: Ref<Board | null | undefined>) {
   const route = useRoute()
@@ -37,6 +40,22 @@ export function useBoardFilters(board: Ref<Board | null | undefined>) {
   const showDone = computed<boolean>({ get: () => doneMode.value === 'show', set: (v) => (doneMode.value = v ? 'show' : 'hide') })
   const { user } = useAuth()
   const showSubtasks = computed<boolean>({ get: () => route.query.sub === '1', set: (v) => setQuery({ sub: v ? '1' : undefined }) })
+
+  /** Tri dans chaque colonne ; absent de l'URL = ordre manuel. Choisir un tri reprend son sens par défaut. */
+  const sort = computed<TaskSortKey>({
+    get: () => (TASK_SORT_KEYS.includes(route.query.sort as TaskSortKey) ? (route.query.sort as TaskSortKey) : 'manual'),
+    set: (v) => setQuery({ sort: v === 'manual' ? undefined : v, dir: undefined }),
+  })
+  const sortDir = computed<SortDir>({
+    get: () => (route.query.dir === 'asc' || route.query.dir === 'desc' ? route.query.dir : defaultSortDir(sort.value)),
+    set: (v) => setQuery({ dir: v === defaultSortDir(sort.value) ? undefined : v }),
+  })
+  const { wsId, member } = useWorkspace()
+  const { data: groups } = useGroups(wsId)
+  const names = {
+    member: (id: string) => member(id)?.name,
+    group: (id: string) => groups.value?.find((g) => g.id === id)?.name,
+  }
 
   const activeCount = computed(() => assignees.value.length + labels.value.length + priorities.value.length + due.value.length + (q.value ? 1 : 0) + (showDone.value ? 0 : 1))
 
@@ -81,12 +100,12 @@ export function useBoardFilters(board: Ref<Board | null | undefined>) {
       ...b,
       columns: b.columns.map((c) => ({
         ...c,
-        tasks: c.tasks.filter((t) => (showSubtasks.value || !t.parent_id) && matches(t)),
+        tasks: sortTasks(c.tasks.filter((t) => (showSubtasks.value || !t.parent_id) && matches(t)), sort.value, sortDir.value, names),
       })),
     }
   })
 
-  return { q, assignees, labels, priorities, due, showDone, doneMode, showSubtasks, activeCount, clear, filtered, matches }
+  return { q, assignees, labels, priorities, due, showDone, doneMode, showSubtasks, activeCount, clear, filtered, matches, sort, sortDir }
 }
 
 export type BoardFilters = ReturnType<typeof useBoardFilters>
