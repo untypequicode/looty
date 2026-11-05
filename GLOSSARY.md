@@ -81,6 +81,10 @@ _Avoid_: compte Android, synchro native
 Où s'exécute le code d'un notebook : dans le navigateur de la personne qui clique (Pyodide, par défaut) ou sur le serveur Jupyter du projet. Le choix est enregistré dans le notebook et vaut pour tout le monde ; chaque personne a son propre noyau, les sorties sont partagées.
 _Avoid_: runtime, backend
 
+**Lien public**:
+Adresse secrète qui permet de lire une page sans compte, en lecture seule. Si la page porte un notebook, le visiteur le voit tel qu'il est enregistré (texte, code, sorties, images) sans pouvoir l'exécuter. Si elle porte un projet LaTeX, il voit le dernier PDF compilé. Il ne voit jamais les autres fichiers du projet.
+_Avoid_: lien de partage, page publiée, partage public
+
 **Serveur Jupyter du projet**:
 Serveur Jupyter externe (Jupyter Server, JupyterLab, serveur utilisateur JupyterHub) déclaré dans un projet par une personne qui peut le modifier : adresse, jeton, noyau par défaut. Seul le serveur Looty le contacte ; le jeton n'est jamais montré.
 _Avoid_: kernel distant, Jupyter Hub (quand on parle de la configuration du projet)
