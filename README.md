@@ -80,6 +80,8 @@ The production compose file expects a [Traefik](https://traefik.io) reverse prox
 
 Backups: `scripts/backup.sh` and `scripts/restore.sh`.
 
+**Public demo.** To run a demo (visitors pick a character and get a throwaway copy of the « Looty Demo » workspace, deleted after 24 h), use `docker-compose.demo.yml` and `.env.demo.example` in their own folder: a separate stack (`looty-demo`, own database and volumes) that can run next to a real instance. It needs no OIDC provider and no SMTP.
+
 ## Repository
 
 ```
