@@ -117,7 +117,8 @@ jobs:
       - working-directory: collaboration
         run: |
           npm ci --omit=dev --no-audit --no-fund
-          node --check index.js
+          node --check index.js && node --check notebook.js
+          node --test
           node -e "require('@hocuspocus/server'); require('@hocuspocus/extension-database'); require('pg'); require('yjs')"
 
   e2e:

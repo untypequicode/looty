@@ -22,6 +22,9 @@ export default {
   exportFormats: { htmlHint: 'Pages web lisibles dans n’importe quel navigateur, avec images et formules.', pdfHint: 'Imprimer ou enregistrer en PDF (pages à la suite).', print: 'Imprimer / PDF', printPdf: 'Imprimer ou enregistrer en PDF' },
   reader: {
     title: 'Vue de lecture', open: 'Vue de lecture', leave: 'Retour au document', edit: 'Modifier', outline: 'Sommaire', onThisPage: 'Sur cette page', settings: 'Réglages du texte',
+    tabPage: 'Page', tabNotebook: 'Notebook', pickNotebook: 'Notebook à afficher', downloadIpynb: 'Télécharger le .ipynb', downloadPdf: 'Télécharger le PDF',
+    noNotebook: 'Ce projet ne contient aucun notebook.', notebookFailed: 'Le notebook n’a pas pu être chargé.',
+    noPdf: 'Pas encore de PDF', noPdfHint: 'Ce document LaTeX n’a jamais été compilé. Le PDF apparaîtra ici après la première compilation.',
     size: 'Taille du texte', smaller: 'Plus petit', larger: 'Plus grand', font: 'Police', fonts: { serif: 'Serif', sans: 'Sans', legible: 'Lisible' },
     width: 'Largeur des lignes', widths: { narrow: 'Étroite', normal: 'Normale', wide: 'Large' }, spacing: 'Interligne', tight: 'Serré', normal: 'Normal', loose: 'Aéré',
     theme: 'Thème', themes: { auto: 'Comme l’application', light: 'Clair', sepia: 'Sépia', dark: 'Sombre' },

@@ -640,20 +640,23 @@ pub struct PublicPage {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     /// Préambule LaTeX de l'espace, pour un rendu identique des formules.
     pub latex_preamble: String,
+    /// Projet notebook ou LaTeX porté par la page (lien public : notebook lisible, dernier PDF).
+    #[sqlx(skip)]
+    pub project: Option<crate::public_project::PublicProject>,
 }
 
 pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResult<Json<PublicPage>> {
-    Ok(Json(
-        sqlx::query_as(
-            "SELECT p.id, p.title, p.icon, p.content, p.updated_at, w.latex_preamble
-             FROM pages p JOIN workspaces w ON w.id = p.workspace_id
-             WHERE p.share_token = $1 AND p.is_public = true",
-        )
-        .bind(token)
-        .fetch_optional(&pool)
-        .await?
-        .ok_or(ApiError::NotFound)?,
-    ))
+    let mut page: PublicPage = sqlx::query_as(
+        "SELECT p.id, p.title, p.icon, p.content, p.updated_at, w.latex_preamble
+         FROM pages p JOIN workspaces w ON w.id = p.workspace_id
+         WHERE p.share_token = $1 AND p.is_public = true",
+    )
+    .bind(token)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+    page.project = crate::public_project::summary(&pool, token).await?;
+    Ok(Json(page))
 }
 
 #[derive(Deserialize)]

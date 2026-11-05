@@ -32,7 +32,7 @@ use crate::state::AppState;
 static SLOTS: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(2));
 const PASS_TIMEOUT: Duration = Duration::from_secs(60);
 
-fn output_path(project: Uuid) -> PathBuf {
+pub(crate) fn output_path(project: Uuid) -> PathBuf {
     PathBuf::from(crate::upload::UPLOAD_DIR).join("projects").join(project.to_string()).join("output.pdf")
 }
 

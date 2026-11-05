@@ -107,6 +107,10 @@ pub async fn upload_file(_user: AuthUser, mut multipart: Multipart) -> ApiResult
     Err(ApiError::bad_request("no_file"))
 }
 
+/// CSP des fichiers servis sans confiance (envois, images d'un lien public) : un SVG ou un
+/// HTML malveillant ne peut exécuter aucun script.
+pub(crate) const SANDBOX_CSP: &str = "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'";
+
 /// Sert un fichier uploadé avec des en-têtes défensifs :
 /// - `nosniff` + type MIME déduit de l'extension ;
 /// - CSP `sandbox` : un HTML/SVG malveillant ne peut exécuter aucun script ;
@@ -134,7 +138,7 @@ pub async fn serve_upload(Path(name): Path<String>) -> Response {
     let csp = if mime_str == "application/pdf" {
         "default-src 'none'; object-src 'self'; plugin-types application/pdf"
     } else {
-        "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+        SANDBOX_CSP
     };
     h.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(csp));
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=31536000, immutable"));
