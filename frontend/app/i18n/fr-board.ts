@@ -33,6 +33,7 @@ export default {
     assignees: 'Assignés', copyId: 'Copier l’identifiant', createdAgo: 'Créée {time}', updatedAgo: 'Modifiée {time}', noDate: 'Aucune date',
     pending: 'En attente', validated: 'Validé', perPerson: 'Validation par personne', perPersonHint: 'Chaque assigné valide de son côté.',
     priority: 'Priorité', reopen: 'Rouvrir', requireAll: 'Tous doivent valider', startDate: 'Début', status: 'Statut', unassigned: 'Non assignée',
+    fullForm: 'Formulaire complet', quickForm: 'Création rapide',
   },
   timeline: {
     days: 'Jours', weeks: 'Semaines', hint: 'Glissez une barre pour la déplacer, ses bords pour la redimensionner.',

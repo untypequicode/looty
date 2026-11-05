@@ -111,14 +111,14 @@ defineExpose({ focus: () => editor.value?.commands.focus('end'), clear: () => ed
 <template>
   <div class="lite" :class="{ editable }">
     <BubbleMenu v-if="editor && editable && !minimal" :editor="editor" :options="{ placement: 'top', offset: 8 }" style="z-index: 1400" class="bubble">
-      <button :class="{ on: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><Bold :size="14" /></button>
-      <button :class="{ on: editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><Italic :size="14" /></button>
-      <button :class="{ on: editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><Strikethrough :size="14" /></button>
-      <button :class="{ on: editor.isActive('code') }" @click="editor.chain().focus().toggleCode().run()"><Code :size="14" /></button>
-      <button :class="{ on: editor.isActive('link') }" @click="setLink"><Link2 :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><Bold :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><Italic :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><Strikethrough :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('code') }" @click="editor.chain().focus().toggleCode().run()"><Code :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('link') }" @click="setLink"><Link2 :size="14" /></button>
       <span class="sep" />
-      <button :class="{ on: editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()"><List :size="14" /></button>
-      <button :class="{ on: editor.isActive('taskList') }" @click="editor.chain().focus().toggleTaskList().run()"><ListChecks :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()"><List :size="14" /></button>
+      <button type="button" :class="{ on: editor.isActive('taskList') }" @click="editor.chain().focus().toggleTaskList().run()"><ListChecks :size="14" /></button>
     </BubbleMenu>
     <EditorContent :editor="editor" />
   </div>
