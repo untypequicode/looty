@@ -26,6 +26,8 @@ services:
       LOOTY_SECRET_KEY: ${LOOTY_SECRET_KEY:-}
       # Autorise les serveurs CalDAV sur le réseau local / http (ex. Nextcloud interne)
       CALDAV_ALLOW_PRIVATE: ${CALDAV_ALLOW_PRIVATE:-false}
+      # Autorise les serveurs Jupyter des notebooks sur le réseau local / http
+      JUPYTER_ALLOW_PRIVATE: ${JUPYTER_ALLOW_PRIVATE:-false}
       # E-mails : à configurer dans Administration > E-mail, ou ici (repli).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}

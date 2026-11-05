@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.29.0",
+      "date": "2026-11-05",
+      "title": {
+        "en": "Run notebooks on a Jupyter server",
+        "fr": "Notebooks exécutés sur un serveur Jupyter"
+      },
+      "notes": {
+        "en": [
+          "**Jupyter server for notebooks**: a project can declare an external Jupyter server (Jupyter Server, JupyterLab or a JupyterHub user server) with its token, and a notebook can choose to run on it instead of the browser. Outputs stay shared in the notebook; interrupt and restart work from Looty.",
+          "**Token kept on the server**: Looty's server connects to Jupyter for you, so the token never reaches browsers, links or the notebook file, and Jupyter needs no CORS setting. Connection and token errors are shown as such, without falling back to Pyodide.",
+          "**Pyodide stays the default**: notebooks keep running in the browser unless you pick the Jupyter server in **Execution engine**. Servers on a local network need `JUPYTER_ALLOW_PRIVATE=true`."
+        ],
+        "fr": [
+          "**Serveur Jupyter pour les notebooks** : un projet peut déclarer un serveur Jupyter externe (Jupyter Server, JupyterLab ou un serveur utilisateur JupyterHub) avec son jeton, et un notebook peut choisir de s’y exécuter plutôt que dans le navigateur. Les sorties restent partagées dans le notebook ; interrompre et redémarrer se font depuis Looty.",
+          "**Jeton gardé sur le serveur** : le serveur Looty se connecte à Jupyter pour vous, le jeton n’arrive donc jamais dans les navigateurs, les liens ni le fichier du notebook, et Jupyter n’a besoin d’aucun réglage CORS. Les erreurs de connexion et de jeton sont affichées telles quelles, sans repli sur Pyodide.",
+          "**Pyodide reste le choix par défaut** : les notebooks s’exécutent toujours dans le navigateur, sauf si vous choisissez le serveur Jupyter dans **Moteur d’exécution**. Un serveur du réseau local demande `JUPYTER_ALLOW_PRIVATE=true`."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.28.0",
       "date": "2026-11-05",
       "title": {

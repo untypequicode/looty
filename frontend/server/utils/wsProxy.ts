@@ -1,10 +1,10 @@
 // Relais WebSocket vers un service interne (backend, collaboration). Permet de se passer d'un
 // reverse proxy : `docker compose up` seul suffit pour le temps réel et l'édition collaborative.
-export function wsProxy(target: () => string) {
+export function wsProxy(target: (incoming: URL) => string) {
   return defineWebSocketHandler({
     open(peer) {
       const incoming = new URL(peer.request.url, 'http://localhost')
-      const url = new URL(target())
+      const url = new URL(target(incoming))
       url.search = incoming.search
       const cookie = peer.request.headers.get('cookie')
       const upstream = new WebSocket(url, { headers: cookie ? { cookie } : {} } as any)

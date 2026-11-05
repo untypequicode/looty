@@ -23,6 +23,7 @@ mod moodle_content;
 mod moodle_grades;
 mod moodle_cache;
 mod projects;
+mod jupyter;
 mod latex;
 mod drive;
 mod trash;
@@ -115,6 +116,7 @@ async fn main() {
     moodle::start_poll_loop(state.clone());
     trash::start_purge_loop(state.clone());
     drive::start_purge_loop(state.clone());
+    jupyter::start_reaper();
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -164,7 +166,7 @@ async fn main() {
         .nest("/workspaces/{workspace_id}/moodle", moodle::workspace_routes())
         .nest("/workspaces/{workspace_id}/projects", projects::workspace_routes())
         .nest("/workspaces/{workspace_id}/drive", drive::workspace_routes())
-        .nest("/projects", projects::routes())
+        .nest("/projects", projects::routes().merge(jupyter::routes()))
         .nest("/drive/public", drive::public_routes())
         .nest("/workspaces/{workspace_id}/admin", analytics::workspace_routes())
         .nest("/workspaces/{workspace_id}", graph::workspace_routes())

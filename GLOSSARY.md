@@ -61,6 +61,16 @@ _Avoid_: jeton, clé d'API
 Configuration, depuis l'app Android de Looty, qui fait apparaître les calendriers de Looty dans l'application Agenda du téléphone, en lecture et écriture, grâce à un mot de passe d'application.
 _Avoid_: compte Android, synchro native
 
+## Notebooks
+
+**Moteur d'exécution**:
+Où s'exécute le code d'un notebook : dans le navigateur de la personne qui clique (Pyodide, par défaut) ou sur le serveur Jupyter du projet. Le choix est enregistré dans le notebook et vaut pour tout le monde ; chaque personne a son propre noyau, les sorties sont partagées.
+_Avoid_: runtime, backend
+
+**Serveur Jupyter du projet**:
+Serveur Jupyter externe (Jupyter Server, JupyterLab, serveur utilisateur JupyterHub) déclaré dans un projet par une personne qui peut le modifier : adresse, jeton, noyau par défaut. Seul le serveur Looty le contacte ; le jeton n'est jamais montré.
+_Avoid_: kernel distant, Jupyter Hub (quand on parle de la configuration du projet)
+
 ## Moodle
 
 **Connexion automatique**:
