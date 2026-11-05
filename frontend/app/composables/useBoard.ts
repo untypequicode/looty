@@ -94,6 +94,11 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
         groups: data.groups ?? [],
         personal: data.personal ?? false,
         at_top: data.at_top ?? false,
+        is_per_person: data.is_per_person ?? false,
+        require_all_validations: data.require_all_validations ?? true,
+        event_id: data.event_id ?? null,
+        event_start: data.event_id ? data.event_start ?? null : null,
+        repeat: data.repeat ?? null,
       },
     })
     upsertTaskInBoards(qc, t)

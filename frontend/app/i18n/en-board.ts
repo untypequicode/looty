@@ -33,6 +33,7 @@ export default {
     assignees: 'Assignees', copyId: 'Copy ID', createdAgo: 'Created {time}', updatedAgo: 'Updated {time}', noDate: 'No date',
     pending: 'Pending', validated: 'Validated', perPerson: 'Per-person validation', perPersonHint: 'Each assignee validates on their own.',
     priority: 'Priority', reopen: 'Reopen', requireAll: 'Everyone must validate', startDate: 'Start', status: 'Status', unassigned: 'Unassigned',
+    fullForm: 'Full form', quickForm: 'Quick create',
   },
   timeline: {
     days: 'Days', weeks: 'Weeks', hint: 'Drag a bar to move it, its edges to resize.',

@@ -891,6 +891,8 @@ pub struct CreateTaskReq {
     pub at_top: Option<bool>,
     pub event_id: Option<Uuid>,
     pub event_start: Option<DateTime<Utc>>,
+    /// Répétition (`daily`, `weekly`…), validée comme à la modification.
+    pub repeat: Option<String>,
 }
 
 async fn get_task(
@@ -921,6 +923,11 @@ async fn create_task(
     }
     let title = check_name(&req.title, 255)?;
     let priority = check_priority(req.priority.unwrap_or(0))?;
+    if let Some(r) = &req.repeat {
+        if !crate::recurrence::is_valid(r) {
+            return Err(ApiError::bad_request("invalid_repeat"));
+        }
+    }
 
     let position: f64 = if req.at_top.unwrap_or(false) {
         sqlx::query_scalar("SELECT COALESCE(MIN(position), 131072) / 2 FROM tasks WHERE column_id = $1")
@@ -933,9 +940,9 @@ async fn create_task(
 
     let mut tx = pool.begin().await?;
     let task_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations, event_id, event_start)
+        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations, event_id, event_start, repeat)
          VALUES (COALESCE($10, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true),
-                 (SELECT id FROM workspace_events WHERE id = $11 AND workspace_id = $13), CASE WHEN $11 IS NULL THEN NULL ELSE $12 END) RETURNING id",
+                 (SELECT id FROM workspace_events WHERE id = $11 AND workspace_id = $13), CASE WHEN $11 IS NULL THEN NULL ELSE $12 END, $14) RETURNING id",
     )
     .bind(column_id)
     .bind(&title)
@@ -950,6 +957,7 @@ async fn create_task(
     .bind(req.event_id)
     .bind(req.event_start)
     .bind(ctx.workspace_id)
+    .bind(&req.repeat)
     .fetch_one(&mut *tx)
     .await?;
 
