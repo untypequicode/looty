@@ -12,7 +12,7 @@ pkgs.mkShell {
     openssl
 
     # Frontend (Node.js/Nuxt)
-    nodejs_24
+    nodejs_26
 
     # Base de données & Infra
     postgresql_15
