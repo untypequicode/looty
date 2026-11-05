@@ -6,6 +6,7 @@ What you need running first:
 
 - the backend with `LOOTY_DEV_LOGIN=true` (passwordless `/api/auth/dev-login`) and `CALDAV_ALLOW_PRIVATE=true` (so the workspace can point to the local mock Moodle);
 - for `notebook-jupyter.mjs`: a Jupyter server the backend can reach (`pip install jupyter_server ipykernel`, then `jupyter server --IdentityProvider.token=<token>`), the backend started with `JUPYTER_ALLOW_PRIVATE=true`, and `E2E_JUPYTER_URL` / `E2E_JUPYTER_TOKEN` set (without `E2E_JUPYTER_URL` the test is skipped);
+- for `demo-dataset.mjs`: the backend binary built (`backend/target/debug/backend`, or `LOOTY_BACKEND_BIN`) and the same `DATABASE_URL` as the running backend, because the test runs `backend seed-demo` itself;
 - the collaboration server (only for `ws-proxy.mjs`; set `E2E_COLLAB=0` to skip that check);
 - the frontend (`node frontend/.output/server/index.mjs`), built with `BACKEND_URL` and `COLLAB_URL` set, because the `/api` relay is fixed at build time.
 

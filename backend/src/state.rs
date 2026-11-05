@@ -28,6 +28,16 @@ impl FromRef<AppState> for PgPool {
 }
 
 impl AppState {
+    pub fn new(pool: PgPool, base_url: String) -> Self {
+        AppState {
+            pool,
+            oidc_clients: Arc::new(DashMap::new()),
+            hub: Arc::new(Hub::new()),
+            base_url,
+            caldav_notify: Arc::new(tokio::sync::Notify::new()),
+        }
+    }
+
     /// Diffuse un événement temps réel à tous les membres connectés d'un workspace.
     pub async fn emit(&self, workspace_id: Uuid, event: serde_json::Value) {
         let kind = event["type"].as_str().unwrap_or_default();
