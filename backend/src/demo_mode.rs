@@ -131,7 +131,8 @@ fn refuse(status: StatusCode, code: &str) -> (StatusCode, Json<Value>) {
 
 /// Adresse du visiteur derrière le reverse proxy de l'instance (`X-Forwarded-For`, sinon `X-Real-IP`).
 fn client_ip(h: &HeaderMap) -> String {
-    let get = |n: &str| h.get(n).and_then(|v| v.to_str().ok()).map(|v| v.split(',').next().unwrap_or("").trim().to_string());
+    // Dernière valeur de X-Forwarded-For : celle qu'ajoute le reverse proxy ; les précédentes viennent du client.
+    let get = |n: &str| h.get(n).and_then(|v| v.to_str().ok()).map(|v| v.rsplit(',').next().unwrap_or("").trim().to_string());
     get("x-forwarded-for").or_else(|| get("x-real-ip")).filter(|s| !s.is_empty()).unwrap_or_else(|| "unknown".into())
 }
 
@@ -183,30 +184,25 @@ async fn create(state: &AppState, headers: &HeaderMap, lang: Option<&str>) -> Re
         refuse(StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
     };
     let ip = client_ip(headers);
+    let copy = Uuid::new_v4();
+    // Contrôles et réservation dans une transaction sous verrou consultatif : deux entrées simultanées ne
+    // dépassent ni la limite de copies ni celle de l'adresse.
+    let mut tx = state.pool.begin().await.map_err(|e| internal(&e))?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('looty_demo_copies'))").execute(&mut *tx).await.map_err(|e| internal(&e))?;
     let recent: i64 = sqlx::query_scalar("SELECT count(*) FROM demo_copies WHERE ip = $1 AND created_at > now() - interval '1 hour'")
         .bind(&ip)
-        .fetch_one(&state.pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| internal(&e))?;
     if recent >= state.demo_limits.copies_per_ip_hour {
         return Err(refuse(StatusCode::TOO_MANY_REQUESTS, "demo_rate_limited"));
     }
-    let copy = Uuid::new_v4();
-    // Le réservoir de copies est vérifié dans la même requête que la réservation : deux entrées simultanées
-    // ne dépassent pas la limite.
-    let reserved = sqlx::query(
-        "INSERT INTO demo_copies (id, ip) SELECT $1, $2 WHERE (SELECT count(*) FROM demo_copies WHERE expires_at > now()) < $3",
-    )
-    .bind(copy)
-    .bind(&ip)
-    .bind(state.demo_limits.max_copies)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| internal(&e))?
-    .rows_affected();
-    if reserved == 0 {
+    let alive: i64 = sqlx::query_scalar("SELECT count(*) FROM demo_copies WHERE expires_at > now()").fetch_one(&mut *tx).await.map_err(|e| internal(&e))?;
+    if alive >= state.demo_limits.max_copies {
         return Err(refuse(StatusCode::SERVICE_UNAVAILABLE, "demo_full"));
     }
+    sqlx::query("INSERT INTO demo_copies (id, ip) VALUES ($1, $2)").bind(copy).bind(&ip).execute(&mut *tx).await.map_err(|e| internal(&e))?;
+    tx.commit().await.map_err(|e| internal(&e))?;
     let lang = if lang == Some("en") { Lang::En } else { Lang::Fr };
     if let Err(e) = crate::demo::create_copy(state, lang, copy).await {
         let _ = remove_copy(state, copy).await;
@@ -608,6 +604,15 @@ mod copy_tests {
             assert_eq!((status, body["error"].as_str()), (403, Some("demo_unavailable")), "{scope}");
         }
         assert_eq!(v.call("POST", "/api/user/tokens", Some(json!({ "name": "x", "scope": "api" }))).await.0, 200);
+    }
+
+    #[sqlx::test]
+    async fn people_search_never_shows_another_visitors_characters(pool: sqlx::PgPool) {
+        let (mut a, mut b) = (Visitor::new(&pool).await, Visitor::new(&pool).await);
+        assert_eq!(a.enter("noah").await.0, 200);
+        assert_eq!(b.enter("noah").await.0, 200);
+        let (_, hits) = a.call("GET", "/api/users/search?q=maya", None).await;
+        assert_eq!(hits.as_array().unwrap().len(), 1, "only visitor A's Maya: {hits}");
     }
 }
 

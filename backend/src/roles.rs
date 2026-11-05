@@ -291,7 +291,7 @@ struct UserHit {
 }
 
 /// Recherche de comptes Looty (nom ou e-mail), pour inviter ou partager une page.
-async fn search_users(State(state): State<AppState>, _user: AuthUser, Query(q): Query<SearchQuery>) -> ApiResult<Json<Vec<UserHit>>> {
+async fn search_users(State(state): State<AppState>, user: AuthUser, Query(q): Query<SearchQuery>) -> ApiResult<Json<Vec<UserHit>>> {
     let term = q.q.trim().to_lowercase();
     if term.chars().count() < 2 {
         return Ok(Json(Vec::new()));
@@ -301,11 +301,15 @@ async fn search_users(State(state): State<AppState>, _user: AuthUser, Query(q): 
         "SELECT u.id, u.name, u.email, u.avatar_url FROM users u
          WHERE COALESCE(u.is_suspended, FALSE) = FALSE AND (lower(u.name) LIKE $1 OR lower(u.email) LIKE $1)
            AND ($2::uuid IS NULL OR NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = u.id::varchar))
+           AND (NOT $4 OR u.demo_copy_id IS NOT DISTINCT FROM (SELECT demo_copy_id FROM users WHERE id = $5))
          ORDER BY (lower(u.email) = $3) DESC, u.name LIMIT 8",
     )
     .bind(like)
     .bind(q.exclude_ws)
     .bind(&term)
+    // Démo : chaque visiteur ne voit que les personnages de sa propre copie.
+    .bind(state.demo)
+    .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))
