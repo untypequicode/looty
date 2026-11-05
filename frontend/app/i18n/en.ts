@@ -23,7 +23,14 @@ export default {
     invalid_url: 'Invalid URL (https:// required)', invalid_avatar_url: 'Invalid avatar URL', empty_file: 'Empty file',
     no_file: 'No file', not_restorable: 'This change can’t be restored', invalid_issuer: 'Invalid issuer URL',
     missing_fields: 'Required fields are missing', missing_secret: 'Client secret is required', invalid_umami_id: 'Invalid Umami ID',
-    internal_error: 'Server error',
+    internal_error: 'Server error', demo_unavailable: 'Unavailable in the demo', demo_full: 'The demo is full right now, try again in a few minutes',
+    demo_rate_limited: 'Too many demo visits from your network, try again later', demo_file_too_large: 'Demo files are limited to 2 MB',
+    demo_quota_exceeded: 'This demo copy has reached its upload limit (20 MB)',
+  },
+  demo: {
+    unavailable: 'Unavailable in the demo', banner: 'Demo: your changes are erased after 24 hours.', host: 'Host Looty →',
+    enter: 'Enter the demo', pick: 'Pick a character to explore Looty with its rights.', switch: 'Switch character',
+    roles: { admin: 'Admin', member: 'Member', viewer: 'Read-only' },
   },
   nav: {
     main: 'Main navigation', home: 'Home', inbox: 'Inbox', myTasks: 'My tasks', myTasksShort: 'My tasks',

@@ -2,7 +2,7 @@
 import type { Component } from 'vue'
 
 const model = defineModel<T>({ required: true })
-defineProps<{ options: { value: T; label?: string; icon?: Component; title?: string }[]; size?: 'sm' | 'md' }>()
+defineProps<{ options: { value: T; label?: string; icon?: Component; title?: string; disabled?: boolean }[]; size?: 'sm' | 'md' }>()
 </script>
 
 <template>
@@ -14,8 +14,9 @@ defineProps<{ options: { value: T; label?: string; icon?: Component; title?: str
       class="seg-btn"
       :class="{ active: model === o.value }"
       :aria-selected="model === o.value"
+      :disabled="o.disabled"
       :title="o.title ?? o.label"
-      @click="model = o.value"
+      @click="!o.disabled && (model = o.value)"
     >
       <component :is="o.icon" v-if="o.icon" :size="14" />
       <span v-if="o.label">{{ o.label }}</span>

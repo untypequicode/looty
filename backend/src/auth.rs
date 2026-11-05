@@ -39,6 +39,10 @@ pub fn routes() -> Router<AppState> {
 }
 
 async fn get_active_providers(State(state): State<AppState>) -> ApiResult<Json<Vec<ProviderDto>>> {
+    // La démo n'a pas d'autre entrée que « Entrer dans la démo ».
+    if state.demo {
+        return Ok(Json(vec![]));
+    }
     Ok(Json(
         sqlx::query_as("SELECT id, name FROM oauth_providers WHERE is_active = TRUE ORDER BY name")
             .fetch_all(&state.pool)

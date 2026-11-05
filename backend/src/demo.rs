@@ -27,13 +27,13 @@ const TZ: Tz = chrono_tz::Europe::Paris;
 const TOKEN_NAME: &str = "seed-demo";
 
 #[derive(Clone, Copy, PartialEq)]
-enum Lang {
+pub enum Lang {
     Fr,
     En,
 }
 
 impl Lang {
-    fn code(self) -> &'static str {
+    pub fn code(self) -> &'static str {
         match self {
             Lang::Fr => "fr",
             Lang::En => "en",
@@ -47,14 +47,14 @@ impl Lang {
 
 /// Rôle d'un personnage dans l'espace modèle (rôle prédéfini de l'espace : propriétaire, membre, lecteur).
 #[derive(Clone, Copy, PartialEq)]
-enum Cast {
+pub enum Cast {
     Admin,
     Member,
     Viewer,
 }
 
 impl Cast {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Cast::Admin => "admin",
             Cast::Member => "member",
@@ -63,11 +63,11 @@ impl Cast {
     }
 }
 
-struct Character {
-    key: &'static str,
-    name: &'static str,
-    role: Cast,
-    color: (&'static str, &'static str),
+pub struct Character {
+    pub key: &'static str,
+    pub name: &'static str,
+    pub role: Cast,
+    pub color: (&'static str, &'static str),
     /// Tâches de son espace perso : (fr, en, échéance en jours).
     personal: [(&'static str, &'static str, i64); 3],
 }
@@ -78,7 +78,7 @@ const SARA: usize = 2;
 const INES: usize = 3;
 const NOAH: usize = 4;
 
-const CHARACTERS: [Character; 5] = [
+pub const CHARACTERS: [Character; 5] = [
     Character {
         key: "maya",
         name: "Maya Chen",
@@ -142,7 +142,10 @@ const EMAIL_DOMAIN: &str = "demo.looty.invalid";
 /// Motif `LIKE` des adresses des personnages.
 pub const EMAIL_PATTERN: &str = "%@demo.looty.invalid";
 
-fn email(c: &Character, lang: Lang) -> String {
+fn email(c: &Character, lang: Lang, copy: Option<Uuid>) -> String {
+    if let Some(copy) = copy {
+        return format!("{}.{}.{}@{EMAIL_DOMAIN}", c.key, lang.code(), &copy.simple().to_string()[..12]);
+    }
     format!("{}.{}@{EMAIL_DOMAIN}", c.key, lang.code())
 }
 
@@ -168,7 +171,7 @@ pub async fn run(state: AppState, args: &[String]) -> i32 {
     }
     let mut out = serde_json::Map::new();
     for lang in langs {
-        match seed(&state, lang).await {
+        match seed(&state, lang, None).await {
             Ok(v) => {
                 out.insert(lang.code().into(), v);
             }
@@ -183,25 +186,33 @@ pub async fn run(state: AppState, args: &[String]) -> i32 {
 }
 
 /// Crée (ou recrée) l'espace « Looty Démo » d'une langue.
-async fn seed(state: &AppState, lang: Lang) -> Result<Value, String> {
+async fn seed(state: &AppState, lang: Lang, copy: Option<Uuid>) -> Result<Value, String> {
     let pool = &state.pool;
     let mut ids = Vec::new();
     // Un personnage suspendu par un administrateur est réactivé : le modèle est recréé tel quel.
     for c in &CHARACTERS {
         let id: Uuid = sqlx::query_scalar(
-            "INSERT INTO users (email, name) VALUES ($1, $2) ON CONFLICT (email) DO UPDATE SET is_suspended = FALSE RETURNING id",
+            "INSERT INTO users (email, name, demo_copy_id) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET is_suspended = FALSE RETURNING id",
         )
-        .bind(email(c, lang))
+        .bind(email(c, lang, copy))
         .bind(c.name)
+        .bind(copy)
         .fetch_one(pool)
         .await
         .map_err(|e| e.to_string())?;
         ids.push(id);
     }
     let api = Api::new(state, &ids).await?;
-    let result = build(&api, lang, &ids).await;
+    let result = build(&api, lang, &ids, copy).await;
     api.revoke().await;
     result
+}
+
+/// Crée la copie d'un visiteur de la démo : comptes des cinq personnages et espace « Looty Démo », générés par
+/// l'API comme le modèle de `seed-demo`. Renvoie les identifiants des personnages, dans l'ordre de `CHARACTERS`.
+pub async fn create_copy(state: &AppState, lang: Lang, copy: Uuid) -> Result<Vec<Uuid>, String> {
+    let out = seed(state, lang, Some(copy)).await?;
+    out["characters"].as_array().into_iter().flatten().map(id).collect()
 }
 
 /// Accès à l'API de Looty dans le processus, avec un jeton par personnage.
@@ -230,7 +241,10 @@ impl Api {
             tokens.insert(u, raw);
         }
         tx.commit().await.map_err(db)?;
-        Ok(Api { app: crate::app(state.clone()), pool: state.pool.clone(), tokens })
+        // Le générateur passe par toutes les routes, y compris celles que la démo refuse aux visiteurs.
+        let mut internal = state.clone();
+        internal.demo = false;
+        Ok(Api { app: crate::app(internal), pool: state.pool.clone(), tokens })
     }
 
     async fn revoke(&self) {
@@ -359,7 +373,7 @@ fn avatar_svg(c: &Character) -> String {
     )
 }
 
-async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
+async fn build(api: &Api, lang: Lang, ids: &[Uuid], copy: Option<Uuid>) -> Result<Value, String> {
     let t = |fr, en| lang.t(fr, en);
     let clock = Clock::now();
     let admin = ids[MAYA];
@@ -599,7 +613,7 @@ async fn build(api: &Api, lang: Lang, ids: &[Uuid]) -> Result<Value, String> {
             api.post(u, &format!("/api/boards/columns/{first}/tasks"), json!({ "title": t(fr, en), "due_date": clock.at(due, 18, 0) })).await?;
         }
         characters.push(json!({
-            "id": u, "email": email(c, lang), "name": c.name,
+            "id": u, "email": email(c, lang, copy), "name": c.name,
             "role": c.role.as_str(),
             "personal_tasks": c.personal.len(),
         }));

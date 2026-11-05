@@ -54,6 +54,8 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   'admin-storage': { comp: AdminStorage, title: 'storage.title', admin: true },
   'admin-instance': { comp: AdminInstance, title: 'settings.nav.instance', admin: true },
 }
+// Sections qui chargent le serveur ou sortent vers l'extérieur : indisponibles dans la démo.
+const DEMO_LOCKED = new Set(['notifications', 'calendars'])
 const key = computed(() => ((route.params.section as string) in SECTIONS ? (route.params.section as string) : 'profile'))
 const section = computed(() => SECTIONS[key.value]!)
 const allowed = computed(() => !section.value.admin || !!user.value?.is_super_admin)
@@ -66,7 +68,7 @@ useHead({ title: () => `${t(section.value.title)} · ${t('nav.settings')}` })
 <template>
   <div ref="root" class="settings-page">
     <h1>{{ t(section.title) }}</h1>
-    <component :is="section.comp" v-if="allowed" :key="key" />
+    <AppDemoLock v-if="allowed" :when="DEMO_LOCKED.has(key)"><component :is="section.comp" :key="key" /></AppDemoLock>
     <UiEmpty v-else :icon="ShieldAlert" :title="t('errors.forbidden')" />
   </div>
 </template>

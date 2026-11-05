@@ -19,6 +19,9 @@ pub struct AppState {
     pub base_url: String,
     /// Réveille la synchronisation CalDAV après une modification de tâche.
     pub caldav_notify: Arc<tokio::sync::Notify>,
+    /// Mode démo (`LOOTY_DEMO`) : les routes qui sortent vers l'extérieur sont refusées.
+    pub demo: bool,
+    pub demo_limits: crate::demo_mode::DemoLimits,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -35,6 +38,8 @@ impl AppState {
             hub: Arc::new(Hub::new()),
             base_url,
             caldav_notify: Arc::new(tokio::sync::Notify::new()),
+            demo: crate::demo_mode::enabled(),
+            demo_limits: crate::demo_mode::DemoLimits::from_env(),
         }
     }
 

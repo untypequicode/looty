@@ -26,6 +26,7 @@ const pageTransition = { css: false, mode: 'out-in' as const, onEnter: motion.pa
 </script>
 
 <template>
+  <AppDemoBanner />
   <NuxtLayout>
     <!-- Pages gardées en mémoire : chaque onglet retrouve sa page telle quelle (défilement, éditeur). -->
     <NuxtPage :transition="pageTransition" :keepalive="{ max: 10 }" :page-key="(r) => r.path" />

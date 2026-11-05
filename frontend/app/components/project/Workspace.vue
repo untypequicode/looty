@@ -9,6 +9,7 @@ import AppPageHeader from '~/components/app/PageHeader.vue'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
+import { useDemo } from '~/composables/useDemo'
 import { useAuth } from '~/composables/useAuth'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useBreakpoint } from '~/composables/useBreakpoint'
@@ -25,6 +26,7 @@ import {
  * site ou PDF compilé à droite.
  */
 const { t, relativeTime } = useI18n()
+const { isDemo, unavailableLabel } = useDemo()
 const { user } = useAuth()
 const { wsId } = useWorkspace()
 const { isMobile } = useBreakpoint()
@@ -197,7 +199,7 @@ const errors = computed(() => (result.value?.issues ?? []).filter((i) => i.level
 const warnings = computed(() => (result.value?.issues ?? []).filter((i) => i.level === 'warning'))
 watch(project, (p) => { if (p?.kind === 'latex' && p.last_build_at && !pdfSrc.value) pdfSrc.value = `/api/projects/${p.id}/output.pdf?v=${new Date(p.last_build_at).getTime()}` }, { immediate: true })
 async function compile() {
-  if (!project.value || isSite.value || isNotebook.value || compiling.value) return
+  if (!project.value || isSite.value || isNotebook.value || compiling.value || isDemo.value) return
   compiling.value = true
   try {
     const overrides: Record<string, string> = {}
@@ -299,7 +301,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
           <UiButton v-if="data?.can_publish" size="sm" :variant="project.published ? 'secondary' : 'primary'" :icon="Globe" @click="publishOpen = true">{{ project.published ? t('projects.published') : t('projects.publish') }}</UiButton>
         </template>
         <template v-else-if="!isNotebook">
-          <UiButton size="sm" variant="primary" :icon="Play" :loading="compiling" class="pj-compile" @click="compile">{{ t('projects.compile') }} <UiKbd :keys="['mod', 'S']" /></UiButton>
+          <UiButton size="sm" variant="primary" :icon="Play" :loading="compiling" :disabled="isDemo" :title="isDemo ? unavailableLabel() : undefined" class="pj-compile" @click="compile">{{ t('projects.compile') }} <UiKbd :keys="['mod', 'S']" /></UiButton>
         </template>
         <UiMenu v-model:open="moreOpen" :items="moreItems" placement="bottom-end">
           <UiButton size="sm" variant="ghost" :icon="Settings2" :aria-label="t('common.more')" />

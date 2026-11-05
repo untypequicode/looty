@@ -398,6 +398,7 @@ useHead({ title: () => (folder.value ? `${folderLabel(folder.value)} · ${t('mai
 
 <template>
   <div class="page">
+    <AppDemoLock>
     <AppPageHeader :crumbs="[{ label: t('mail.title'), icon: Mail }]">
       <template v-if="account">
         <UiButton v-if="isMobile" size="sm" variant="ghost" :icon="MenuIcon" :aria-label="t('mail.foldersTitle')" @click="foldersOpen = !foldersOpen" />
@@ -566,6 +567,7 @@ useHead({ title: () => (folder.value ? `${folderLabel(folder.value)} · ${t('mai
 
     <MailAccountDialog v-model:open="dialogOpen" :account="editing" @saved="onSaved" />
     <MailCompose />
+    </AppDemoLock>
   </div>
 </template>
 

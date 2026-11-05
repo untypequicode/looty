@@ -7,6 +7,7 @@ import { useAuth } from '~/composables/useAuth'
 import { presence } from '~/composables/useRealtime'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
+import { useDemo } from '~/composables/useDemo'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useAccess, useRoles, permSummary, type WorkspaceRole } from '~/composables/useAccess'
@@ -22,6 +23,7 @@ const roleChoices = computed(() => assignable.value.map((r) => ({ value: r.id, l
 const memberRole = (m: WorkspaceMember) => (roles.value ?? []).find((r) => r.id === m.role_id)
 const { user } = useAuth()
 const { t, relativeTime, formatDate } = useI18n()
+const { isDemo, unavailableLabel } = useDemo()
 const qc = useQueryClient()
 const q = ref('')
 
@@ -120,8 +122,8 @@ const expiryItems = computed(() => [
   <SettingsSection :description="t('settings.members.description', { count: members.data.value?.length ?? 0 })">
     <template #actions>
       <UiInput v-model="q" :icon="Search" size="sm" :placeholder="t('common.search')" style="width: 180px" />
-      <UiButton v-if="can.invite" size="sm" :icon="Link2" @click="openInvite">{{ t('settings.members.inviteLink') }}</UiButton>
-      <UiButton v-if="can.invite" size="sm" variant="primary" :icon="UserPlus" @click="openAdd">{{ t('settings.members.addPeople') }}</UiButton>
+      <UiButton v-if="can.invite" size="sm" :icon="Link2" :disabled="isDemo" :title="isDemo ? unavailableLabel() : undefined" @click="openInvite">{{ t('settings.members.inviteLink') }}</UiButton>
+      <UiButton v-if="can.invite" size="sm" variant="primary" :icon="UserPlus" :disabled="isDemo" :title="isDemo ? unavailableLabel() : undefined" @click="openAdd">{{ t('settings.members.addPeople') }}</UiButton>
     </template>
     <div v-for="m in list" :key="m.user_id" class="member">
       <UiAvatar :name="m.name" :src="m.avatar_url" :size="32" :online="!!presence[m.user_id]" />

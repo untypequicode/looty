@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.30.0",
+      "date": "2026-11-05",
+      "title": {
+        "en": "Demo mode for public showcase instances",
+        "fr": "Mode démo pour les instances de démonstration publiques"
+      },
+      "notes": {
+        "en": [
+          "**Demo mode** (`LOOTY_DEMO=true`): the sign-in page becomes **Enter the demo** with a choice of fictional characters (admin, member, read-only). Each visitor gets their own isolated copy of the « Looty Demo » workspace, deleted after 24 hours, and can switch character inside it to see rights and assignments.",
+          "**Server-heavy and outgoing features are unavailable in the demo**: server-side LaTeX, project Jupyter server, Mail, Moodle, external calendar subscriptions, e-mails, push notifications, app passwords and CalDAV, invitations and server administration are shown as *Unavailable in the demo*, and the server refuses them too (`demo_unavailable`). Notebooks keep running with Pyodide.",
+          "**Limits**: 2 MB per file, 20 MB per copy, a cap on simultaneous copies and on copies per address and hour (`LOOTY_DEMO_*`). Nothing changes without `LOOTY_DEMO`."
+        ],
+        "fr": [
+          "**Mode démo** (`LOOTY_DEMO=true`) : la page de connexion devient **Entrer dans la démo**, avec le choix d’un personnage fictif (admin, membre, lecture seule). Chaque visiteur a sa propre copie isolée de l’espace « Looty Démo », supprimée au bout de 24 h, et peut changer de personnage dedans pour voir les droits et les assignations.",
+          "**Fonctions qui chargent le serveur ou sortent vers l’extérieur indisponibles dans la démo** : LaTeX côté serveur, serveur Jupyter du projet, Mail, Moodle, abonnements d’agenda externes, e-mails, notifications push, mots de passe d’application et CalDAV, invitations et administration du serveur sont affichés « Indisponible dans la démo », et le serveur les refuse aussi (`demo_unavailable`). Les notebooks restent disponibles avec Pyodide.",
+          "**Limites** : 2 Mo par fichier, 20 Mo par copie, plafond de copies simultanées et de copies par adresse et par heure (`LOOTY_DEMO_*`). Rien ne change sans `LOOTY_DEMO`."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.29.0",
       "date": "2026-11-05",
       "title": {

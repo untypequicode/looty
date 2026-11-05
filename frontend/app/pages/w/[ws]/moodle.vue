@@ -263,6 +263,7 @@ useHead({ title: () => t('moodle.title') })
 
 <template>
   <div class="page">
+    <AppDemoLock>
     <AppPageHeader :crumbs="[{ label: conn?.site_name || t('moodle.title'), icon: GraduationCap }]">
       <template v-if="connected">
         <UiTooltip :text="t('moodle.refresh')"><UiButton size="sm" variant="ghost" :icon="RefreshCw" :aria-label="t('moodle.refresh')" @click="refreshAll" /></UiTooltip>
@@ -425,6 +426,7 @@ useHead({ title: () => t('moodle.title') })
       </div>
       </template>
     </div>
+    </AppDemoLock>
   </div>
 </template>
 

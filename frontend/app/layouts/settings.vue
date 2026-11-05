@@ -81,7 +81,7 @@ useShortcuts([{ keys: 'escape', handler: () => { if (document.querySelector('[ro
 </template>
 
 <style scoped>
-.st-app { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: 100dvh; }
+.st-app { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: calc(100dvh - var(--demo-banner-h, 0px)); }
 .st-nav { background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: calc(12px + var(--safe-top)) 10px 24px; overflow-y: auto; }
 .st-back { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; color: var(--text-2); font-weight: 500; border-radius: var(--r-sm); margin-bottom: 12px; }
 .st-back:hover { background: var(--bg-hover); color: var(--text); }

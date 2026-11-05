@@ -336,8 +336,11 @@ async fn update_settings(
     Ok(Json(load_settings(&pool).await?))
 }
 
-pub async fn get_public_settings(State(pool): State<PgPool>) -> ApiResult<Json<GlobalSettings>> {
-    Ok(Json(load_settings(&pool).await?))
+pub async fn get_public_settings(State(state): State<crate::state::AppState>) -> ApiResult<Json<serde_json::Value>> {
+    let mut v = serde_json::to_value(load_settings(&state.pool).await?).map_err(|e| ApiError::Internal(e.to_string()))?;
+    // La page de connexion et le bandeau de la démo (GLOSSARY : *Démo*).
+    v["demo"] = serde_json::json!(state.demo);
+    Ok(Json(v))
 }
 
 // ---------------------------------------------------------------------------

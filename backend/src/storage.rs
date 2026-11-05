@@ -303,3 +303,13 @@ mod tests {
         assert_eq!(upload_refs(html), vec!["a-1.png", "b_2.pdf"]);
     }
 }
+
+/// Fichiers d'upload cités par le contenu des espaces donnés (pièces jointes, documents, tâches, commentaires).
+pub(crate) async fn files_in_workspaces(pool: &sqlx::PgPool, workspaces: &[Uuid]) -> ApiResult<Vec<String>> {
+    Ok(collect_usages(pool)
+        .await?
+        .into_iter()
+        .filter(|(_, usages)| usages.iter().any(|u| u.workspace_id.is_some_and(|w| workspaces.contains(&w))))
+        .map(|(name, _)| name)
+        .collect())
+}

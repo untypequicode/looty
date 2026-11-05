@@ -15,6 +15,7 @@ mod dav;
 mod db;
 mod delivery;
 mod demo;
+mod demo_mode;
 mod error;
 mod mail;
 mod mailbox;
@@ -94,22 +95,36 @@ async fn main() {
     }
     let pool = db::init_db().await.expect("Failed to initialize database");
     archive::start_archive_cron(pool.clone());
-    backup::start_scheduler(pool.clone());
-    seed_default_provider(&pool).await;
+    let demo = demo_mode::enabled();
+    if !demo {
+        backup::start_scheduler(pool.clone());
+    }
+    if demo {
+        tracing::warn!("LOOTY_DEMO is enabled: public demo instance, one throwaway copy per visitor, OIDC and local accounts disabled. NEVER enable this on a real instance.");
+    } else {
+        seed_default_provider(&pool).await;
+    }
 
     let session_store = session_store::PgSessionStore::new(pool.clone());
     session_store.migrate().await.expect("Failed to migrate session store");
     session_store.start_cleanup();
 
     let state = state::AppState::new(pool.clone(), base_url());
-    caldav::start_sync_loop(state.clone(), state.caldav_notify.clone());
-    delivery::start_worker(state.clone());
-    calendar::start_sync_loop(state.clone());
-    mailbox::start_poll_loop(state.clone());
-    moodle::start_poll_loop(state.clone());
-    trash::start_purge_loop(state.clone());
-    drive::start_purge_loop(state.clone());
-    jupyter::start_reaper();
+    if demo {
+        // Aucune tâche de fond qui sorte vers l'extérieur ; seul le ménage des copies tourne.
+        demo_mode::start_purge_loop(state.clone());
+        trash::start_purge_loop(state.clone());
+        drive::start_purge_loop(state.clone());
+    } else {
+        caldav::start_sync_loop(state.clone(), state.caldav_notify.clone());
+        delivery::start_worker(state.clone());
+        calendar::start_sync_loop(state.clone());
+        mailbox::start_poll_loop(state.clone());
+        moodle::start_poll_loop(state.clone());
+        trash::start_purge_loop(state.clone());
+        drive::start_purge_loop(state.clone());
+        jupyter::start_reaper();
+    }
     let app = app(state);
 
     tokio::fs::create_dir_all(upload::UPLOAD_DIR).await.ok();
@@ -142,7 +157,7 @@ fn app(state: state::AppState) -> Router {
         .route("/ics/{file}", get(ics_feed::feed))
         .route("/upload", post(upload::upload_file))
         .route("/public/pages/{token}", get(page::get_public_page))
-        .nest("/auth", auth::routes())
+        .nest("/auth", auth::routes().nest("/demo", demo_mode::routes()))
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes().merge(prefs::user_routes()))
         .merge(roles::user_routes())
@@ -195,6 +210,7 @@ fn app(state: state::AppState) -> Router {
         .merge(projects::public_routes())
         .nest("/api", api)
         .merge(dav::routes())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), demo_mode::guard))
         .with_state(state)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(session_layer)
