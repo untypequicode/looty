@@ -17,6 +17,30 @@ services:
       POSTGRES_DB: looty_demo
       POSTGRES_USER: looty
       POSTGRES_PASSWORD: ${DB_PASSWORD:-demo}
+    # Postgres au plus juste : ~50 Mo au lieu de ~200 Mo (mesuré avec 20 connexions). Les valeurs par défaut visent
+    # un serveur dédié ; la démo n'a que quelques visiteurs et ses données sont jetables.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=24MB
+      - -c
+      - max_connections=40
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - effective_cache_size=64MB
+      - -c
+      - wal_buffers=1MB
+      - -c
+      - max_wal_size=128MB
+      - -c
+      - min_wal_size=32MB
+      - -c
+      - autovacuum_max_workers=2
+      - -c
+      - max_parallel_workers_per_gather=0
     volumes:
       - demo_postgres:/var/lib/postgresql
     healthcheck:

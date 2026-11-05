@@ -6,7 +6,8 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
-      - postgres_data_18:/var/lib/postgresql
+      # Par défaut le volume nommé postgres_data_18 ; LOOTY_DB_DATA=/chemin/absolu le place ailleurs (voir .env.example).
+      - ${LOOTY_DB_DATA:-postgres_data_18}:/var/lib/postgresql
     healthcheck:
       test:
         [
