@@ -7,7 +7,7 @@ await login(p)
 const api = (path, method, body) => call(p, path, method, body)
 
 // Page portant un notebook, avec une cellule Markdown en tête.
-const pg = await api(`/api/workspaces/${WS}/pages`, 'POST', { title: 'Analyse illustrée', project: { kind: 'notebook', template: 'blank' } })
+const pg = await api(`/api/workspaces/${WS}/pages`, 'POST', { title: 'Figures du TP', project: { kind: 'notebook', template: 'blank' } })
 ok('page with a notebook', !!pg.project_id && pg.project_kind === 'notebook', JSON.stringify(pg))
 const pid = pg.project_id
 
@@ -72,7 +72,7 @@ ok('public page exposes the notebook', pub.project?.kind === 'notebook' && pub.p
 await v.goto(`${B}/public/${shared.share_token}`, { waitUntil: 'networkidle' })
 await v.locator('.nbv .nbv-cell').first().waitFor({ timeout: 15000 })
 ok('notebook tab open by default (empty page: no tabs)', (await v.locator('.rd-tabs').count()) === 0)
-ok('title still shown', (await v.locator('.rd-title').textContent()).includes('Analyse illustrée'))
+ok('title still shown', (await v.locator('.rd-title').textContent()).includes('Figures du TP'))
 await v.waitForFunction(() => [...document.querySelectorAll('.nbv img')].some((i) => i.complete && i.naturalWidth === 2), null, { timeout: 10000 })
 ok('image shown to an anonymous visitor', true)
 ok('no run button on the public link', (await v.locator('.nbv .cell-run, .nbv [data-testid=nb-kernel]').count()) === 0)
