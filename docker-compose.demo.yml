@@ -16,7 +16,7 @@ services:
     environment:
       POSTGRES_DB: looty_demo
       POSTGRES_USER: looty
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-demo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}
     # Postgres au plus juste : ~50 Mo au lieu de ~200 Mo (mesuré avec 20 connexions). Les valeurs par défaut visent
     # un serveur dédié ; la démo n'a que quelques visiteurs et ses données sont jetables.
     command:
@@ -53,7 +53,7 @@ services:
   backend:
     image: ghcr.io/untypequicode/looty-backend:${LOOTY_VERSION:-latest}
     environment:
-      DATABASE_URL: postgres://looty:${DB_PASSWORD:-demo}@postgres:5432/looty_demo
+      DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@postgres:5432/looty_demo
       PORT: 8080
       BASE_URL: https://${DEMO_DOMAIN:-demo.looty.untypequicode.fr}
       LOOTY_DEMO: "true"
@@ -75,7 +75,7 @@ services:
   collaboration:
     image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
     environment:
-      DATABASE_URL: postgres://looty:${DB_PASSWORD:-demo}@postgres:5432/looty_demo
+      DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@postgres:5432/looty_demo
       BACKEND_URL: http://backend:8080
     depends_on:
       postgres:
