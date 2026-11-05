@@ -1,14 +1,5 @@
 { pkgs ? import <nixpkgs> {} }:
 
-let
-  nodejs26 = pkgs.nodejs-slim_26.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace deps/v8/src/base/memcopy.h \
-        --replace-fail '#include <arm_neon.h>' '#include <arm_neon.h>
-#include <climits>'
-    '';
-  });
-in
 pkgs.mkShell {
   buildInputs = with pkgs; [
     # Backend (Rust)
@@ -20,9 +11,8 @@ pkgs.mkShell {
     pkg-config
     openssl
 
-    # Frontend (Node.js/Nuxt). Node 26.10's ARM64 V8 build currently misses
-    # <climits>; keep the fix local so both supported Nix architectures build.
-    (pkgs.nodejs_26.override { nodejs-slim = nodejs26; })
+    # Frontend (Node.js/Nuxt)
+    nodejs_26
 
     # Base de données & Infra
     postgresql_15
