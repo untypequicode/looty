@@ -11,6 +11,8 @@ const emit = defineEmits<{
   (e: 'toggle', t: Task, ev: MouseEvent): void
   (e: 'menu', t: Task, ev: MouseEvent): void
   (e: 'create', columnId: string, title: string, atTop: boolean): void
+  /** Formulaire complet de création dans cette colonne, avec le titre déjà saisi. */
+  (e: 'expand', columnId: string, title: string, atTop: boolean): void
 }>()
 const { member } = useWorkspace()
 const { formatDate } = useI18n()
@@ -47,7 +49,7 @@ function dueTone(tk: Task) {
       </header>
       <div v-show="!collapsed[col.id]">
         <div v-if="adding === col.id" class="lv-quick">
-          <BoardQuickAdd start-open :placeholder="$t('task.titlePlaceholder')" @create="(title) => emit('create', col.id, title, true)" @close="adding = null" />
+          <BoardQuickAdd start-open :placeholder="$t('task.titlePlaceholder')" @create="(title) => emit('create', col.id, title, true)" @expand="(title) => emit('expand', col.id, title, true)" @close="adding = null" />
         </div>
         <div
           v-for="tk in col.tasks"

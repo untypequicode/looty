@@ -113,19 +113,24 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx playwright-core install --with-deps chromium
+      # Serveur Jupyter local pour tests/notebook-jupyter.mjs (exécution à distance).
+      - run: python3 -m venv /tmp/jupyter && /tmp/jupyter/bin/pip install --quiet jupyter_server ipykernel
       - name: Start the stack
         run: |
-          (cd backend && PORT=8080 BASE_URL=http://localhost:3000 LOOTY_DEV_LOGIN=true CALDAV_ALLOW_PRIVATE=true CALENDAR_DEFAULT_TZ=Europe/Paris nohup ./target/debug/backend > ../backend.log 2>&1 &)
+          (cd backend && PORT=8080 BASE_URL=http://localhost:3000 LOOTY_DEV_LOGIN=true CALDAV_ALLOW_PRIVATE=true JUPYTER_ALLOW_PRIVATE=true CALENDAR_DEFAULT_TZ=Europe/Paris nohup ./target/debug/backend > ../backend.log 2>&1 &)
           (cd collaboration && PORT=8082 BACKEND_URL=http://127.0.0.1:8080 nohup node index.js > ../collab.log 2>&1 &)
+          (mkdir -p /tmp/nb && cd /tmp/nb && nohup /tmp/jupyter/bin/jupyter server --no-browser --ServerApp.ip=127.0.0.1 --ServerApp.port=18888 --IdentityProvider.token=e2e-jupyter-token > "$GITHUB_WORKSPACE/jupyter.log" 2>&1 &)
           (cd frontend && PORT=3000 BACKEND_URL=http://127.0.0.1:8080 COLLAB_URL=http://127.0.0.1:8082 nohup node .output/server/index.mjs > ../front.log 2>&1 &)
-          for i in $(seq 1 60); do curl -fs http://127.0.0.1:3000/api/auth/providers >/dev/null 2>&1 && curl -fs -o /dev/null http://127.0.0.1:3000/ && break; sleep 1; done
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:3000/api/auth/providers >/dev/null 2>&1 && curl -fs -o /dev/null http://127.0.0.1:3000/ && curl -fs -o /dev/null -H "Authorization: token e2e-jupyter-token" http://127.0.0.1:18888/api/kernelspecs && break; sleep 1; done
       - working-directory: e2e
         env:
           E2E_BASE: http://localhost:3000
+          E2E_JUPYTER_URL: http://127.0.0.1:18888
+          E2E_JUPYTER_TOKEN: e2e-jupyter-token
         run: node run.mjs
       - name: Server logs
         if: failure()
-        run: tail -n 60 backend.log collab.log front.log
+        run: tail -n 60 backend.log collab.log front.log jupyter.log
       - name: Screenshots
         if: failure()
         uses: actions/upload-artifact@v5

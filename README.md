@@ -25,7 +25,7 @@
 - **Documents**: collaborative editing with live cursors, formulas (LaTeX), diagrams, tables, code and embeds; share by link or with chosen people.
 - **Calendar**: events and recurrence, a calendar per board, CalDAV subscriptions and a CalDAV server; task due dates appear on it.
 - **Mail**: read your mailbox next to your work and turn a message into a task.
-- **Projects**: small websites, LaTeX documents and Jupyter notebooks running Python in the browser.
+- **Projects**: small websites, LaTeX documents and Jupyter notebooks running Python in the browser, or on your own Jupyter server.
 - **School**: connect Moodle to see deadlines, courses and messages beside your own tasks.
 - **Teams**: fine-grained roles, read-only members, guests, single sign-on (OpenID Connect), activity feed, notifications.
 - **Offline apps**: Android, Linux and Windows keep your data on the device, let you edit offline and sync back.

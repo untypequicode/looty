@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
-import { Plus, Play, RotateCcw, Eraser, Type, Code2, CircleDot, Info, ListEnd } from 'lucide-vue-next'
+import { Plus, Play, RotateCcw, Eraser, Type, Code2, CircleDot, Info, ListEnd, Square, Cpu, Server } from 'lucide-vue-next'
 import 'katex/dist/katex.min.css'
 import { socketBase } from '~/composables/useRealtime'
 import { useNotebookKernel, type NbOutput } from '~/composables/useNotebookKernel'
+import { useJupyterKernel } from '~/composables/useJupyterKernel'
+import type { KernelSpec } from '~/components/notebook/EngineDialog.vue'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 
 /**
  * Notebook Jupyter partagé : cellules édités à plusieurs en direct (document Yjs
  * « file:<id> » du serveur de collaboration, enregistré au format .ipynb) ; le code Python
- * s'exécute dans le navigateur de la personne qui clique (Pyodide), les sorties sont
- * partagées avec tout le monde.
+ * s'exécute dans le navigateur de la personne qui clique (Pyodide, par défaut) ou sur le
+ * serveur Jupyter du projet (choix enregistré dans le notebook : `metadata.looty.engine`) ;
+ * les sorties sont partagées avec tout le monde.
  */
 interface ProjectFileLite { id: string; path: string; size: number; is_dir: boolean }
 const props = defineProps<{
@@ -128,9 +131,38 @@ function clearOutput(c: CellVM) {
 }
 function clearAll() { for (const c of cells.value) if (c.type === 'code') clearOutput(c) }
 
+// --- Moteur d'exécution (métadonnées du notebook, partagées) ---
+const ymeta = ydoc.getMap<string>('meta')
+const nbMeta = shallowRef<any>({})
+function readMeta() { try { nbMeta.value = JSON.parse(ymeta.get('nb') || '{}') } catch { nbMeta.value = {} } }
+ymeta.observe(readMeta)
+readMeta()
+const engine = computed<'pyodide' | 'jupyter'>(() => (nbMeta.value?.metadata?.looty?.engine === 'jupyter' ? 'jupyter' : 'pyodide'))
+const remote = computed(() => engine.value === 'jupyter')
+const nbKernelName = computed(() => (typeof nbMeta.value?.metadata?.looty?.kernel === 'string' ? nbMeta.value.metadata.looty.kernel as string : undefined))
+const engineOpen = ref(false)
+function setEngine(next: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec: KernelSpec }) {
+  if (ro.value) return
+  let meta: any = {}
+  try { meta = JSON.parse(ymeta.get('nb') || '{}') } catch { meta = {} }
+  meta.metadata = meta.metadata && typeof meta.metadata === 'object' ? meta.metadata : {}
+  if (next === 'jupyter') {
+    meta.metadata.looty = { ...(meta.metadata.looty ?? {}), engine: 'jupyter' }
+    if (choice?.kernel) meta.metadata.looty.kernel = choice.kernel
+    else delete meta.metadata.looty.kernel
+    if (choice?.spec?.name) meta.metadata.kernelspec = { name: choice.spec.name, display_name: choice.spec.display_name, language: choice.spec.language || 'python' }
+  } else {
+    delete meta.metadata.looty
+    meta.metadata.kernelspec = { name: 'python3', display_name: 'Python 3 (Pyodide)', language: 'python' }
+  }
+  meta.nbformat ??= 4
+  meta.nbformat_minor ??= 5
+  ydoc.transact(() => ymeta.set('nb', JSON.stringify(meta)))
+}
+
 // --- Noyau Python ---
 const fileList = computed(() => (props.projectFiles ?? []).filter((f) => !f.is_dir && !/\.ipynb$/i.test(f.path) && f.size <= 5_000_000).slice(0, 200))
-const kernel = useNotebookKernel({
+const pyodide = useNotebookKernel({
   signature: () => fileList.value.map((f) => `${f.id}:${f.size}`).join('|'),
   files: async () => {
     const out: { path: string; data: ArrayBuffer }[] = []
@@ -148,6 +180,12 @@ const kernel = useNotebookKernel({
     return out
   },
 })
+const jupyter = useJupyterKernel({ projectId: () => props.projectId, kernel: () => nbKernelName.value })
+// Moteur changé (ici ou par quelqu'un d'autre) : le noyau distant est arrêté, rien ne bascule en silence.
+watch([engine, nbKernelName], ([e], [was, wasKernel]) => {
+  if (was === 'jupyter' && (e !== 'jupyter' || nbKernelName.value !== wasKernel)) { jupyter.shutdown(); running.value = null; queued.value = new Set() }
+})
+const kernel = computed(() => (remote.value ? jupyter : pyodide))
 /** Sorties affichées pendant le calcul (et, en lecture seule, gardées sur cet appareil). */
 const local = reactive<Record<string, { outputs: NbOutput[]; count: number | null }>>({})
 const running = ref<string | null>(null)
@@ -172,12 +210,17 @@ const nextCount = () => Math.max(0, ...cells.value.map((c) => c.count ?? 0), ...
 async function runCell(c: CellVM): Promise<boolean> {
   if (c.type !== 'code') return true
   const code = c.ytext.toString()
+  // Exécuter à distance demande le droit de modifier : erreur visible, pas de repli sur Pyodide.
+  if (remote.value && ro.value) {
+    local[c.id] = { outputs: [{ output_type: 'error', ename: 'JupyterError', evalue: t('notebook.jupyter.readOnly'), traceback: [t('notebook.jupyter.readOnly')] }], count: null }
+    return false
+  }
   queued.value = new Set(queued.value).add(c.id)
-  const res = await kernel.run(code, (o) => { running.value = c.id; queued.value.delete(c.id); queued.value = new Set(queued.value); local[c.id] = { outputs: o, count: null } })
+  const res: { ok: boolean; outputs: NbOutput[]; count?: number | null } = await kernel.value.run(code, (o) => { running.value = c.id; queued.value.delete(c.id); queued.value = new Set(queued.value); local[c.id] = { outputs: o, count: null } })
   running.value = null
   queued.value.delete(c.id)
   queued.value = new Set(queued.value)
-  const count = nextCount()
+  const count = res.count ?? nextCount()
   const outputs = res.outputs.map((o) => (o.output_type === 'execute_result' ? { ...o, execution_count: count } : o))
   if (!ro.value && c.ymap.doc) {
     ydoc.transact(() => { c.ymap.set('outputs', JSON.stringify(capped(outputs))); c.ymap.set('count', count) })
@@ -205,16 +248,29 @@ async function runAll() {
     if (!ok) { queued.value = new Set(); break }
   }
 }
+function interrupt() { jupyter.interrupt() }
 function restart() {
-  kernel.restart()
+  kernel.value.restart()
   running.value = null
   queued.value = new Set()
 }
+const kernelLabel = computed(() => nbKernelName.value || jupyter.kernelName.value || t('notebook.jupyter.projectKernel'))
+const kernelState = computed(() => kernel.value.state.value)
 const statusText = computed(() => {
-  if (kernel.state.value === 'starting') return kernel.message.value || t('notebook.starting')
-  if (kernel.state.value === 'busy') return kernel.message.value || t('notebook.busy')
-  if (kernel.state.value === 'idle') return t('notebook.ready')
-  return kernel.message.value || t('notebook.off')
+  const k = kernel.value
+  if (remote.value) {
+    const s = jupyter.state.value
+    if (s === 'starting') return jupyter.message.value || t('notebook.jupyter.connecting')
+    if (s === 'busy') return t('notebook.jupyter.busy', { kernel: kernelLabel.value })
+    if (s === 'idle') return t('notebook.jupyter.ready', { kernel: kernelLabel.value })
+    if (s === 'reconnecting') return t('notebook.jupyter.reconnecting')
+    if (s === 'error') return jupyter.message.value || t('notebook.jupyter.lost')
+    return t('notebook.jupyter.off', { kernel: kernelLabel.value })
+  }
+  if (k.state.value === 'starting') return k.message.value || t('notebook.starting')
+  if (k.state.value === 'busy') return k.message.value || t('notebook.busy')
+  if (k.state.value === 'idle') return t('notebook.ready')
+  return k.message.value || t('notebook.off')
 })
 
 onBeforeUnmount(() => { provider.destroy(); ydoc.destroy() })
@@ -230,11 +286,13 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
         <span class="nb-sep" />
       </template>
       <UiButton size="xs" variant="ghost" :icon="Play" :disabled="!!running || queued.size > 0" @click="runAll">{{ t('notebook.runAll') }}</UiButton>
-      <UiButton size="xs" variant="ghost" :icon="RotateCcw" :disabled="kernel.state.value === 'off'" @click="restart">{{ t('notebook.restart') }}</UiButton>
+      <UiButton v-if="remote" size="xs" variant="ghost" :icon="Square" :disabled="kernelState !== 'busy' && !running && queued.size === 0" @click="interrupt">{{ t('notebook.jupyter.interrupt') }}</UiButton>
+      <UiButton size="xs" variant="ghost" :icon="RotateCcw" :disabled="kernelState === 'off'" @click="restart">{{ remote ? t('notebook.jupyter.restart') : t('notebook.restart') }}</UiButton>
       <UiButton v-if="!ro" size="xs" variant="ghost" :icon="Eraser" @click="clearAll">{{ t('notebook.clearAll') }}</UiButton>
       <span class="nb-spacer" />
-      <UiTooltip :text="t('notebook.pyodideHint')"><Info :size="13" class="nb-info" /></UiTooltip>
-      <span class="nb-kernel" :class="kernel.state.value" role="status"><CircleDot :size="11" /> {{ statusText }}</span>
+      <UiButton size="xs" variant="ghost" class="nb-engine" :icon="remote ? Server : Cpu" :title="t('notebook.jupyter.title')" data-testid="nb-engine" @click="engineOpen = true">{{ remote ? t('notebook.jupyter.remoteShort') : t('notebook.jupyter.pyodideShort') }}</UiButton>
+      <UiTooltip :text="remote ? t('notebook.jupyter.remoteHint') : t('notebook.pyodideHint')"><Info :size="13" class="nb-info" /></UiTooltip>
+      <span class="nb-kernel" :class="kernelState" role="status" data-testid="nb-kernel" :title="statusText"><CircleDot :size="11" /> {{ statusText }}</span>
     </div>
     <div class="nb-scroll" @click.self="selectedId = null">
       <div v-if="!synced" class="nb-loading"><UiSpinner /></div>
@@ -251,6 +309,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
         </div>
       </template>
     </div>
+    <NotebookEngineDialog v-model:open="engineOpen" :project-id="projectId" :engine="engine" :kernel="nbKernelName" :read-only="ro" @apply="setEngine" />
   </div>
 </template>
 
@@ -262,7 +321,9 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
 .nb-info { color: var(--text-3); margin-right: 8px; cursor: help; }
 .nb-kernel { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 1px 9px; border-radius: var(--r-full); background: var(--bg-hover); color: var(--text-2); font-size: var(--fs-xs); font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .nb-kernel.idle { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
-.nb-kernel.busy, .nb-kernel.starting { color: var(--orange, #e2a03f); background: color-mix(in srgb, var(--orange, #e2a03f) 14%, transparent); }
+.nb-kernel.error { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+.nb-engine { margin-right: 4px; }
+.nb-kernel.busy, .nb-kernel.starting, .nb-kernel.reconnecting { color: var(--orange, #e2a03f); background: color-mix(in srgb, var(--orange, #e2a03f) 14%, transparent); }
 .nb-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 12px 80px 0; display: flex; flex-direction: column; gap: 6px; }
 .nb-loading { display: grid; place-items: center; padding: 40px; }
 .nb-end { display: flex; gap: 6px; padding-left: 68px; margin-top: 8px; }

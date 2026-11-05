@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Plus } from 'lucide-vue-next'
+import { Plus, Maximize2 } from 'lucide-vue-next'
 
-/** Ajout rapide façon kan.bn : Entrée crée et garde le champ ouvert, Échap ferme. */
+/** Ajout rapide façon kan.bn : Entrée crée et garde le champ ouvert, Échap ferme,
+ *  Ctrl/⌘+Entrée (ou le bouton) passe au formulaire complet avec le titre saisi. */
 const props = defineProps<{ placeholder?: string; startOpen?: boolean }>()
-const emit = defineEmits<{ (e: 'create', title: string): void; (e: 'close'): void }>()
+const emit = defineEmits<{ (e: 'create', title: string): void; (e: 'expand', title: string): void; (e: 'close'): void }>()
 const open = ref(!!props.startOpen)
 const value = ref('')
 const input = ref<HTMLTextAreaElement | null>(null)
@@ -25,6 +26,11 @@ function submit() {
   value.value = ''
   nextTick(() => input.value?.focus())
 }
+function expand() {
+  const v = value.value.trim()
+  hide()
+  emit('expand', v)
+}
 function autosize() {
   if (!input.value) return
   input.value.style.height = 'auto'
@@ -43,10 +49,19 @@ defineExpose({ show })
       :placeholder="placeholder"
       @input="autosize"
       @keydown.enter.exact.prevent="submit"
+      @keydown.ctrl.enter.prevent="expand"
+      @keydown.meta.enter.prevent="expand"
       @keydown.esc.prevent.stop="hide"
       @blur="value.trim() ? submit() : hide()"
     />
-    <div class="qa-hint"><UiKbd keys="enter" /> {{ $t('board.quickAddHint') }}</div>
+    <div class="qa-hint">
+      <UiKbd keys="enter" /> {{ $t('board.quickAddHint') }}
+      <span class="spacer" />
+      <!-- mousedown.prevent : le champ garde le focus (le perdre créerait la tâche). -->
+      <button type="button" class="qa-full" :title="$t('task.fullForm')" :aria-label="$t('task.fullForm')" @mousedown.prevent @click="expand">
+        <Maximize2 :size="12" /> <UiKbd :keys="['mod', 'enter']" />
+      </button>
+    </div>
   </div>
   <button v-else class="qa-btn" @click="show"><Plus :size="14" /> {{ $t('board.addTask') }}</button>
 </template>
@@ -65,6 +80,8 @@ defineExpose({ show })
 }
 .qa textarea::placeholder { color: var(--text-3); }
 .qa-hint { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--fs-xs); color: var(--text-3); }
+.qa-full { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: var(--r-sm); color: var(--text-3); }
+.qa-full:hover { background: var(--bg-hover); color: var(--text); }
 .qa-btn {
   display: flex;
   align-items: center;

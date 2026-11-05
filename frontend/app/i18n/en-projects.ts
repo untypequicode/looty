@@ -1,5 +1,12 @@
 export default {
   errors: {
+    jupyter_invalid_url: 'Invalid Jupyter server address', jupyter_https_required: 'The Jupyter server must use https://',
+    jupyter_token_in_url: 'Do not put the token in the address: paste it in the Token field', jupyter_private_address: 'Private network address refused (an admin can allow it with JUPYTER_ALLOW_PRIVATE)',
+    jupyter_unreachable: 'Jupyter server unreachable', jupyter_timeout: 'The Jupyter server did not answer in time', jupyter_auth_failed: 'Token rejected by the Jupyter server',
+    jupyter_redirect: 'The Jupyter server answered with a redirect: check the address (for JupyterHub, use https://hub/user/<name>/)', jupyter_unexpected_status: 'Unexpected response from the Jupyter server',
+    jupyter_not_jupyter: 'This address does not answer like a Jupyter server', jupyter_not_configured: 'No Jupyter server configured for this project', jupyter_token_unreadable: 'The stored token can no longer be read: enter it again',
+    jupyter_invalid_kernel: 'Invalid kernel name', jupyter_kernel_unknown: 'This kernel does not exist on the Jupyter server', jupyter_kernel_gone: 'The kernel no longer exists on the Jupyter server (restart it)',
+    jupyter_too_many_kernels: 'Too many remote kernels open: close other notebooks first',
     project_invalid_path: 'Invalid file name or path', project_path_exists: 'A file with this name already exists', project_path_conflict: 'A file has the name of this folder',
     project_too_many: 'Too many projects in this workspace (200 max)', project_too_many_files: 'Too many files in this project (2000 max)', project_file_too_large: 'Text file too large (2 MB max)',
     project_invalid_slug: 'Invalid address: lowercase letters, digits and dashes (2 to 64)', project_slug_taken: 'This address is already used by another site',
@@ -64,5 +71,22 @@ export default {
     starting: 'Starting Python…', busy: 'Running…', ready: 'Python ready', off: 'Python (starts on first run)', download: 'Download the notebook (.ipynb)',
     pyodideHint: 'Python runs in your browser (Pyodide), not on the server. Libraries such as NumPy, pandas and Matplotlib load automatically on first import; use %pip install for others. Project files can be read directly. Outputs are shared with everyone editing.',
     deleteTitle: 'Delete this cell?', deleteHint: 'Its text and output are removed for everyone.', tooBig: 'too large to be saved',
+    jupyter: {
+      title: 'Execution engine', description: 'Where this notebook’s code runs. The choice is shared with everyone editing it.',
+      pyodide: 'Browser (Pyodide)', remote: 'Jupyter server', pyodideShort: 'Pyodide', remoteShort: 'Jupyter', projectKernel: 'project kernel',
+      pyodideHint: 'Default engine: Python runs in the browser of the person who clicks, without any server.',
+      remoteHint: 'Code runs on the project’s Jupyter server, in your own kernel: variables, files and libraries are those of that machine. Looty’s server connects to it for you, the token never reaches browsers. Outputs are shared with everyone editing.',
+      server: 'Project Jupyter server', url: 'Server address', token: 'Token', tokenPlaceholder: 'Jupyter token or JupyterHub API token', tokenKeep: 'Unchanged (stored, hidden)', tokenClear: 'Remove the stored token',
+      tokenSet: 'Token stored', noToken: 'No token', defaultKernel: 'Default kernel', notebookKernel: 'Kernel for this notebook', useDefault: 'Project default ({kernel})',
+      requirements: 'Jupyter Server, JupyterLab or a JupyterHub user server. Give the token (jupyter server list, or the JupyterHub token page): password and OAuth logins are not supported. No CORS or WebSocket setting needed: Looty’s server is the only one to contact Jupyter.',
+      privateHint: 'Addresses on a local network are refused unless the administrator sets JUPYTER_ALLOW_PRIVATE=true.',
+      test: 'Test', testOk: 'Connected (Jupyter {version}, {n} kernels)', saved: 'Jupyter server saved', remove: 'Remove', apply: 'Use',
+      notConfiguredReader: 'No Jupyter server configured for this project. Someone who can edit it must add one.', readOnlyChoice: 'You can only read this notebook: the engine cannot be changed.',
+      readOnly: 'Running on the Jupyter server requires edit rights on this project.',
+      connecting: 'Connecting to Jupyter…', reconnecting: 'Connection lost, reconnecting…', restarting: 'Restarting the kernel…', lost: 'Connection to the Jupyter kernel lost',
+      ready: 'Jupyter ready · {kernel}', busy: 'Jupyter running · {kernel}', off: 'Jupyter · {kernel} (starts on first run)',
+      dead: 'The Jupyter kernel died', aborted: 'Not run: a previous cell failed', interrupted: 'Execution interrupted', restarted: 'Kernel restarted', stopped: 'Kernel stopped',
+      interrupt: 'Interrupt', restart: 'Restart kernel',
+    },
   }
 }
