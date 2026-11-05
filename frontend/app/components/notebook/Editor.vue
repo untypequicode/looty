@@ -9,6 +9,7 @@ import { useJupyterKernel } from '~/composables/useJupyterKernel'
 import type { KernelSpec } from '~/components/notebook/EngineDialog.vue'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
+import type { NbAttachments } from '~/editor/notebookMarkdown'
 
 /**
  * Notebook Jupyter partagé : cellules édités à plusieurs en direct (document Yjs
@@ -43,9 +44,10 @@ provider.awareness?.setLocalStateField('user', { name: props.user.name, color: p
 const denied = ref(false)
 const ro = computed(() => !!props.readOnly || denied.value)
 
-interface CellVM { key: string; id: string; ymap: Y.Map<any>; type: 'code' | 'markdown' | 'raw'; ytext: Y.Text; count: number | null; outputs: NbOutput[] }
+interface CellVM { key: string; id: string; ymap: Y.Map<any>; type: 'code' | 'markdown' | 'raw'; ytext: Y.Text; count: number | null; outputs: NbOutput[]; attachments: NbAttachments | null }
 const cells = shallowRef<CellVM[]>([])
 function parseOutputs(v: unknown): NbOutput[] { try { const o = JSON.parse(String(v ?? '[]')); return Array.isArray(o) ? o : [] } catch { return [] } }
+function parseAttachments(v: unknown): NbAttachments | null { if (typeof v !== 'string') return null; try { const o = JSON.parse(v); return o && typeof o === 'object' ? o : null } catch { return null } }
 function sync() {
   const seen = new Map<string, number>()
   cells.value = ycells.toArray().map((m) => {
@@ -53,7 +55,7 @@ function sync() {
     const n = (seen.get(id) ?? 0) + 1
     seen.set(id, n)
     const type = (m.get('type') as CellVM['type']) || 'code'
-    return { key: `${id}:${n}:${type}`, id, ymap: m, type, ytext: m.get('source') as Y.Text, count: (m.get('count') as number | null) ?? null, outputs: parseOutputs(m.get('outputs')) }
+    return { key: `${id}:${n}:${type}`, id, ymap: m, type, ytext: m.get('source') as Y.Text, count: (m.get('count') as number | null) ?? null, outputs: parseOutputs(m.get('outputs')), attachments: parseAttachments(m.get('attachments')) }
   })
 }
 // Les frappes dans une cellule sont gérées par son éditeur : seule la structure et les sorties nous concernent.
@@ -92,6 +94,13 @@ function makeCell(type: 'code' | 'markdown', source: string, extra: Record<strin
   for (const [k, v] of Object.entries(extra)) m.set(k, v)
   return m
 }
+/** Copie d'une cellule (texte, sorties, métadonnées, pièces jointes) ; même identifiant si `keepId`. */
+function copyCell(src: Y.Map<any>, keepId = false) {
+  const extra: Record<string, unknown> = { type: src.get('type') || 'code', outputs: src.get('outputs') ?? '[]', count: src.get('count') ?? null, meta: src.get('meta') ?? '{}' }
+  if (keepId) extra.id = src.get('id')
+  if (typeof src.get('attachments') === 'string') extra.attachments = src.get('attachments')
+  return makeCell('code', String(src.get('source')?.toString() ?? ''), extra)
+}
 /** Où insérer : sous la cellule sélectionnée, sinon à la fin. */
 const selectedIndex = () => {
   const i = cells.value.findIndex((c) => c.id === selectedId.value)
@@ -119,7 +128,7 @@ function moveAt(index: number, dir: -1 | 1) {
   const c = cells.value[index]
   if (ro.value || !c || to < 0 || to >= cells.value.length) return
   // Y.Array ne déplace pas : on réinsère une copie.
-  const copy = makeCell(c.type === 'raw' ? 'code' : c.type, c.ytext.toString(), { id: c.id, type: c.type, outputs: JSON.stringify(c.outputs), count: c.count, meta: c.ymap.get('meta') ?? '{}' })
+  const copy = copyCell(c.ymap, true)
   ydoc.transact(() => { ycells.delete(index, 1); ycells.insert(to, [copy]) })
   selectedId.value = c.id
 }
@@ -299,7 +308,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
       <template v-else>
         <NotebookCell
           v-for="(c, i) in cells" :key="c.key" :ref="(el: any) => { if (el) cellRefs.set(c.id, el); else cellRefs.delete(c.id) }"
-          :id="c.id" :type="c.type" :ytext="c.ytext" :count="shownCount(c)" :outputs="shown(c)" :running="running === c.id" :queued="queued.has(c.id) && running !== c.id"
+          :id="c.id" :type="c.type" :ytext="c.ytext" :attachments="c.attachments" :count="shownCount(c)" :outputs="shown(c)" :running="running === c.id" :queued="queued.has(c.id) && running !== c.id"
           :selected="selectedId === c.id" :read-only="ro" :awareness="provider.awareness"
           @select="selectedId = c.id" @run="(m) => runAt(i, m)" @add="(w, ty) => addAt(w === 'above' ? i : i + 1, ty)" @remove="removeAt(i)" @move="(d) => moveAt(i, d)" @clear="clearOutput(c)" @retype="(ty) => retype(c, ty)"
         />

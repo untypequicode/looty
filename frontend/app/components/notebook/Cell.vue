@@ -10,7 +10,7 @@ import { python } from '@codemirror/lang-python'
 import { markdown } from '@codemirror/lang-markdown'
 import { yCollab } from 'y-codemirror.next'
 import type { NbOutput } from '~/composables/useNotebookKernel'
-import { renderMarkdown } from '~/editor/notebookMarkdown'
+import { renderMarkdown, type NbAttachments } from '~/editor/notebookMarkdown'
 import { useI18n } from '~/composables/useI18n'
 
 /**
@@ -21,6 +21,7 @@ const props = defineProps<{
   id: string
   type: 'code' | 'markdown' | 'raw'
   ytext: Y.Text
+  attachments?: NbAttachments | null
   count: number | null
   outputs: NbOutput[]
   running: boolean
@@ -43,7 +44,7 @@ const { t } = useI18n()
 const host = ref<HTMLElement | null>(null)
 const editing = ref(props.type !== 'markdown')
 const src = ref(props.ytext.toString())
-const html = computed(() => (props.type === 'markdown' ? renderMarkdown(src.value) : ''))
+const html = computed(() => (props.type === 'markdown' ? renderMarkdown(src.value, { attachments: props.attachments }) : ''))
 const onText = () => { src.value = props.ytext.toString() }
 props.ytext.observe(onText)
 let view: EditorView | null = null
