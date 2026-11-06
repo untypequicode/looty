@@ -1,0 +1,19 @@
+#@if caddy
+# Routage de Looty derrière Caddy, avec HTTPS automatique pour APP_DOMAIN (variable de .env).
+# Même routage que les étiquettes Traefik : le serveur, la collaboration (préfixe /collab retiré), l'interface.
+# Les WebSockets (/api/ws, /collab) passent sans réglage.
+{$APP_DOMAIN} {
+	handle_path /collab* {
+		reverse_proxy collaboration:8082
+	}
+
+	@backend path /api* /uploads* /pages* /dav* /.well-known/caldav
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+#@end

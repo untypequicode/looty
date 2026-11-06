@@ -1,0 +1,87 @@
+# Modèles d'installation (deploy/) : rendu Caddy et Traefik, puis la pile Caddy démarrée pour de bon
+# (images construites depuis ce commit, https://localhost avec le certificat interne de Caddy).
+name: Self-host
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+      - 'docker-compose.prod.yml'
+      - 'backend/Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'collaboration/Dockerfile'
+      - '.github/workflows/self-host.yml'
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'docker-compose.prod.yml'
+      - 'backend/Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'collaboration/Dockerfile'
+      - '.github/workflows/self-host.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pull request : un nouveau push annule le run précédent. Ailleurs : groupe propre à chaque run.
+concurrency:
+  group: self-host-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  templates:
+    name: Templates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: ShellCheck
+        run: shellcheck deploy/render.sh deploy/test/caddy-stack.sh
+      # Sorties Caddy et Traefik ; docker-compose.prod.yml doit être le rendu Traefik.
+      - run: node --test deploy/test/render.test.mjs
+
+  caddy:
+    name: Caddy stack
+    needs: templates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - uses: docker/setup-buildx-action@v4
+      # Backend sans TeX Live : plus rapide, et inutile pour vérifier le routage.
+      - uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: ./backend
+          build-args: WITH_LATEX=0
+          load: true
+          tags: ghcr.io/untypequicode/looty-backend:ci
+          cache-from: type=gha,scope=self-host-backend
+          cache-to: type=gha,mode=max,scope=self-host-backend
+      - uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: ./frontend
+          load: true
+          tags: ghcr.io/untypequicode/looty-frontend:ci
+          cache-from: type=gha,scope=frontend-amd64
+      - uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: ./collaboration
+          load: true
+          tags: ghcr.io/untypequicode/looty-collaboration:ci
+          cache-from: type=gha,scope=collaboration-amd64
+      # API, interface, découverte CalDAV, /collab et sa WebSocket, à travers Caddy.
+      - run: sh deploy/test/caddy-stack.sh
+        env:
+          LOOTY_VERSION: ci

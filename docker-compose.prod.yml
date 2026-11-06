@@ -1,3 +1,5 @@
+# Installation de Looty (https://github.com/untypequicode/looty). Les réglages de l'instance sont dans .env.
+# Produit par deploy/render.sh à partir de deploy/templates/docker-compose.yml : modifier le modèle, pas ce fichier.
 services:
   postgres:
     image: postgres:18-alpine

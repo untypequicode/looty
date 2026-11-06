@@ -22,7 +22,7 @@ after the next green CI on `main`, or by hand.
 
 | Platform | Version to bump | Built and published |
 |---|---|---|
-| web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has a `docker-compose.yml` with images pinned to that version |
+| web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has `docker-compose.yml` (behind Traefik) and `docker-compose.caddy.yml` with its `Caddyfile` (Caddy included), rendered from `deploy/templates/` with images pinned to that version |
 | desktop | `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` | `.deb` (Debian 12 / Ubuntu 22.04+, install-tested on a clean Debian) and the Windows installer (`*-setup.exe`, unsigned); Nix package pushed to the binary cache for x86_64 and aarch64 |
 | android | `versionName` and `versionCode` in `android/app/build.gradle.kts` | APK, signed when the keystore secrets are set (otherwise a debug APK) |
 
@@ -117,6 +117,7 @@ workflow (run it by hand with `force` to rebuild one).
 | **Nix cache check** | after **Nix cache** on `main`, called by Release (when Nix cache did not run on that commit), every Monday, by hand | builds everything from the cache only; opens an issue if something would be compiled |
 | **Site** | `site/` changes, tags `site-v*` | site tests and its Docker image |
 | **Site sync** | by hand | refills the download site from the latest GitHub releases |
+| **Self-host** | changes to `deploy/`, `docker-compose.prod.yml` or a Dockerfile | renders the install templates (Caddy and Traefik), then starts the Caddy stack built from the commit and checks the API, CalDAV discovery, `/collab` and its WebSocket |
 
 ## Windows automatic updates
 

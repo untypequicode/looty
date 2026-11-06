@@ -66,17 +66,25 @@ Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 a
 | `frontend` | Web interface | Nuxt 3 |
 | `collaboration` | Real-time document editing | Hocuspocus (Yjs) |
 
-1. Get the compose file of the latest release and create a `.env` next to it:
+1. Get the files of the latest release and create a `.env` next to them. **Without a reverse proxy**, take the variant with [Caddy](https://caddyserver.com) included (automatic HTTPS with Let's Encrypt; ports 80 and 443 must be free and the domain must point to the machine):
+
+   ```sh
+   curl -L -o docker-compose.yml https://github.com/untypequicode/looty/releases/latest/download/docker-compose.caddy.yml
+   curl -LO https://github.com/untypequicode/looty/releases/latest/download/Caddyfile
+   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
+   ```
+
+   **Behind an existing [Traefik](https://traefik.io)**, take only the compose file (routing is in its labels):
 
    ```sh
    curl -LO https://github.com/untypequicode/looty/releases/latest/download/docker-compose.yml
    curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
    ```
 
-2. Edit `.env`: the domain (`APP_DOMAIN`, `BASE_URL`), database password, `LOOTY_SECRET_KEY` (`openssl rand -base64 32`) and your OpenID Connect provider (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`).
+2. Edit `.env`: the domain (`APP_DOMAIN`, and `BASE_URL=https://<domain>`), database password, `LOOTY_SECRET_KEY` (`openssl rand -base64 32`) and your OpenID Connect provider (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`).
 3. `docker compose up -d`.
 
-The production compose file expects a [Traefik](https://traefik.io) reverse proxy to route the domain (labels are in the file); behind another proxy, send `/api`, `/uploads`, `/pages`, `/dav` and `/.well-known/caldav` to the backend (8080), `/collab` to the collaboration service (8082, prefix stripped) and everything else to the frontend (3000). Pin a version with `LOOTY_VERSION=<x.y.z>`.
+Behind another proxy, use the Traefik compose file and send `/api`, `/uploads`, `/pages`, `/dav` and `/.well-known/caldav` to the backend (8080), `/collab` to the collaboration service (8082, prefix stripped) and everything else to the frontend (3000), WebSockets included; the `Caddyfile` is a working example. Pin a version with `LOOTY_VERSION=<x.y.z>`. These files are rendered from `deploy/templates/` by `deploy/render.sh` (`docker-compose.prod.yml` is the Traefik output); edit the templates, not the rendered files.
 
 Backups: `scripts/backup.sh` and `scripts/restore.sh`.
 
