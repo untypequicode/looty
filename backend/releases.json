@@ -3,6 +3,29 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "android",
+      "version": "0.25.0",
+      "date": "2026-11-06",
+      "title": {
+        "en": "Links open the right screen, only from your instance",
+        "fr": "Les liens ouvrent le bon écran, seulement depuis votre instance"
+      },
+      "notes": {
+        "en": [
+          "**Open in the Looty app** from the browser now opens the native screen of the page (task, board, document, calendar, announcements, projects, settings…) and the web screen otherwise. A page of a workspace you are not a member of opens in the web screen and the app stays on its workspace.",
+          "**Links from another instance** no longer open in the app: a screen tells you where the link comes from and offers **Open in browser**. Links from notifications and widgets work as before.",
+          "**Not connected yet?** A link from a Looty instance offers to connect to it (address already filled in), then opens the page.",
+          "**Share → Looty** on a link to a page of your instance opens that page instead of creating a task."
+        ],
+        "fr": [
+          "**Ouvrir dans l’app Looty** depuis le navigateur ouvre maintenant l’écran natif de la page (tâche, tableau, document, agenda, annonces, projets, réglages…), et l’écran web sinon. La page d’un espace dont vous n’êtes pas membre s’ouvre dans l’écran web et l’app reste sur son espace.",
+          "**Les liens d’une autre instance** ne s’ouvrent plus dans l’app : un écran indique d’où vient le lien et propose **Ouvrir dans le navigateur**. Les liens des notifications et des widgets marchent comme avant.",
+          "**Pas encore connecté ?** Un lien d’une instance Looty propose de s’y connecter (adresse préremplie), puis ouvre la page.",
+          "**Partager → Looty** sur le lien d’une page de votre instance ouvre cette page au lieu de créer une tâche."
+        ]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.32.0",
       "date": "2026-11-06",

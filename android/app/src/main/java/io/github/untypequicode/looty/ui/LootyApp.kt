@@ -22,6 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.untypequicode.looty.AppState
+import io.github.untypequicode.looty.InstanceLinks
 import io.github.untypequicode.looty.R
 import io.github.untypequicode.looty.Session
 import kotlinx.coroutines.launch
@@ -73,9 +74,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
     LaunchedEffect(link) {
         if (link == null) return@LaunchedEffect
         state.pendingLink = null
-        val uri = android.net.Uri.parse(link)
-        val seg = uri.pathSegments
-        val ws = seg.getOrNull(1)
+        val seg = android.net.Uri.parse(link).pathSegments
         if (seg.firstOrNull() == "app" && seg.getOrNull(1) == "updates") { nav.navigate("updates") { launchSingleTop = true }; return@LaunchedEffect }
         // Widgets : ajout rapide et écrans principaux (looty://app/<écran>).
         if (seg.firstOrNull() == "app") {
@@ -86,31 +85,21 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             }
             return@LaunchedEffect
         }
-        if (seg.firstOrNull() != "w" || ws == null) return@LaunchedEffect openWeb(ctx, link)
-        if (ws != state.ws) state.switchWorkspace(ws)
-        val target = when {
-            seg.getOrNull(2) == "task" && seg.size > 3 -> "task/${seg[3]}"
-            seg.getOrNull(2) == "board" && uri.getQueryParameter("task") != null -> "task/${uri.getQueryParameter("task")}"
-            seg.getOrNull(2) == "board" && seg.size > 3 -> "board/${seg[3]}"
-            seg.getOrNull(2) == "doc" && seg.size > 3 && uri.getQueryParameter("comment") != null -> "doc/${seg[3]}/comments"
-            seg.getOrNull(2) == "doc" && seg.size > 3 -> "doc/${seg[3]}"
-            seg.getOrNull(2) == "drive" -> "drive"
-            seg.getOrNull(2) == "settings" && seg.getOrNull(3) == "notifications" -> "notifications"
-            seg.getOrNull(2) == "settings" && seg.getOrNull(3) in setOf("profile", "preferences", "security", "calendars", "workspace", "members") -> "settings/${seg[3]}"
-            seg.getOrNull(2) == "settings" && seg.size == 3 -> "settings"
-            seg.getOrNull(2) == "moodle" -> "moodle"
-            seg.getOrNull(2) == "activity" -> "activity"
-            seg.getOrNull(2) == "trash" -> "trash"
-            seg.getOrNull(2) == "graph" -> "graph"
-            seg.getOrNull(2) == "projects" && seg.size > 3 -> "project/${seg[3]}"
-            seg.getOrNull(2) == "projects" -> "projects"
-            seg.getOrNull(2) == "inbox" -> "inbox"
-            seg.getOrNull(2) == "calendar" -> "calendar"
-            seg.getOrNull(2) == "announcements" -> "announcements"
-            seg.getOrNull(2) == "mail" && seg.size == 3 -> "mail"
-            else -> null
+        val mine = (state.session as? Session.Ready)?.workspaces.orEmpty().map { it.id }
+        when (val screen = InstanceLinks.screen(link)) {
+            is InstanceLinks.Screen.Native -> if (screen.workspace !in mine) {
+                // Espace dont on n'est pas membre : la page web dit pourquoi, l'app garde son espace.
+                openWeb(ctx, link)
+            } else {
+                if (screen.workspace != state.ws) state.switchWorkspace(screen.workspace)
+                // Onglets : comme un appui sur la barre du bas ; écrans de détail : par-dessus.
+                if (TABS.any { it.route == screen.route }) nav.navigate(screen.route) {
+                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                } else nav.navigate(screen.route) { launchSingleTop = true }
+            }
+            is InstanceLinks.Screen.Web -> openWeb(ctx, screen.path)
         }
-        if (target != null) nav.navigate(target) { launchSingleTop = true } else openWeb(ctx, link)
     }
 
     CompositionLocalProvider(LocalOpener provides opener) {
