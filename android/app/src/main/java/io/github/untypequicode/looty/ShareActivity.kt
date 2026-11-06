@@ -71,17 +71,15 @@ class ShareActivity : ComponentActivity() {
             finish()
             return
         }
-        // Lien vers une page de l'instance de l'app : on ouvre la page plutôt que d'en faire une tâche (ADR 0004).
+        // Lien vers une page de l'instance de l'app : la feuille propose d'abord de l'ouvrir (ADR 0004).
         val page = if (uris.isEmpty()) InstanceLinks.sharedPage(text, Config.server(this)) else null
-        if (page != null) {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(InstanceLinks.appLink(page)), this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            finish()
-            return
-        }
         if (savedInstanceState == null) state.start()
         setContent {
             LootyTheme {
-                ShareSheet(state, subject, text, uris, onClose = { finish() })
+                ShareSheet(state, subject, text, uris, page, onOpen = { p ->
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(InstanceLinks.appLink(p)), this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    finish()
+                }, onClose = { finish() })
             }
         }
     }
@@ -100,7 +98,7 @@ fun readSharedFile(ctx: android.content.Context, uri: Uri): SharedFile? = runCat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ShareSheet(state: AppState, subject: String, text: String, uris: List<Uri>, onClose: () -> Unit) {
+private fun ShareSheet(state: AppState, subject: String, text: String, uris: List<Uri>, page: String?, onOpen: (String) -> Unit, onClose: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -151,6 +149,9 @@ private fun ShareSheet(state: AppState, subject: String, text: String, uris: Lis
         NoNavScrim()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(stringResource(R.string.share_title), style = MaterialTheme.typography.titleLarge)
+            // Ouvrir la page ne demande ni droits ni réseau : proposé en premier, même hors ligne ou en chargement.
+            val signedIn = state.session !is Session.NeedLogin && state.session !is Session.NeedServer
+            if (page != null && signedIn) Button(onClick = { onOpen(page) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.share_open_page)) }
             when (state.session) {
                 is Session.NeedLogin, is Session.NeedServer -> {
                     Text(stringResource(R.string.share_sign_in), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -192,7 +193,11 @@ private fun ShareSheet(state: AppState, subject: String, text: String, uris: Lis
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = onClose) { Text(stringResource(R.string.cancel)) }
                             Spacer(Modifier.width(8.dp))
-                            Button(onClick = ::submit, enabled = title.isNotBlank() && !busy && (asDoc || boardId != null)) { Text(stringResource(R.string.create)) }
+                            // Avec « Ouvrir dans Looty » au-dessus, créer devient l'action secondaire.
+                            Button(
+                                onClick = ::submit, enabled = title.isNotBlank() && !busy && (asDoc || boardId != null),
+                                colors = if (page != null) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.buttonColors(),
+                            ) { Text(stringResource(R.string.create)) }
                         }
                     }
                 }

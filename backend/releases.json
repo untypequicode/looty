@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.26.0",
+      "date": "2026-11-06",
+      "title": {
+        "en": "Share a link of your instance to open it",
+        "fr": "Partagez un lien de votre instance pour l’ouvrir"
+      },
+      "notes": {
+        "en": [
+          "**Share → Looty** on a link to a page of your instance now shows the share sheet with **Open in Looty** first: it opens the page (a task opens on its screen). You can still create a task or a document from the link instead.",
+          "A shared text with anything besides the link, or a link from another instance, works as before."
+        ],
+        "fr": [
+          "**Partager → Looty** sur le lien d’une page de votre instance affiche maintenant la feuille de partage avec **Ouvrir dans Looty** en premier : la page s’ouvre (une tâche s’ouvre sur son écran). Vous pouvez toujours créer une tâche ou un document à partir du lien à la place.",
+          "Un texte partagé qui contient autre chose que le lien, ou un lien d’une autre instance, marche comme avant."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.25.0",
       "date": "2026-11-06",
       "title": {
