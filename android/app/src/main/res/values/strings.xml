@@ -247,6 +247,7 @@
     <string name="reader_in_editor">Tap to see it in the editor</string>
     <string name="share_label">Looty</string>
     <string name="share_title">Add to Looty</string>
+    <string name="share_open_page">Open in Looty</string>
     <string name="share_as_task">Task</string>
     <string name="share_as_doc">Document</string>
     <string name="share_saved">Added to Looty</string>

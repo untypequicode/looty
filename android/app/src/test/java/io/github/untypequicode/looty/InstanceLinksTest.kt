@@ -121,6 +121,13 @@ class InstanceLinksTest {
         assertEquals("/w/ws1/doc/p1", InstanceLinks.sharedPage("  https://looty.mon-asso.fr:443/w/ws1/doc/p1\n", app))
     }
 
+    @Test fun sharedTaskLinkOfTheAppInstanceOpensTheTask() {
+        // Partager la tâche depuis un navigateur ou une messagerie : « Ouvrir dans Looty » mène à son écran natif.
+        val page = InstanceLinks.sharedPage("https://looty.mon-asso.fr/w/ws1/task/t1", app)
+        assertEquals("/w/ws1/task/t1", page)
+        assertEquals(Screen.Native("ws1", "task/t1"), InstanceLinks.screen(page!!))
+    }
+
     @Test fun sharedTextThatIsNotAPageOfTheAppInstanceIsKept() {
         assertEquals(null, InstanceLinks.sharedPage("https://autre.fr/w/ws1/doc/p1", app))
         assertEquals(null, InstanceLinks.sharedPage("https://looty.mon-asso.fr/login", app))
