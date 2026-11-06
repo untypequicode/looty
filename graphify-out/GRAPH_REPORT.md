@@ -1,12 +1,19 @@
 # Graph Report - looty  (2026-11-06)
 
 ## Corpus Check
-- Large corpus: 733 files · ~521,543 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
+- 683 files · ~528,179 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 74 file(s) not represented in the graph (top: .xml 38, (none) 13, .example 4)
 
 ## Summary
-- 9695 nodes · 21560 edges · 511 communities (380 shown, 131 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 1093 edges (avg confidence: 0.83)
+- 9875 nodes · 21680 edges · 525 communities (383 shown, 142 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 1106 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `7c0ea4b7`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - Android Board Models
@@ -32,11 +39,11 @@
 - Backend Jupyter Proxy
 - Backend Backups
 - App Shell & Demo Banner
-- Offline & Android Banners
+- lucide-vue-next
 - Backend Announcements
 - Doc Page View
-- Excalidraw Canvas Board
-- Collaboration Server
+- canvas/Board.vue
+- index.js
 - Dashboard Widgets
 - Task Panel UI
 - Backend OIDC Auth
@@ -49,7 +56,7 @@
 - Marketing Site (Astro)
 - Demo Docker Compose
 - Drive Page UI
-- Backend Activity Feed
+- keywords.rs
 - Backend Calendars
 - Dashboard Layout Composable
 - Editor Outline & Export
@@ -82,20 +89,20 @@
 - frontend Courses
 - android RichDoc
 - frontend workspace
-- android MailScreen
+- WebViewClient
 - backend demo
 - desktop src/main
 - backend events
-- backend delivery
+- delivery.rs
 - desktop offline
 - desktop tauri.conf
 - frontend Editor
 - frontend Reader
 - frontend useTabs
-- android Html
-- backend mail
+- Html
+- TaskScreen.kt
 - backend comments
-- backend moodle_content
+- Looty desktop (Linux and Windows)
 - frontend Cell
 - frontend EngineDialog
 - frontend useRealtime
@@ -108,7 +115,7 @@
 - android WidgetWorker
 - backend prefs
 - backend demo_mode
-- backend public_project
+- public_project.rs
 - backend push
 - backend trash
 - frontend NewMenu
@@ -124,7 +131,7 @@
 - frontend notebookFiles
 - site lib
 - frontend Activity
-- backend board_export
+- expand
 - backend classes
 - backend ical
 - frontend Card
@@ -133,7 +140,7 @@
 - e2e mock-moodle
 - frontend useBoardFilters
 - android WebCache
-- android GraphScreen
+- GraphScreen.kt
 - android ShortcutsWidget
 - backend groups
 - backend user_settings
@@ -150,16 +157,16 @@
 - frontend Notifications
 - frontend useMail
 - frontend my-tasks
-- backend graph
-- backend latex
-- backend moodle_cache
+- CalKind
+- analytics.rs
+- collaboration/package.json
 - frontend WorkspaceMenu
 - frontend Course
 - frontend Editor (2)
 - frontend types/index
-- android Updater
-- android LootyWidget
-- backend caldav (2)
+- get
+- WidgetData.kt
+- ExcalidrawView.vue
 - deploy docker-compose
 - docker-compose
 - docker-compose.prod
@@ -170,7 +177,7 @@
 - backend calendar
 - backend demo (2)
 - backend src/main
-- backend notifications
+- NotificationsScreen
 - e2e e2e/package
 - frontend CalendarView
 - frontend Kanban
@@ -181,14 +188,13 @@
 - frontend useCalendar
 - .github ci
 - android Config
-- backend revisions
+- page.rs
 - frontend useJupyterKernel
 - frontend BlockHandle
-- frontend exportDoc
+- Windows: checks on a real PC
 - frontend read/[page]
 - .github site-sync
 - android Api
-- android WebActivity (3)
 - backend planning
 - frontend Toolbar
 - frontend IconPicker
@@ -196,9 +202,9 @@
 - frontend MathBlockView
 - frontend Roles
 - frontend ExportDialog
-- android MailCompose
-- backend recurrence
-- site tests
+- MailCompose.kt
+- serialize
+- .screen
 - frontend AreaChart
 - frontend ClassLinkDialog
 - frontend AccountDialog
@@ -207,9 +213,9 @@
 - android ShortcutsWidget (2)
 - desktop latex
 - desktop offline (2)
-- backend ics_feed
-- backend error
-- backend session_store
+- .updateAll
+- canvas.vue
+- Mentions.kt
 - frontend MemberCard
 - frontend MoveDialog
 - frontend MathInlineView
@@ -236,7 +242,7 @@
 - frontend activity
 - android AgendaWidget
 - android AnnouncementModelsTest
-- backend state
+- notebook.js
 - frontend SplitPane
 - frontend TabBar
 - frontend AddDialog
@@ -251,7 +257,7 @@
 - backend archive
 - docker-compose (2)
 - e2e moodle-board
-- frontend Insights
+- MermaidView.vue
 - frontend Notepad
 - frontend PanelGrid
 - frontend LatexPreamble
@@ -273,23 +279,23 @@
 - frontend Profile
 - frontend PublicLinks
 - frontend AssigneePicker
-- frontend useComments
+- DriveScreen
 - frontend useShortcuts
 - scripts release-plan
-- android MoodleCourse
+- environment
 - android WidgetAgenda
 - backend bg
 - desktop shortcuts
 - e2e moodle-courses
 - frontend CreateBoardDialog
-- frontend EditToggle
+- Pocket ID : créer le client OIDC de Looty au premier démarrage
 - frontend GridPanel
 - frontend QuickAdd
 - frontend FileTree
 - frontend Board
 - frontend CourseItem
 - frontend Deadlines
-- frontend AdminInstance
+- Looty
 - frontend Toaster
 - frontend pages/index
 - .github ci (3)
@@ -301,21 +307,20 @@
 - android Keywords
 - desktop tauri.windows.conf
 - docker-compose (3)
-- e2e notebook-editor
-- frontend WorkOnDialog
+- pocket-id.mjs
+- runCell
 - frontend Subtasks
 - frontend Dialog
 - frontend useKeywords
 - frontend useNotebookKernel
-- frontend blocks
+- Kind
 - frontend mermaid
 - frontend mail (2)
 - .github ci (5)
 - .github desktop (3)
 - .github desktop (4)
 - android LootyApp
-- android TodayWidget
-- deploy docker-compose (2)
+- pocket-id-init
 - desktop smoke
 - docker-compose.prod (2)
 - e2e notebook-images
@@ -325,7 +330,7 @@
 - frontend SuggestionList
 - frontend ForceGraph (2)
 - frontend Viewer
-- frontend settings
+- FindBar.vue
 - frontend [token]
 - frontend whats-new
 - .github docker-publish (3)
@@ -361,35 +366,35 @@
 - e2e demo-dataset
 - e2e notebook-jupyter
 - frontend ColorPicker
-- frontend CourseBadge
-- frontend Input
+- Issue tracker: GitHub
+- vue
 - frontend useTheme
 - frontend calendar (2)
 - frontend mail (3)
 - frontend lootyLinks
 - frontend notebook-worker
 - .github desktop (5)
-- site lib (2)
-- backend projects
+- ProjectView.vue
+- scripts
 - deploy docker-compose (6)
 - desktop apt-publish
 - desktop default
-- desktop selfupdate
+- smoke.mjs
 - docker-compose.prod (5)
 - e2e my-tasks-panel
 - frontend Heatmap
-- frontend EventDescription
+- Domain Docs
 - frontend Avatar
 - frontend useScrollMemory
-- frontend outline
+- emit
 - frontend [board]
 - frontend mail (4)
 - deploy docker-compose (7)
 - docker-compose.prod (6)
-- frontend SidebarItem
+- parse_prop_request
 - frontend calendar (3)
-- frontend Button
-- frontend export
+- Agent skills
+- 7. Recommandation pour Looty (avis, distinct des faits ci-dessus)
 - frontend [board] (2)
 - .github ci (7)
 - .github ci (8)
@@ -402,7 +407,7 @@
 - frontend doc/[page]
 - frontend moodle (2)
 - .github docker-publish (7)
-- android Nav
+- moodle-offline.mjs
 - android ProjectsScreen
 - backend caldav (3)
 - deploy render
@@ -434,6 +439,15 @@
 - backend Cargo
 - desktop Cargo
 - site Cargo
+- copyCell
+- pocket-id-init.sh
+- LootyApp
+- 0002-personal-items-follow-their-owner.md
+- 0003-jupyter-through-the-backend.md
+- 0004-android-links-through-a-web-banner.md
+- 0005-install-generator-runs-in-the-browser.md
+- 0006-notebook-images-as-project-files.md
+- triage-labels.md
 
 ## God Nodes (most connected - your core abstractions)
 1. `ApiResult` - 585 edges
@@ -448,30 +462,31 @@
 10. `vue` - 70 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `keyring_key()` --calls--> `decode()`  [INFERRED]
-  desktop/src-tauri/src/config.rs → backend/src/dav.rs
-- `newer()` --calls--> `p()`  [INFERRED]
-  desktop/src-tauri/src/service.rs → backend/src/moodle.rs
-- `LootyApp()` --calls--> `Opener`  [INFERRED]
-  android/app/src/main/java/io/github/untypequicode/looty/ui/LootyApp.kt → android/app/src/main/java/io/github/untypequicode/looty/ui/Nav.kt
-- `build_menu()` --references--> `section`  [INFERRED]
-  desktop/src-tauri/src/tray.rs → desktop/src-tauri/tauri.conf.json
-- `send()` --indirect_call--> `session()`  [INFERRED]
-  frontend/app/composables/useJupyterKernel.ts → e2e/tests/demo-dataset.mjs
+- `6. Module NixOS `services.pocket-id` (nixpkgs)` --references--> `enable()`  [INFERRED]
+  docs/research/pocket-id-oidc-client-bootstrap.md → frontend/app/composables/usePush.ts
+- `Building by hand` --references--> `latest()`  [INFERRED]
+  RELEASING.md → scripts/release-plan.mjs
+- `2. API REST de création d'un client OIDC` --references--> `name()`  [INFERRED]
+  docs/research/pocket-id-oidc-client-bootstrap.md → frontend/app/components/comments/Panel.vue
+- `5. Claims et « admin »` --references--> `name()`  [INFERRED]
+  docs/research/pocket-id-oidc-client-bootstrap.md → frontend/app/components/comments/Panel.vue
+- `Features` --references--> `Outbox`  [INFERRED]
+  android/README.md → android/app/src/main/java/io/github/untypequicode/looty/offline/Offline.kt
 
 ## Import Cycles
+- 1-file cycle: `backend/src/main.rs -> backend/src/main.rs`
 - 1-file cycle: `backend/src/jupyter.rs -> backend/src/jupyter.rs`
 - 2-file cycle: `backend/src/state.rs -> backend/src/ws.rs -> backend/src/state.rs`
 
-## Communities (511 total, 131 thin omitted)
+## Communities (525 total, 142 thin omitted)
 
 ### Community 0 - "Android Board Models"
 Cohesion: 0.04
-Nodes (86): BoardFull, Column, ColumnFull, Label, Task, ActivityScreen(), dayOf(), dayTitle() (+78 more)
+Nodes (70): Column, DocComment, MoodleDate, MoodleFile, MoodleModule, ForeignLink(), Offline(), SignIn() (+62 more)
 
 ### Community 1 - "Frontend Dependencies & Code Editor"
 Cohesion: 0.02
-Nodes (150): config, editable, emit, host, props, provider, theme, undoManager (+142 more)
+Nodes (158): config, editable, emit, host, props, provider, theme, undoManager (+150 more)
 
 ### Community 2 - "Backend Mail Client"
 Cohesion: 0.04
@@ -479,67 +494,67 @@ Nodes (105): allow_private(), Account, ACCOUNT_COLS, AccountDto, cached_page(), 
 
 ### Community 3 - "Android Compose Screens"
 Cohesion: 0.06
-Nodes (5): days(), onDay(), parseColor(), markdown(), WidgetEntry
+Nodes (10): SetupActivity, days(), onDay(), parseColor(), folderIcon(), label(), MailHtml(), DavCredentials (+2 more)
 
 ### Community 4 - "Android API Models"
 Cohesion: 0.04
-Nodes (108): AddResult, Announcement, AnnouncementList, ApiToken, Attachment, Audience, Board, BoardPanel (+100 more)
+Nodes (99): AddResult, Announcement, AnnouncementList, ApiToken, Attachment, Audience, Board, BoardPanel (+91 more)
 
 ### Community 5 - "Frontend Layout Components"
 Cohesion: 0.02
-Nodes (78): { isDemo }, props, { t }, borrowed, Crumb, NuxtLink, { sidebarOpen, sidebarCollapsed }, wsId (+70 more)
+Nodes (69): { isDemo }, props, { t }, { tree }, emit, loc, props, sections (+61 more)
 
 ### Community 6 - "Frontend API Composable"
-Cohesion: 0.04
-Nodes (75): model, ApiError, DETAILED, errorMessage(), moodleOffline, FeedItem, feedVerb(), useActivityFeed() (+67 more)
+Cohesion: 0.05
+Nodes (66): ApiError, DETAILED, errorMessage(), moodleOffline, trackMoodleOffline(), uploadFile(), FeedItem, feedVerb() (+58 more)
 
 ### Community 7 - "Backend Access Control"
-Cohesion: 0.06
-Nodes (76): board_workspace(), board_workspace_for(), check_board(), column_ctx(), column_ctx_for(), ColumnCtx, COMMENT, EDIT (+68 more)
+Cohesion: 0.07
+Nodes (52): board_workspace(), board_workspace_for(), check_board(), column_ctx(), column_ctx_for(), ColumnCtx, COMMENT, EDIT (+44 more)
 
 ### Community 8 - "Backend CalDAV Server"
-Cohesion: 0.06
-Nodes (75): ALL_PROPS, authenticate(), cal_href(), CALDAV_NS, Calendar, calendars(), CalKind, Assigned (+67 more)
+Cohesion: 0.10
+Nodes (49): ALL_PROPS, authenticate(), cal_href(), CALDAV_NS, CS_NS, ctag(), dav_headers(), DAV_NS (+41 more)
 
 ### Community 9 - "Backend Board & Tasks"
-Cohesion: 0.10
-Nodes (80): require_perm(), task_ctx(), task_ctx_for(), add_task_assignee(), add_task_comment(), add_task_label(), apply_completion_automation(), Automations (+72 more)
+Cohesion: 0.09
+Nodes (83): require_perm(), task_ctx(), task_ctx_for(), add_task_assignee(), add_task_comment(), add_task_label(), apply_completion_automation(), Automations (+75 more)
 
 ### Community 10 - "Android App State & Session"
-Cohesion: 0.03
-Nodes (21): CachedSession, Loadable, Loading, NeedLogin, NeedServer, Offline, Ready, Session (+13 more)
+Cohesion: 0.04
+Nodes (19): Feed, FeedItem, CachedSession, Loadable, Loading, NeedLogin, NeedServer, Offline (+11 more)
 
 ### Community 11 - "Backend Admin API"
-Cohesion: 0.06
-Nodes (60): AdminStatsDto, AdminWorkspaceDto, check_url(), create_provider(), DailyCount, delete_provider(), delete_user(), delete_workspace() (+52 more)
+Cohesion: 0.05
+Nodes (64): AdminStatsDto, AdminWorkspaceDto, check_url(), create_provider(), DailyCount, delete_provider(), delete_user(), delete_workspace() (+56 more)
 
 ### Community 12 - "Backend Moodle Integration"
-Cohesion: 0.08
-Nodes (66): decrypt(), encrypt(), key(), html_to_text(), clean_base(), Conn, conn_of(), ConnDto (+58 more)
+Cohesion: 0.06
+Nodes (81): decrypt(), dir(), evict(), forget(), is_outage(), json_or_cached(), max_file(), mb() (+73 more)
 
 ### Community 13 - "Frontend Data Composables"
 Cohesion: 0.05
-Nodes (77): api(), trackMoodleOffline(), uploadFile(), Announcement, AnnouncementInput, AnnouncementList, announcementsKey(), Audience (+69 more)
+Nodes (71): api(), useAnnouncements(), closePoll(), markAllRead(), markRead(), remove(), vote(), useBoardActions() (+63 more)
 
 ### Community 14 - "Editor Comments & Embeds"
-Cohesion: 0.05
-Nodes (60): CommentMark, Commands, Embed, embedExtensions, EmbedInfo, EmbedPaste, Excalidraw, Mermaid (+52 more)
+Cohesion: 0.04
+Nodes (80): blockAt(), BlockKeymap, BlockRef, DRAGGABLE_INNER, duplicateBlock(), moveBlock(), CommentMark, Commands (+72 more)
 
 ### Community 15 - "Backend Projects"
-Cohesion: 0.09
-Nodes (65): all_files(), attach_page(), blob_dir(), bundle(), check_count(), clean_path(), clean_slug(), create_file() (+57 more)
+Cohesion: 0.08
+Nodes (76): due_reminders(), process(), start_worker(), all_files(), allowed(), attach_page(), blob_dir(), bundle() (+68 more)
 
 ### Community 16 - "E2E Test Harness"
 Cohesion: 0.07
-Nodes (52): api(), B, launch(), login(), ok(), OUT, WS, a() (+44 more)
+Nodes (55): api(), B, launch(), login(), ok(), OUT, WS, a() (+47 more)
 
 ### Community 17 - "Notebook Editor UI"
-Cohesion: 0.03
-Nodes (61): capped(), cellRefs, cells, CellVM, clearAll(), clearOutput(), clipboard, config (+53 more)
+Cohesion: 0.04
+Nodes (47): cellRefs, cells, CellVM, clearAll(), clearOutput(), clipboard, config, Deleted (+39 more)
 
 ### Community 18 - "Backend Workspace & Auth User"
 Cohesion: 0.11
-Nodes (54): AuthUser, hash_token(), require_member(), require_ws_admin(), accept_invite(), ActivityItem, BoardStats, can_see_boards() (+46 more)
+Nodes (56): AuthUser, hash_token(), require_member(), require_ws_admin(), accept_invite(), ActivityItem, BoardStats, can_see_boards() (+48 more)
 
 ### Community 19 - "Project Workspace UI"
 Cohesion: 0.03
@@ -550,16 +565,16 @@ Cohesion: 0.09
 Nodes (41): allow_private(), base(), can_write(), channels(), check_base(), config_json(), ConfigBody, ConfigRow (+33 more)
 
 ### Community 21 - "Backend Backups"
-Cohesion: 0.07
-Nodes (37): backup_dir(), BackupFile, create_backup(), create_now(), current_migration(), download(), kind_of(), list() (+29 more)
+Cohesion: 0.04
+Nodes (55): backup_dir(), BackupFile, create_backup(), create_now(), current_migration(), download(), kind_of(), list() (+47 more)
 
 ### Community 22 - "App Shell & Demo Banner"
 Cohesion: 0.03
-Nodes (43): { data: settings }, pageTransition, current, { data: cast }, { isDemo }, { t }, { user }, { data, isLoading, error } (+35 more)
+Nodes (53): { data: settings }, pageTransition, Data, { data, isLoading }, days, maxViews, metric, metricLabel (+45 more)
 
-### Community 23 - "Offline & Android Banners"
-Cohesion: 0.04
-Nodes (49): { intentUrl }, route, show, { t }, show, { t }, icon, lang (+41 more)
+### Community 23 - "lucide-vue-next"
+Cohesion: 0.03
+Nodes (58): { intentUrl }, route, show, { t }, hint, icon, label, m (+50 more)
 
 ### Community 24 - "Backend Announcements"
 Cohesion: 0.10
@@ -569,13 +584,13 @@ Nodes (42): Announcement, AnnouncementReq, Audience, audience_of(), body_is_sani
 Cohesion: 0.03
 Nodes (51): canAddChild, canComment, canEdit, canManage, children, collaborators, commentCss, commentsOpen (+43 more)
 
-### Community 26 - "Excalidraw Canvas Board"
-Cohesion: 0.05
-Nodes (49): CARD, cardTitle(), config, emit, flushLocal(), host, insertOpen, isDark() (+41 more)
+### Community 26 - "canvas/Board.vue"
+Cohesion: 0.10
+Nodes (23): CARD, cardTitle(), config, emit, flushLocal(), host, insertOpen, isDark() (+15 more)
 
-### Community 27 - "Collaboration Server"
-Cohesion: 0.05
-Nodes (53): accessUrl(), BACKEND_URL, canvasId(), canvasSummary(), convertSources(), { Database }, EMPTY_DOC, fileId() (+45 more)
+### Community 27 - "index.js"
+Cohesion: 0.14
+Nodes (22): accessUrl(), BACKEND_URL, canvasId(), canvasSummary(), convertSources(), { Database }, EMPTY_DOC, fileId() (+14 more)
 
 ### Community 28 - "Dashboard Widgets"
 Cohesion: 0.04
@@ -586,11 +601,11 @@ Cohesion: 0.04
 Nodes (48): actions, assignedToMe, assigneeModel, boardId, body, checkEl, close(), column (+40 more)
 
 ### Community 30 - "Backend OIDC Auth"
-Cohesion: 0.08
-Nodes (27): SESSION_USER_KEY, AuthCallback, begin_login(), callback_handler(), desktop_complete(), desktop_exchange(), desktop_start(), DesktopExchange (+19 more)
+Cohesion: 0.09
+Nodes (27): AuthCallback, begin_login(), callback_handler(), desktop_complete(), desktop_exchange(), desktop_start(), DesktopExchange, DesktopParams (+19 more)
 
 ### Community 31 - "Desktop Tauri Proxy"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (29): cacheable(), check_server(), COOKIE, enc(), forbidden(), handle(), handle_mutation(), has_access_cookie() (+21 more)
 
 ### Community 32 - "Mail Page UI"
@@ -610,7 +625,7 @@ Cohesion: 0.04
 Nodes (46): addOpen, agenda, calById, { can }, canWrite, classDialog, cursor, { data: calendars } (+38 more)
 
 ### Community 36 - "Android Doc Reader"
-Cohesion: 0.08
+Cohesion: 0.09
 Nodes (26): Block, blocks(), Cell, Code, Entry, Heading, Img, inlineOf() (+18 more)
 
 ### Community 37 - "Marketing Site (Astro)"
@@ -625,21 +640,21 @@ Nodes (47): depends_on, environment, image, labels, restart, volumes, depends_on
 Cohesion: 0.06
 Nodes (42): canEdit(), crumbs, { data, isLoading, error }, dayChoices, dayLabel(), days, daysOpen, dragging (+34 more)
 
-### Community 40 - "Backend Activity Feed"
-Cohesion: 0.08
-Nodes (28): CommentRow, feed(), FeedQuery, Item, PageRow, TaskRow, workspace_routes(), get_keywords() (+20 more)
+### Community 40 - "keywords.rs"
+Cohesion: 0.20
+Nodes (15): access(), get_keywords(), ItemKeywords, KeywordUse, list_workspace(), MAX_KEYWORDS, MAX_LEN, normalize() (+7 more)
 
 ### Community 41 - "Backend Calendars"
-Cohesion: 0.12
-Nodes (34): CalendarDto, CalRow, clean_color(), clean_name(), create(), CreateReq, DTO_SELECT, durations_and_webcal() (+26 more)
+Cohesion: 0.17
+Nodes (22): CalendarDto, CalRow, clean_color(), clean_name(), create(), CreateReq, DTO_SELECT, durations_and_webcal() (+14 more)
 
 ### Community 42 - "Dashboard Layout Composable"
 Cohesion: 0.06
 Nodes (37): DashboardPrefs, DEFAULT_LAYOUT, flow(), LegacyWidget, sizeOf(), useDashboard(), add(), WidgetConf (+29 more)
 
 ### Community 43 - "Editor Outline & Export"
-Cohesion: 0.08
-Nodes (46): buildExport(), attach(), code(), decode(), docToHtml(), escapeAttr(), ExportFormat, ExportOptions (+38 more)
+Cohesion: 0.07
+Nodes (56): download(), exportMarkdown(), htmlToMarkdown(), safe(), buildExport(), attach(), code(), decode() (+48 more)
 
 ### Community 44 - "Board Page UI"
 Cohesion: 0.04
@@ -666,8 +681,8 @@ Cohesion: 0.05
 Nodes (37): assignees, board, boardId, boardItems, canBePersonal, column, columnId, createMore (+29 more)
 
 ### Community 50 - "android PushStore"
-Cohesion: 0.13
-Nodes (9): LootyPushService, Push, PushMode, OFF, POLLING, UNIFIED_PUSH, PushStore, activity() (+1 more)
+Cohesion: 0.17
+Nodes (6): LootyPushService, PushMode, OFF, POLLING, UNIFIED_PUSH, PushStore
 
 ### Community 51 - "frontend Members"
 Cohesion: 0.05
@@ -691,35 +706,35 @@ Nodes (40): concurrency, cancel-in-progress, group, if, name, needs, runs-on, st
 
 ### Community 56 - "android MoodleCourses"
 Cohesion: 0.10
-Nodes (18): CoursePrefs, Ask, CourseBadge(), CourseBook, CourseRow(), CoursesTab(), CRow, CustomizeDialog() (+10 more)
+Nodes (20): CourseCustom, CourseFolder, CoursePrefs, Ask, CourseBadge(), CourseBook, CourseRow(), CoursesTab() (+12 more)
 
 ### Community 57 - "android Offline"
 Cohesion: 0.10
 Nodes (7): isOffline(), OfflineCache, Outbox, OutboxWorker, Pending, replay(), ReplayResult
 
 ### Community 58 - "backend personal"
-Cohesion: 0.16
-Nodes (29): ApiResult, add_task_group(), assign_via_group(), drop_orphans(), group_deleted(), group_members_changed(), group_people(), link_new_task() (+21 more)
+Cohesion: 0.20
+Nodes (20): check_change(), drive_root(), emit_tasks(), evacuate(), folder_board(), folder_page(), keep_only_owner(), only_author_makes_personal_and_owner_shares_back() (+12 more)
 
 ### Community 59 - ".github android"
 Cohesion: 0.05
 Nodes (38): defaults, runs-on, steps, concurrency, cancel-in-progress, group, run, KEY_ALIAS (+30 more)
 
 ### Community 60 - "android DocActions"
-Cohesion: 0.11
-Nodes (27): DriveItem, DriveList, Page, NameDialog(), NoNavScrim(), sheetItemColors(), AddPersonSheet(), canAddSubpage() (+19 more)
+Cohesion: 0.16
+Nodes (15): Page, NoNavScrim(), Paths, sheetItemColors(), AddPersonSheet(), canAddSubpage(), canSharePage(), canWritePage() (+7 more)
 
 ### Community 61 - "backend caldav"
-Cohesion: 0.13
-Nodes (25): Account, ACCOUNT_SELECT, AccountDto, clean_color(), create_account(), CreateAccount, fields_of(), is_private() (+17 more)
+Cohesion: 0.09
+Nodes (36): Account, ACCOUNT_SELECT, AccountDto, check_url(), clean_color(), create_account(), CreateAccount, Credentials (+28 more)
 
 ### Community 62 - "backend ws"
-Cohesion: 0.12
-Nodes (13): active(), Envelope, guest_view(), handle_socket(), Hub, member_allows(), member_view(), MemberView (+5 more)
+Cohesion: 0.06
+Nodes (21): list(), ListQuery, mark_read(), MarkRead, Notification, read_all(), routes(), OidcClient (+13 more)
 
 ### Community 63 - "desktop service"
-Cohesion: 0.11
-Nodes (11): describe(), event_of(), french(), MyTask, newer(), Service, target_path(), TaskItem (+3 more)
+Cohesion: 0.09
+Nodes (14): check(), start(), describe(), event_of(), french(), MyTask, newer(), OsNotification (+6 more)
 
 ### Community 64 - "frontend useMoodle"
 Cohesion: 0.06
@@ -730,12 +745,12 @@ Cohesion: 0.06
 Nodes (37): name, needs, runs-on, steps, concurrency, cancel-in-progress, group, DOCKER_BUILD_RECORD_UPLOAD (+29 more)
 
 ### Community 66 - "android InstanceLinksTest"
-Cohesion: 0.13
-Nodes (9): Connect, Foreign, InstanceLinks, LinkAction, Native, Open, Screen, Web (+1 more)
+Cohesion: 0.18
+Nodes (5): Connect, Foreign, LinkAction, Open, InstanceLinksTest
 
 ### Community 67 - "frontend Panel"
-Cohesion: 0.06
-Nodes (31): composer, del(), draft, editDraft, editing, emit, kind, listEl (+23 more)
+Cohesion: 0.09
+Nodes (20): composer, draft, editDraft, editing, kind, listEl, menus, props (+12 more)
 
 ### Community 68 - "frontend EventPlanning"
 Cohesion: 0.07
@@ -757,10 +772,6 @@ Nodes (20): block(), BType, BULLET, CHECK, CODE, H1, H2, H3 (+12 more)
 Cohesion: 0.06
 Nodes (26): { can }, canWrite, { createAndOpen }, drawer, followed, followers, followersLabel, { idle } (+18 more)
 
-### Community 73 - "android MailScreen"
-Cohesion: 0.12
-Nodes (14): folderIcon(), folderLabel(), FoldersSheet(), label(), linkify(), MailHtml(), WebViewClient, MailList() (+6 more)
-
 ### Community 74 - "backend demo"
 Cohesion: 0.09
 Nodes (27): avatar_svg(), brand(), Cast, Admin, Member, Viewer, Character, CHARACTERS (+19 more)
@@ -770,16 +781,16 @@ Cohesion: 0.17
 Nodes (22): ask_save_path(), decide_navigation(), enable_spellcheck(), file_chooser_available(), main(), mark_task_done(), moodle_navigation(), Native (+14 more)
 
 ### Community 76 - "backend events"
-Cohesion: 0.15
-Nodes (25): unfolded_lines(), categories(), COLS, EventDetail, EventReq, exclude_occurrence(), fold(), form_props() (+17 more)
+Cohesion: 0.13
+Nodes (26): escape_text(), unfold(), unfolded_lines(), categories(), COLS, EventDetail, EventReq, exclude_occurrence() (+18 more)
 
-### Community 77 - "backend delivery"
-Cohesion: 0.14
-Nodes (23): all_day_due_keeps_its_date(), due_in_member_timezone(), due_reminders(), due_without_valid_timezone_is_utc(), enqueue(), esc(), event_of(), EventPref (+15 more)
+### Community 77 - "delivery.rs"
+Cohesion: 0.06
+Nodes (47): cell(), cells_are_escaped(), date(), description_as_plain_text(), export_csv(), ExportQuery, file_name(), header_row() (+39 more)
 
 ### Community 78 - "desktop offline"
-Cohesion: 0.19
-Nodes (3): now(), Offline, Synth
+Cohesion: 0.17
+Nodes (5): now(), Offline, Queued, Synth, write_private()
 
 ### Community 79 - "desktop tauri.conf"
 Cohesion: 0.06
@@ -797,25 +808,25 @@ Nodes (27): article, DEFAULTS, headings, index, local, onScroll(), outlineOpen, 
 Cohesion: 0.10
 Nodes (26): closedStacks, draggingTab, liveTarget(), newId(), remember(), states, Tab, tabMod (+18 more)
 
-### Community 83 - "android Html"
-Cohesion: 0.11
-Nodes (12): AnnouncementCard(), AnnouncementEditor(), AnnouncementsScreen(), audienceLabel(), PollView(), Html, Mention, fold() (+4 more)
+### Community 83 - "Html"
+Cohesion: 0.30
+Nodes (3): Html, Mention, HtmlMentionTest
 
-### Community 84 - "backend mail"
-Cohesion: 0.12
-Nodes (17): addresses_in_the_invalid_domain_are_never_delivered(), admin_routes(), config(), deliverable(), Email, env_config(), get_settings(), MailConfig (+9 more)
+### Community 84 - "TaskScreen.kt"
+Cohesion: 0.06
+Nodes (36): BoardFull, ColumnFull, Label, Task, TaskActivity, BoardList(), BoardScreen(), doneFor() (+28 more)
 
 ### Community 85 - "backend comments"
 Cohesion: 0.17
 Nodes (22): sanitize_rich_text(), can_read_target(), changed(), check_target(), clean_content(), CommentDto, counts(), CountsQuery (+14 more)
 
-### Community 86 - "backend moodle_content"
-Cohesion: 0.17
-Nodes (17): assignment(), assignment_live(), clean(), course(), course_live(), fetch(), file(), file_response() (+9 more)
+### Community 86 - "Looty desktop (Linux and Windows)"
+Cohesion: 0.04
+Nodes (43): Build, Emulator, Install, Looty for Android, Release signing, Debian / Ubuntu (.deb), Development, First launch (+35 more)
 
 ### Community 87 - "frontend Cell"
 Cohesion: 0.09
-Nodes (26): acceptsFiles(), dropping, duration, editing, emit, firstLine, hasOutputs, host (+18 more)
+Nodes (24): acceptsFiles(), dropping, duration, editing, emit, firstLine, hasOutputs, host (+16 more)
 
 ### Community 88 - "frontend EngineDialog"
 Cohesion: 0.07
@@ -826,16 +837,16 @@ Cohesion: 0.09
 Nodes (24): isPane, PaneMessage, deviceName(), pushActiveHere(), pushSupported(), registration(), state, urlB64ToBytes() (+16 more)
 
 ### Community 90 - "android MoodleLoginActivity"
-Cohesion: 0.09
+Cohesion: 0.11
 Nodes (3): MoodleLoginActivity, OnBackPressedCallback, WebViewClient
 
 ### Community 91 - "android Notifier"
-Cohesion: 0.09
+Cohesion: 0.14
 Nodes (12): Kind, ASSIGNED, COMMENT, COMPLETED, DUE, EVENTS, MAIL, MENTION (+4 more)
 
 ### Community 92 - "scripts release-notes"
-Cohesion: 0.08
-Nodes (17): dirs, render(), root, tempDir(), base, checks, waitSeconds, pyodideDir (+9 more)
+Cohesion: 0.07
+Nodes (19): dirs, render(), root, tempDir(), pyodideDir, lines, [platform, version], r (+11 more)
 
 ### Community 93 - "frontend useReleases"
 Cohesion: 0.09
@@ -850,28 +861,28 @@ Cohesion: 0.07
 Nodes (27): account, bccInput, body, ccInput, { data: accounts }, dirty, draft, esc() (+19 more)
 
 ### Community 96 - "android WidgetWorker"
-Cohesion: 0.11
-Nodes (4): LootyApp, PollWorker, UpdateWorker, WidgetWorker
+Cohesion: 0.13
+Nodes (3): UpdateWorker, WidgetWorker, Features
 
 ### Community 97 - "backend prefs"
-Cohesion: 0.14
-Nodes (20): routes(), workspace_routes(), app(), access_routes(), canvas_routes(), routes(), check(), get_member() (+12 more)
+Cohesion: 0.27
+Nodes (12): check(), get_member(), get_notepad(), get_user(), MAX_NOTEPAD, MAX_PREFS, NotepadReq, patch_member() (+4 more)
 
 ### Community 98 - "backend demo_mode"
-Cohesion: 0.14
-Nodes (19): a_failed_upload_does_not_use_up_the_copy_budget(), an_expired_copy_can_no_longer_be_used_before_the_cleanup_runs(), an_expired_copy_is_deleted_with_its_accounts_workspaces_and_files(), app_passwords_are_unavailable_but_api_tokens_are_not(), DemoLimits, each_visitor_gets_an_isolated_copy_of_the_demo_workspace(), entering_is_rate_limited_per_ip(), env_i64() (+11 more)
+Cohesion: 0.15
+Nodes (17): a_failed_upload_does_not_use_up_the_copy_budget(), an_expired_copy_can_no_longer_be_used_before_the_cleanup_runs(), app_passwords_are_unavailable_but_api_tokens_are_not(), DemoLimits, each_visitor_gets_an_isolated_copy_of_the_demo_workspace(), enabled(), entering_is_rate_limited_per_ip(), env_i64() (+9 more)
 
-### Community 99 - "backend public_project"
-Cohesion: 0.20
-Nodes (21): a_latex_page_only_exposes_its_pdf(), a_site_page_is_unchanged(), file_at(), Fixture, fixture(), get(), image(), image_mime() (+13 more)
+### Community 99 - "public_project.rs"
+Cohesion: 0.07
+Nodes (30): ApiError, BadRequest, Conflict, DemoUnavailable, Forbidden, Internal, NotFound, Unauthorized (+22 more)
 
 ### Community 100 - "backend push"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (14): check_endpoint(), http_client(), keys(), KEYS, list(), public_key(), routes(), send_to_user() (+6 more)
 
 ### Community 101 - "backend trash"
-Cohesion: 0.18
-Nodes (20): delete_page(), delete_task(), empty(), list(), PageEntry, purge_tasks(), restore_page(), restore_task() (+12 more)
+Cohesion: 0.16
+Nodes (23): prune_links(), prune_blob_dirs(), delete_page(), delete_task(), empty(), list(), PageEntry, purge_tasks() (+15 more)
 
 ### Community 102 - "frontend NewMenu"
 Cohesion: 0.08
@@ -886,24 +897,24 @@ Cohesion: 0.08
 Nodes (28): ann, audience, audienceItems, audienceLabel(), audienceOpen, blankPoll(), { data: groups }, edit() (+20 more)
 
 ### Community 105 - "android WidgetParts"
-Cohesion: 0.14
-Nodes (11): Message(), WidgetStyle, Chip(), cp(), inner(), outer(), Palette, palette() (+3 more)
+Cohesion: 0.16
+Nodes (12): dueLabel(), Message(), WidgetStyle, Chip(), cp(), inner(), openApp(), outer() (+4 more)
 
 ### Community 106 - "backend demo_mode (2)"
-Cohesion: 0.15
-Nodes (17): api_unavailable(), call(), characters(), client_ip(), create(), enter(), EnterRequest, guard() (+9 more)
+Cohesion: 0.12
+Nodes (22): SESSION_USER_KEY, an_expired_copy_is_deleted_with_its_accounts_workspaces_and_files(), api_unavailable(), call(), characters(), client_ip(), create(), enter() (+14 more)
 
 ### Community 107 - "backend events (2)"
-Cohesion: 0.19
-Nodes (22): calendar_for(), changed(), create(), delete_row(), event_board(), EventRow, get_one(), labels_from_categories() (+14 more)
+Cohesion: 0.17
+Nodes (31): ApiResult, calendar_for(), changed(), create(), delete_row(), event_board(), EventRow, get_one() (+23 more)
 
 ### Community 108 - "frontend ShareDialog"
 Cohesion: 0.07
 Nodes (25): add(), addInherit, addQuery, addRole, busy, { can }, inherited, internal (+17 more)
 
 ### Community 109 - "desktop tray"
-Cohesion: 0.13
-Nodes (15): OsNotification, apply(), autostart_enabled(), autostart_file(), badge_icon(), build_menu(), launcher(), notify() (+7 more)
+Cohesion: 0.14
+Nodes (14): apply(), autostart_enabled(), autostart_file(), badge_icon(), build_menu(), launcher(), notify(), overlay_dot() (+6 more)
 
 ### Community 110 - "frontend PageTreeItem"
 Cohesion: 0.08
@@ -918,24 +929,24 @@ Cohesion: 0.11
 Nodes (21): EXT, handled, insertionText(), mdPath(), pad(), pastedName(), PlannedFile, planUploads() (+13 more)
 
 ### Community 113 - "site lib"
-Cohesion: 0.20
-Nodes (15): app(), authorized(), base_url(), Config, download(), latest(), list(), MAX_UPLOAD (+7 more)
+Cohesion: 0.09
+Nodes (25): app(), authorized(), base_url(), Config, download(), latest(), LayerFilesCache, list() (+17 more)
 
 ### Community 114 - "frontend Activity"
 Cohesion: 0.08
 Nodes (22): colName(), commentMenu(), commentsKey, composer, { data: activities }, { data: comments }, describe(), draft (+14 more)
 
-### Community 115 - "backend board_export"
-Cohesion: 0.15
-Nodes (16): cell(), cells_are_escaped(), date(), description_as_plain_text(), export_csv(), ExportQuery, file_name(), header_row() (+8 more)
+### Community 115 - "expand"
+Cohesion: 0.18
+Nodes (19): EventDto, expand(), master_event(), MasterEvent, Occurrence, parse_duration(), parse_when(), RangeQuery (+11 more)
 
 ### Community 116 - "backend classes"
 Cohesion: 0.21
 Nodes (16): changed(), check_refs(), classes(), clean_pattern(), create_link(), delete_link(), filter_variants_and_words(), fold() (+8 more)
 
 ### Community 117 - "backend ical"
-Cohesion: 0.18
-Nodes (20): build_vtodo(), date_prop(), escape(), fmt_dt(), fold(), html_text_roundtrip(), is_all_day(), parse_completed_from_client() (+12 more)
+Cohesion: 0.15
+Nodes (24): remote_changes(), three_way_merge(), changes(), build_vtodo(), date_prop(), escape(), fmt_dt(), fold() (+16 more)
 
 ### Community 118 - "frontend Card"
 Cohesion: 0.08
@@ -950,12 +961,16 @@ Cohesion: 0.12
 Nodes (13): port, body(), courses, ics(), now(), server, state, ws() (+5 more)
 
 ### Community 122 - "frontend useBoardFilters"
-Cohesion: 0.12
-Nodes (18): fetchMe(), ME_KEY, useAuth(), logout(), BoardFilters, DueFilter, useBoardFilters(), clear() (+10 more)
-
-### Community 124 - "android GraphScreen"
 Cohesion: 0.11
-Nodes (5): GraphScreen(), kindColor(), kindLabelRes(), layout(), routeOf()
+Nodes (20): fetchMe(), ME_KEY, useAuth(), logout(), BoardFilters, DueFilter, useBoardFilters(), clear() (+12 more)
+
+### Community 124 - "GraphScreen.kt"
+Cohesion: 0.07
+Nodes (12): Graph, GraphEdge, GraphNode, GraphScreen(), kindColor(), kindLabelRes(), layout(), routeOf() (+4 more)
+
+### Community 125 - "android ShortcutsWidget"
+Cohesion: 0.18
+Nodes (3): Shortcut, TodayWidget, TodayWidgetReceiver
 
 ### Community 126 - "backend groups"
 Cohesion: 0.25
@@ -978,12 +993,12 @@ Cohesion: 0.11
 Nodes (20): { data: attachments }, dragOver, files, images, input, isImage(), isPdf(), key (+12 more)
 
 ### Community 131 - "frontend useAccess"
-Cohesion: 0.10
-Nodes (20): accessKey(), AccessPrefs, Area, AreaMode, AREAS, editOn, legacyApplied, legacyRead (+12 more)
+Cohesion: 0.06
+Nodes (35): accessKey(), AccessPrefs, Area, AreaMode, AREAS, editOn, legacyApplied, legacyRead (+27 more)
 
 ### Community 132 - "frontend latex"
-Cohesion: 0.14
-Nodes (21): applyDefinition(), draftScope(), m(), MacroFn, Macros, makeMacro(), MathRender, NATIVE (+13 more)
+Cohesion: 0.09
+Nodes (33): escapeHtml(), EXPORT_CSS, htmlDocument(), printToPdf(), renderForExport(), applyDefinition(), draftScope(), ensureMhchem() (+25 more)
 
 ### Community 133 - "frontend graph"
 Cohesion: 0.09
@@ -994,8 +1009,8 @@ Cohesion: 0.09
 Nodes (19): addToDocs(), { allows }, canCreate, cardMenu(), createOpen, { createPage }, creating, { data: projects, isLoading } (+11 more)
 
 ### Community 135 - "backend releases"
-Cohesion: 0.19
-Nodes (15): desktop_and_android_versions_match_their_builds(), File, file(), latest(), list(), mark_seen(), Notes, notes_match_the_server_version() (+7 more)
+Cohesion: 0.15
+Nodes (16): desktop_and_android_versions_match_their_builds(), File, file(), latest(), list(), mark_seen(), Notes, notes_match_the_server_version() (+8 more)
 
 ### Community 136 - "desktop config"
 Cohesion: 0.18
@@ -1017,17 +1032,17 @@ Nodes (17): ComposeDraft, FolderMessage, FolderRole, FolderSummary, inlineImages
 Cohesion: 0.09
 Nodes (17): { can }, completing, { data: panelBoard }, { data: taskBoardId }, { data: tasks, isLoading }, groupBy, order, panelBoardId (+9 more)
 
-### Community 141 - "backend graph"
-Cohesion: 0.23
-Nodes (14): build(), Built, check_item(), create_link(), delete_link(), Edge, finds_page_and_task_links(), graph() (+6 more)
+### Community 141 - "CalKind"
+Cohesion: 0.11
+Nodes (20): Calendar, calendars(), CalKind, Assigned, Board, Cal, Events, parse_target() (+12 more)
 
-### Community 142 - "backend latex"
-Cohesion: 0.18
-Nodes (12): compile(), CompileReq, find(), Issue, log_issues(), log_needs_rerun(), output_path(), output_pdf() (+4 more)
+### Community 142 - "analytics.rs"
+Cohesion: 0.24
+Nodes (13): admin_routes(), build(), EVENTS, instance_analytics(), instance_links(), links(), RangeQuery, revoke_invite() (+5 more)
 
-### Community 143 - "backend moodle_cache"
-Cohesion: 0.22
-Nodes (15): dir(), evict(), forget(), is_outage(), json_or_cached(), max_file(), mb(), offline() (+7 more)
+### Community 143 - "collaboration/package.json"
+Cohesion: 0.11
+Nodes (21): author, dependencies, @hocuspocus/extension-database@^4.7.0, @hocuspocus/server@^4.7.0, pg@^8.23.0, yjs@^13.6.32, description, engines (+13 more)
 
 ### Community 144 - "frontend WorkspaceMenu"
 Cohesion: 0.09
@@ -1045,29 +1060,25 @@ Nodes (22): addAt(), cellFromJson(), copyCells(), cutCells(), deleteCells(), edi
 Cohesion: 0.10
 Nodes (21): Board, BoardAutomation, BoardSummary, Column, Label, Me, MyTask, Notification (+13 more)
 
-### Community 148 - "android Updater"
+### Community 148 - "get"
 Cohesion: 0.20
-Nodes (4): NoUpdateSource, SiteHasNoRelease, Update, Updater
+Nodes (13): access_refusal_is_about_grades(), course(), course_items_and_total(), course_live(), course_rows(), num(), overview(), overview_live() (+5 more)
 
-### Community 149 - "android LootyWidget"
-Cohesion: 0.17
-Nodes (5): dueLabel(), LootyWidget, LootyWidgetReceiver, WidgetData, WidgetTask
-
-### Community 150 - "backend caldav (2)"
-Cohesion: 0.15
-Nodes (13): check_url(), Credentials, Dav, DavResponse, delete_account(), DeleteQuery, discover(), discover_handler() (+5 more)
+### Community 150 - "ExcalidrawView.vue"
+Cohesion: 0.14
+Nodes (15): mount(), editing, host, isDark(), open(), preview, props, renderPreview() (+7 more)
 
 ### Community 151 - "deploy docker-compose"
-Cohesion: 0.10
-Nodes (21): environment, BASE_URL, CALDAV_ALLOW_PRIVATE, JUPYTER_ALLOW_PRIVATE, LOOTY_DEMO, LOOTY_DEMO_COPIES_PER_IP_HOUR, LOOTY_DEMO_MAX_COPIES, LOOTY_DEMO_MAX_COPY_MB (+13 more)
+Cohesion: 0.09
+Nodes (25): environment, BASE_URL, CALDAV_ALLOW_PRIVATE, JUPYTER_ALLOW_PRIVATE, LOOTY_DEMO, LOOTY_DEMO_COPIES_PER_IP_HOUR, LOOTY_DEMO_MAX_COPIES, LOOTY_DEMO_MAX_COPY_MB (+17 more)
 
 ### Community 152 - "docker-compose"
-Cohesion: 0.10
-Nodes (21): environment, BASE_URL, CALDAV_ALLOW_PRIVATE, JUPYTER_ALLOW_PRIVATE, LOOTY_DEMO, LOOTY_DEMO_COPIES_PER_IP_HOUR, LOOTY_DEMO_MAX_COPIES, LOOTY_DEMO_MAX_COPY_MB (+13 more)
+Cohesion: 0.09
+Nodes (22): environment, BASE_URL, CALDAV_ALLOW_PRIVATE, JUPYTER_ALLOW_PRIVATE, LOOTY_DEMO, LOOTY_DEMO_COPIES_PER_IP_HOUR, LOOTY_DEMO_MAX_COPIES, LOOTY_DEMO_MAX_COPY_MB (+14 more)
 
 ### Community 153 - "docker-compose.prod"
-Cohesion: 0.10
-Nodes (21): environment, BASE_URL, CALDAV_ALLOW_PRIVATE, JUPYTER_ALLOW_PRIVATE, LOOTY_DEMO, LOOTY_DEMO_COPIES_PER_IP_HOUR, LOOTY_DEMO_MAX_COPIES, LOOTY_DEMO_MAX_COPY_MB (+13 more)
+Cohesion: 0.09
+Nodes (22): environment, BASE_URL, CALDAV_ALLOW_PRIVATE, JUPYTER_ALLOW_PRIVATE, LOOTY_DEMO, LOOTY_DEMO_COPIES_PER_IP_HOUR, LOOTY_DEMO_MAX_COPIES, LOOTY_DEMO_MAX_COPY_MB (+14 more)
 
 ### Community 154 - "frontend SidebarCustomize"
 Cohesion: 0.10
@@ -1086,24 +1097,24 @@ Cohesion: 0.16
 Nodes (3): WebChromeClient, WebViewClient, WebViewClient
 
 ### Community 158 - "backend calendar"
-Cohesion: 0.16
-Nodes (15): Comp, default_tz(), master_event(), MasterEvent, parse_ics(), parse_prop(), parse_when(), Prop (+7 more)
+Cohesion: 0.23
+Nodes (8): Comp, default_tz(), parse_ics(), parse_prop(), Prop, resolve_tz(), rrule_line(), windows_zone()
 
 ### Community 159 - "backend demo (2)"
 Cohesion: 0.32
-Nodes (7): Api, build(), create_copy(), email(), id(), seed(), set_file()
+Nodes (7): Api, build(), create_copy(), id(), run(), seed(), set_file()
 
 ### Community 160 - "backend src/main"
-Cohesion: 0.12
-Nodes (9): enabled(), start_purge_loop(), prune_links(), base_url(), health_handler(), main(), seed_default_provider(), prune_blob_dirs() (+1 more)
+Cohesion: 0.17
+Nodes (9): app(), base_url(), health_handler(), main(), parse_provider_id(), provider_id_accepts_uuid(), provider_id_empty_means_random(), provider_id_rejects_garbage() (+1 more)
 
-### Community 161 - "backend notifications"
-Cohesion: 0.22
-Nodes (8): list(), ListQuery, mark_read(), MarkRead, Notification, notify(), read_all(), routes()
+### Community 161 - "NotificationsScreen"
+Cohesion: 0.25
+Nodes (3): Push, activity(), NotificationsScreen()
 
 ### Community 162 - "e2e e2e/package"
-Cohesion: 0.11
-Nodes (14): dependencies, playwright-core@^1.63.0, name, private, scripts, test, type, playwright-core (+6 more)
+Cohesion: 0.18
+Nodes (9): dependencies, playwright-core@^1.63.0, name, private, scripts, test, type, playwright-core (+1 more)
 
 ### Community 163 - "frontend CalendarView"
 Cohesion: 0.11
@@ -1126,8 +1137,8 @@ Cohesion: 0.12
 Nodes (16): { allows }, attr(), { data, isLoading }, dayKey(), days, editable, from, groups (+8 more)
 
 ### Community 168 - "frontend Lite"
-Cohesion: 0.11
-Nodes (17): { data: groups }, editor, emit, { members, pages, wsId }, model, pageSource, props, @tiptap/extension-image@^3.31.4 (+9 more)
+Cohesion: 0.18
+Nodes (9): { data: groups }, editor, emit, { members, pages, wsId }, model, pageSource, props, @tiptap/extension-task-item@^3.31.4 (+1 more)
 
 ### Community 169 - "frontend useCalendar"
 Cohesion: 0.13
@@ -1138,12 +1149,12 @@ Cohesion: 0.16
 Nodes (20): steps, steps, steps, steps, steps, id, if, name (+12 more)
 
 ### Community 171 - "android Config"
-Cohesion: 0.18
+Cohesion: 0.21
 Nodes (6): Config, Health, NotLooty, Ok, PendingSso, Unreachable
 
-### Community 172 - "backend revisions"
-Cohesion: 0.26
-Nodes (10): clean_label(), create(), CreateReq, get_one(), list(), remove(), rename(), RenameReq (+2 more)
+### Community 172 - "page.rs"
+Cohesion: 0.09
+Nodes (50): require_page_read(), require_page_write(), log_page(), access_routes(), AccessCheck, canvas_routes(), CanvasPreview, CanvasSummary (+42 more)
 
 ### Community 173 - "frontend useJupyterKernel"
 Cohesion: 0.22
@@ -1153,9 +1164,9 @@ Nodes (18): session(), JupyterState, msgId(), Pending, Result, useJupyterKernel(
 Cohesion: 0.11
 Nodes (11): block, isText, label, left, menuItems, menuOpen, menuPos, props (+3 more)
 
-### Community 175 - "frontend exportDoc"
-Cohesion: 0.19
-Nodes (15): escapeHtml(), EXPORT_CSS, htmlDocument(), printToPdf(), renderForExport(), ensureMhchem(), Scope, ScopeBuilder (+7 more)
+### Community 175 - "Windows: checks on a real PC"
+Cohesion: 0.11
+Nodes (14): Files, Install, Notifications, Shortcuts and links, Taskbar (notification area), Uninstall, Windows: checks on a real PC, Moodle course personalization is not applied to the Looty calendar (+6 more)
 
 ### Community 176 - "frontend read/[page]"
 Cohesion: 0.12
@@ -1166,8 +1177,8 @@ Cohesion: 0.11
 Nodes (18): APT_GPG_PRIVATE_KEY, GH_TOKEN, GPG_PASSPHRASE, SITE_UPLOAD_TOKEN, SITE_URL, jobs, sync, name (+10 more)
 
 ### Community 178 - "android Api"
-Cohesion: 0.16
-Nodes (4): ApiException, raw(), upload(), WebViewCookies
+Cohesion: 0.12
+Nodes (5): ApiException, raw(), upload(), WebViewCookies, PollWorker
 
 ### Community 180 - "backend planning"
 Cohesion: 0.27
@@ -1194,20 +1205,20 @@ Cohesion: 0.12
 Nodes (14): { can }, COLORS, { data: roles }, edit(), editing, FLAGS, form, label() (+6 more)
 
 ### Community 186 - "frontend ExportDialog"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (15): all, busy, descendants(), format, FORMAT_NAMES, open, progress, props (+7 more)
 
-### Community 187 - "android MailCompose"
-Cohesion: 0.24
-Nodes (7): addressOf(), ComposeScreen(), esc(), formatted(), looksValid(), RecipientField(), Recipients
+### Community 187 - "MailCompose.kt"
+Cohesion: 0.10
+Nodes (15): Contact, Uploaded, fileName(), readAtMost(), readSharedFile(), ShareActivity, SharedFile, ShareSheet() (+7 more)
 
-### Community 188 - "backend recurrence"
-Cohesion: 0.28
-Nodes (11): all_day_stays_at_noon_utc(), end_of_month_is_kept(), late_completion_skips_to_the_future(), nth(), periods(), periods_after(), REPEATS, same_local_time_across_dst() (+3 more)
+### Community 188 - "serialize"
+Cohesion: 0.21
+Nodes (7): CommentRow, feed(), FeedQuery, Item, PageRow, TaskRow, workspace_routes()
 
-### Community 189 - "site tests"
-Cohesion: 0.26
-Nodes (8): call(), cfg(), latest_json_and_download_links(), pages_headers_and_listing(), put(), tmp(), upload_needs_the_token(), uploads_disabled_without_a_token()
+### Community 189 - ".screen"
+Cohesion: 0.20
+Nodes (4): InstanceLinks, Native, Screen, Web
 
 ### Community 190 - "frontend AreaChart"
 Cohesion: 0.17
@@ -1226,28 +1237,28 @@ Cohesion: 0.14
 Nodes (16): androidBanner, { locale, setLocale, t }, { mode, setTheme }, onLocale(), onTheme(), onTimezone(), persist(), { prefs, update: updatePrefs } (+8 more)
 
 ### Community 194 - "frontend sourceCursors"
-Cohesion: 0.17
-Nodes (16): acquire(), binding(), COPIED, Field, measure(), Provider, provider(), release() (+8 more)
-
-### Community 195 - "android ShortcutsWidget (2)"
-Cohesion: 0.17
-Nodes (3): ShortcutsWidget, ShortcutsWidgetReceiver, Widgets
+Cohesion: 0.13
+Nodes (18): textDiff(), useSourceField(), sync(), writeSource(), acquire(), binding(), COPIED, Field (+10 more)
 
 ### Community 196 - "desktop latex"
 Cohesion: 0.21
 Nodes (9): Bundle, BundleFile, compile(), compiles_with_bibliography(), find(), needs_rerun(), rejects_unsafe_paths(), run() (+1 more)
 
 ### Community 197 - "desktop offline (2)"
-Cohesion: 0.14
-Nodes (5): Failed, private_dir(), Queued, takes_client_id(), write_private()
+Cohesion: 0.18
+Nodes (3): Failed, private_dir(), takes_client_id()
 
-### Community 198 - "backend ics_feed"
-Cohesion: 0.22
-Nodes (8): escape_text(), A, B, build(), components(), feed(), task_due_date_becomes_all_day_event(), wrapper_dropped_and_timezone_kept_once()
+### Community 198 - ".updateAll"
+Cohesion: 0.18
+Nodes (4): LootyWidget, LootyWidgetReceiver, ToggleTaskAction, Widgets
 
-### Community 199 - "backend error"
-Cohesion: 0.16
-Nodes (8): ApiError, BadRequest, Conflict, DemoUnavailable, Forbidden, Internal, NotFound, Unauthorized
+### Community 199 - "canvas.vue"
+Cohesion: 0.13
+Nodes (10): { allows }, canCreate, CanvasItem, { createPage }, creating, { data, isLoading }, search, shown (+2 more)
+
+### Community 200 - "Mentions.kt"
+Cohesion: 0.27
+Nodes (4): fold(), GroupBadge(), MentionInput, MentionSuggestions()
 
 ### Community 201 - "frontend MemberCard"
 Cohesion: 0.14
@@ -1341,9 +1352,9 @@ Nodes (4): cellJson(), NbCellJson, parse(), splitLines()
 Cohesion: 0.13
 Nodes (11): days, feed, filterItems, filterOpen, items, route, router, { t, relativeTime, locale } (+3 more)
 
-### Community 225 - "android AgendaWidget"
-Cohesion: 0.25
-Nodes (3): AgendaWidget, AgendaWidgetReceiver, openApp()
+### Community 227 - "notebook.js"
+Cohesion: 0.23
+Nodes (10): newCellId(), notebookFromJson(), notebookFromRow(), notebookState(), notebookText(), assert, ipynb, { test } (+2 more)
 
 ### Community 228 - "frontend SplitPane"
 Cohesion: 0.16
@@ -1401,9 +1412,9 @@ Nodes (13): POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, interval, retries, te
 Cohesion: 0.17
 Nodes (10): api(), before, board(), conv, cr, dl, head, item (+2 more)
 
-### Community 242 - "frontend Insights"
-Cohesion: 0.15
-Nodes (12): Data, { data, isLoading }, days, maxViews, metric, metricLabel, props, series (+4 more)
+### Community 242 - "MermaidView.vue"
+Cohesion: 0.17
+Nodes (11): makeIsland(), area, debounced, error, field, isDark(), { mode }, props (+3 more)
 
 ### Community 243 - "frontend Notepad"
 Cohesion: 0.17
@@ -1422,8 +1433,8 @@ Cohesion: 0.17
 Nodes (10): { data }, { data: cals }, emit, from, list, open, pick(), q (+2 more)
 
 ### Community 247 - "frontend login"
-Cohesion: 0.15
-Nodes (9): card, { data: cast }, error, { isDemo }, loading, providers, redirecting, route (+1 more)
+Cohesion: 0.14
+Nodes (10): card, { data: cast }, error, { isDemo }, loading, loginError, providers, redirecting (+2 more)
 
 ### Community 248 - "frontend inbox"
 Cohesion: 0.17
@@ -1448,6 +1459,10 @@ Nodes (13): CACHIX_AUTH_TOKEN, runner, system, nix-pin, include, env, if, name (
 ### Community 253 - ".github release (6)"
 Cohesion: 0.15
 Nodes (13): with, authToken, body_path, fetch-depth, files, github_access_token, make_latest, name (+5 more)
+
+### Community 254 - "backend crypto"
+Cohesion: 0.18
+Nodes (3): encrypt(), key(), KEY
 
 ### Community 256 - "frontend Poll"
 Cohesion: 0.17
@@ -1481,25 +1496,21 @@ Nodes (9): { data }, endpoint, Links, props, qc, refresh(), revoke(), { t, relat
 Cohesion: 0.17
 Nodes (11): byId, groupChoices, groups, items, model, open, people, selection (+3 more)
 
-### Community 264 - "frontend useComments"
-Cohesion: 0.23
-Nodes (11): commentKeys, CommentKind, CommentThread, ItemComment, useCommentCounts(), useComments(), add(), edit() (+3 more)
+### Community 264 - "DriveScreen"
+Cohesion: 0.33
+Nodes (10): DriveItem, DriveList, DaysDialog(), daysLeft(), DriveActions(), DriveFolderPicker(), DriveScreen(), join() (+2 more)
 
 ### Community 265 - "frontend useShortcuts"
 Cohesion: 0.26
 Nodes (10): hasModalLayer(), install(), stack, useLayer(), comboOf(), isTyping(), onKeydown(), registry (+2 more)
 
 ### Community 266 - "scripts release-plan"
-Cohesion: 0.20
-Nodes (10): builds, errors, force, latest(), newer(), out, planned, { releases } (+2 more)
+Cohesion: 0.18
+Nodes (11): Building by hand, builds, errors, force, latest(), newer(), out, planned (+3 more)
 
-### Community 267 - "android MoodleCourse"
-Cohesion: 0.29
-Nodes (7): mailFullDate(), FileRow(), moduleIcon(), ModuleSheet(), MoodleCourseScreen(), openMoodleSite(), open()
-
-### Community 269 - "backend bg"
-Cohesion: 0.20
-Nodes (3): guard(), keeps_going_after_a_panic(), decodes_without_panicking()
+### Community 267 - "environment"
+Cohesion: 0.17
+Nodes (12): ALLOW_INSECURE_CALLBACK_URLS, ANALYTICS_DISABLED, APP_URL, ENCRYPTION_KEY, STATIC_API_KEY, TRUST_PROXY, environment, image (+4 more)
 
 ### Community 270 - "desktop shortcuts"
 Cohesion: 0.25
@@ -1513,9 +1524,9 @@ Nodes (7): api(), board, fp, item(), itemMenu(), panel, prefs()
 Cohesion: 0.18
 Nodes (9): canBePersonal, { createBoard }, { createBoardOpen, createBoardIn }, loading, name, personal, { t }, withColumns (+1 more)
 
-### Community 273 - "frontend EditToggle"
-Cohesion: 0.18
-Nodes (10): hint, icon, label, m, { mode, editing, toggleEditing, editableAreas }, on, props, { t } (+2 more)
+### Community 273 - "Pocket ID : créer le client OIDC de Looty au premier démarrage"
+Cohesion: 0.20
+Nodes (10): 1. Mécanisme déclaratif ou variables pour créer des clients au premier démarrage, 2. API REST de création d'un client OIDC, 3. Premier compte (admin) de Pocket ID, 4. Variables d'environnement utiles, 5. Claims et « admin », 6. Module NixOS `services.pocket-id` (nixpkgs), En bref, Pocket ID : créer le client OIDC de Looty au premier démarrage (+2 more)
 
 ### Community 274 - "frontend GridPanel"
 Cohesion: 0.24
@@ -1541,9 +1552,9 @@ Nodes (10): accent, emit, hue, imageFailed, menuOpen, onDrop(), over, props (+2 
 Cohesion: 0.18
 Nodes (7): deadlines, emit, hiddenIds, list, mc, props, { t, locale, relativeTime }
 
-### Community 280 - "frontend AdminInstance"
+### Community 280 - "Looty"
 Cohesion: 0.18
-Nodes (8): { data }, fileInput, form, qc, saving, Settings, { t }, uploading
+Nodes (10): Agenda externe, Distribution Nix, Espaces, Instances, Looty, Moodle, Navigation, Notebooks (+2 more)
 
 ### Community 281 - "frontend Toaster"
 Cohesion: 0.18
@@ -1578,8 +1589,8 @@ Cohesion: 0.18
 Nodes (11): nix-verify, if, name, needs, permissions, uses, permissions, actions (+3 more)
 
 ### Community 289 - "android Keywords"
-Cohesion: 0.33
-Nodes (3): fold(), KeywordsRow(), KeywordsSheet()
+Cohesion: 0.29
+Nodes (4): KeywordUse, fold(), KeywordsRow(), KeywordsSheet()
 
 ### Community 290 - "desktop tauri.windows.conf"
 Cohesion: 0.20
@@ -1589,13 +1600,13 @@ Nodes (9): bundle, targets, windows, displayLanguageSelector, installerHooks, in
 Cohesion: 0.20
 Nodes (10): depends_on, depends_on, environment, labels, restart, postgres, BACKEND_URL, DATABASE_URL (+2 more)
 
-### Community 292 - "e2e notebook-editor"
+### Community 292 - "pocket-id.mjs"
 Cohesion: 0.20
-Nodes (5): api(), cells, file, first, last
+Nodes (6): auth, authJar, Jar, looty, lootyJar, steps
 
-### Community 293 - "frontend WorkOnDialog"
-Cohesion: 0.20
-Nodes (7): areas, { chooseAreas, allows, modesChosen, prefsLoaded, perms }, open, picked, saving, { t }, { wsId, workspace }
+### Community 293 - "runCell"
+Cohesion: 0.22
+Nodes (9): capped(), nextCount(), parseAttachments(), parseMeta(), parseOutputs(), runAll(), runAt(), runCell() (+1 more)
 
 ### Community 294 - "frontend Subtasks"
 Cohesion: 0.24
@@ -1613,13 +1624,13 @@ Nodes (9): itemKey(), ItemKeywords, KEYWORD_MAX_LEN, KeywordKind, keywordsKey(),
 Cohesion: 0.24
 Nodes (8): KernelFile, KernelState, NbOutput, Pending, useNotebookKernel(), run(), start(), syncFiles()
 
-### Community 298 - "frontend blocks"
-Cohesion: 0.27
-Nodes (6): blockAt(), BlockKeymap, BlockRef, DRAGGABLE_INNER, duplicateBlock(), moveBlock()
+### Community 298 - "Kind"
+Cohesion: 0.25
+Nodes (7): Kind, Board, Event, File, Page, Project, Task
 
 ### Community 299 - "frontend mermaid"
-Cohesion: 0.22
-Nodes (7): loadMermaid(), Mermaid, renderMermaid(), mermaid@^12.2.0, @mermaid-js/layout-elk@^1.0.1, mermaid, @mermaid-js/layout-elk
+Cohesion: 0.40
+Nodes (3): loadMermaid(), Mermaid, renderMermaid()
 
 ### Community 300 - "frontend mail (2)"
 Cohesion: 0.36
@@ -1637,9 +1648,9 @@ Nodes (10): steps, id, if, name, run, shell, uses, working-directory (+2 more)
 Cohesion: 0.20
 Nodes (10): ref, on, pull_request, workflow_call, workflow_dispatch, paths, description, required (+2 more)
 
-### Community 306 - "deploy docker-compose (2)"
-Cohesion: 0.22
-Nodes (9): depends_on, image, labels, restart, volumes, depends_on, postgres, condition (+1 more)
+### Community 306 - "pocket-id-init"
+Cohesion: 0.25
+Nodes (8): pocket-id, condition, depends_on, entrypoint, image, restart, volumes, pocket-id-init
 
 ### Community 307 - "desktop smoke"
 Cohesion: 0.36
@@ -1677,9 +1688,9 @@ Nodes (9): emit, nodeAt(), onDblClick(), onPointerDown(), onPointerMove(), onPoi
 Cohesion: 0.28
 Nodes (7): cells, escape(), join(), language, parsed, props, { t }
 
-### Community 316 - "frontend settings"
-Cohesion: 0.22
-Nodes (8): current, groups, navOpen, personal, route, { t }, { user }, { wsId, workspace, isAdmin }
+### Community 316 - "FindBar.vue"
+Cohesion: 0.25
+Nodes (6): input, open, props, state, term, tick
 
 ### Community 317 - "frontend [token]"
 Cohesion: 0.22
@@ -1710,8 +1721,8 @@ Cohesion: 0.36
 Nodes (3): init_db(), repair_replayable(), REPLAYABLE
 
 ### Community 326 - "deploy docker-compose (3)"
-Cohesion: 0.25
-Nodes (8): depends_on, environment, image, ports, restart, volumes, APP_DOMAIN, caddy
+Cohesion: 0.17
+Nodes (12): depends_on, environment, image, networks, ports, restart, volumes, aliases (+4 more)
 
 ### Community 327 - "deploy docker-compose (4)"
 Cohesion: 0.25
@@ -1782,8 +1793,8 @@ Cohesion: 0.48
 Nodes (3): Field(), MailAccountScreen(), SecurityChoice()
 
 ### Community 346 - "deploy docker-compose (5)"
-Cohesion: 0.29
-Nodes (7): environment, image, labels, restart, BACKEND_URL, DATABASE_URL, collaboration
+Cohesion: 0.18
+Nodes (11): depends_on, depends_on, environment, image, labels, restart, postgres, BACKEND_URL (+3 more)
 
 ### Community 347 - "docker-compose.prod (4)"
 Cohesion: 0.29
@@ -1805,13 +1816,13 @@ Nodes (5): api(), cell, engineBtn, file, second
 Cohesion: 0.33
 Nodes (6): CAL_COLORS, choose(), emit, open, props, { t }
 
-### Community 352 - "frontend CourseBadge"
+### Community 352 - "Issue tracker: GitHub"
 Cohesion: 0.29
-Nodes (6): custom, hue, label, { prefs }, props, style
+Nodes (6): Conventions, Issue tracker: GitHub, Pull requests as a triage surface, Wayfinding operations, When a skill says "fetch the relevant ticket", When a skill says "publish to the issue tracker"
 
-### Community 353 - "frontend Input"
-Cohesion: 0.29
-Nodes (6): attrs, el, fieldAttrs, model, props, rootAttrs
+### Community 353 - "vue"
+Cohesion: 0.04
+Nodes (38): borrowed, Crumb, NuxtLink, { sidebarOpen, sidebarCollapsed }, wsId, props, isActive, NuxtLink (+30 more)
 
 ### Community 354 - "frontend useTheme"
 Cohesion: 0.43
@@ -1837,13 +1848,17 @@ Nodes (5): boot(), magics(), post(), queue, run()
 Cohesion: 0.29
 Nodes (6): concurrency, cancel-in-progress, group, name, permissions, contents
 
-### Community 361 - "backend projects"
-Cohesion: 0.40
-Nodes (6): allowed(), Need, Manage, Read, Write, require_ws()
+### Community 360 - "ProjectView.vue"
+Cohesion: 0.29
+Nodes (5): current, failed, props, { t }, text
+
+### Community 361 - "scripts"
+Cohesion: 0.29
+Nodes (7): scripts, build, dev, generate, postinstall, preview, typecheck
 
 ### Community 362 - "deploy docker-compose (6)"
-Cohesion: 0.33
-Nodes (5): image, labels, restart, services, frontend
+Cohesion: 0.18
+Nodes (10): image, labels, restart, volumes, image, labels, restart, services (+2 more)
 
 ### Community 363 - "desktop apt-publish"
 Cohesion: 0.33
@@ -1852,6 +1867,10 @@ Nodes (3): apt-publish-pages.sh script, apt-publish.sh script, apt-repo.sh scrip
 ### Community 364 - "desktop default"
 Cohesion: 0.33
 Nodes (5): description, identifier, permissions, $schema, windows
+
+### Community 365 - "smoke.mjs"
+Cohesion: 0.33
+Nodes (3): base, checks, waitSeconds
 
 ### Community 366 - "docker-compose.prod (5)"
 Cohesion: 0.33
@@ -1865,9 +1884,9 @@ Nodes (3): api(), mk(), paths
 Cohesion: 0.33
 Nodes (4): hover, max, props, RAMP
 
-### Community 369 - "frontend EventDescription"
+### Community 369 - "Domain Docs"
 Cohesion: 0.33
-Nodes (4): { pages, wsId }, Part, parts, props
+Nodes (5): Before exploring, read these, Domain Docs, File structure, Flag ADR conflicts, Use the glossary's vocabulary
 
 ### Community 370 - "frontend Avatar"
 Cohesion: 0.33
@@ -1877,9 +1896,9 @@ Nodes (5): color, failed, initials, PALETTE, props
 Cohesion: 0.60
 Nodes (5): restoreScroll(), saved, saveScroll(), scrollers(), sig()
 
-### Community 372 - "frontend outline"
-Cohesion: 0.53
-Nodes (6): fromOutline(), mapMarks(), para(), text(), textOf(), toOutline()
+### Community 372 - "emit"
+Cohesion: 0.33
+Nodes (6): del(), emit, menuFor(), send(), toggleResolved(), resolve
 
 ### Community 373 - "frontend [board]"
 Cohesion: 0.33
@@ -1890,28 +1909,28 @@ Cohesion: 0.33
 Nodes (6): addAccount(), invalidate, moreItems, openWebmail(), refresh(), removeAccount()
 
 ### Community 375 - "deploy docker-compose (7)"
-Cohesion: 0.40
-Nodes (5): interval, retries, test, timeout, healthcheck
+Cohesion: 0.53
+Nodes (6): interval, retries, test, timeout, healthcheck, healthcheck
 
 ### Community 376 - "docker-compose.prod (6)"
 Cohesion: 0.40
 Nodes (5): interval, retries, test, timeout, healthcheck
 
-### Community 377 - "frontend SidebarItem"
-Cohesion: 0.40
-Nodes (4): isActive, NuxtLink, props, route
+### Community 377 - "parse_prop_request"
+Cohesion: 0.50
+Nodes (5): parse_prop_request(), PropName, PropRequest, All, Names
 
 ### Community 378 - "frontend calendar (3)"
 Cohesion: 0.40
 Nodes (5): push, range, timed(), groups, startOfDay()
 
-### Community 379 - "frontend Button"
+### Community 379 - "Agent skills"
 Cohesion: 0.40
-Nodes (4): iconSize, NuxtLink, props, tag
+Nodes (4): Agent skills, Domain docs, Issue tracker, Triage labels
 
-### Community 380 - "frontend export"
-Cohesion: 0.70
-Nodes (4): download(), exportMarkdown(), htmlToMarkdown(), safe()
+### Community 380 - "7. Recommandation pour Looty (avis, distinct des faits ci-dessus)"
+Cohesion: 0.40
+Nodes (5): 7.1 Ce que Looty fait déjà (constaté dans ce dépôt), 7.2 Conception recommandée : un conteneur d'amorçage avec une clé statique, 7.3 Autres pistes, 7.4 Risques et questions ouvertes, 7. Recommandation pour Looty (avis, distinct des faits ci-dessus)
 
 ### Community 381 - "frontend [board] (2)"
 Cohesion: 0.40
@@ -1938,7 +1957,7 @@ Cohesion: 0.40
 Nodes (5): name, runs-on, strategy, build, fail-fast
 
 ### Community 388 - "deploy caddy-stack"
-Cohesion: 0.83
+Cohesion: 0.60
 Nodes (3): cleanup(), compose(), caddy-stack.sh script
 
 ### Community 389 - "frontend Workspace (3)"
@@ -1985,25 +2004,33 @@ Nodes (3): clickDay(), clickSlot(), newEvent()
 Cohesion: 0.67
 Nodes (3): openConv(), openConvId(), send()
 
+### Community 511 - "copyCell"
+Cohesion: 0.40
+Nodes (5): copyCell(), dropCell(), duplicate(), moveAt(), moveTo()
+
+### Community 512 - "pocket-id-init.sh"
+Cohesion: 0.83
+Nodes (3): api(), fail(), pocket-id-init.sh script
+
 ## Knowledge Gaps
-- **77 isolated node(s):** `NotLooty`, `Unreachable`, `ASSIGNED`, `MENTION`, `COMMENT` (+72 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 4347 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **131 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **77 isolated node(s):** `NotLooty`, `Unreachable`, `Hint`, `ADR-0006`, `Conflict` (+72 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 4467 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **142 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `lucide-vue-next` connect `Offline & Android Banners` to `Frontend Dependencies & Code Editor`, `Frontend Layout Components`, `Frontend API Composable`, `Notebook Editor UI`, `Project Workspace UI`, `App Shell & Demo Banner`, `Doc Page View`, `Excalidraw Canvas Board`, `Dashboard Widgets`, `Task Panel UI`, `Mail Page UI`, `Moodle Page UI`, `Calendar Page UI`, `Drive Page UI`, `Dashboard Layout Composable`, `Board Page UI`, `frontend BoardBlockView`, `frontend EventDialog`, `frontend CreateDialog`, `frontend Members`, `frontend Sidebar`, `frontend Calendars`, `frontend Panel`, `frontend EventPlanning`, `frontend PageMentionView`, `frontend Courses`, `frontend workspace`, `frontend Reader`, `frontend Cell`, `frontend EngineDialog`, `frontend useReleases`, `frontend CommandPalette`, `frontend Compose`, `frontend NewMenu`, `frontend Pdf`, `frontend announcements`, `frontend ShareDialog`, `frontend PageTreeItem`, `frontend Activity`, `frontend Card`, `frontend Workspace`, `frontend Timeline`, `frontend InsertDialog`, `frontend Attachments`, `frontend graph`, `frontend projects/index`, `frontend CalendarFeeds`, `frontend Notifications`, `frontend my-tasks`, `frontend WorkspaceMenu`, `frontend Course`, `frontend SidebarCustomize`, `frontend Bubble`, `frontend CalendarView`, `frontend Kanban`, `frontend SettingsDialog`, `frontend HistoryDialog`, `frontend AgendaBlockView`, `frontend Lite`, `frontend BlockHandle`, `frontend Toolbar`, `frontend IconPicker`, `frontend ImportDialog`, `frontend MathBlockView`, `frontend Roles`, `frontend ExportDialog`, `frontend ClassLinkDialog`, `frontend Preferences`, `frontend MemberCard`, `frontend MoveDialog`, `frontend ActivityChart`, `frontend CalDavServer`, `frontend Groups`, `frontend DatePicker`, `frontend docs`, `frontend Keywords`, `frontend ListView`, `frontend Preview`, `frontend AdminStorage`, `frontend AdminUsers`, `frontend Security`, `frontend Combobox`, `frontend activity`, `frontend SplitPane`, `frontend TabBar`, `frontend AddDialog`, `frontend RecipientInput`, `frontend AdminAuth`, `frontend AdminEmail`, `frontend Insights`, `frontend Notepad`, `frontend LatexPreamble`, `frontend EventPicker`, `frontend login`, `frontend inbox`, `frontend trash`, `frontend Poll`, `frontend UpdateBanner`, `frontend Card (2)`, `frontend RelatedPanel`, `frontend Profile`, `frontend PublicLinks`, `frontend EditToggle`, `frontend GridPanel`, `frontend QuickAdd`, `frontend FileTree`, `frontend Board`, `frontend CourseItem`, `frontend Deadlines`, `frontend AdminInstance`, `frontend Toaster`, `frontend pages/index`, `frontend WorkOnDialog`, `frontend Subtasks`, `frontend Dialog`, `frontend TabItem`, `frontend settings`, `frontend [token]`, `frontend whats-new`, `frontend Customize`, `frontend Guest`, `frontend ColorPicker`, `frontend EventDescription`?**
-  _High betweenness centrality (0.047) - this node is a cross-community bridge._
+- **Why does `Publishing a version` connect `Looty desktop (Linux and Windows)` to `scripts release-plan`?**
+  _High betweenness centrality (0.412) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `AppState` (e.g. with `app()` and `DemoLimits`) actually correct?**
   _`AppState` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `NotLooty`, `Unreachable`, `ASSIGNED` to the rest of the system?**
-  _77 weakly-connected nodes found - possible missing edges._
+- **What connects `NotLooty`, `Unreachable`, `Hint` to the rest of the system?**
+  _77 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Android Board Models` be split into smaller, more focused modules?**
-  _Cohesion score 0.03878094009513827 - nodes in this community are weakly interconnected._
-- **Why does `AppState` connect `Backend Moodle Integration` to `Backend Mail Client`, `Backend Access Control`, `Backend CalDAV Server`, `Backend Board & Tasks`, `backend releases`, `Backend Admin API`, `backend graph`, `backend latex`, `backend moodle_cache`, `Backend Projects`, `Backend Workspace & Auth User`, `Backend Jupyter Proxy`, `Backend Backups`, `backend caldav (2)`, `Backend Announcements`, `Backend OIDC Auth`, `backend demo (2)`, `backend src/main`, `backend notifications`, `Backend Drive`, `Backend Activity Feed`, `Backend Calendars`, `backend revisions`, `backend planning`, `backend roles`, `backend personal`, `backend caldav`, `backend ws`, `backend ics_feed`, `backend demo`, `backend events`, `backend delivery`, `backend mail`, `backend comments`, `backend moodle_content`, `backend prefs`, `backend demo_mode`, `backend state`, `backend push`, `backend trash`, `backend projects`, `backend demo_mode (2)`, `backend events (2)`, `backend classes`, `backend groups`, `backend user_settings`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
+  _Cohesion score 0.042193548387096776 - nodes in this community are weakly interconnected._
+- **Why does `Building by hand` connect `scripts release-plan` to `Looty desktop (Linux and Windows)`?**
+  _High betweenness centrality (0.411) - this node is a cross-community bridge._
 - **Should `Frontend Dependencies & Code Editor` be split into smaller, more focused modules?**
-  _Cohesion score 0.018858560794044667 - nodes in this community are weakly interconnected._
-- **Why does `ApiResult` connect `backend personal` to `Backend Mail Client`, `Backend Access Control`, `Backend CalDAV Server`, `Backend Board & Tasks`, `backend releases`, `Backend Admin API`, `Backend Moodle Integration`, `backend graph`, `backend latex`, `backend moodle_cache`, `Backend Projects`, `Backend Workspace & Auth User`, `Backend Jupyter Proxy`, `Backend Backups`, `backend caldav (2)`, `Backend Announcements`, `Backend OIDC Auth`, `backend calendar`, `backend notifications`, `Backend Drive`, `Backend Activity Feed`, `Backend Calendars`, `backend revisions`, `backend planning`, `backend roles`, `backend caldav`, `backend ws`, `backend error`, `backend events`, `backend delivery`, `backend mail`, `backend comments`, `backend moodle_content`, `backend prefs`, `backend public_project`, `backend push`, `backend trash`, `backend projects`, `backend events (2)`, `backend board_export`, `backend classes`, `backend groups`, `backend user_settings`?**
-  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+  _Cohesion score 0.01825527457728565 - nodes in this community are weakly interconnected._
+- **Should `Backend Mail Client` be split into smaller, more focused modules?**
+  _Cohesion score 0.039253539253539256 - nodes in this community are weakly interconnected._
