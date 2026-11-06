@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { workspacePreamble } from '~/editor/mathScope'
+import { setDiagramStyleSettings, type DiagramStyleSettings } from '~/editor/diagramStyles'
 import { FileQuestion } from 'lucide-vue-next'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
@@ -12,7 +13,7 @@ import { publicProject, type PublicProjectSummary } from '~/composables/useProje
  */
 const route = useRoute()
 const { t } = useI18n()
-const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string; latex_preamble?: string; project?: PublicProjectSummary | null } | null>(null)
+const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string; latex_preamble?: string; diagram_styles?: DiagramStyleSettings; project?: PublicProjectSummary | null } | null>(null)
 const project = computed(() => publicProject(String(route.params.token), page.value?.project))
 const missing = ref(false)
 
@@ -21,6 +22,7 @@ onMounted(async () => {
     page.value = await api(`/api/public/pages/${route.params.token}`, { silent: true })
     // Macros LaTeX de l'espace : mêmes formules que dans l'application.
     workspacePreamble.value = page.value?.latex_preamble ?? ''
+    setDiagramStyleSettings(page.value?.diagram_styles)
   } catch {
     missing.value = true
   }
