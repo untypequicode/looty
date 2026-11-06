@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LogIn, Sparkles } from 'lucide-vue-next'
 import gsap from 'gsap'
-import { api } from '~/composables/api'
+import { api, errorMessage } from '~/composables/api'
 import { useI18n, currentLocale } from '~/composables/useI18n'
 import { useDemo } from '~/composables/useDemo'
 import { useQuery } from '@tanstack/vue-query'
@@ -19,8 +19,11 @@ const providers = ref<{ id: string; name: string }[]>([])
 const loading = ref(true)
 const redirecting = ref<string | null>(null)
 const card = ref<HTMLElement | null>(null)
+// Échec avant de quitter Looty (fournisseur injoignable, par exemple) : affiché dans la carte, pas en notification.
+const loginError = ref('')
 
 const error = computed(() => {
+  if (loginError.value) return loginError.value
   const e = route.query.error as string | undefined
   if (!e) return ''
   const key = `auth.errors.${e}`
@@ -40,11 +43,13 @@ onMounted(async () => {
 
 async function login(id: string) {
   redirecting.value = id
+  loginError.value = ''
   try {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    const { url } = await api<{ url: string }>(`/api/auth/login/${id}?redirect=${encodeURIComponent(redirect)}`)
+    const { url } = await api<{ url: string }>(`/api/auth/login/${id}?redirect=${encodeURIComponent(redirect)}`, { silent: true })
     window.location.href = url
-  } catch {
+  } catch (e) {
+    loginError.value = errorMessage(e)
     redirecting.value = null
   }
 }

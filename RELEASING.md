@@ -22,7 +22,7 @@ after the next green CI on `main`, or by hand.
 
 | Platform | Version to bump | Built and published |
 |---|---|---|
-| web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has `docker-compose.yml` (behind Traefik) and `docker-compose.caddy.yml` with its `Caddyfile` (Caddy included), rendered from `deploy/templates/` with images pinned to that version |
+| web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has `docker-compose.yml` (behind Traefik) and `docker-compose.caddy.yml` with its `Caddyfile` (Caddy included), the same two with the bundled Pocket ID (`docker-compose.pocket-id.yml`, `docker-compose.caddy.pocket-id.yml`, `Caddyfile.pocket-id`, `pocket-id-init.sh`), rendered from `deploy/templates/` with images pinned to that version |
 | desktop | `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` | `.deb` (Debian 12 / Ubuntu 22.04+, install-tested on a clean Debian) and the Windows installer (`*-setup.exe`, unsigned); Nix package pushed to the binary cache for x86_64 and aarch64 |
 | android | `versionName` and `versionCode` in `android/app/build.gradle.kts` | APK, signed when the keystore secrets are set (otherwise a debug APK) |
 
