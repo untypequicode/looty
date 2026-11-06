@@ -111,7 +111,7 @@ Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 a
 4. **Right away**, open `https://auth.<domain>/setup` and create your account, **with your email address** (Looty needs it), then add a passkey. Until this account exists, whoever opens that page first becomes the Pocket ID administrator.
 5. Sign in to Looty with « Continuer avec SSO »: as the first account, you are Looty's administrator. Add other people in Pocket ID (Administration > Users).
 
-Behind Traefik, Looty reaches `https://auth.<domain>` through the server's public address: the server must be able to reach its own domain (with Caddy, the compose file routes this internally). `POCKET_ID_STATIC_API_KEY` is an admin key for Pocket ID: once the client exists you may remove it from `.env` (`pocket-id-init` then does nothing). A provider whose certificate comes from an internal authority needs `OIDC_CA_FILE` (PEM file, mounted into the backend).
+Behind Traefik, Looty reaches `https://auth.<domain>` through the host (`extra_hosts: host-gateway` in the compose file): Traefik must listen on port 443 of the host (with Caddy, the compose file routes this internally). `POCKET_ID_STATIC_API_KEY` is an admin key for Pocket ID: once the client exists you may remove it from `.env` (`pocket-id-init` then does nothing). A provider whose certificate comes from an internal authority needs `OIDC_CA_FILE` (PEM file, mounted into the backend).
 
 **If the automatic setup fails** (Looty's sign-in page says the provider can't be reached or rejected Looty, or `pocket-id-init` exited with an error), read `docker compose logs pocket-id-init backend`, fix the cause and run `docker compose up -d` again. Or create the client by hand, as for any provider:
 

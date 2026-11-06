@@ -56,6 +56,8 @@ jobs:
     name: Caddy and Traefik stacks
     needs: templates
     runs-on: ubuntu-24.04
+    env:
+      LOOTY_VERSION: ci
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -91,16 +93,10 @@ jobs:
           cache-from: type=gha,scope=collaboration-amd64
       # API, interface, découverte CalDAV, /collab et sa WebSocket, à travers Caddy.
       - run: sh deploy/test/stack.sh caddy
-        env:
-          LOOTY_VERSION: ci
       # Avec le Pocket ID inclus : client créé par pocket-id-init, premier compte, connexion OIDC jusqu'à Looty.
       - run: sh deploy/test/stack.sh caddy pocket-id
-        env:
-          LOOTY_VERSION: ci
-      # Les mêmes vérifications derrière un Traefik ajouté par le test (routage par les étiquettes du compose).
+      # Les mêmes vérifications derrière un Traefik à part (son propre projet compose, branché sur le réseau de la
+      # pile) : routage par les étiquettes du compose.
       - run: sh deploy/test/stack.sh traefik
-        env:
-          LOOTY_VERSION: ci
+      # Avec le Pocket ID inclus : Looty joint auth.localhost par l'hôte (extra_hosts du compose rendu).
       - run: sh deploy/test/stack.sh traefik pocket-id
-        env:
-          LOOTY_VERSION: ci

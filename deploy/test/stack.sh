@@ -25,13 +25,18 @@ case $option in '' | pocket-id) ;; *) usage ;; esac
 dir=$(mktemp -d)
 project=looty-$proxy-test
 
+# Réglages propres au test (AC à accepter par Looty), ajoutés au compose rendu ; vide s'il n'y en a pas.
+override=
 compose() {
-	if [ -f "$dir/test.override.yml" ]; then
-		docker compose -p "$project" -f "$dir/docker-compose.yml" -f "$dir/test.override.yml" "$@"
+	if [ -n "$override" ]; then
+		docker compose -p "$project" -f "$dir/docker-compose.yml" -f "$override" "$@"
 	else
 		docker compose -p "$project" -f "$dir/docker-compose.yml" "$@"
 	fi
 }
+
+# Avec traefik : le Traefik « déjà en place » chez la personne, dans son propre projet compose.
+traefik() { docker compose -p "$project-proxy" -f "$dir/traefik/docker-compose.yml" "$@"; }
 
 cleanup() {
 	status=$?
@@ -39,7 +44,10 @@ cleanup() {
 	trap - EXIT INT TERM
 	if [ "$status" -ne 0 ]; then
 		compose logs --tail 80 || true
+		[ "$proxy" != traefik ] || traefik logs --tail 40 || true
 	fi
+	# Traefik d'abord : branché sur le réseau de la pile, il empêcherait de le supprimer.
+	[ "$proxy" != traefik ] || traefik down -v --remove-orphans || true
 	compose down -v --remove-orphans || true
 	# Les données (PostgreSQL, Caddy, fichiers envoyés) appartiennent à root : les supprimer depuis un conteneur.
 	docker run --rm -v "$dir":/d alpine rm -rf /d/data /d/backend || true
@@ -93,7 +101,8 @@ if [ "$proxy" = traefik ]; then
 		-CAcreateserial -days 1 -extfile "$dir/certs/san.ext" -out "$dir/certs/localhost.crt" 2> /dev/null
 	chmod 644 "$dir/certs/"*
 	cp "$dir/certs/ca.crt" "$dir/root.crt"
-	cat > "$dir/tls.yml" <<'YAML'
+	mkdir "$dir/traefik"
+	cat > "$dir/traefik/tls.yml" <<'YAML'
 tls:
   stores:
     default:
@@ -101,9 +110,9 @@ tls:
         certFile: /certs/localhost.crt
         keyFile: /certs/localhost.key
 YAML
-	# Le Traefik « déjà en place » : routeurs des étiquettes servis sur l'entrée HTTPS (TLS au niveau de l'entrée,
-	# comme le supposent les étiquettes), limité aux conteneurs de cette pile.
-	cat > "$dir/test.override.yml" <<YAML
+	# Le Traefik « déjà en place », hors de la pile : routeurs des étiquettes servis sur l'entrée HTTPS (TLS au niveau
+	# de l'entrée, comme le supposent les étiquettes), limité aux conteneurs de cette pile, ports 80 et 443 de l'hôte.
+	cat > "$dir/traefik/docker-compose.yml" <<YAML
 services:
   traefik:
     image: traefik:v3.6
@@ -121,16 +130,14 @@ services:
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./certs:/certs:ro
+      - ../certs:/certs:ro
       - ./tls.yml:/etc/traefik/tls.yml:ro
 YAML
 	if [ -n "$option" ]; then
-		# Le serveur joint son propre domaine (README) : ici, auth.localhost mène à Traefik sur le réseau Docker.
-		cat >> "$dir/test.override.yml" <<'YAML'
-    networks:
-      default:
-        aliases:
-          - auth.localhost
+		# Propre au test : le certificat de auth.localhost vient de l'AC du test, que Looty doit accepter.
+		override=$dir/test.override.yml
+		cat > "$override" <<'YAML'
+services:
   backend:
     environment:
       OIDC_CA_FILE: /certs/ca.crt
@@ -140,7 +147,8 @@ YAML
 	fi
 elif [ -n "$option" ]; then
 	# Propre au test : le certificat de auth.localhost vient de l'AC interne de Caddy, que Looty doit accepter.
-	cat > "$dir/test.override.yml" <<'YAML'
+	override=$dir/test.override.yml
+	cat > "$override" <<'YAML'
 services:
   backend:
     environment:
@@ -151,6 +159,12 @@ YAML
 fi
 
 compose up -d
+
+if [ "$proxy" = traefik ]; then
+	# Comme chez la personne : Traefik branché sur le réseau de la pile, qui n'en sait rien.
+	traefik up -d
+	docker network connect "${project}_default" "$(traefik ps -q traefik)"
+fi
 
 if [ "$proxy" = caddy ]; then
 	# Caddy crée la racine de son AC interne au premier certificat pour « localhost ».
