@@ -194,13 +194,14 @@ jobs:
             node scripts/release-notes.mjs web "$WEB" > out/web/notes.md
             # Fichiers d'installation (deploy/templates) avec les images de cette version : derrière Traefik
             # (docker-compose.yml, comme avant) ou avec Caddy inclus (docker-compose.caddy.yml et son Caddyfile).
-            sh deploy/render.sh traefik /tmp/traefik
-            sh deploy/render.sh caddy /tmp/caddy
+            rendered=$(mktemp -d)
+            sh deploy/render.sh traefik "$rendered/traefik"
+            sh deploy/render.sh caddy "$rendered/caddy"
             pin() { sed "s/\${LOOTY_VERSION:-latest}/\${LOOTY_VERSION:-$WEB}/" "$1"; }
-            pin /tmp/traefik/docker-compose.yml > out/web/docker-compose.yml
-            pin /tmp/caddy/docker-compose.yml > out/web/docker-compose.caddy.yml
-            cp /tmp/caddy/Caddyfile out/web/Caddyfile
-            grep -q "looty-backend:\${LOOTY_VERSION:-$WEB}" out/web/docker-compose.caddy.yml
+            pin "$rendered/traefik/docker-compose.yml" > out/web/docker-compose.yml
+            pin "$rendered/caddy/docker-compose.yml" > out/web/docker-compose.caddy.yml
+            cp "$rendered/caddy/Caddyfile" out/web/Caddyfile
+            for f in out/web/docker-compose.yml out/web/docker-compose.caddy.yml; do grep -q "looty-backend:\${LOOTY_VERSION:-$WEB}" "$f"; done
           fi
           if [ -n "$DESKTOP" ]; then
             node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md

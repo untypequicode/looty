@@ -25,6 +25,7 @@ templates=$(dirname "$0")/templates
 mkdir -p "$out"
 
 for template in "$templates"/*; do
+	[ -f "$template" ] || continue
 	name=$(basename "$template")
 	tmp="$out/.$name.tmp"
 	awk -v proxy="$proxy" -v file="$name" '

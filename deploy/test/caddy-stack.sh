@@ -16,6 +16,8 @@ compose() {
 
 cleanup() {
 	status=$?
+	# Une seule fois (EXIT suit INT et TERM) : un second passage recréerait $dir en root avec docker run.
+	trap - EXIT INT TERM
 	if [ "$status" -ne 0 ]; then
 		compose logs --tail 80 || true
 	fi

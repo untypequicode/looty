@@ -116,8 +116,8 @@ workflow (run it by hand with `force` to rebuild one).
 | **Nix cache** | pull requests and `main` touching `desktop/` or the flake | desktop package and dev shells for x86_64 and aarch64, pushed and pinned in Cachix from `main` |
 | **Nix cache check** | after **Nix cache** on `main`, called by Release (when Nix cache did not run on that commit), every Monday, by hand | builds everything from the cache only; opens an issue if something would be compiled |
 | **Site** | `site/` changes, tags `site-v*` | site tests and its Docker image |
-| **Self-host** | changes to `deploy/`, `docker-compose.prod.yml` or a Dockerfile | renders the install templates (Caddy and Traefik), then starts the Caddy stack built from the commit and checks the API, CalDAV discovery, `/collab` and its WebSocket |
 | **Site sync** | by hand | refills the download site from the latest GitHub releases |
+| **Self-host** | changes to `deploy/`, `docker-compose.prod.yml` or a Dockerfile | renders the install templates (Caddy and Traefik), then starts the Caddy stack built from the commit and checks the API, CalDAV discovery, `/collab` and its WebSocket |
 
 ## Windows automatic updates
 

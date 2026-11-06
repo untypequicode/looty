@@ -8,19 +8,24 @@ on:
     paths:
       - 'deploy/**'
       - 'docker-compose.prod.yml'
-      - '*/Dockerfile'
+      - 'backend/Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'collaboration/Dockerfile'
       - '.github/workflows/self-host.yml'
   pull_request:
     paths:
       - 'deploy/**'
       - 'docker-compose.prod.yml'
-      - '*/Dockerfile'
+      - 'backend/Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'collaboration/Dockerfile'
       - '.github/workflows/self-host.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Pull request : un nouveau push annule le run précédent. Ailleurs : groupe propre à chaque run.
 concurrency:
   group: self-host-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true

@@ -1,19 +1,26 @@
 // Rendu des modèles d'installation (deploy/render.sh), tel que l'utilisent la release, install.sh et le générateur.
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const dirs = []
+after(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })))
+
+function tempDir() {
+  const dir = mkdtempSync(join(tmpdir(), 'looty-render-'))
+  dirs.push(dir)
+  return dir
+}
 
 function render(proxy) {
-  const out = mkdtempSync(join(tmpdir(), 'looty-render-'))
+  const out = tempDir()
   execFileSync('sh', [join(root, 'deploy/render.sh'), proxy, out], { stdio: 'pipe' })
-  const files = Object.fromEntries(readdirSync(out).sort().map((f) => [f, readFileSync(join(out, f), 'utf8')]))
-  return files
+  return Object.fromEntries(readdirSync(out).sort().map((f) => [f, readFileSync(join(out, f), 'utf8')]))
 }
 
 test('caddy: a compose file with Caddy in front, and its Caddyfile', () => {
@@ -26,7 +33,7 @@ test('caddy: a compose file with Caddy in front, and its Caddyfile', () => {
 })
 
 test('an unknown proxy is refused, nothing is written', () => {
-  const out = mkdtempSync(join(tmpdir(), 'looty-render-'))
+  const out = tempDir()
   assert.throws(() => execFileSync('sh', [join(root, 'deploy/render.sh'), 'nginx', out], { stdio: 'pipe' }), { status: 2 })
   assert.deepEqual(readdirSync(out), [])
 })

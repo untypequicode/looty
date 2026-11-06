@@ -50,6 +50,8 @@ const checks = {
     assert.match(await res.text(), /Hocuspocus/)
   },
 
+  // Le proxy laisse passer la montée en WebSocket. Le frontend relaie lui aussi /collab : le routage
+  // vers la collaboration est prouvé par la vérification HTTP ci-dessus, pas par celle-ci.
   async 'WebSocket to /collab'() {
     const url = new URL('/collab', base)
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
