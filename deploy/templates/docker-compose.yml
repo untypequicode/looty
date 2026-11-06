@@ -1,0 +1,116 @@
+# Installation de Looty (https://github.com/untypequicode/looty). Les réglages de l'instance sont dans .env.
+# Produit par deploy/render.sh à partir de deploy/templates/docker-compose.yml : modifier le modèle, pas ce fichier.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-looty_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      # Les données sont dans le dossier ./data/postgres (à côté de ce fichier) ; LOOTY_DB_DATA=/chemin/absolu les place ailleurs.
+      # Depuis la 0.30 : plus de volume nommé. Si Looty tourne déjà avec le volume postgres_data_18, déplacez-le (README, « Move the database »).
+      - ${LOOTY_DB_DATA:-./data/postgres}:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-looty_db}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/untypequicode/looty-backend:${LOOTY_VERSION:-latest}
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+      # Clé de chiffrement des mots de passe CalDAV (recommandé ; sinon générée dans uploads/.secret.key)
+      LOOTY_SECRET_KEY: ${LOOTY_SECRET_KEY:-}
+      # Autorise les serveurs CalDAV sur le réseau local / http (ex. Nextcloud interne)
+      CALDAV_ALLOW_PRIVATE: ${CALDAV_ALLOW_PRIVATE:-false}
+      # Autorise les serveurs Jupyter des notebooks sur le réseau local / http
+      JUPYTER_ALLOW_PRIVATE: ${JUPYTER_ALLOW_PRIVATE:-false}
+      # Démo publique : voir .env.example (jamais sur une vraie instance).
+      LOOTY_DEMO: ${LOOTY_DEMO:-false}
+      LOOTY_DEMO_MAX_COPIES: ${LOOTY_DEMO_MAX_COPIES:-30}
+      LOOTY_DEMO_COPIES_PER_IP_HOUR: ${LOOTY_DEMO_COPIES_PER_IP_HOUR:-5}
+      LOOTY_DEMO_MAX_FILE_MB: ${LOOTY_DEMO_MAX_FILE_MB:-2}
+      LOOTY_DEMO_MAX_COPY_MB: ${LOOTY_DEMO_MAX_COPY_MB:-20}
+      # E-mails : à configurer dans Administration > E-mail, ou ici (repli).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      PORT: 8080
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+#@if traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/pages`) || PathPrefix(`/dav`) || Path(`/.well-known/caldav`))"
+      - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
+#@end
+    restart: unless-stopped
+
+  collaboration:
+    image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
+      BACKEND_URL: http://backend:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+#@if traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-collab.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/collab`)"
+      - "traefik.http.middlewares.${APP_NAME}-collab-strip.stripprefix.prefixes=/collab"
+      - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
+      - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
+#@end
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
+#@if traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
+#@end
+    restart: unless-stopped
+#@if caddy
+
+  # HTTPS automatique (Let's Encrypt) pour APP_DOMAIN ; le routage est dans le Caddyfile, à côté de ce fichier.
+  # Les certificats sont gardés dans ./data/caddy. Les ports 80 et 443 de l'hôte doivent être libres.
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./data/caddy-config:/config
+    depends_on:
+      - backend
+      - collaboration
+      - frontend
+    restart: unless-stopped
+#@end

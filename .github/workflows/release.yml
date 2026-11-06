@@ -1,7 +1,8 @@
 # Publication automatique : après chaque run « CI » réussi d'un push sur main, chaque plateforme dont la dernière
 # version de backend/releases.json n'a pas encore de tag (<plateforme>-v<version>) est
 # construite puis publiée sur GitHub :
-#   web      → images Docker (amd64 + arm64) sur ghcr.io, docker-compose.yml épinglé
+#   web      → images Docker (amd64 + arm64) sur ghcr.io, docker-compose.yml (Traefik) et
+#              docker-compose.caddy.yml + Caddyfile épinglés
 #   desktop  → paquet .deb et installateur Windows ; le paquet Nix est épinglé dans le cache binaire
 #              puis vérifié (job nix-pin, workflow « Nix cache check »)
 #   android  → APK
@@ -191,8 +192,15 @@ jobs:
           mkdir -p out/web out/desktop out/android
           if [ -n "$WEB" ]; then
             node scripts/release-notes.mjs web "$WEB" > out/web/notes.md
-            # Compose de production avec les images de cette version.
-            sed "s/\${LOOTY_VERSION:-latest}/\${LOOTY_VERSION:-$WEB}/" docker-compose.prod.yml > out/web/docker-compose.yml
+            # Fichiers d'installation (deploy/templates) avec les images de cette version : derrière Traefik
+            # (docker-compose.yml, comme avant) ou avec Caddy inclus (docker-compose.caddy.yml et son Caddyfile).
+            sh deploy/render.sh traefik /tmp/traefik
+            sh deploy/render.sh caddy /tmp/caddy
+            pin() { sed "s/\${LOOTY_VERSION:-latest}/\${LOOTY_VERSION:-$WEB}/" "$1"; }
+            pin /tmp/traefik/docker-compose.yml > out/web/docker-compose.yml
+            pin /tmp/caddy/docker-compose.yml > out/web/docker-compose.caddy.yml
+            cp /tmp/caddy/Caddyfile out/web/Caddyfile
+            grep -q "looty-backend:\${LOOTY_VERSION:-$WEB}" out/web/docker-compose.caddy.yml
           fi
           if [ -n "$DESKTOP" ]; then
             node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md
@@ -217,7 +225,10 @@ jobs:
           target_commitish: ${{ needs.plan.outputs.sha }}
           name: Looty ${{ needs.plan.outputs.web }}
           body_path: out/web/notes.md
-          files: out/web/docker-compose.yml
+          files: |
+            out/web/docker-compose.yml
+            out/web/docker-compose.caddy.yml
+            out/web/Caddyfile
           make_latest: true
       - name: Desktop release
         if: needs.plan.outputs.desktop != ''
