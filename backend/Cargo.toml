@@ -46,3 +46,11 @@ async-native-tls = { version = "0.6", default-features = false, features = ["run
 mail-parser = "0.11"
 tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
+
+# Dev builds: less debug info = much smaller target/ (it had grown to 33 GB).
+# Backtraces still have file:line; dependencies carry no debug info.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
