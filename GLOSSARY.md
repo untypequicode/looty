@@ -150,3 +150,25 @@ _Avoid_: tâche répétée, routine, modèle
 **Occurrence suivante**:
 Copie d'une tâche récurrente créée à sa fin : même tableau, contenu, étiquettes et personnes, dates décalées d'autant de périodes qu'il faut pour tomber dans le futur. Une seule par tâche.
 _Avoid_: clone, duplicata
+
+## Pages
+
+**Diagramme**:
+Bloc d'une page qui dessine un schéma à partir d'une description écrite (organigramme, séquence, gantt…), disposé automatiquement. Son style peut suivre le style par défaut de l'espace ou en être fixé un autre.
+_Avoid_: graphe (réservé au bloc graphe), schéma, Mermaid (nom de l'outil)
+
+**Bloc graphe**:
+Bloc d'une page qui montre un graphe au sens mathématique : des nœuds et des arcs, orientés ou non, portant des étiquettes (poids, flot, capacité), que l'on place à la main ou dispose automatiquement, et dont certains éléments peuvent être mis en avant (chemin, coupe). À ne pas confondre avec le graphe de l'espace, qui relie les pages, tâches et tableaux.
+_Avoid_: graphe (seul), réseau, diagramme
+
+**Style de diagramme**:
+Apparence nommée d'un diagramme ou d'un bloc graphe, appliquée d'un clic : couleurs en thème clair et sombre, aspect net ou croquis, disposition, forme des nœuds, police. Le sens de lecture et les formes écrites dans la description en font partie, pas du style. Une description qui fixe elle-même son apparence garde la priorité.
+_Avoid_: thème (seul), skin, mise en forme
+
+**Style par défaut de l'espace**:
+Style de diagramme que suivent tous les diagrammes et blocs graphe de l'espace qui n'en ont pas fixé un autre ; le changer les modifie tous.
+_Avoid_: thème de l'espace, style global
+
+**Dessin**:
+Bloc d'une page où l'on dessine à main levée, formes et flèches libres, sans description écrite derrière.
+_Avoid_: diagramme, croquis, Excalidraw (nom de l'outil)

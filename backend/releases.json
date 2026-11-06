@@ -3,6 +3,29 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.33.0",
+      "date": "2026-11-06",
+      "title": {
+        "en": "Graph blocks, diagram styles and readable diagrams",
+        "fr": "Blocs graphe, styles de diagramme et diagrammes lisibles"
+      },
+      "notes": {
+        "en": [
+          "**Graph block** (`/graph`): draw graphs with the mouse. Double-click to add a node, **Connect** to link two nodes, double-click a node or an edge to write its label (weight, flow `3/5`…), drag to move. **Directed** / **Undirected**, **Highlight** a path or a cut, **Arrange** in layers, as a tree, a circle, a grid or freely. The **code** view shows one line per node or edge (`s -> t : 3/5`), editable by hand.",
+          "**Diagram styles**: pick the look of a Mermaid diagram or a graph block in one click from its bar (Looty, Plain, High contrast, Sketch, Colorful, Print). **Settings → General → Diagram styles** sets the workspace default style and creates custom styles (colors for light and dark themes, sketch look, layout, node shape, font) with a live preview.",
+          "Mermaid diagrams are no longer shrunk: they keep their natural size, and **full screen** opens them with zoom and pan.",
+          "Tabs opened before this update must be reloaded to edit pages."
+        ],
+        "fr": [
+          "**Bloc graphe** (`/graphe`) : dessinez vos graphes à la souris. Double-clic pour ajouter un nœud, **Relier** pour joindre deux nœuds, double-clic sur un nœud ou un arc pour écrire son étiquette (poids, flot `3/5`…), glisser pour déplacer. **Orienté** / **Non orienté**, **Mettre en avant** un chemin ou une coupe, **Disposer** en couches, en arbre, en cercle, en grille ou librement. La vue **code** montre une ligne par nœud ou arc (`s -> t : 3/5`), modifiable à la main.",
+          "**Styles de diagramme** : choisissez d’un clic l’apparence d’un diagramme Mermaid ou d’un bloc graphe depuis sa barre (Looty, Sobre, Contraste, Croquis, Coloré, Impression). **Réglages → Général → Styles de diagramme** fixe le style par défaut de l’espace et crée des styles personnalisés (couleurs en thème clair et sombre, aspect croquis, disposition, forme des nœuds, police) avec un aperçu en direct.",
+          "Les diagrammes Mermaid ne sont plus rétrécis : ils gardent leur taille, et le **plein écran** les ouvre avec zoom et déplacement.",
+          "Les onglets ouverts avant cette mise à jour doivent être rechargés pour modifier les pages."
+        ]
+      }
+    },
+    {
       "platform": "android",
       "version": "0.26.0",
       "date": "2026-11-06",

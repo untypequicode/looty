@@ -39,6 +39,8 @@ const slugify = (s: string) => (s || 'untitled').normalize('NFKD').replace(/[̀-
 const urlIdOf = (id: string) => id.replace(/-/g, '').slice(0, 10)
 const textOf = (n?: PM): string => (n?.text ?? '') + (n?.content ?? []).map(textOf).join('')
 const MERMAID = ['mermaid', 'mermaidjs']
+/** Bloc graphe de Looty, échangé comme bloc de code (Markdown, Outline). */
+const GRAPH_LANG = 'looty-graph'
 
 // ---------------------------------------------------------------------------
 // Conversion de schéma ProseMirror : Looty <-> Outline
@@ -75,6 +77,7 @@ export function toOutline(node: PM, url: UrlMap = (u) => u): PM {
     case 'taskItem': return { type: 'checkbox_item', attrs: { checked: !!a.checked }, content: kids() }
     case 'codeBlock': return { type: 'code_block', attrs: { language: a.language || 'none' }, content: textOf(node) ? [text(textOf(node))] : [] }
     case 'mermaid': { const code = textOf(node) || a.code; return { type: 'code_block', attrs: { language: 'mermaidjs' }, content: code ? [text(code)] : [] } }
+    case 'graph': return { type: 'code_block', attrs: { language: GRAPH_LANG }, content: textOf(node) ? [text(textOf(node))] : [] }
     case 'excalidraw': return { type: 'code_block', attrs: { language: 'excalidraw' }, content: a.scene ? [text(a.scene)] : [] }
     case 'horizontalRule': return { type: 'horizontal_rule' }
     case 'hardBreak': return { type: 'br' }
@@ -118,6 +121,7 @@ export function fromOutline(node: PM, url: UrlMap = (u) => u): PM[] {
       const lang = String(a.language ?? '').toLowerCase()
       const code = textOf(node)
       if (MERMAID.includes(lang)) return [{ type: 'mermaid', content: sourceJSON(code) }]
+      if (lang === GRAPH_LANG) return [{ type: 'graph', content: sourceJSON(code) }]
       if (lang === 'excalidraw') return [{ type: 'excalidraw', attrs: { scene: code } }]
       if (lang === 'math' || lang === 'latex') return [{ type: 'mathBlock', content: sourceJSON(code) }]
       return [{ type: 'codeBlock', attrs: { language: lang && lang !== 'none' ? lang : null }, content: code ? [text(code)] : [] }]
@@ -382,6 +386,7 @@ marked.use({
       const l = (lang ?? '').trim().toLowerCase()
       if (MERMAID.includes(l)) return `<div data-type="mermaid"><pre>${escapeAttr(code)}</pre></div>`
       if (l === 'math' || l === 'latex') return `<div data-type="math-block" latex="${escapeAttr(code)}"></div>`
+      if (l === GRAPH_LANG) return `<div data-type="graph"><pre>${escapeAttr(code)}</pre></div>`
       if (l === 'excalidraw') return `<div data-type="excalidraw" data-scene="${escapeAttr(code)}"></div>`
       return false
     },

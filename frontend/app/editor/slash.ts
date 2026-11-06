@@ -4,9 +4,10 @@ import { PluginKey } from '@tiptap/pm/state'
 import type { Component } from 'vue'
 import {
   Pilcrow, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Code2, Sigma, Table, Image, Minus,
-  Info, AlertTriangle, CheckCircle2, Lightbulb, ChevronRightSquare, Paperclip, CalendarDays, FileText, Superscript, Workflow, PenTool, FileType2, Clapperboard, Kanban,
+  Info, AlertTriangle, CheckCircle2, Lightbulb, ChevronRightSquare, Paperclip, CalendarDays, FileText, Superscript, Workflow, Share2, PenTool, FileType2, Clapperboard, Kanban,
 } from 'lucide-vue-next'
 import { suggestionRenderer } from './suggestion'
+import { GRAPH_SAMPLE } from './graphSource'
 import { translate as t } from '~/composables/useI18n'
 import { uploadFile } from '~/composables/api'
 
@@ -80,6 +81,7 @@ export function slashItems(ctx: SlashContext = {}): SlashItem[] {
       pickFile('application/pdf', async (f) => { const u = await uploadFile(f); e.chain().focus().insertPdf(u.url, u.name).run() })
     } },
     { id: 'mermaid', group: emb, label: t('editor.slash.mermaid'), hint: t('editor.slash.mermaidHint'), icon: Workflow, keywords: 'mermaid diagram diagramme flowchart graph sequence gantt', run: (e, r) => chain(e, r).insertMermaid('graph TD\n  A[Idée] --> B{Validée ?}\n  B -- Oui --> C[Réalisation]\n  B -- Non --> A').run() },
+    { id: 'graph', group: emb, label: t('editor.slash.graph'), hint: t('editor.slash.graphHint'), icon: Share2, keywords: 'graph graphe nœud noeud arc arête sommet flot flow réseau network dijkstra arbre tree automate optimisation', run: (e, r) => chain(e, r).insertGraph(GRAPH_SAMPLE).run() },
     { id: 'excalidraw', group: emb, label: t('editor.slash.excalidraw'), hint: t('editor.slash.excalidrawHint'), icon: PenTool, keywords: 'excalidraw drawing dessin schéma sketch whiteboard tableau blanc', run: (e, r) => chain(e, r).insertExcalidraw().run() },
     { id: 'board', group: emb, label: t('blocks.slashBoard'), hint: t('blocks.slashBoardHint'), icon: Kanban, keywords: 'board tableau kanban database base de données tâches tasks liste table', run: (e, r) => chain(e, r).insertBoardBlock().run() },
     { id: 'agenda', group: emb, label: t('blocks.slashAgenda'), hint: t('blocks.slashAgendaHint'), icon: CalendarDays, keywords: 'agenda calendrier calendar événements events échéances deadlines semaine week', run: (e, r) => chain(e, r).insertAgendaBlock().run() },

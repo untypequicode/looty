@@ -14,6 +14,7 @@ mod ics_feed;
 mod dav;
 mod db;
 mod delivery;
+mod diagram_styles;
 mod demo;
 mod demo_mode;
 mod error;

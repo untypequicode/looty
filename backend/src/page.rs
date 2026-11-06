@@ -640,6 +640,11 @@ pub struct PublicPage {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     /// Préambule LaTeX de l'espace, pour un rendu identique des formules.
     pub latex_preamble: String,
+    /// Styles de diagramme de l'espace, pour un rendu identique des diagrammes.
+    #[sqlx(skip)]
+    pub diagram_styles: crate::diagram_styles::DiagramStyles,
+    #[serde(skip)]
+    pub workspace_id: Uuid,
     /// Projet notebook ou LaTeX porté par la page (lien public : notebook lisible, dernier PDF).
     #[sqlx(skip)]
     pub project: Option<crate::public_project::PublicProject>,
@@ -647,7 +652,7 @@ pub struct PublicPage {
 
 pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResult<Json<PublicPage>> {
     let mut page: PublicPage = sqlx::query_as(
-        "SELECT p.id, p.title, p.icon, p.content, p.updated_at, w.latex_preamble
+        "SELECT p.id, p.title, p.icon, p.content, p.updated_at, w.latex_preamble, p.workspace_id
          FROM pages p JOIN workspaces w ON w.id = p.workspace_id
          WHERE p.share_token = $1 AND p.is_public = true",
     )
@@ -655,6 +660,7 @@ pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>
     .fetch_optional(&pool)
     .await?
     .ok_or(ApiError::NotFound)?;
+    page.diagram_styles = crate::diagram_styles::load(&pool, page.workspace_id).await?;
     page.project = crate::public_project::summary(&pool, token).await?;
     Ok(Json(page))
 }

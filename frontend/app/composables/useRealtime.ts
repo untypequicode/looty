@@ -299,6 +299,9 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
     case 'NOTEPAD_UPDATED':
       window.dispatchEvent(new CustomEvent('looty:notepad'))
       break
+    case 'WORKSPACE_DIAGRAM_STYLES_UPDATED':
+      qc.setQueryData(wsKeys.diagramStyles(wsId), ev.styles ?? { default: null, styles: [] })
+      break
     case 'WORKSPACE_LATEX_UPDATED':
       qc.setQueryData(wsKeys.latex(wsId), { preamble: ev.preamble ?? '' })
       break

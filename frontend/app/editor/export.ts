@@ -41,6 +41,10 @@ export function htmlToMarkdown(html: string): string {
     filter: (n) => n.nodeName === 'DIV' && (n as HTMLElement).dataset.type === 'mermaid',
     replacement: (_c, n) => `\n\n\`\`\`mermaid\n${(n as HTMLElement).textContent ?? ''}\n\`\`\`\n\n`,
   })
+  td.addRule('graph', {
+    filter: (n) => n.nodeName === 'DIV' && (n as HTMLElement).dataset.type === 'graph',
+    replacement: (_c, n) => `\n\n\`\`\`looty-graph\n${(n as HTMLElement).textContent ?? ''}\n\`\`\`\n\n`,
+  })
   td.addRule('embedLike', {
     filter: (n) => n.nodeName === 'DIV' && ['embed', 'pdf'].includes((n as HTMLElement).dataset.type ?? ''),
     replacement: (_c, n) => { const el = n as HTMLElement; const src = el.dataset.src ?? ''; return `\n\n[${el.dataset.name || src}](${src})\n\n` },

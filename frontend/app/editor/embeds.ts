@@ -4,6 +4,7 @@ import { Fragment } from '@tiptap/pm/model'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import { nodeSource, sourceJSON, sourceNodeView, sourceSpec, sourceText } from './source'
 import MermaidView from '~/components/editor/MermaidView.vue'
+import GraphView from '~/components/editor/GraphView.vue'
 import ExcalidrawView from '~/components/editor/ExcalidrawView.vue'
 import EmbedView from '~/components/editor/EmbedView.vue'
 import PdfView from '~/components/editor/PdfView.vue'
@@ -13,6 +14,7 @@ declare module '@tiptap/core' {
     embeds: {
       insertEmbed: (src: string) => ReturnType
       insertMermaid: (code?: string) => ReturnType
+      insertGraph: (source?: string) => ReturnType
       insertExcalidraw: () => ReturnType
       insertPdf: (src: string, name?: string) => ReturnType
     }
@@ -71,11 +73,21 @@ export const Embed = Node.create({
     return {
       insertEmbed: (src) => ({ commands }) => (resolveEmbed(src) ? commands.insertContent({ type: this.name, attrs: { src } }) : false),
       insertMermaid: (code = '') => ({ commands }) => commands.insertContent({ type: 'mermaid', content: sourceJSON(code) }),
+      insertGraph: (source = '') => ({ commands }) => commands.insertContent({ type: 'graph', content: sourceJSON(source) }),
       insertExcalidraw: () => ({ commands }) => commands.insertContent({ type: 'excalidraw', attrs: { scene: '' } }),
       insertPdf: (src, name) => ({ commands }) => commands.insertContent({ type: 'pdfEmbed', attrs: { src, name: name ?? '' } }),
     }
   },
 })
+
+/** Style de diagramme choisi pour le bloc (`null` : style par défaut de l'espace). */
+const diagramStyleAttr = {
+  diagramStyle: {
+    default: null as string | null,
+    parseHTML: (el: HTMLElement) => el.getAttribute('data-style') || null,
+    renderHTML: (a: Record<string, any>) => (a.diagramStyle ? { 'data-style': a.diagramStyle } : {}),
+  },
+}
 
 export const Mermaid = Node.create({
   name: 'mermaid',
@@ -85,7 +97,7 @@ export const Mermaid = Node.create({
   draggable: true,
   addAttributes() {
     // Ancien attribut (documents pas encore convertis) : lu, jamais écrit dans le HTML.
-    return { code: { default: '', parseHTML: () => '', rendered: false } }
+    return { code: { default: '', parseHTML: () => '', rendered: false }, ...diagramStyleAttr }
   },
   parseHTML() {
     return [{ tag: 'div[data-type="mermaid"]', getContent: (el, schema) => Fragment.from(sourceText(schema, typeof el === 'string' ? '' : el.textContent ?? '')) }]
@@ -95,6 +107,36 @@ export const Mermaid = Node.create({
   },
   addNodeView() {
     return sourceNodeView(MermaidView)
+  },
+})
+
+/**
+ * Bloc graphe (théorie des graphes) : la source, une ligne par nœud ou arc, est le texte du
+ * nœud, comme pour Mermaid. Style et hauteur sont des attributs.
+ */
+export const Graph = Node.create({
+  name: 'graph',
+  group: 'block',
+  ...sourceSpec,
+  draggable: true,
+  addAttributes() {
+    return {
+      ...diagramStyleAttr,
+      height: {
+        default: 340,
+        parseHTML: (el) => Number((el as HTMLElement).getAttribute('data-height')) || 340,
+        renderHTML: (a) => ({ 'data-height': a.height }),
+      },
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-type="graph"]', getContent: (el, schema) => Fragment.from(sourceText(schema, typeof el === 'string' ? '' : el.textContent ?? '')) }]
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'graph' }), ['pre', {}, nodeSource(node)]]
+  },
+  addNodeView() {
+    return sourceNodeView(GraphView)
   },
 })
 
@@ -162,4 +204,4 @@ export const EmbedPaste = Extension.create({
   },
 })
 
-export const embedExtensions = [Embed, Mermaid, Excalidraw, PdfEmbed]
+export const embedExtensions = [Embed, Mermaid, Graph, Excalidraw, PdfEmbed]

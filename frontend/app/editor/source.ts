@@ -10,13 +10,16 @@ import { computed, nextTick, ref, toRaw, watch, type Component, type Ref } from 
  * dernière version enregistrée, et annuler / rétablir passe par l'historique commun.
  * Valeur : ancien attribut qui contenait la source (documents pas encore convertis).
  */
-export const SOURCE_NODES: Record<string, string> = { mathBlock: 'latex', mathInline: 'latex', mermaid: 'code' }
+export const SOURCE_NODES: Record<string, string> = { mathBlock: 'latex', mathInline: 'latex', mermaid: 'code', graph: '' }
+
+/** Nœud dont la source est son texte (le bloc graphe n'a jamais eu d'ancien attribut). */
+export const isSourceNode = (type: string) => Object.hasOwn(SOURCE_NODES, type)
 
 /**
  * Version du format des documents, annoncée au serveur de collaboration : il refuse les
  * interfaces plus anciennes, qui supprimeraient les nœuds qu'elles ne savent pas lire.
  */
-export const DOC_SCHEMA = 2
+export const DOC_SCHEMA = 3
 
 /** Spécification commune : texte brut, sans marques, affiché par la vue du nœud. */
 export const sourceSpec = { content: 'text*', marks: '', code: true, atom: true } as const
@@ -107,11 +110,11 @@ export function writeSource(editor: Editor, getPos: () => number | undefined, ne
   if (pos == null) return false
   const node = editor.state.doc.nodeAt(pos)
   const legacy = node && SOURCE_NODES[node.type.name]
-  if (!node || !legacy) return false
+  if (!node || legacy == null) return false
   const cur = node.textContent
   const tr = editor.state.tr
   // Ancien format : la source quitte l'attribut pour devenir le texte du nœud.
-  if (!cur && node.attrs[legacy]) tr.setNodeAttribute(pos, legacy, '')
+  if (!cur && legacy && node.attrs[legacy]) tr.setNodeAttribute(pos, legacy, '')
   const [start, endCur, endNext] = textDiff(cur, next)
   if (start !== endCur || start !== endNext) {
     const from = pos + 1 + start, to = pos + 1 + endCur

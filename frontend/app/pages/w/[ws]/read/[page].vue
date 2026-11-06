@@ -5,6 +5,7 @@ import { api } from '~/composables/api'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { workspacePreamble } from '~/editor/mathScope'
+import { useWorkspaceDiagramStyles } from '~/composables/useDiagramStyles'
 import type { ReaderEntry } from '~/components/doc/Reader.vue'
 import { useProject } from '~/composables/useProjects'
 import { memberProject } from '~/composables/useProjectReader'
@@ -32,6 +33,7 @@ watch(pageId, (id) => { if (id) api(`/api/workspaces/${wsId.value}/pages/${id}/v
 // Préambule LaTeX de l'espace (hors de la mise en page « workspace »).
 const latex = useQuery({ queryKey: computed(() => wsKeys.latex(wsId.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${wsId.value}/latex`, { silent: true }), enabled: computed(() => !!wsId.value) })
 watch(() => latex.data.value?.preamble, (p) => { workspacePreamble.value = p ?? '' }, { immediate: true })
+useWorkspaceDiagramStyles(wsId)
 
 // --- Plan du cours : page racine de l'arborescence et ses descendants, dans l'ordre ---
 const all = computed(() => pages.data.value ?? [])

@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { SOURCE_NODES } from './source'
+import { isSourceNode } from './source'
 
 export interface SearchState {
   term: string
@@ -28,7 +28,7 @@ function findAll(doc: PMNode, term: string) {
   const q = term.toLowerCase()
   doc.descendants((node, pos) => {
     // Source LaTeX / Mermaid : affichée rendue, pas comme du texte.
-    if (SOURCE_NODES[node.type.name]) return false
+    if (isSourceNode(node.type.name)) return false
     if (!node.isText) return
     const text = node.text!.toLowerCase()
     let i = text.indexOf(q)

@@ -60,7 +60,7 @@ function stateText(state) {
  */
 const SOURCE_NODES = { mathBlock: 'latex', mathInline: 'latex', mermaid: 'code' }
 /** Version du format des documents : les interfaces plus anciennes sont refusées. */
-const DOC_SCHEMA = 2
+const DOC_SCHEMA = 3
 function convertSources(state) {
   const doc = new Y.Doc()
   try {

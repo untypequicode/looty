@@ -65,6 +65,7 @@ pub fn routes() -> Router<AppState> {
         .route("/personal", get(personal_space))
         .route("/{workspace_id}", get(get_workspace).put(update_workspace).delete(delete_workspace))
         .route("/{workspace_id}/latex", get(get_latex).put(put_latex))
+        .route("/{workspace_id}/diagram-styles", get(crate::diagram_styles::get_styles).put(crate::diagram_styles::put_styles))
         .route("/{workspace_id}/calendar-color", put(put_calendar_color))
         .route("/{workspace_id}/members", get(list_members))
         .route("/{workspace_id}/guests", get(list_guests))

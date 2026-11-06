@@ -13,6 +13,7 @@ export const wsKeys = {
   myTasks: (id: string) => ['ws', id, 'my-tasks'] as const,
   notifications: (id: string) => ['ws', id, 'notifications'] as const,
   latex: (id: string) => ['ws', id, 'latex'] as const,
+  diagramStyles: (id: string) => ['ws', id, 'diagram-styles'] as const,
   guests: (id: string) => ['ws', id, 'guests'] as const,
 }
 

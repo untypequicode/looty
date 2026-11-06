@@ -121,6 +121,7 @@ async function remove() {
     </SettingsRow>
   </SettingsSection>
   <SettingsLatexPreamble />
+  <SettingsDiagramStyles />
   <SettingsSection :title="t('transfer.sectionTitle')" :description="t('transfer.sectionHint')">
     <SettingsRow v-if="canWrite" :label="t('transfer.importTitle')" :hint="t('transfer.importRowHint')">
       <UiButton size="sm" :icon="Upload" @click="importOpen = true">{{ t('transfer.import') }}</UiButton>

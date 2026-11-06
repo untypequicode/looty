@@ -8,6 +8,7 @@ import { useAccess } from '~/composables/useAccess'
 import { useWorkspace, links, wsKeys } from '~/composables/useWorkspace'
 import { api } from '~/composables/api'
 import { workspacePreamble } from '~/editor/mathScope'
+import { useWorkspaceDiagramStyles } from '~/composables/useDiagramStyles'
 import { useRealtime, sendLocation, setPresenceStatus, presence, following } from '~/composables/useRealtime'
 import { locationPath, locationOfRoute } from '~/composables/usePresenceInfo'
 import { useIdle, useDocumentVisibility } from '@vueuse/core'
@@ -55,6 +56,8 @@ watch(() => user.value, (u) => {
 const latex = useQuery({ queryKey: computed(() => wsKeys.latex(shell.routeWs.value)), queryFn: () => api<{ preamble: string }>(`/api/workspaces/${shell.routeWs.value}/latex`, { silent: true }), enabled: computed(() => !!shell.routeWs.value) })
 watch(() => latex.data.value?.preamble, (p) => { workspacePreamble.value = p ?? '' }, { immediate: true })
 onBeforeUnmount(() => { workspacePreamble.value = '' })
+// Styles de diagramme de l'espace du contenu.
+useWorkspaceDiagramStyles(shell.routeWs)
 
 // Workspace inaccessible (supprimé, exclu...) -> retour à l'accueil global
 watch(() => workspace.error.value, (e: any) => {
