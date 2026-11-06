@@ -122,7 +122,7 @@ class InstanceLinksTest {
     }
 
     @Test fun sharedTaskLinkOfTheAppInstanceOpensTheTask() {
-        // Issue #142 : partager la tâche depuis un navigateur ou une messagerie propose « Ouvrir dans Looty ».
+        // Partager la tâche depuis un navigateur ou une messagerie : « Ouvrir dans Looty » mène à son écran natif.
         val page = InstanceLinks.sharedPage("https://looty.mon-asso.fr/w/ws1/task/t1", app)
         assertEquals("/w/ws1/task/t1", page)
         assertEquals(Screen.Native("ws1", "task/t1"), InstanceLinks.screen(page!!))
