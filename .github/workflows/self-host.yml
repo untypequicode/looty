@@ -1,5 +1,5 @@
-# Modèles d'installation (deploy/) : rendu Caddy et Traefik, puis la pile Caddy démarrée pour de bon
-# (images construites depuis ce commit, https://localhost avec le certificat interne de Caddy).
+# Modèles d'installation (deploy/) : rendu Caddy et Traefik, puis les piles Caddy et Traefik démarrées pour de bon
+# (images construites depuis ce commit, sur https://localhost).
 name: Self-host
 
 on:
@@ -45,17 +45,19 @@ jobs:
           node-version: 26
       - name: ShellCheck
         run: |
-          shellcheck deploy/render.sh deploy/test/caddy-stack.sh
+          shellcheck deploy/render.sh deploy/test/stack.sh
           rendered=$(mktemp -d)
           sh deploy/render.sh caddy "$rendered" pocket-id
           shellcheck "$rendered/pocket-id-init.sh"
       # Sorties Caddy et Traefik ; docker-compose.prod.yml doit être le rendu Traefik.
       - run: node --test deploy/test/render.test.mjs
 
-  caddy:
-    name: Caddy stack
+  stacks:
+    name: Caddy and Traefik stacks
     needs: templates
     runs-on: ubuntu-24.04
+    env:
+      LOOTY_VERSION: ci
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -90,10 +92,11 @@ jobs:
           tags: ghcr.io/untypequicode/looty-collaboration:ci
           cache-from: type=gha,scope=collaboration-amd64
       # API, interface, découverte CalDAV, /collab et sa WebSocket, à travers Caddy.
-      - run: sh deploy/test/caddy-stack.sh
-        env:
-          LOOTY_VERSION: ci
+      - run: sh deploy/test/stack.sh caddy
       # Avec le Pocket ID inclus : client créé par pocket-id-init, premier compte, connexion OIDC jusqu'à Looty.
-      - run: sh deploy/test/caddy-stack.sh pocket-id
-        env:
-          LOOTY_VERSION: ci
+      - run: sh deploy/test/stack.sh caddy pocket-id
+      # Les mêmes vérifications derrière un Traefik à part (son propre projet compose, branché sur le réseau de la
+      # pile) : routage par les étiquettes du compose.
+      - run: sh deploy/test/stack.sh traefik
+      # Avec le Pocket ID inclus : Looty joint auth.localhost par l'hôte (extra_hosts du compose rendu).
+      - run: sh deploy/test/stack.sh traefik pocket-id

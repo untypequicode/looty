@@ -1,4 +1,4 @@
-// Parcours complet avec le Pocket ID inclus, sur une instance déjà démarrée (deploy/test/caddy-stack.sh pocket-id) :
+// Parcours complet avec le Pocket ID inclus, sur une instance déjà démarrée (deploy/test/stack.sh caddy|traefik pocket-id) :
 // création du premier compte Pocket ID (ce que fait la page /setup), puis connexion à Looty par OIDC.
 //   NODE_EXTRA_CA_CERTS=<racine de l'AC> node deploy/test/pocket-id.mjs https://localhost https://auth.localhost <OIDC_PROVIDER_ID>
 // Vérifie que le client créé par pocket-id-init est accepté (URL de redirection exacte, secret, sans écran de

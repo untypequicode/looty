@@ -64,6 +64,12 @@ services:
       - "traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/pages`) || PathPrefix(`/dav`) || Path(`/.well-known/caldav`))"
       - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
 #@end
+#@if traefik pocket-id
+    # Looty joint le fournisseur inclus par son adresse publique (https://AUTH_DOMAIN) : ce nom mène à l'hôte,
+    # où Traefik écoute sur le port 443, sans dépendre d'un aller-retour par l'adresse publique du serveur.
+    extra_hosts:
+      - "${AUTH_DOMAIN:?AUTH_DOMAIN must be set in .env}:host-gateway"
+#@end
     restart: unless-stopped
 
   collaboration:

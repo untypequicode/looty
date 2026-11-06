@@ -65,12 +65,14 @@ test('caddy + pocket-id: the provider on its own subdomain, its bootstrap, and t
   for (const content of Object.values(files)) assert.doesNotMatch(content, /#@/)
 })
 
-test('traefik + pocket-id: Traefik labels for the provider, no Caddy', () => {
+test('traefik + pocket-id: Traefik labels for the provider, Looty reaches it through the host, no Caddy', () => {
   const files = render('traefik', 'pocket-id')
   assert.deepEqual(Object.keys(files), ['docker-compose.yml', 'pocket-id-init.sh'])
   const compose = files['docker-compose.yml']
   assert.match(compose, /Host\(`\$\{AUTH_DOMAIN\}`\)/)
   assert.match(compose, /loadbalancer\.server\.port=1411/)
+  const backend = compose.match(/^ {2}backend:\n(?: {4}.*\n|\n)*/m)[0]
+  assert.match(backend, /extra_hosts:\n {6}- "\$\{AUTH_DOMAIN[^}]*\}:host-gateway"/)
   assert.doesNotMatch(compose, /caddy/i)
 })
 
