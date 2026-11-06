@@ -74,7 +74,7 @@ Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 a
    curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
    ```
 
-   **Behind an existing [Traefik](https://traefik.io)**, take only the compose file (routing is in its labels):
+   **Behind an existing [Traefik](https://traefik.io)**, take only the compose file (routing is in its labels). The labels set no entry point or certificate: Traefik must reach the stack's network and serve HTTPS on its entry points (for example `--entrypoints.websecure.http.tls.certResolver=<resolver>`); `deploy/test/stack.sh traefik` shows a working setup.
 
    ```sh
    curl -LO https://github.com/untypequicode/looty/releases/latest/download/docker-compose.yml

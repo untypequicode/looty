@@ -1,21 +1,32 @@
 #!/bin/sh
-# Démarre la pile Caddy produite par deploy/render.sh sur https://localhost (certificat de l'AC interne de Caddy),
-# lance deploy/test/smoke.mjs, puis arrête et supprime la pile.
-#   LOOTY_VERSION=latest sh deploy/test/caddy-stack.sh [pocket-id]
+# Démarre la pile produite par deploy/render.sh sur https://localhost, lance deploy/test/smoke.mjs, puis arrête et
+# supprime la pile.
+#   LOOTY_VERSION=latest sh deploy/test/stack.sh caddy|traefik [pocket-id]
+# caddy : le compose rendu tel quel ; certificat de l'AC interne de Caddy.
+# traefik : le compose rendu ne contient pas Traefik (il est « déjà là » chez la personne) ; le test en ajoute un,
+# sur le réseau de la pile, qui sert les routeurs des étiquettes en HTTPS avec un certificat d'une AC créée ici.
 # Avec pocket-id : le fournisseur OIDC inclus sur https://auth.localhost ; vérifie en plus que pocket-id-init crée le
 # client (et ne change rien relancé), puis le parcours complet de deploy/test/pocket-id.mjs (premier compte, connexion).
 # LOOTY_VERSION choisit les images ghcr.io/untypequicode/looty-* (en CI : celles construites depuis le commit).
-# Il faut Docker Compose, Node ≥ 22, et les ports 80 et 443 libres.
+# Il faut Docker Compose, Node ≥ 22, openssl (traefik), et les ports 80 et 443 libres.
 set -eu
 
+usage() {
+	echo "usage: $0 caddy|traefik [pocket-id]" >&2
+	exit 2
+}
+
 repo=$(cd "$(dirname "$0")/../.." && pwd)
+[ $# -ge 1 ] || usage
+proxy=$1
+option=${2:-}
+case $proxy in caddy | traefik) ;; *) usage ;; esac
+case $option in '' | pocket-id) ;; *) usage ;; esac
 dir=$(mktemp -d)
-option=${1:-}
-case $option in '' | pocket-id) ;; *) echo "usage: $0 [pocket-id]" >&2; exit 2 ;; esac
-project=looty-caddy-test
+project=looty-$proxy-test
 
 compose() {
-	if [ -n "$option" ]; then
+	if [ -f "$dir/test.override.yml" ]; then
 		docker compose -p "$project" -f "$dir/docker-compose.yml" -f "$dir/test.override.yml" "$@"
 	else
 		docker compose -p "$project" -f "$dir/docker-compose.yml" "$@"
@@ -40,7 +51,7 @@ trap cleanup EXIT INT TERM
 random() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
 # shellcheck disable=SC2086 # $option : aucun ou un mot
-sh "$repo/deploy/render.sh" caddy "$dir" $option
+sh "$repo/deploy/render.sh" "$proxy" "$dir" $option
 cat > "$dir/.env" <<ENV
 APP_NAME=looty
 APP_DOMAIN=localhost
@@ -62,6 +73,72 @@ OIDC_CLIENT_ID=looty
 OIDC_CLIENT_SECRET=$(random 32)
 OIDC_PROVIDER_ID=$provider_id
 ENV
+else
+	cat >> "$dir/.env" <<ENV
+OIDC_ISSUER=
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+ENV
+fi
+
+if [ "$proxy" = traefik ]; then
+	# Une AC propre au test et un certificat pour localhost et auth.localhost, servi par défaut par Traefik.
+	mkdir "$dir/certs"
+	openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=looty-test-ca \
+		-keyout "$dir/certs/ca.key" -out "$dir/certs/ca.crt" 2> /dev/null
+	openssl req -newkey rsa:2048 -nodes -subj /CN=localhost \
+		-keyout "$dir/certs/localhost.key" -out "$dir/certs/localhost.csr" 2> /dev/null
+	printf 'subjectAltName=DNS:localhost,DNS:auth.localhost\n' > "$dir/certs/san.ext"
+	openssl x509 -req -in "$dir/certs/localhost.csr" -CA "$dir/certs/ca.crt" -CAkey "$dir/certs/ca.key" \
+		-CAcreateserial -days 1 -extfile "$dir/certs/san.ext" -out "$dir/certs/localhost.crt" 2> /dev/null
+	chmod 644 "$dir/certs/"*
+	cp "$dir/certs/ca.crt" "$dir/root.crt"
+	cat > "$dir/tls.yml" <<'YAML'
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/localhost.crt
+        keyFile: /certs/localhost.key
+YAML
+	# Le Traefik « déjà en place » : routeurs des étiquettes servis sur l'entrée HTTPS (TLS au niveau de l'entrée,
+	# comme le supposent les étiquettes), limité aux conteneurs de cette pile.
+	cat > "$dir/test.override.yml" <<YAML
+services:
+  traefik:
+    image: traefik:v3.6
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.constraints=Label(\`com.docker.compose.project\`,\`$project\`)
+      - --providers.file.filename=/etc/traefik/tls.yml
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/certs:ro
+      - ./tls.yml:/etc/traefik/tls.yml:ro
+YAML
+	if [ -n "$option" ]; then
+		# Le serveur joint son propre domaine (README) : ici, auth.localhost mène à Traefik sur le réseau Docker.
+		cat >> "$dir/test.override.yml" <<'YAML'
+    networks:
+      default:
+        aliases:
+          - auth.localhost
+  backend:
+    environment:
+      OIDC_CA_FILE: /certs/ca.crt
+    volumes:
+      - ./certs:/certs:ro
+YAML
+	fi
+elif [ -n "$option" ]; then
 	# Propre au test : le certificat de auth.localhost vient de l'AC interne de Caddy, que Looty doit accepter.
 	cat > "$dir/test.override.yml" <<'YAML'
 services:
@@ -71,24 +148,20 @@ services:
     volumes:
       - ./data/caddy:/caddy-data:ro
 YAML
-else
-	cat >> "$dir/.env" <<ENV
-OIDC_ISSUER=
-OIDC_CLIENT_ID=
-OIDC_CLIENT_SECRET=
-ENV
 fi
 
 compose up -d
 
-# Caddy crée la racine de son AC interne au premier certificat pour « localhost ».
-i=0
-until compose exec -T caddy test -f /data/caddy/pki/authorities/local/root.crt; do
-	i=$((i + 1))
-	[ "$i" -lt 60 ] || { echo "Caddy did not create its internal CA" >&2; exit 1; }
-	sleep 1
-done
-compose exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > "$dir/root.crt"
+if [ "$proxy" = caddy ]; then
+	# Caddy crée la racine de son AC interne au premier certificat pour « localhost ».
+	i=0
+	until compose exec -T caddy test -f /data/caddy/pki/authorities/local/root.crt; do
+		i=$((i + 1))
+		[ "$i" -lt 60 ] || { echo "Caddy did not create its internal CA" >&2; exit 1; }
+		sleep 1
+	done
+	compose exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > "$dir/root.crt"
+fi
 
 NODE_EXTRA_CA_CERTS="$dir/root.crt" node "$repo/deploy/test/smoke.mjs" https://localhost
 
@@ -108,9 +181,7 @@ if [ -n "$option" ]; then
 	grep -q 'existe déjà' "$dir/init-again"
 	grep -q 'déjà enregistré' "$dir/init-again"
 	NODE_EXTRA_CA_CERTS="$dir/root.crt" node "$repo/deploy/test/pocket-id.mjs" https://localhost https://auth.localhost "$provider_id"
-fi
 
-if [ -n "$option" ]; then
 	# Fournisseur injoignable : Looty refuse la connexion avec le code provider_error (message clair à l'écran)
 	# et dit pourquoi dans ses journaux. Redémarré pour vider sa copie de la configuration du fournisseur.
 	compose stop pocket-id

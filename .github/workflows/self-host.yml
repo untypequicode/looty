@@ -1,5 +1,5 @@
-# Modèles d'installation (deploy/) : rendu Caddy et Traefik, puis la pile Caddy démarrée pour de bon
-# (images construites depuis ce commit, https://localhost avec le certificat interne de Caddy).
+# Modèles d'installation (deploy/) : rendu Caddy et Traefik, puis les piles Caddy et Traefik démarrées pour de bon
+# (images construites depuis ce commit, sur https://localhost).
 name: Self-host
 
 on:
@@ -45,15 +45,15 @@ jobs:
           node-version: 26
       - name: ShellCheck
         run: |
-          shellcheck deploy/render.sh deploy/test/caddy-stack.sh
+          shellcheck deploy/render.sh deploy/test/stack.sh
           rendered=$(mktemp -d)
           sh deploy/render.sh caddy "$rendered" pocket-id
           shellcheck "$rendered/pocket-id-init.sh"
       # Sorties Caddy et Traefik ; docker-compose.prod.yml doit être le rendu Traefik.
       - run: node --test deploy/test/render.test.mjs
 
-  caddy:
-    name: Caddy stack
+  stacks:
+    name: Caddy and Traefik stacks
     needs: templates
     runs-on: ubuntu-24.04
     steps:
@@ -90,10 +90,17 @@ jobs:
           tags: ghcr.io/untypequicode/looty-collaboration:ci
           cache-from: type=gha,scope=collaboration-amd64
       # API, interface, découverte CalDAV, /collab et sa WebSocket, à travers Caddy.
-      - run: sh deploy/test/caddy-stack.sh
+      - run: sh deploy/test/stack.sh caddy
         env:
           LOOTY_VERSION: ci
       # Avec le Pocket ID inclus : client créé par pocket-id-init, premier compte, connexion OIDC jusqu'à Looty.
-      - run: sh deploy/test/caddy-stack.sh pocket-id
+      - run: sh deploy/test/stack.sh caddy pocket-id
+        env:
+          LOOTY_VERSION: ci
+      # Les mêmes vérifications derrière un Traefik ajouté par le test (routage par les étiquettes du compose).
+      - run: sh deploy/test/stack.sh traefik
+        env:
+          LOOTY_VERSION: ci
+      - run: sh deploy/test/stack.sh traefik pocket-id
         env:
           LOOTY_VERSION: ci
