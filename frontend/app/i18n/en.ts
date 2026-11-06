@@ -11,6 +11,7 @@ export default {
   time: { justNow: 'just now' },
   date: { today: 'Today', tomorrow: 'Tomorrow', nextWeek: 'Next week', inTwoWeeks: 'In 2 weeks', clear: 'Clear date', yesterday: 'Yesterday' },
   errors: {
+    provider_error: 'The sign-in provider can’t be reached or isn’t set up correctly. The administrator will find details in the Looty server logs.',
     generic: 'Something went wrong', forbidden: 'You don’t have permission to do that', not_found: 'Not found',
     unauthorized: 'Session expired', invalid_name: 'Invalid name', last_owner: 'Not possible: this is the last owner',
     open_subtasks: 'Complete the sub-tasks first', use_toggle_validation: 'Use per-person validation',
@@ -45,6 +46,9 @@ export default {
       generic: 'Something went wrong while signing in.', signups_disabled: 'Sign-ups are closed on this server.',
       suspended: 'Your account has been suspended.', csrf_mismatch: 'Your sign-in session expired, please try again.',
       missing_email: 'Your provider didn’t share an email address.', email_not_verified: 'Your email address isn’t verified.',
+      provider_error: 'The sign-in provider can’t be reached or isn’t set up correctly. The administrator will find details in the Looty server logs.',
+      exchange_failed: 'The sign-in provider rejected Looty (wrong client ID or secret?). The administrator will find details in the Looty server logs.',
+      userinfo_failed: 'The sign-in provider didn’t share your profile. The administrator will find details in the Looty server logs.',
     },
   },
   onboarding: {

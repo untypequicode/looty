@@ -17,3 +17,10 @@
 	}
 }
 #@end
+#@if caddy pocket-id
+
+# Fournisseur OIDC inclus (Pocket ID), sur son propre sous-domaine.
+{$AUTH_DOMAIN} {
+	reverse_proxy pocket-id:1411
+}
+#@end

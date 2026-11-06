@@ -58,14 +58,28 @@ struct ProviderConfig {
 }
 
 /// Client HTTP des échanges OIDC : sans suivi des redirections (recommandation de la bibliothèque, évite les SSRF).
+/// `OIDC_CA_FILE` (facultatif) : certificats PEM d'une autorité interne, acceptés en plus des autorités publiques.
 fn oidc_http() -> &'static openidconnect::reqwest::Client {
     static HTTP: std::sync::OnceLock<openidconnect::reqwest::Client> = std::sync::OnceLock::new();
     HTTP.get_or_init(|| {
-        openidconnect::reqwest::ClientBuilder::new()
+        let mut builder = openidconnect::reqwest::ClientBuilder::new()
             .redirect(openidconnect::reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(20))
-            .build()
-            .expect("OIDC HTTP client")
+            .timeout(std::time::Duration::from_secs(20));
+        if let Some(path) = std::env::var("OIDC_CA_FILE").ok().filter(|p| !p.trim().is_empty()) {
+            let certs = std::fs::read(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|pem| openidconnect::reqwest::Certificate::from_pem_bundle(&pem).map_err(|e| e.to_string()));
+            match certs {
+                Ok(certs) => {
+                    tracing::info!("OIDC: {} certificat(s) de {path} ajouté(s) aux autorités de confiance", certs.len());
+                    for cert in certs {
+                        builder = builder.add_root_certificate(cert);
+                    }
+                }
+                Err(e) => tracing::error!("OIDC_CA_FILE={path} illisible, ignoré : {e}"),
+            }
+        }
+        builder.build().expect("OIDC HTTP client")
     })
 }
 
@@ -82,12 +96,21 @@ async fn get_oidc_client(state: &AppState, provider_id: Uuid) -> Result<crate::s
     .map_err(|e| e.to_string())?
     .ok_or_else(|| "provider_not_found".to_string())?;
 
-    let issuer_url = IssuerUrl::new(provider.issuer_url).map_err(|e| e.to_string())?;
+    let issuer = provider.issuer_url;
+    let issuer_url = IssuerUrl::new(issuer.clone()).map_err(|e| {
+        tracing::error!("OIDC: adresse de l'émetteur invalide ({issuer:?}) pour le fournisseur {provider_id} : {e}");
+        e.to_string()
+    })?;
     let redirect_url = RedirectUrl::new(format!("{}/api/auth/callback/{}", state.base_url, provider_id))
         .map_err(|e| e.to_string())?;
-    let metadata = CoreProviderMetadata::discover_async(issuer_url, oidc_http())
-        .await
-        .map_err(|e| e.to_string())?;
+    let metadata = CoreProviderMetadata::discover_async(issuer_url, oidc_http()).await.map_err(|e| {
+        tracing::error!(
+            "OIDC: découverte impossible sur {issuer} (fournisseur {provider_id}) : {}. Vérifiez que le serveur joint \
+             cette adresse en HTTPS ; avec le Pocket ID inclus : docker compose logs pocket-id pocket-id-init",
+            error_chain(&e)
+        );
+        e.to_string()
+    })?;
     let client = CoreClient::from_provider_metadata(
         metadata,
         ClientId::new(provider.client_id),
@@ -278,6 +301,18 @@ struct AuthCallback {
     state: String,
 }
 
+/// Message d'une erreur et de ses causes (« requête refusée : certificat inconnu : … »), pour les journaux.
+fn error_chain(e: &dyn std::error::Error) -> String {
+    let mut out = e.to_string();
+    let mut source = e.source();
+    while let Some(cause) = source {
+        out.push_str(" : ");
+        out.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    out
+}
+
 fn login_error(code: &str) -> Response {
     Redirect::to(&format!("/login?error={code}")).into_response()
 }
@@ -302,8 +337,16 @@ async fn callback_handler(
     let Ok(exchange) = client.exchange_code(AuthorizationCode::new(params.code)) else {
         return login_error("exchange_failed");
     };
-    let Ok(token) = exchange.set_pkce_verifier(PkceCodeVerifier::new(pkce_secret)).request_async(oidc_http()).await else {
-        return login_error("exchange_failed");
+    let token = match exchange.set_pkce_verifier(PkceCodeVerifier::new(pkce_secret)).request_async(oidc_http()).await {
+        Ok(token) => token,
+        Err(e) => {
+            tracing::error!(
+                "OIDC: échange du code refusé par le fournisseur {provider_id} : {}. Identifiant ou secret du client \
+                 (OIDC_CLIENT_ID, OIDC_CLIENT_SECRET) différents de ceux du fournisseur ?",
+                error_chain(&e)
+            );
+            return login_error("exchange_failed");
+        }
     };
 
     let Ok(req) = client.user_info(token.access_token().clone(), None) else {
@@ -311,7 +354,10 @@ async fn callback_handler(
     };
     let userinfo: CoreUserInfoClaims = match req.request_async(oidc_http()).await {
         Ok(u) => u,
-        Err(_) => return login_error("userinfo_failed"),
+        Err(e) => {
+            tracing::error!("OIDC: userinfo refusé par le fournisseur {provider_id} : {}", error_chain(&e));
+            return login_error("userinfo_failed");
+        }
     };
 
     let email = userinfo.email().map(|e| e.as_str().trim().to_lowercase()).unwrap_or_default();

@@ -9,6 +9,8 @@ on:
       - 'deploy/**'
       - 'docker-compose.prod.yml'
       - 'backend/Dockerfile'
+      - 'backend/src/auth.rs'
+      - 'backend/src/main.rs'
       - 'frontend/Dockerfile'
       - 'collaboration/Dockerfile'
       - '.github/workflows/self-host.yml'
@@ -17,6 +19,8 @@ on:
       - 'deploy/**'
       - 'docker-compose.prod.yml'
       - 'backend/Dockerfile'
+      - 'backend/src/auth.rs'
+      - 'backend/src/main.rs'
       - 'frontend/Dockerfile'
       - 'collaboration/Dockerfile'
       - '.github/workflows/self-host.yml'
@@ -40,7 +44,11 @@ jobs:
         with:
           node-version: 26
       - name: ShellCheck
-        run: shellcheck deploy/render.sh deploy/test/caddy-stack.sh
+        run: |
+          shellcheck deploy/render.sh deploy/test/caddy-stack.sh
+          rendered=$(mktemp -d)
+          sh deploy/render.sh caddy "$rendered" pocket-id
+          shellcheck "$rendered/pocket-id-init.sh"
       # Sorties Caddy et Traefik ; docker-compose.prod.yml doit être le rendu Traefik.
       - run: node --test deploy/test/render.test.mjs
 
@@ -83,5 +91,9 @@ jobs:
           cache-from: type=gha,scope=collaboration-amd64
       # API, interface, découverte CalDAV, /collab et sa WebSocket, à travers Caddy.
       - run: sh deploy/test/caddy-stack.sh
+        env:
+          LOOTY_VERSION: ci
+      # Avec le Pocket ID inclus : client créé par pocket-id-init, premier compte, connexion OIDC jusqu'à Looty.
+      - run: sh deploy/test/caddy-stack.sh pocket-id
         env:
           LOOTY_VERSION: ci

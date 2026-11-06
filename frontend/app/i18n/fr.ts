@@ -11,6 +11,7 @@ export default {
   time: { justNow: 'à l’instant' },
   date: { today: 'Aujourd’hui', tomorrow: 'Demain', nextWeek: 'Semaine prochaine', inTwoWeeks: 'Dans 2 semaines', clear: 'Retirer la date', yesterday: 'Hier' },
   errors: {
+    provider_error: 'Le fournisseur de connexion est injoignable ou mal configuré. L’administrateur trouvera le détail dans les journaux du serveur Looty.',
     generic: 'Une erreur est survenue', forbidden: 'Vous n’avez pas les droits pour cette action', not_found: 'Introuvable',
     unauthorized: 'Session expirée', invalid_name: 'Nom invalide', last_owner: 'Impossible : c’est le dernier propriétaire',
     open_subtasks: 'Terminez d’abord les sous-tâches', use_toggle_validation: 'Utilisez la validation par personne',
@@ -45,6 +46,9 @@ export default {
       generic: 'Une erreur est survenue pendant la connexion.', signups_disabled: 'Les inscriptions sont fermées sur ce serveur.',
       suspended: 'Votre compte a été suspendu.', csrf_mismatch: 'La session de connexion a expiré, réessayez.',
       missing_email: 'Votre fournisseur n’a pas transmis d’adresse e-mail.', email_not_verified: 'Votre adresse e-mail n’est pas vérifiée.',
+      provider_error: 'Le fournisseur de connexion est injoignable ou mal configuré. L’administrateur trouvera le détail dans les journaux du serveur Looty.',
+      exchange_failed: 'Le fournisseur de connexion a refusé Looty (identifiant ou secret du client incorrect ?). L’administrateur trouvera le détail dans les journaux du serveur Looty.',
+      userinfo_failed: 'Le fournisseur de connexion n’a pas transmis votre profil. L’administrateur trouvera le détail dans les journaux du serveur Looty.',
     },
   },
   onboarding: {

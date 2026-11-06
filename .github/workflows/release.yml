@@ -194,14 +194,22 @@ jobs:
             node scripts/release-notes.mjs web "$WEB" > out/web/notes.md
             # Fichiers d'installation (deploy/templates) avec les images de cette version : derrière Traefik
             # (docker-compose.yml, comme avant) ou avec Caddy inclus (docker-compose.caddy.yml et son Caddyfile).
+            # Variantes avec le Pocket ID inclus : *.pocket-id.*, et le script pocket-id-init.sh (le même pour les deux).
             rendered=$(mktemp -d)
             sh deploy/render.sh traefik "$rendered/traefik"
             sh deploy/render.sh caddy "$rendered/caddy"
+            sh deploy/render.sh traefik "$rendered/traefik-pid" pocket-id
+            sh deploy/render.sh caddy "$rendered/caddy-pid" pocket-id
             pin() { sed "s/\${LOOTY_VERSION:-latest}/\${LOOTY_VERSION:-$WEB}/" "$1"; }
             pin "$rendered/traefik/docker-compose.yml" > out/web/docker-compose.yml
             pin "$rendered/caddy/docker-compose.yml" > out/web/docker-compose.caddy.yml
             cp "$rendered/caddy/Caddyfile" out/web/Caddyfile
-            for f in out/web/docker-compose.yml out/web/docker-compose.caddy.yml; do grep -q "looty-backend:\${LOOTY_VERSION:-$WEB}" "$f"; done
+            pin "$rendered/traefik-pid/docker-compose.yml" > out/web/docker-compose.pocket-id.yml
+            pin "$rendered/caddy-pid/docker-compose.yml" > out/web/docker-compose.caddy.pocket-id.yml
+            cp "$rendered/caddy-pid/Caddyfile" out/web/Caddyfile.pocket-id
+            cp "$rendered/caddy-pid/pocket-id-init.sh" out/web/pocket-id-init.sh
+            cmp "$rendered/caddy-pid/pocket-id-init.sh" "$rendered/traefik-pid/pocket-id-init.sh"
+            for f in out/web/docker-compose*.yml; do grep -q "looty-backend:\${LOOTY_VERSION:-$WEB}" "$f"; done
           fi
           if [ -n "$DESKTOP" ]; then
             node scripts/release-notes.mjs desktop "$DESKTOP" > out/desktop/notes.md
@@ -230,6 +238,10 @@ jobs:
             out/web/docker-compose.yml
             out/web/docker-compose.caddy.yml
             out/web/Caddyfile
+            out/web/docker-compose.pocket-id.yml
+            out/web/docker-compose.caddy.pocket-id.yml
+            out/web/Caddyfile.pocket-id
+            out/web/pocket-id-init.sh
           make_latest: true
       - name: Desktop release
         if: needs.plan.outputs.desktop != ''

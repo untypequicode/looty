@@ -244,15 +244,59 @@ async fn seed_default_provider(pool: &sqlx::PgPool) {
     if issuer.is_empty() || client_id.is_empty() || secret.is_empty() {
         return;
     }
+    let provider_id = match parse_provider_id(&std::env::var("OIDC_PROVIDER_ID").unwrap_or_default()) {
+        Ok(id) => id,
+        Err(value) => {
+            tracing::error!(
+                "OIDC_PROVIDER_ID={value:?} n'est pas un UUID valide : fournisseur OIDC par défaut non créé"
+            );
+            return;
+        }
+    };
     let res = sqlx::query(
-        "INSERT INTO oauth_providers (name, issuer_url, client_id, client_secret) VALUES ('SSO', $1, $2, $3)",
+        "INSERT INTO oauth_providers (id, name, issuer_url, client_id, client_secret) \
+         VALUES (COALESCE($1, gen_random_uuid()), 'SSO', $2, $3, $4)",
     )
+    .bind(provider_id)
     .bind(issuer)
     .bind(client_id)
     .bind(secret)
     .execute(pool)
     .await;
-    if res.is_ok() {
-        tracing::info!("Seeded default OAuth provider from environment variables");
+    match res {
+        Ok(_) => tracing::info!("Seeded default OAuth provider from environment variables"),
+        Err(e) => tracing::error!("Échec de la création du fournisseur OIDC par défaut : {e}"),
+    }
+}
+
+/// Lit `OIDC_PROVIDER_ID` : vide → identifiant aléatoire ; sinon un UUID, qui fixe l'URL de redirection
+/// (`<BASE_URL>/api/auth/callback/<id>`) avant le premier démarrage. Rend la valeur fautive en erreur.
+fn parse_provider_id(value: &str) -> Result<Option<uuid::Uuid>, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    uuid::Uuid::parse_str(value).map(Some).map_err(|_| value.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_provider_id;
+
+    #[test]
+    fn provider_id_empty_means_random() {
+        assert_eq!(parse_provider_id(""), Ok(None));
+        assert_eq!(parse_provider_id("  "), Ok(None));
+    }
+
+    #[test]
+    fn provider_id_accepts_uuid() {
+        let id = parse_provider_id(" 0b6c1f0e-8a4e-4c1e-9d55-3f5a2b7c9e10 ").unwrap().unwrap();
+        assert_eq!(id.to_string(), "0b6c1f0e-8a4e-4c1e-9d55-3f5a2b7c9e10");
+    }
+
+    #[test]
+    fn provider_id_rejects_garbage() {
+        assert_eq!(parse_provider_id("looty"), Err("looty".to_string()));
     }
 }

@@ -81,8 +81,42 @@ Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 a
    curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
    ```
 
-2. Edit `.env`: the domain (`APP_DOMAIN`, and `BASE_URL=https://<domain>`), database password, `LOOTY_SECRET_KEY` (`openssl rand -base64 32`) and your OpenID Connect provider (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`).
+2. Edit `.env`: the domain (`APP_DOMAIN`, and `BASE_URL=https://<domain>`), database password, `LOOTY_SECRET_KEY` (`openssl rand -base64 32`) and your OpenID Connect provider (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`). Optionally set `OIDC_PROVIDER_ID` to a UUID (`uuidgen`) to know the redirect URL, `<BASE_URL>/api/auth/callback/<UUID>`, before the first start.
 3. `docker compose up -d`.
+
+**No identity provider? Bundled Pocket ID.** The `*.pocket-id.*` files add [Pocket ID](https://pocket-id.org) (sign-in with passkeys) on its own subdomain, `auth.<domain>`, already linked to Looty: on every start, the one-shot `pocket-id-init` service creates Looty's OIDC client in Pocket ID (and changes nothing if it exists).
+
+1. Point the DNS of `auth.<domain>` to the server too, then take the files (with Caddy; behind Traefik, `docker-compose.pocket-id.yml` and no Caddyfile):
+
+   ```sh
+   curl -L -o docker-compose.yml https://github.com/untypequicode/looty/releases/latest/download/docker-compose.caddy.pocket-id.yml
+   curl -L -o Caddyfile https://github.com/untypequicode/looty/releases/latest/download/Caddyfile.pocket-id
+   curl -LO https://github.com/untypequicode/looty/releases/latest/download/pocket-id-init.sh
+   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
+   ```
+
+2. In `.env`, besides the domain, database and `LOOTY_SECRET_KEY`, replace the OIDC block with:
+
+   ```sh
+   AUTH_DOMAIN=auth.<domain>
+   OIDC_ISSUER=https://auth.<domain>
+   OIDC_CLIENT_ID=looty
+   OIDC_CLIENT_SECRET=<openssl rand -hex 32>
+   OIDC_PROVIDER_ID=<uuidgen>
+   POCKET_ID_ENCRYPTION_KEY=<openssl rand -base64 32>
+   POCKET_ID_STATIC_API_KEY=<openssl rand -hex 32>
+   ```
+
+3. `docker compose up -d`, then `docker compose logs pocket-id-init` should end with `prêt`.
+4. **Right away**, open `https://auth.<domain>/setup` and create your account, **with your email address** (Looty needs it), then add a passkey. Until this account exists, whoever opens that page first becomes the Pocket ID administrator.
+5. Sign in to Looty with « Continuer avec SSO »: as the first account, you are Looty's administrator. Add other people in Pocket ID (Administration > Users).
+
+Behind Traefik, Looty reaches `https://auth.<domain>` through the server's public address: the server must be able to reach its own domain (with Caddy, the compose file routes this internally). `POCKET_ID_STATIC_API_KEY` is an admin key for Pocket ID: once the client exists you may remove it from `.env` (`pocket-id-init` then does nothing). A provider whose certificate comes from an internal authority needs `OIDC_CA_FILE` (PEM file, mounted into the backend).
+
+**If the automatic setup fails** (Looty's sign-in page says the provider can't be reached or rejected Looty, or `pocket-id-init` exited with an error), read `docker compose logs pocket-id-init backend`, fix the cause and run `docker compose up -d` again. Or create the client by hand, as for any provider:
+
+1. In Pocket ID (after `/setup`): Administration > OIDC Clients > Add. Name `Looty`, callback URL `<BASE_URL>/api/auth/callback/<OIDC_PROVIDER_ID>` (exactly), PKCE on. Save, and copy the client ID and secret.
+2. Give them to Looty: `docker compose exec postgres psql -U <DB_USER> -d <DB_NAME> -c "UPDATE oauth_providers SET client_id = '<client ID>', client_secret = '<secret>' WHERE id = '<OIDC_PROVIDER_ID>'"`, then `docker compose restart backend`. (Looty reads the `OIDC_*` variables only on its very first start; afterwards, the provider is edited in Administration > Authentication providers.)
 
 Behind another proxy, use the Traefik compose file and send `/api`, `/uploads`, `/pages`, `/dav` and `/.well-known/caldav` to the backend (8080), `/collab` to the collaboration service (8082, prefix stripped) and everything else to the frontend (3000), WebSockets included; the `Caddyfile` is a working example. Pin a version with `LOOTY_VERSION=<x.y.z>`. These files are rendered from `deploy/templates/` by `deploy/render.sh` (`docker-compose.prod.yml` is the Traefik output); edit the templates, not the rendered files.
 

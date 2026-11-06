@@ -50,6 +50,7 @@ services:
       OIDC_ISSUER: ${OIDC_ISSUER}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_PROVIDER_ID: ${OIDC_PROVIDER_ID:-}
       BASE_URL: ${BASE_URL:-http://localhost:3000}
     volumes:
       - ./backend/uploads:/app/uploads
@@ -100,6 +101,8 @@ services:
     image: caddy:2-alpine
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN must be set in .env}
+      # Domaine du fournisseur OIDC inclus (Pocket ID) ; vide sans lui.
+      AUTH_DOMAIN: ${AUTH_DOMAIN:-}
     ports:
       - "80:80"
       - "443:443"
@@ -113,4 +116,67 @@ services:
       - collaboration
       - frontend
     restart: unless-stopped
+#@end
+#@if caddy pocket-id
+    networks:
+      default:
+        # Looty joint le fournisseur inclus par son adresse publique (https://AUTH_DOMAIN) : sur le réseau
+        # Docker, ce nom mène directement à Caddy, sans dépendre d'un aller-retour par l'hôte.
+        aliases:
+          - ${AUTH_DOMAIN:?AUTH_DOMAIN must be set in .env}
+#@end
+#@if pocket-id
+
+  # Fournisseur OIDC inclus : Pocket ID (connexion par passkey), servi sur https://AUTH_DOMAIN (un sous-domaine :
+  # Pocket ID ne fonctionne pas sous un chemin). Ses données sont dans ./data/pocket-id.
+  # Premier compte, juste après le premier démarrage : https://AUTH_DOMAIN/setup. Il devient admin de Pocket ID,
+  # puis de Looty à sa première connexion (le premier compte de Looty en est l'administrateur).
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2.19.2
+    environment:
+      APP_URL: https://${AUTH_DOMAIN:?AUTH_DOMAIN must be set in .env}
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:?POCKET_ID_ENCRYPTION_KEY must be set in .env}
+      # Clé d'administration utilisée par pocket-id-init. Une fois le client créé, elle peut être retirée de .env.
+      STATIC_API_KEY: ${POCKET_ID_STATIC_API_KEY:-}
+      # Joignable seulement à travers le proxy, sur le réseau Docker.
+      TRUST_PROXY: "true"
+      ALLOW_INSECURE_CALLBACK_URLS: "false"
+      ANALYTICS_DISABLED: "true"
+    volumes:
+      - ./data/pocket-id:/app/data
+    healthcheck:
+      test: ["CMD", "/app/pocket-id", "healthcheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped
+#@end
+#@if traefik pocket-id
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-auth.rule=Host(`${AUTH_DOMAIN}`)"
+      - "traefik.http.services.${APP_NAME}-auth.loadbalancer.server.port=1411"
+#@end
+#@if pocket-id
+
+  # Crée le client OIDC de Looty dans Pocket ID (pocket-id-init.sh, à côté de ce fichier), puis s'arrête.
+  # Relancé à chaque « up » ; ne change rien si le client existe déjà. En cas d'échec :
+  #   docker compose logs pocket-id-init
+  pocket-id-init:
+    image: curlimages/curl:8.23.0
+    entrypoint: ["sh", "/pocket-id-init.sh"]
+    environment:
+      POCKET_ID_URL: http://pocket-id:1411
+      POCKET_ID_STATIC_API_KEY: ${POCKET_ID_STATIC_API_KEY:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_PROVIDER_ID: ${OIDC_PROVIDER_ID:?OIDC_PROVIDER_ID must be set in .env (uuidgen)}
+      BASE_URL: ${BASE_URL}
+      AUTH_DOMAIN: ${AUTH_DOMAIN}
+    volumes:
+      - ./pocket-id-init.sh:/pocket-id-init.sh:ro
+    depends_on:
+      pocket-id:
+        condition: service_healthy
+    restart: "no"
 #@end
