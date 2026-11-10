@@ -164,8 +164,19 @@ pub async fn start(mut config: Config, jar: Jar) -> std::io::Result<Shared> {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             let Some(server) = watcher.server() else { continue };
             if !watcher.offline.is_online() {
-                let up = watcher.client.get(format!("{}/api/health", server.origin().ascii_serialization())).timeout(std::time::Duration::from_secs(4)).send().await.is_ok_and(|r| r.status().is_success());
+                let up = match watcher.client.get(format!("{}/api/health", server.origin().ascii_serialization())).timeout(std::time::Duration::from_secs(4)).send().await {
+                    Ok(r) if r.status().is_success() => true,
+                    Ok(r) => {
+                        tracing::debug!("health check failed: status {}", r.status());
+                        false
+                    }
+                    Err(e) => {
+                        tracing::debug!("health check failed: {}", crate::offline::describe_error("GET", "/api/health", &e));
+                        false
+                    }
+                };
                 if up {
+                    tracing::warn!("health check succeeded: back online");
                     watcher.offline.set_online(true);
                 }
             }
@@ -268,7 +279,7 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
     if p.offline.is_online() || !cacheable {
         match proxy_http(&p, &server, req).await {
             // Serveur derrière un relais (Traefik…) mais injoignable : 502/503/504.
-            Ok(r) if cacheable && is_gateway_error(r.status()) => p.offline.set_online(false),
+            Ok(r) if cacheable && is_gateway_error(r.status()) => p.offline.go_offline(&format!("{method} {path}: gateway status {}", r.status().as_u16())),
             Ok(r) => {
                 if path.starts_with("/api/auth/logout") {
                     p.offline.clear();
@@ -276,13 +287,13 @@ async fn handle(State(p): State<Shared>, req: Request) -> Response {
                 return r;
             }
             Err(e) if e.is_connect() || e.is_timeout() => {
-                p.offline.set_online(false);
+                p.offline.go_offline(&crate::offline::describe_error(method.as_str(), &path, &e));
                 if !cacheable {
                     return offline_response(&path);
                 }
             }
             Err(e) => {
-                tracing::warn!("{path}: {e}");
+                tracing::warn!("request failed: {}", crate::offline::describe_error(method.as_str(), &path, &e));
                 return offline_response(&path);
             }
         }
@@ -352,11 +363,11 @@ async fn handle_mutation(p: &Shared, server: &Url, req: Request) -> Response {
         }
         let req2 = b.body(Body::from(body_bytes.clone())).unwrap();
         match proxy_http(p, server, req2).await {
-            Ok(r) if is_gateway_error(r.status()) => p.offline.set_online(false),
+            Ok(r) if is_gateway_error(r.status()) => p.offline.go_offline(&format!("{method} {}: gateway status {}", parts.uri.path(), r.status().as_u16())),
             Ok(r) => return r,
-            Err(e) if e.is_connect() || e.is_timeout() => p.offline.set_online(false),
+            Err(e) if e.is_connect() || e.is_timeout() => p.offline.go_offline(&crate::offline::describe_error(&method, parts.uri.path(), &e)),
             Err(e) => {
-                tracing::warn!("{path_q}: {e}");
+                tracing::warn!("request failed: {}", crate::offline::describe_error(&method, parts.uri.path(), &e));
                 return StatusCode::BAD_GATEWAY.into_response();
             }
         }

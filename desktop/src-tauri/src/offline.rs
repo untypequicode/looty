@@ -80,6 +80,32 @@ fn write_private(path: &Path, data: &[u8]) -> std::io::Result<()> {
 }
 
 /// Requêtes GET conservées pour la lecture hors ligne.
+/// Description d'une erreur reqwest sans URL complète (la requête peut porter des jetons) :
+/// type d'échec (connexion, délai, requête…) puis chaîne complète des causes.
+pub fn describe_error(method: &str, path: &str, e: &reqwest::Error) -> String {
+    let kind = if e.is_connect() {
+        "connect"
+    } else if e.is_timeout() {
+        "timeout"
+    } else if e.is_body() {
+        "body"
+    } else if e.is_decode() {
+        "decode"
+    } else if e.is_request() {
+        "request"
+    } else {
+        "other"
+    };
+    let mut chain = Vec::new();
+    let mut src = std::error::Error::source(e);
+    while let Some(s) = src {
+        chain.push(s.to_string());
+        src = s.source();
+    }
+    let status = e.status().map(|s| format!(" status={s}")).unwrap_or_default();
+    format!("{method} {path}: kind={kind} connect={} timeout={}{status} chain=[{}]", e.is_connect(), e.is_timeout(), chain.join(" <- "))
+}
+
 pub fn cacheable(path: &str) -> bool {
     if path.starts_with("/__looty/") || path.starts_with("/collab") || path == "/api/ws" {
         return false;
@@ -139,6 +165,12 @@ impl Offline {
     pub fn set_online(&self, on: bool) {
         if self.online.swap(on, Ordering::SeqCst) != on {
             tracing::info!("server {}", if on { "reachable again" } else { "unreachable: offline mode" });
+        }
+    }
+    /// Passage hors ligne : journalise la cause (une seule fois, au basculement).
+    pub fn go_offline(&self, cause: &str) {
+        if self.online.swap(false, Ordering::SeqCst) {
+            tracing::warn!("server unreachable: offline mode ({cause})");
         }
     }
     pub fn pending(&self) -> usize {

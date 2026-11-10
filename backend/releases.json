@@ -3,6 +3,25 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "desktop",
+      "version": "0.8.2",
+      "date": "2026-11-10",
+      "title": {
+        "en": "Connection to the server on filtered networks, and a log file",
+        "fr": "Connexion au serveur sur les réseaux filtrés, et fichier de journal"
+      },
+      "notes": {
+        "en": [
+          "The app now uses the system's **OpenSSL** and HTTP/2 to reach the server. On some filtered networks (campus, company) the previous connection was reset right after the handshake and the app showed *offline* although the website worked.",
+          "The app now writes a **log file** (`~/.local/state/looty/looty.log.<date>`, the last 3 days) with the exact cause each time it goes offline. Nothing sensitive is written to it."
+        ],
+        "fr": [
+          "L’application utilise désormais **OpenSSL** du système et HTTP/2 pour joindre le serveur. Sur certains réseaux filtrés (campus, entreprise), la connexion précédente était coupée juste après la poignée de main et l’application affichait *hors ligne* alors que le site fonctionnait.",
+          "L’application écrit maintenant un **fichier de journal** (`~/.local/state/looty/looty.log.<date>`, les 3 derniers jours) avec la cause exacte à chaque passage hors ligne. Rien de sensible n’y est écrit."
+        ]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.33.0",
       "date": "2026-11-06",
