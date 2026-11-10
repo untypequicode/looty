@@ -59,10 +59,23 @@ settings) at `https://<owner>.github.io/<repo>/apt`. Without the key, only the p
 does not add the repository. Adding the repository by hand (replace `SITE` by your site address):
 
 ```sh
-sudo install -d /etc/apt/keyrings
-curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc >/dev/null
-echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
+sudo curl -fsSL SITE/apt/looty-archive-keyring.gpg -o /usr/share/keyrings/looty-archive-keyring.gpg
+sudo tee /etc/apt/sources.list.d/looty.sources >/dev/null <<'EOF2'
+Types: deb
+URIs: SITE/apt
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/looty-archive-keyring.gpg
+EOF2
 sudo apt update && sudo apt install looty
+```
+
+If you followed the previous instructions (`looty.list` + `/etc/apt/keyrings/looty.asc`) and `apt update` fails with
+"Conflicting values set for option Signed-By", remove the old files (installing the package now does it too):
+
+```sh
+sudo rm /etc/apt/sources.list.d/looty.list /etc/apt/keyrings/looty.asc
 ```
 
 ### Windows 10 / 11
