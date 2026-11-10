@@ -468,10 +468,31 @@ fn on_download(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
     }
 }
 
+/// Journal : stderr + fichier quotidien (3 jours) dans ~/.local/state/looty/ (sinon dossier de données).
+fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| "looty=info,looty_desktop=info,warn".into());
+    let file = dirs::state_dir().or_else(dirs::data_dir).map(|d| d.join("looty")).and_then(|d| {
+        std::fs::create_dir_all(&d).ok()?;
+        let appender = tracing_appender::rolling::Builder::new().rotation(tracing_appender::rolling::Rotation::DAILY).filename_prefix("looty.log").max_log_files(3).build(&d).ok()?;
+        Some(tracing_appender::non_blocking(appender))
+    });
+    let stderr = fmt::layer().with_writer(std::io::stderr).with_filter(filter());
+    match file {
+        Some((writer, guard)) => {
+            let file_layer = fmt::layer().with_ansi(false).with_writer(writer).with_filter(filter());
+            tracing_subscriber::registry().with(stderr).with(file_layer).init();
+            Some(guard)
+        }
+        None => {
+            tracing_subscriber::registry().with(stderr).init();
+            None
+        }
+    }
+}
+
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "looty=info,warn".into()))
-        .init();
+    let _log_guard = init_logging();
     // Pilote NVIDIA propriétaire : le rendu DMA-BUF de WebKitGTK donne une fenêtre vide.
     #[cfg(target_os = "linux")]
     if std::path::Path::new("/proc/driver/nvidia").exists() && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
