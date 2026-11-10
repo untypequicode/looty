@@ -39,7 +39,8 @@
           "hunspell-en-us"
         ],
         "section": "utils",
-        "desktopTemplate": "../looty.desktop"
+        "desktopTemplate": "../looty.desktop",
+        "preInstallScript": "../packaging/preinst"
       }
     },
     "publisher": "Looty",

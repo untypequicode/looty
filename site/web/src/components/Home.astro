@@ -103,9 +103,15 @@ curl -LO {REPO}/releases/latest/download/docker-compose.yml
         </div>
         <div class="two">
           <div class="card"><h3>{l.dl.aptH}</h3><p style="margin-bottom:12px">{l.dl.aptP}</p>
-<pre id="apt" data-copy><code>sudo install -d /etc/apt/keyrings
-curl -fsSL SITE/apt/looty-archive-keyring.asc | sudo tee /etc/apt/keyrings/looty.asc &gt;/dev/null
-echo "deb [signed-by=/etc/apt/keyrings/looty.asc] SITE/apt stable main" | sudo tee /etc/apt/sources.list.d/looty.list
+<pre id="apt" data-copy><code>sudo curl -fsSL SITE/apt/looty-archive-keyring.gpg -o /usr/share/keyrings/looty-archive-keyring.gpg
+sudo tee /etc/apt/sources.list.d/looty.sources &gt;/dev/null &lt;&lt;'EOF2'
+Types: deb
+URIs: SITE/apt
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/looty-archive-keyring.gpg
+EOF2
 sudo apt update &amp;&amp; sudo apt install looty</code></pre></div>
           <div class="card"><h3>{l.dl.nixH}</h3><p style="margin-bottom:12px">{l.dl.nixP}</p>
 <pre data-copy><code>nix run github:untypequicode/looty#looty-desktop

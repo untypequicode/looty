@@ -1,0 +1,10 @@
+#!/bin/sh
+# Retire la configuration apt manuelle (looty.list + looty.asc) : le paquet fournit looty.sources,
+# et deux fichiers avec des Signed-By différents font échouer « apt update ».
+set -e
+case "$1" in
+  install|upgrade)
+    rm -f /etc/apt/sources.list.d/looty.list /etc/apt/keyrings/looty.asc
+    ;;
+esac
+exit 0
