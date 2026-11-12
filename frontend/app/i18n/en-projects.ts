@@ -76,6 +76,11 @@ export default {
     starting: 'Starting Python…', busy: 'Running…', ready: 'Python ready', off: 'Python (starts on first run)', download: 'Download the notebook (.ipynb)',
     pyodideHint: 'Python runs in your browser (Pyodide), not on the server. Libraries such as NumPy, pandas and Matplotlib load automatically on first import; use %pip install for others. Project files can be read directly. Outputs are shared with everyone editing.',
     deleteTitle: 'Delete this cell?', deleteHint: 'Its text and output are removed for everyone.', tooBig: 'too large to be saved',
+    deps: {
+      refreshFailed: 'Project files could not be refreshed: the code runs with the files already loaded.', saveFailed: '{pkg} is installed for this session but could not be saved to requirements.txt.',
+      install: 'Install {pkg}', installing: 'Installing {pkg}…', warn: 'Could not install {pkg} from requirements.txt.',
+      wasm: 'This library cannot run in the browser: no pure-Python or WebAssembly version exists. Switch this notebook to the project’s Jupyter server engine (Engine button in the toolbar) to use it.',
+    },
     jupyter: {
       title: 'Execution engine', description: 'Where this notebook’s code runs. The choice is shared with everyone editing it.',
       pyodide: 'Browser (Pyodide)', remote: 'Jupyter server', pyodideShort: 'Pyodide', remoteShort: 'Jupyter', projectKernel: 'project kernel',

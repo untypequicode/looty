@@ -3,6 +3,29 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.34.0",
+      "date": "2026-11-12",
+      "title": {
+        "en": "Python notebooks: install libraries and import your project files",
+        "fr": "Notebooks Python : installer des bibliothèques et importer les fichiers du projet"
+      },
+      "notes": {
+        "en": [
+          "**Missing library?** When a cell fails with *No module named …*, an **Install** button appears under the error: it installs the package in the browser, adds it to the project's `requirements.txt` and runs the cell again. Nothing is ever installed without a click.",
+          "**`requirements.txt`** lists the notebook's libraries and is shared with everyone on the project. `%pip install a b==1.2 \"c>=2\"` (or `!pip install …`) adds the packages to it, `%pip install -r requirements.txt` now works, and the file is installed automatically when Python starts. A library that fails to install is reported without blocking the others.",
+          "**Import your own files**: `import utils` (`utils.py`) and `from pkg.mod import f` work from a cell. Project files are refreshed before each run, so a modified `.py` file is picked up without restarting Python.",
+          "Libraries that cannot run in the browser (no pure-Python or WebAssembly version) now say so clearly and suggest switching the notebook to the project's Jupyter server."
+        ],
+        "fr": [
+          "**Bibliothèque manquante ?** Quand une cellule échoue avec *No module named …*, un bouton **Installer** apparaît sous l’erreur : il installe le paquet dans le navigateur, l’ajoute au `requirements.txt` du projet et relance la cellule. Rien n’est jamais installé sans un clic.",
+          "**`requirements.txt`** liste les bibliothèques du notebook et est partagé avec tous les membres du projet. `%pip install a b==1.2 \"c>=2\"` (ou `!pip install …`) y ajoute les paquets, `%pip install -r requirements.txt` fonctionne désormais, et le fichier est installé automatiquement au démarrage de Python. Une bibliothèque qui ne s’installe pas est signalée sans bloquer les autres.",
+          "**Importez vos propres fichiers** : `import utils` (`utils.py`) et `from pkg.mod import f` fonctionnent depuis une cellule. Les fichiers du projet sont rafraîchis avant chaque exécution : un fichier `.py` modifié est pris en compte sans redémarrer Python.",
+          "Les bibliothèques qui ne peuvent pas tourner dans le navigateur (aucune version pur Python ou WebAssembly) le disent clairement et proposent de passer le notebook sur le serveur Jupyter du projet."
+        ]
+      }
+    },
+    {
       "platform": "desktop",
       "version": "0.8.2",
       "date": "2026-11-10",

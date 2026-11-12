@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as Y from 'yjs'
-import { Play, Loader2, ArrowUp, ArrowDown, Trash2, Eraser, Type, Code2, Plus, Copy, GripVertical, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-vue-next'
+import { Play, Loader2, ArrowUp, ArrowDown, Trash2, Eraser, Type, Code2, Plus, Copy, GripVertical, ChevronDown, ChevronRight, MoreHorizontal, Download } from 'lucide-vue-next'
 import { EditorState, Prec } from '@codemirror/state'
 import { EditorView, keymap, drawSelection, highlightSpecialChars } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
@@ -40,6 +40,9 @@ const props = defineProps<{
   outputsHidden?: boolean
   /** Durée de la dernière exécution. */
   durationMs?: number | null
+  /** Bibliothèque Python manquante (erreur ModuleNotFoundError) que le moteur peut installer. */
+  missing?: { module: string; pkg: string } | null
+  installing?: boolean
   dragging?: boolean
   dropEdge?: 'before' | 'after' | null
 }>()
@@ -52,6 +55,7 @@ const emit = defineEmits<{
   clear: []
   retype: [type: 'code' | 'markdown']
   duplicate: []
+  install: []
   split: [pos: number]
   escape: []
   toggle: [key: 'source_hidden' | 'outputs_hidden']
@@ -256,6 +260,9 @@ const hasOutputs = computed(() => props.outputs.length > 0)
         <div v-else class="cell-out-wrap">
           <button class="cell-fold out" :aria-label="t('notebook.hideOutput')" :title="t('notebook.hideOutput')" @click.stop="emit('toggle', 'outputs_hidden')"><ChevronDown :size="12" /></button>
           <div ref="outEl" class="cell-out" :class="{ capped: !outExpanded }"><NotebookOutput :outputs="outputs" /></div>
+          <button v-if="missing" class="cell-install" :disabled="installing" data-testid="nb-install" @click.stop="emit('install')">
+            <Loader2 v-if="installing" :size="13" class="spin" /><Download v-else :size="13" /> {{ t('notebook.deps.install', { pkg: missing.pkg }) }}
+          </button>
           <button v-if="outOverflow || outExpanded" class="cell-expand" @click.stop="outExpanded = !outExpanded">{{ outExpanded ? t('notebook.collapseOutput') : t('notebook.expandOutput') }}</button>
         </div>
       </template>
@@ -301,6 +308,9 @@ const hasOutputs = computed(() => props.outputs.length > 0)
 .cell-out.capped { max-height: 420px; overflow-y: auto; }
 .cell-expand { align-self: flex-start; margin: 2px 0 0 10px; padding: 1px 8px; border-radius: var(--r-sm); font-size: var(--fs-xs); color: var(--text-3); }
 .cell-expand:hover { background: var(--bg-hover); color: var(--text); }
+.cell-install { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin: 4px 0 0 10px; padding: 3px 10px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--bg-hover); font-size: var(--fs-xs); font-weight: 500; color: var(--text); }
+.cell-install:hover:not(:disabled) { border-color: var(--accent, var(--text-3)); }
+.cell-install:disabled { opacity: .6; cursor: progress; }
 .cell-hidden { display: flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 10px; border-radius: var(--r-md); background: var(--bg-panel); box-shadow: inset 0 0 0 1px var(--border); color: var(--text-3); font-family: var(--font-mono, monospace); font-size: 12px; text-align: left; }
 .cell-hidden:hover { color: var(--text); }
 .cell-time { padding: 0 4px 0 10px; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
