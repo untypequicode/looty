@@ -48,8 +48,15 @@ for (const [title, cls] of [['Liste|List', 'list'], ['Compact', 'compact'], ['Ca
   await panel.locator('.seg-btn').filter({ has: p.locator('svg') }).evaluateAll((els, t) => els.find((e) => new RegExp(t).test(e.title))?.click(), title); await p.waitForTimeout(400)
   ok(`view ${cls}`, await panel.locator(`.cp-items.${cls}`).count() > 0)
 }
-let board = (await api(`/api/workspaces/${WS}/prefs`)).moodleBoard?.panels?.find((x) => x.kind === 'courses')
-ok('panel options saved in the board', board?.opts?.sort === 'deadline' && board.opts.view === 'cards' && board.opts.group === 'none', JSON.stringify(board?.opts))
+// Chaque clic envoie son PATCH : on attend que le dernier soit enregistré (runner chargé) au lieu de lire une seule fois.
+const boardSaved = (b) => b?.opts?.sort === 'deadline' && b.opts.view === 'cards' && b.opts.group === 'none'
+let board
+for (let i = 0; i < 20; i++) {
+  board = (await api(`/api/workspaces/${WS}/prefs`)).moodleBoard?.panels?.find((x) => x.kind === 'courses')
+  if (boardSaved(board)) break
+  await p.waitForTimeout(250)
+}
+ok('panel options saved in the board', boardSaved(board), JSON.stringify(board?.opts))
 
 // Favori (étoile) synchronisé avec Moodle
 await panel.locator('.ci', { hasText: 'Analyse' }).hover()
