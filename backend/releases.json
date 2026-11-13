@@ -4,6 +4,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.34.1",
+      "date": "2026-11-13",
+      "title": {
+        "en": "No more duplicated pages or locked editor after a server restart",
+        "fr": "Plus de pages dupliquées ni d’éditeur bloqué après un redémarrage du serveur"
+      },
+      "notes": {
+        "en": [
+          "A page could end up with its **content duplicated** and stay **impossible to edit** when the server was briefly unavailable (restart, update, backup restore). The editor now shows the page read-only, retries on its own and lets you edit again as soon as the connection is back.",
+          "Two people opening an old or duplicated page at the same moment no longer get its content twice.",
+          "A tab left open during an update reloads itself instead of staying read-only.",
+          "The collaboration server no longer drops changes silently when the database is briefly unreachable: it keeps them and saves them again until it succeeds.",
+          "Self-hosting: the collaboration image now has a health check; add `stop_grace_period: 30s` to the `collaboration` service of your `docker-compose.yml` so open documents are saved before it stops."
+        ],
+        "fr": [
+          "Une page pouvait se retrouver avec son **contenu en double** et rester **impossible à modifier** quand le serveur était brièvement indisponible (redémarrage, mise à jour, restauration de sauvegarde). L’éditeur affiche maintenant la page en lecture seule, réessaie tout seul et redonne la main dès que la connexion revient.",
+          "Deux personnes qui ouvrent au même moment une ancienne page ou une page dupliquée n’obtiennent plus son contenu en double.",
+          "Un onglet resté ouvert pendant une mise à jour se recharge tout seul au lieu de rester en lecture seule.",
+          "Le serveur de collaboration ne perd plus de modifications en silence quand la base de données est brièvement injoignable : il les garde et les enregistre à nouveau jusqu’à y parvenir.",
+          "Auto-hébergement : l’image de collaboration a maintenant un contrôle de santé ; ajoutez `stop_grace_period: 30s` au service `collaboration` de votre `docker-compose.yml` pour que les documents ouverts soient enregistrés avant l’arrêt."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.34.0",
       "date": "2026-11-12",
       "title": {

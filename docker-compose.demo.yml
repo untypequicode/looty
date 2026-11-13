@@ -87,6 +87,7 @@ services:
       - "traefik.http.routers.looty-demo-collab.middlewares=looty-demo-collab-strip"
       - "traefik.http.services.looty-demo-collab.loadbalancer.server.port=8082"
     restart: unless-stopped
+    stop_grace_period: 30s
 
   frontend:
     image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
