@@ -11,7 +11,10 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { projectResolver, type NbAttachments } from '~/editor/notebookMarkdown'
 import { planUploads, insertionText } from '~/editor/notebookFiles'
-import { useProjectActions } from '~/composables/useProjects'
+import { useProjectActions, type ProjectDetail } from '~/composables/useProjects'
+import { api } from '~/composables/api'
+import { toast } from '~/composables/useToast'
+import { missingModule, packageFor, isProjectModule, mergeRequirements } from '../../../public/notebook-deps.js'
 import { useLocalStorage } from '@vueuse/core'
 import {
   cellJson, cellFields, clipboardText, parseClipboardCells, markdownHeadings, isSourceHidden, isOutputsHidden, withHidden, withTiming, executionMs,
@@ -399,24 +402,78 @@ function setEngine(next: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec
 }
 
 // --- Noyau Python ---
-const fileList = computed(() => (props.projectFiles ?? []).filter((f) => !f.is_dir && !/\.ipynb$/i.test(f.path) && f.size <= 5_000_000).slice(0, 200))
+const kernelFileOk = (f: { path: string; size: number; is_dir: boolean }) => !f.is_dir && !/\.ipynb$/i.test(f.path) && f.size <= 5_000_000
+/** Fichiers du projet vus par le code, relus avant chaque exécution (version enregistrée, voir kernelRead). */
+const kernelFiles = new Map<string, string>()
+const REQUIREMENTS = 'requirements.txt'
+/** Écritures de requirements.txt l'une après l'autre (lecture puis fusion puis envoi). */
+let reqChain: Promise<unknown> = Promise.resolve()
+/** Liste du projet : relue avant chaque exécution ; requête partagée si déjà en vol, et une seule pour tout « Tout exécuter ». */
+let listing: { pending: boolean; p: Promise<ProjectDetail> } | null = null
+let listingBatch = false
+function projectListing(fresh = false) {
+  if (!fresh && listing && (listing.pending || listingBatch)) return listing.p
+  const p = api<ProjectDetail>(`/api/projects/${props.projectId}`, { silent: true })
+  const entry = { pending: true, p }
+  listing = entry
+  p.then(() => { entry.pending = false }, () => { if (listing === entry) listing = null })
+  return p
+}
+/** Ajoute des paquets à requirements.txt du projet (fichier ordinaire, créé ou modifié par l'API des fichiers). */
+async function writeRequirements(specs: string[], retry: boolean): Promise<void> {
+  const detail = await projectListing(true)
+  const file = detail.files.find((f) => !f.is_dir && f.path === REQUIREMENTS)
+  if (!file) {
+    const { text, added } = mergeRequirements('', specs)
+    if (!added.length) return
+    try {
+      await api(`/api/projects/${props.projectId}/files`, { method: 'POST', body: { path: REQUIREMENTS, is_dir: false, content: text }, silent: true })
+    } catch (e) {
+      // Fichier créé entre-temps par quelqu'un d'autre : on relit et on fusionne une fois.
+      if (retry) return writeRequirements(specs, false)
+      throw e
+    }
+    return
+  }
+  const r = await fetch(`/api/projects/${props.projectId}/files/${file.id}/raw`, { credentials: 'same-origin' })
+  if (!r.ok) throw new Error(`requirements.txt: ${r.status}`)
+  const { text, added } = mergeRequirements(await r.text(), specs)
+  if (!added.length) return
+  await api(`/api/projects/${props.projectId}/files/${file.id}`, { method: 'PUT', body: { content: text }, silent: true })
+}
+function addRequirements(specs: string[]) {
+  if (ro.value || !specs.length) return Promise.resolve()
+  const job = reqChain.then(async () => {
+    try {
+      await writeRequirements(specs, true)
+    } catch {
+      toast.error(t('notebook.deps.saveFailed', { pkg: specs.join(', ') }), { duration: 8000 })
+    } finally {
+      listing = null
+    }
+    await projectActions.refresh().catch(() => {})
+  })
+  reqChain = job.catch(() => {})
+  return job.catch(() => {})
+}
 const pyodide = useNotebookKernel({
-  signature: () => fileList.value.map((f) => `${f.id}:${f.size}`).join('|'),
-  files: async () => {
-    const out: { path: string; data: ArrayBuffer }[] = []
-    let total = 0
-    for (const f of fileList.value) {
-      if (total > 25_000_000) break
-      try {
-        const r = await fetch(`/api/projects/${props.projectId}/files/${f.id}/raw`, { credentials: 'same-origin' })
-        if (!r.ok) continue
-        const data = await r.arrayBuffer()
-        total += data.byteLength
-        out.push({ path: f.path, data })
-      } catch { /* fichier illisible : ignoré */ }
+  list: async () => {
+    const detail = await projectListing()
+    kernelFiles.clear()
+    const out: { path: string; key: string; size: number }[] = []
+    for (const f of detail.files.filter(kernelFileOk).slice(0, 200)) {
+      kernelFiles.set(f.path, f.id)
+      out.push({ path: f.path, key: `${f.id}:${f.size}:${f.updated_at}`, size: f.size })
     }
     return out
   },
+  read: async (path) => {
+    const id = kernelFiles.get(path)
+    if (!id) return null
+    const r = await fetch(`/api/projects/${props.projectId}/files/${id}/raw`, { credentials: 'same-origin' })
+    return r.ok ? r.arrayBuffer() : null
+  },
+  onInstalled: addRequirements,
 })
 const jupyter = useJupyterKernel({ projectId: () => props.projectId, kernel: () => nbKernelName.value })
 // Moteur changé (ici ou par quelqu'un d'autre) : le noyau distant est arrêté, rien ne bascule en silence.
@@ -472,6 +529,32 @@ async function runCell(c: CellVM): Promise<boolean> {
   }
   return res.ok
 }
+/** Bibliothèque manquante d'une cellule (Pyodide, modification permise) : { module, pkg } pour le bouton « Installer ». */
+function missingOf(c: CellVM): { module: string; pkg: string } | null {
+  if (c.type !== 'code' || remote.value || ro.value) return null
+  for (const o of shown(c)) {
+    const module = missingModule(o)
+    if (module && !isProjectModule(module, [...filesByPath.value.keys()])) return { module, pkg: packageFor(module) }
+  }
+  return null
+}
+const installing = ref<string | null>(null)
+/** « Installer » : micropip, puis requirements.txt (via le noyau), puis la cellule est relancée. */
+async function installMissing(c: CellVM) {
+  const miss = missingOf(c)
+  if (!miss || installing.value) return
+  installing.value = c.id
+  try {
+    const res = await pyodide.install([miss.pkg])
+    if (res.ok) { await runCell(c); return }
+    const kind = res.wasm ? 'WasmUnavailableError' : 'PipError'
+    const err: NbOutput = { output_type: 'error', ename: kind, evalue: res.error ?? '', traceback: [`${kind}: ${res.error ?? ''}`] }
+    const outputs = [...c.outputs.filter((o) => o.output_type !== 'error'), err]
+    if (c.ymap.doc) ydoc.transact(() => c.ymap.set('outputs', JSON.stringify(capped(outputs))))
+  } finally {
+    installing.value = null
+  }
+}
 async function runAt(index: number, mode: 'stay' | 'next' | 'below') {
   const c = cells.value[index]
   if (!c) return
@@ -485,9 +568,15 @@ async function runAt(index: number, mode: 'stay' | 'next' | 'below') {
 async function runAll() {
   const list = cells.value.filter((c) => c.type === 'code')
   queued.value = new Set(list.map((c) => c.id))
-  for (const c of list) {
-    const ok = await runCell(c)
-    if (!ok) { queued.value = new Set(); break }
+  listing = null
+  listingBatch = true
+  try {
+    for (const c of list) {
+      const ok = await runCell(c)
+      if (!ok) { queued.value = new Set(); break }
+    }
+  } finally {
+    listingBatch = false
   }
 }
 function interrupt() { jupyter.interrupt() }
@@ -558,6 +647,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
             :selected="selectedId === c.id" :read-only="ro" :awareness="provider.awareness"
             :resolve="resolveLink" :on-files="ro ? null : (fl: File[], pasted: boolean) => uploadForCell(c, fl, pasted)"
             :source-hidden="isSourceHidden(c.meta)" :outputs-hidden="isOutputsHidden(c.meta)" :duration-ms="c.type === 'code' ? shownMs(c) : null"
+            :missing="missingOf(c)" :installing="installing === c.id" @install="installMissing(c)"
             :dragging="dragId === c.id" :drop-edge="dropAt?.id === c.id ? (dropAt.after ? 'after' : 'before') : null"
             @select="select(c.id)" @run="(m) => runAt(i, m)" @add="(w, ty) => addAt(w === 'above' ? i : i + 1, ty)" @remove="removeAt(i)" @move="(d) => moveAt(i, d)" @clear="clearOutput(c)" @retype="(ty) => retype(c, ty)"
             @duplicate="duplicate(i)" @split="(pos) => splitAt(i, pos)" @escape="commandMode" @toggle="(k) => toggleHidden(c, k)"

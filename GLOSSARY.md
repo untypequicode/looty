@@ -81,6 +81,14 @@ _Avoid_: compte Android, synchro native
 Où s'exécute le code d'un notebook : dans le navigateur de la personne qui clique (Pyodide, par défaut) ou sur le serveur Jupyter du projet. Le choix est enregistré dans le notebook et vaut pour tout le monde ; chaque personne a son propre noyau, les sorties sont partagées.
 _Avoid_: runtime, backend
 
+**Dépendances du projet**:
+Liste des bibliothèques Python dont les notebooks d'un projet ont besoin, tenue dans le fichier `requirements.txt` à la racine du projet. Elle est partagée par tous les notebooks et toutes les personnes du projet ; chaque noyau Pyodide les installe à son démarrage. Une bibliothèque n'y entre que par un geste explicite (bouton « Installer », `%pip install`, ou modification du fichier).
+_Avoid_: environnement, paquets installés, venv
+
+**Module du projet**:
+Fichier Python du projet (hors notebook) qu'une cellule peut importer par son nom, dossiers compris. Sa dernière version enregistrée est prise en compte à chaque exécution de cellule.
+_Avoid_: script, librairie locale
+
 **Lien public**:
 Adresse secrète qui permet de lire une page sans compte, en lecture seule. Si la page porte un notebook, le visiteur le voit tel qu'il est enregistré (texte, code, sorties, images) sans pouvoir l'exécuter. Si elle porte un projet LaTeX, il voit le dernier PDF compilé. Il ne voit jamais les autres fichiers du projet.
 _Avoid_: lien de partage, page publiée, partage public
