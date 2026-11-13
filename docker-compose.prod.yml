@@ -79,6 +79,7 @@ services:
       - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
     restart: unless-stopped
+    stop_grace_period: 30s
 
   frontend:
     image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}

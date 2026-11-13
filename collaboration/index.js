@@ -2,10 +2,19 @@ const { Server } = require('@hocuspocus/server')
 const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
 const Y = require('yjs')
+const { withRetry, authErrorForStatus, retryFailedStores } = require('./resilience')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/looty_db',
+  // Base morte : l'échec est rapide (et relancé) au lieu de rester suspendu indéfiniment.
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
 })
+
+// Filet de sécurité : une promesse rejetée ou une exception oubliée ne doit pas tuer le
+// processus (les documents en mémoire non enregistrés seraient perdus).
+process.on('unhandledRejection', (e) => console.error('Unhandled rejection', e))
+process.on('uncaughtException', (e) => console.error('Uncaught exception', e))
 
 // URL interne du backend Rust, utilisée pour vérifier les droits d'accès aux documents.
 const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:8080').replace(/\/$/, '')
@@ -148,7 +157,7 @@ async function revalidate() {
           if (!auth) continue
           let res
           try {
-            res = await fetch(accessUrl(name), { headers: auth })
+            res = await fetch(accessUrl(name), { headers: auth, signal: AbortSignal.timeout(10_000) })
           } catch {
             continue // Backend injoignable : on garde la connexion, on réessaiera.
           }
@@ -172,15 +181,62 @@ function scheduleRevalidate() {
 }
 setInterval(scheduleRevalidate, 120_000).unref()
 
+/**
+ * Refus d'authentification : Hocuspocus ne transmet au client que `error.reason` (sinon
+ * « permission-denied »), et l'interface s'en sert pour distinguer une panne passagère
+ * (« auth-unavailable », « restoring » : elle réessaie) d'un refus définitif.
+ */
+const authError = (reason) => Object.assign(new Error(reason), { reason })
+
 let restoredAt = 0
 const loadedAt = new Map()
 /** Fichiers de projet dont le contenu a été remplacé par le backend (NOTIFY looty_file_reset). */
 const resetAt = new Map()
+/** Documents dont l'enregistrement a définitivement échoué (nom -> contextes), relancés toutes les 30 s. */
+const failedStores = new Map()
+let retryingFailed = false
+setInterval(() => {
+  if (retryingFailed || !failedStores.size) return
+  retryingFailed = true
+  try {
+    const hp = server.hocuspocus
+    // Chemin public de Hocuspocus : passe par le même `store` (donc ses gardes restauration/réinitialisation).
+    const names = retryFailedStores(failedStores, hp.documents, (document, ctx) =>
+      hp.storeDocumentHooks(document, {
+        document, documentName: document.name, instance: hp, clientsCount: document.getConnectionsCount(),
+        context: ctx.context, lastContext: ctx.lastContext, lastTransactionOrigin: { source: 'local', context: ctx.lastContext },
+      }, true))
+    if (names.length) console.log('Retrying failed stores:', names.join(', '))
+  } catch (e) {
+    console.error('Retry of failed stores failed', e.message)
+  } finally {
+    retryingFailed = false
+  }
+}, 30_000).unref()
+
+// Arrêt : si la base reste injoignable, destroy() attendrait indéfiniment les documents non enregistrés
+// (ils restent en mémoire). On journalise leurs noms et on quitte avant la fin du délai Docker (30 s).
+const onStopSignal = () => {
+  setTimeout(() => {
+    console.error('Shutdown timeout, unsaved documents:', [...failedStores.keys()].join(', ') || '(none recorded)')
+    process.exit(1)
+  }, 20_000).unref()
+}
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGQUIT']) process.on(sig, onStopSignal)
 
 const server = new Server({
   port: Number(process.env.PORT || 8082),
   // Ferme les connexions non authentifiées rapidement
   timeout: 30000,
+
+  /** Sonde de vie (Docker/Traefik) : répond sans toucher la base. Rejeter sans erreur court-circuite la réponse par défaut. */
+  async onRequest({ request, response }) {
+    if (request.method === 'GET' && (request.url || '').split('?')[0] === '/health') {
+      response.writeHead(200, { 'Content-Type': 'text/plain' })
+      response.end('ok')
+      return Promise.reject()
+    }
+  },
 
   /**
    * Chaque connexion à un document est autorisée par le backend, qui lit le
@@ -189,33 +245,37 @@ const server = new Server({
    */
   async onAuthenticate({ documentName, requestHeaders, requestParameters, connectionConfig, token }) {
     if (Date.now() - restoredAt < 8000) {
-      throw new Error('restoring')
+      throw authError('restoring')
     }
     const fid = fileId(documentName)
     const cid = canvasId(documentName)
     if (!fid && !cid && !UUID_RE.test(documentName)) {
-      throw new Error('invalid-document')
+      throw authError('invalid-document')
     }
     // Interface d'avant la version du format (onglet ouvert avant une mise à jour…) : elle ne
     // sait pas lire les formules et diagrammes convertis et les supprimerait du document.
     if (!fid && !cid && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
-      throw new Error('outdated-client')
+      throw authError('outdated-client')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
     // Jeton API optionnel (clients non navigateur), sinon cookie de session.
     const headers = {}
     if (token && token.startsWith('looty_')) headers.authorization = `Bearer ${token}`
     else if (cookie) headers.cookie = cookie
-    else throw new Error('unauthenticated')
+    else throw authError('unauthenticated')
     let res
     try {
-      res = await fetch(accessUrl(documentName), { headers })
+      res = await fetch(accessUrl(documentName), { headers, signal: AbortSignal.timeout(10_000) })
     } catch (e) {
+      // Injoignable ou délai dépassé : transitoire, le client réessaie.
       console.error('Backend unreachable for auth', e.message)
-      throw new Error('auth-unavailable')
+      throw authError('auth-unavailable')
     }
-    if (!res.ok) {
-      throw new Error('forbidden')
+    // Seuls 401/403/404 sont des refus définitifs ; 5xx/429 (backend qui redémarre) sont transitoires.
+    const refusal = authErrorForStatus(res.status)
+    if (refusal) {
+      if (refusal !== 'forbidden') console.error('Backend auth check failed', res.status)
+      throw authError(refusal)
     }
     const access = await res.json()
     connectionConfig.readOnly = !access.can_write
@@ -284,55 +344,64 @@ const server = new Server({
         }
         return EMPTY_DOC
       },
-      store: async ({ documentName, state, context, lastContext }) => {
-        // Hocuspocus 4 : contexte de la dernière connexion ayant modifié le document.
-        const userId = lastContext?.user?.id || context?.user?.id || null
-        // Document chargé avant une restauration : ne jamais écraser les données restaurées.
-        if ((loadedAt.get(documentName) ?? 0) < restoredAt) return
-        const cid = canvasId(documentName)
-        if (cid) {
-          try {
-            const { count, text } = canvasSummary(state)
-            await pool.query(
-              'UPDATE pages SET canvas_state = $1, canvas_count = $2, canvas_text = $3, canvas_updated_at = NOW(), updated_by = COALESCE($5::uuid, updated_by) WHERE id = $4',
-              [state, count, text, cid, userId],
-            )
-          } catch (e) {
-            console.error('Error saving canvas', cid, e.message)
-          }
-          return
-        }
-        const fid = fileId(documentName)
-        if (fid) {
-          // Contenu remplacé ailleurs (envoi, autre client) depuis le chargement : on n'écrase pas.
-          if ((loadedAt.get(documentName) ?? 0) < (resetAt.get(documentName) ?? 0)) return
-          try {
-            const isNb = isNotebookPath((await pool.query('SELECT path FROM project_files WHERE id = $1', [fid])).rows[0]?.path)
-            const text = isNb ? notebookText(state) : stateText(state)
-            const r = await pool.query(
-              'UPDATE project_files SET yjs_state = $1, content = $2, size = octet_length($2), updated_at = NOW(), updated_by = COALESCE($4::uuid, updated_by) WHERE id = $3 RETURNING project_id',
-              [state, text, fid, userId],
-            )
-            if (r.rows[0]) await pool.query('UPDATE projects SET updated_at = NOW() WHERE id = $1', [r.rows[0].project_id])
-          } catch (e) {
-            console.error('Error saving file', fid, e.message)
-          }
-          return
-        }
+      /**
+       * Hocuspocus (server/dist/hocuspocus-server.esm.js:1548-1568) : si `store` rejette, l'erreur est
+       * journalisée (« Document stays in memory to avoid data loss ») et le document n'est PAS déchargé
+       * (shouldUnloadDocument n'est évalué qu'après un enregistrement réussi). Aucune nouvelle
+       * tentative n'est planifiée : la suivante a lieu à la prochaine modification, ou à l'arrêt
+       * si un enregistrement est en attente (flushPendingStores). On réessaie donc ici, puis on
+       * rejette pour que les modifications restent en mémoire plutôt que d'être perdues en silence.
+       */
+      store: async (payload) => {
         try {
-          await pool.query(
-            'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
-            [state, documentName, userId],
-          )
+          await storeDocument(payload)
+          failedStores.delete(payload.documentName)
         } catch (e) {
-          console.error('Error saving document', documentName, e.message)
-          return
+          failedStores.set(payload.documentName, { context: payload.context, lastContext: payload.lastContext })
+          throw e
         }
-        await recordRevision(documentName, state, userId)
       },
     }),
+    { afterUnloadDocument: async ({ documentName }) => { failedStores.delete(documentName) } },
   ],
 })
+
+async function storeDocument({ documentName, state, context, lastContext }) {
+  // Hocuspocus 4 : contexte de la dernière connexion ayant modifié le document.
+  const userId = lastContext?.user?.id || context?.user?.id || null
+  // Document chargé avant une restauration : ne jamais écraser les données restaurées.
+  if ((loadedAt.get(documentName) ?? 0) < restoredAt) return
+  const retry = (fn) => withRetry(fn, { onRetry: (e, n) => console.error('Store retry', n, documentName, e.message) })
+  const cid = canvasId(documentName)
+  if (cid) {
+    const { count, text } = canvasSummary(state)
+    await retry(() => pool.query(
+      'UPDATE pages SET canvas_state = $1, canvas_count = $2, canvas_text = $3, canvas_updated_at = NOW(), updated_by = COALESCE($5::uuid, updated_by) WHERE id = $4',
+      [state, count, text, cid, userId],
+    ))
+    return
+  }
+  const fid = fileId(documentName)
+  if (fid) {
+    // Contenu remplacé ailleurs (envoi, autre client) depuis le chargement : on n'écrase pas.
+    if ((loadedAt.get(documentName) ?? 0) < (resetAt.get(documentName) ?? 0)) return
+    await retry(async () => {
+      const isNb = isNotebookPath((await pool.query('SELECT path FROM project_files WHERE id = $1', [fid])).rows[0]?.path)
+      const text = isNb ? notebookText(state) : stateText(state)
+      const r = await pool.query(
+        'UPDATE project_files SET yjs_state = $1, content = $2, size = octet_length($2), updated_at = NOW(), updated_by = COALESCE($4::uuid, updated_by) WHERE id = $3 RETURNING project_id',
+        [state, text, fid, userId],
+      )
+      if (r.rows[0]) await pool.query('UPDATE projects SET updated_at = NOW() WHERE id = $1', [r.rows[0].project_id])
+    })
+    return
+  }
+  await retry(() => pool.query(
+    'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
+    [state, documentName, userId],
+  ))
+  await recordRevision(documentName, state, userId)
+}
 
 server.listen()
 
@@ -347,6 +416,7 @@ function onNotification(msg) {
     resetAt.set(name, Date.now())
     hp.closeConnections(name)
     const doc = hp.documents.get(name)
+    failedStores.delete(name)
     if (doc) {
       hp.documents.delete(name)
       try { doc.destroy() } catch {}
@@ -360,6 +430,7 @@ function onNotification(msg) {
     try { doc.destroy() } catch {}
   }
   loadedAt.clear()
+  failedStores.clear()
   console.log('Backup restored: documents unloaded')
 }
 

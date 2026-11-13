@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useEditorSpellcheck } from '~/composables/usePrefs'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
-import type { Editor as TEditor } from '@tiptap/core'
+import { createDocument, type Editor as TEditor } from '@tiptap/core'
+import { seedYDoc } from '~/utils/seedDoc'
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { IndexeddbPersistence } from 'y-indexeddb'
@@ -59,6 +60,30 @@ const offlineReadonly = ref(false)
 /** Page jamais ouverte en édition, lue par quelqu'un sans droit d'écriture : sa copie HTML. */
 const htmlOnly = ref(false)
 const denied = ref(false)
+/** Accès refusé de façon définitive avant la première synchronisation : HTML enregistré, en lecture seule. */
+const deniedReadonly = ref(false)
+// Refus transitoire (serveur qui redémarre, restauration...) : nouvelles tentatives, délais croissants.
+const RETRY_DELAYS = [2000, 5000, 10000, 15000]
+const TRANSIENT_REASONS = ['auth-unavailable', 'restoring']
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+let retryCount = 0
+let unmounted = false
+function clearRetry() { if (retryTimer) clearTimeout(retryTimer); retryTimer = null }
+function scheduleRetry() {
+  if (retryTimer || unmounted) return
+  const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]!
+  retryCount++
+  retryTimer = setTimeout(async () => {
+    retryTimer = null
+    if (unmounted || serverSynced.value) return
+    try {
+      await provider.sendToken()
+      provider.startSync()
+    } catch { /* nouvelle tentative ci-dessous */ }
+    // Sans réponse (connexion coupée) : on réessaie tant que la synchronisation n'a pas abouti.
+    if (!unmounted && !serverSynced.value) scheduleRetry()
+  }, delay)
+}
 const wrapper = ref<HTMLElement | null>(null)
 
 // Sélecteur de document (lien interne inséré depuis « / »)
@@ -81,7 +106,7 @@ const docItems = computed(() => (pages.data.value ?? []).filter((p) => p.id !== 
 
 // Avant useEditor : ses propres crochets de démontage détruisent l'éditeur. La dernière
 // modification est envoyée avant la fermeture (sinon perdue avec le délai).
-onBeforeUnmount(() => { if (htmlDirty && props.canEdit && !denied.value) flushHtml() })
+onBeforeUnmount(() => { unmounted = true; clearRetry(); if (htmlDirty && props.canEdit && !denied.value) flushHtml() })
 const editor = useEditor({
   editable: false,
   extensions: docExtensions({
@@ -230,36 +255,58 @@ local?.on('synced', () => {
 provider.on('synced', () => {
   serverSynced.value = true
   offlineReadonly.value = false
+  deniedReadonly.value = false
+  // Synchronisation réussie = accès accepté : l'édition redevient possible.
+  denied.value = false
+  retryCount = 0
+  clearRetry()
+  sessionStorage.removeItem(`looty-reloaded:${props.pageId}`)
   emit('status', 'synced')
   const e = editor.value
   if (!e || e.isDestroyed) return
   // Migration : document Yjs vide mais contenu HTML existant (anciennes pages, duplication).
   // Indépendant du mode lecture : sinon la page reste vide et sa copie HTML serait écrasée.
   const legacy = e.isEmpty && !!props.initialHtml && props.initialHtml !== '<p></p>'
-  if (legacy && (props.canEdit || props.canMigrate)) e.commands.setContent(props.initialHtml!)
+  // Amorçage déterministe : mêmes opérations Yjs chez tous les clients, dédoublonnées à la fusion.
+  if (legacy && (props.canEdit || props.canMigrate)) seedYDoc(ydoc, createDocument(props.initialHtml!, e.schema))
   htmlOnly.value = legacy && !props.canEdit && !props.canMigrate
   if (synced.value) {
     e.setEditable(props.canEdit && !denied.value)
     emitHeadings(e)
   } else ready(e)
 })
-provider.on('authenticationFailed', () => {
-  denied.value = true
-  emit('status', 'denied')
+provider.on('authenticationFailed', ({ reason }: { reason?: string }) => {
   const e = editor.value
   // Éditeur déjà démonté (la page est devenue inaccessible et se ferme) : rien à faire.
-  if (!e || e.isDestroyed) return
+  if (unmounted || !e || e.isDestroyed) return
+  // Jamais d'écriture dans le document Yjs ici : le HTML enregistré s'affiche par la vue en
+  // lecture seule (sinon il fusionnerait avec le document du serveur au retour = doublons).
+  if (reason && TRANSIENT_REASONS.includes(reason)) {
+    emit('status', 'offline')
+    if (!synced.value && props.initialHtml && props.initialHtml !== '<p></p>') offlineReadonly.value = true
+    scheduleRetry()
+    return
+  }
+  // Interface plus ancienne que le serveur (onglet ouvert avant une mise à jour) : un
+  // rechargement suffit. Une seule fois par page, pour ne pas boucler si le cache sert
+  // encore l'ancienne version.
+  if (reason === 'outdated-client' && !synced.value) {
+    const key = `looty-reloaded:${props.pageId}`
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1')
+      location.reload()
+      return
+    }
+  }
+  denied.value = true
+  emit('status', 'denied')
   if (synced.value) {
-    // Accès retiré pendant l'édition : le contenu affiché reste, sans pouvoir le modifier
-    // (le remplacer par le HTML de l'ouverture l'écrirait dans le cache local).
+    // Accès retiré pendant l'édition : le contenu affiché reste, sans pouvoir le modifier.
     e.setEditable(false)
     return
   }
-  // Lecture seule de secours à partir du HTML enregistré
-  if (props.initialHtml) {
-    e.commands.setContent(props.initialHtml)
-    synced.value = true
-  }
+  offlineReadonly.value = false
+  deniedReadonly.value = !!props.initialHtml
 })
 provider.on('status', ({ status }: { status: string }) => {
   if (status === 'disconnected' && synced.value) emit('status', 'offline')
@@ -288,13 +335,14 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
       <p class="doc-offline-note">{{ $t('offline.readonly') }}</p>
       <DocViewer :html="initialHtml || ''" />
     </div>
+    <DocViewer v-else-if="deniedReadonly && !synced" :html="initialHtml || ''" />
     <div v-else-if="!synced" class="doc-loading">
       <div class="skeleton" style="height: 18px; width: 70%" />
       <div class="skeleton" style="height: 18px; width: 92%" />
       <div class="skeleton" style="height: 18px; width: 54%" />
     </div>
     <DocViewer v-if="htmlOnly && synced" :html="initialHtml || ''" />
-    <EditorContent v-show="synced && !offlineReadonly && !htmlOnly" :editor="editor" />
+    <EditorContent v-show="synced && !offlineReadonly && !htmlOnly && !deniedReadonly" :editor="editor" />
     <template v-if="editor && synced">
       <DocBlockHandle :editor="editor" :container="wrapper" />
       <DocBubble :editor="editor" :can-comment="canComment" />
