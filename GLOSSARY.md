@@ -198,6 +198,7 @@ _Avoid_: permission, accès, droit d'écriture (réservé aux rôles)
 **Suggestion**:
 Modification proposée par l'assistant en mode « suggérer » : une différence que la personne accepte ou refuse, rien n'étant écrit avant.
 _Avoid_: brouillon, patch
+
 ## Révisions
 
 **Jeu de révision**:
