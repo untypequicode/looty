@@ -564,6 +564,9 @@ struct AttemptRow {
 /// explications) seulement maintenant.
 async fn submit_attempt(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>, Json(req): Json<AttemptReq>) -> ApiResult<(StatusCode, Json<Value>)> {
     let (_, _) = load(&state, &user, id, q.token, SetAccess::View).await?;
+    if req.answers.len() > MAX_ITEMS {
+        return Err(bad("too_many_answers"));
+    }
     let items = items_of(&state, id).await?;
     let (mut score, mut max) = (0, 0);
     let mut stored = serde_json::Map::new();
