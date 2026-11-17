@@ -13,7 +13,12 @@ pub struct ToolCall {
     pub id: String,
     pub name: String,
     pub args: Value,
+    /// Signature de pensée de Gemini 3 (`thoughtSignature`) : à renvoyer telle quelle avec l'appel.
+    pub signature: Option<String>,
 }
+
+/// Signature factice documentée par Google, pour les appels enregistrés sans signature.
+pub const DUMMY_SIGNATURE: &str = "skip_thought_signature_validator";
 
 /// Historique commun à tous les fournisseurs.
 #[derive(Clone, Debug)]
@@ -163,7 +168,7 @@ async fn http_error(resp: reqwest::Response, key: &str, quiet: bool) -> String {
 
 struct OpenAiLike(Common);
 
-fn openai_messages(req: &ChatRequest<'_>) -> Vec<Value> {
+fn openai_messages(req: &ChatRequest<'_>, gemini: bool) -> Vec<Value> {
     let mut v = vec![json!({ "role": "system", "content": req.system })];
     for m in req.messages {
         v.push(match m {
@@ -172,10 +177,18 @@ fn openai_messages(req: &ChatRequest<'_>) -> Vec<Value> {
             Msg::Assistant { text, calls } => json!({
                 "role": "assistant",
                 "content": if text.is_empty() { Value::Null } else { json!(text) },
-                "tool_calls": calls.iter().map(|c| json!({
-                    "id": c.id, "type": "function",
-                    "function": { "name": c.name, "arguments": c.args.to_string() }
-                })).collect::<Vec<_>>(),
+                "tool_calls": calls.iter().map(|c| {
+                    let mut tc = json!({
+                        "id": c.id, "type": "function",
+                        "function": { "name": c.name, "arguments": c.args.to_string() }
+                    });
+                    // Couche compatible OpenAI de Gemini : la signature voyage dans `extra_content`.
+                    let sig = c.signature.as_deref().or(gemini.then_some(DUMMY_SIGNATURE));
+                    if let Some(sig) = sig {
+                        tc["extra_content"] = json!({ "google": { "thought_signature": sig } });
+                    }
+                    tc
+                }).collect::<Vec<_>>(),
             }),
             Msg::ToolResult { call_id, content, .. } => json!({ "role": "tool", "tool_call_id": call_id, "content": content }),
         });
@@ -185,7 +198,7 @@ fn openai_messages(req: &ChatRequest<'_>) -> Vec<Value> {
 
 /// Assemble les appels d'outils d'OpenAI, envoyés en morceaux d'arguments indexés.
 #[derive(Default)]
-struct OpenAiCalls(Vec<(String, String, String)>);
+struct OpenAiCalls(Vec<(String, String, String, Option<String>)>);
 
 impl OpenAiCalls {
     fn feed(&mut self, delta: &Value) {
@@ -204,26 +217,35 @@ impl OpenAiCalls {
             if let Some(a) = tc["function"]["arguments"].as_str() {
                 slot.2.push_str(a);
             }
+            if let Some(sig) = tc["extra_content"]["google"]["thought_signature"].as_str().filter(|s| !s.is_empty()) {
+                slot.3 = Some(sig.to_string());
+            }
         }
     }
     fn finish(self) -> Vec<ToolCall> {
         self.0
             .into_iter()
-            .filter(|(_, n, _)| !n.is_empty())
+            .filter(|(_, n, _, _)| !n.is_empty())
             .enumerate()
-            .map(|(i, (id, name, args))| ToolCall {
+            .map(|(i, (id, name, args, signature))| ToolCall {
                 id: if id.is_empty() { format!("call_{i}") } else { id },
                 name,
                 args: serde_json::from_str(&args).unwrap_or(json!({})),
+                signature,
             })
             .collect()
     }
 }
 
+/// Point d'entrée Gemini (natif ou couche compatible OpenAI) : exige les signatures de pensée.
+fn is_gemini_url(base: &str) -> bool {
+    base.contains("generativelanguage.googleapis.com")
+}
+
 #[async_trait]
 impl Provider for OpenAiLike {
     async fn stream(&self, req: &ChatRequest<'_>, tx: &Sender<StreamEvent>) -> Result<(), String> {
-        let mut body = json!({ "model": self.0.model, "messages": openai_messages(req), "stream": true });
+        let mut body = json!({ "model": self.0.model, "messages": openai_messages(req, is_gemini_url(&self.0.base)), "stream": true });
         if !req.tools.is_empty() {
             body["tools"] = json!(req
                 .tools
@@ -336,7 +358,7 @@ impl Provider for Anthropic {
                 },
                 Some("content_block_stop") => {
                     if let Some((id, name, args)) = tool.take() {
-                        events.push(StreamEvent::Call(ToolCall { id, name, args: serde_json::from_str(&args).unwrap_or(json!({})) }));
+                        events.push(StreamEvent::Call(ToolCall { id, name, args: serde_json::from_str(&args).unwrap_or(json!({})), signature: None }));
                     }
                 }
                 Some("error") => return Err(format!("provider_error: {}", v["error"]["message"].as_str().unwrap_or("unknown"))),
@@ -365,7 +387,9 @@ fn gemini_contents(req: &ChatRequest<'_>) -> Vec<Value> {
                     parts.push(json!({ "text": text }));
                 }
                 for c in calls {
-                    parts.push(json!({ "functionCall": { "name": c.name, "args": c.args } }));
+                    // Sans signature (appel enregistré avant son support), la valeur factice évite le refus de Gemini 3.
+                    let sig = c.signature.as_deref().unwrap_or(DUMMY_SIGNATURE);
+                    parts.push(json!({ "functionCall": { "name": c.name, "args": c.args }, "thoughtSignature": sig }));
                 }
                 if !parts.is_empty() {
                     v.push(json!({ "role": "model", "parts": parts }));
@@ -381,6 +405,23 @@ fn gemini_contents(req: &ChatRequest<'_>) -> Vec<Value> {
         }
     }
     v
+}
+
+/// Événements d'un morceau de réponse Gemini (texte et appels, avec leur `thoughtSignature`).
+fn gemini_events(v: &Value, events: &mut Vec<StreamEvent>) {
+    for p in v["candidates"][0]["content"]["parts"].as_array().into_iter().flatten() {
+        if let Some(t) = p["text"].as_str() {
+            events.push(StreamEvent::Text(t.to_string()));
+        }
+        if p["functionCall"].is_object() {
+            events.push(StreamEvent::Call(ToolCall {
+                id: format!("call_{}", uuid::Uuid::new_v4().simple()),
+                name: p["functionCall"]["name"].as_str().unwrap_or("").to_string(),
+                args: p["functionCall"]["args"].clone(),
+                signature: p["thoughtSignature"].as_str().filter(|s| !s.is_empty()).map(String::from),
+            }));
+        }
+    }
 }
 
 #[async_trait]
@@ -405,18 +446,7 @@ impl Provider for Gemini {
         }
         read_sse(resp, tx, |d, events| {
             let v: Value = serde_json::from_str(d).map_err(|e| e.to_string())?;
-            for p in v["candidates"][0]["content"]["parts"].as_array().into_iter().flatten() {
-                if let Some(t) = p["text"].as_str() {
-                    events.push(StreamEvent::Text(t.to_string()));
-                }
-                if p["functionCall"].is_object() {
-                    events.push(StreamEvent::Call(ToolCall {
-                        id: format!("call_{}", uuid::Uuid::new_v4().simple()),
-                        name: p["functionCall"]["name"].as_str().unwrap_or("").to_string(),
-                        args: p["functionCall"]["args"].clone(),
-                    }));
-                }
-            }
+            gemini_events(&v, events);
             Ok(())
         })
         .await
@@ -433,14 +463,61 @@ mod tests {
         c.feed(&json!({ "tool_calls": [{ "index": 0, "id": "c1", "function": { "name": "read_page", "arguments": "{\"page" } }] }));
         c.feed(&json!({ "tool_calls": [{ "index": 0, "function": { "arguments": "_id\":\"x\"}" } }] }));
         let calls = c.finish();
-        assert_eq!(calls, vec![ToolCall { id: "c1".into(), name: "read_page".into(), args: json!({ "page_id": "x" }) }]);
+        assert_eq!(calls, vec![ToolCall { id: "c1".into(), name: "read_page".into(), args: json!({ "page_id": "x" }), signature: None }]);
+    }
+
+    fn call(sig: Option<&str>) -> ToolCall {
+        ToolCall { id: "c1".into(), name: "read_page".into(), args: json!({ "a": 1 }), signature: sig.map(String::from) }
+    }
+
+    #[test]
+    fn gemini_signature_is_captured_and_replayed() {
+        let chunk = json!({ "candidates": [{ "content": { "parts": [
+            { "text": "ok" },
+            { "functionCall": { "name": "read_page", "args": { "a": 1 } }, "thoughtSignature": "SIG123" },
+        ] } }] });
+        let mut ev = vec![];
+        gemini_events(&chunk, &mut ev);
+        let StreamEvent::Call(c) = &ev[1] else { panic!("call expected") };
+        assert_eq!(c.signature.as_deref(), Some("SIG123"));
+        let msgs = vec![Msg::User("q".into()), Msg::Assistant { text: String::new(), calls: vec![c.clone()] }];
+        let out = gemini_contents(&ChatRequest { system: "s", messages: &msgs, tools: &[] });
+        assert_eq!(out[1]["parts"][0]["thoughtSignature"], "SIG123");
+    }
+
+    #[test]
+    fn gemini_old_calls_without_signature_get_the_dummy_one() {
+        let msgs = vec![Msg::User("q".into()), Msg::Assistant { text: String::new(), calls: vec![call(None)] }];
+        let out = gemini_contents(&ChatRequest { system: "s", messages: &msgs, tools: &[] });
+        assert_eq!(out[1]["parts"][0]["thoughtSignature"], DUMMY_SIGNATURE);
+    }
+
+    #[test]
+    fn openai_compat_gemini_signature_round_trips() {
+        let mut c = OpenAiCalls::default();
+        c.feed(&json!({ "tool_calls": [{ "index": 0, "id": "c1", "function": { "name": "read_page", "arguments": "{}" }, "extra_content": { "google": { "thought_signature": "SIG9" } } }] }));
+        let calls = c.finish();
+        assert_eq!(calls[0].signature.as_deref(), Some("SIG9"));
+        let msgs = vec![Msg::Assistant { text: String::new(), calls }];
+        let req = ChatRequest { system: "s", messages: &msgs, tools: &[] };
+        assert_eq!(openai_messages(&req, true)[1]["tool_calls"][0]["extra_content"]["google"]["thought_signature"], "SIG9");
+    }
+
+    #[test]
+    fn openai_compat_dummy_only_for_gemini_endpoints() {
+        let msgs = vec![Msg::Assistant { text: String::new(), calls: vec![call(None)] }];
+        let req = ChatRequest { system: "s", messages: &msgs, tools: &[] };
+        assert_eq!(openai_messages(&req, true)[1]["tool_calls"][0]["extra_content"]["google"]["thought_signature"], DUMMY_SIGNATURE);
+        assert!(openai_messages(&req, false)[1]["tool_calls"][0].get("extra_content").is_none());
+        assert!(is_gemini_url("https://generativelanguage.googleapis.com/v1beta/openai"));
+        assert!(!is_gemini_url("https://api.openai.com/v1"));
     }
 
     #[test]
     fn anthropic_groups_tool_results_in_one_user_message() {
         let msgs = vec![
             Msg::User("hi".into()),
-            Msg::Assistant { text: String::new(), calls: vec![ToolCall { id: "a".into(), name: "n".into(), args: json!({}) }, ToolCall { id: "b".into(), name: "n".into(), args: json!({}) }] },
+            Msg::Assistant { text: String::new(), calls: vec![ToolCall { id: "a".into(), name: "n".into(), args: json!({}), signature: None }, ToolCall { id: "b".into(), name: "n".into(), args: json!({}), signature: None }] },
             Msg::ToolResult { call_id: "a".into(), name: "n".into(), content: "1".into() },
             Msg::ToolResult { call_id: "b".into(), name: "n".into(), content: "2".into() },
         ];

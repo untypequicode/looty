@@ -5,8 +5,9 @@ import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
+import { renderChatMarkdown } from '~/editor/chatMarkdown'
 import {
-  aiOpen, aiApi, streamMessage,
+  aiOpen, aiApi, streamMessage, aiErrorMessage,
   type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiMode, type AiStreamEvent,
 } from '~/composables/useAi'
 
@@ -86,7 +87,7 @@ function onEvent(e: AiStreamEvent) {
   else if (e.type === 'tool') toolLog.value.push(`${e.name}${e.ok ? '' : ' ✕'}`)
   else if (e.type === 'suggestion') suggestions.value.push(e.suggestion)
   else if (e.type === 'page_changed') pageChanged()
-  else if (e.type === 'error') toast.error(e.message)
+  else if (e.type === 'error') toast.error(aiErrorMessage(e.message, t))
 }
 function pageChanged() {
   qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'ws' && q.queryKey[2] === 'pages' })
@@ -228,9 +229,12 @@ const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' &
           <p v-if="!visible.length && !streaming" class="hint">{{ t('ai.chat.readOnlyHint') }}</p>
           <template v-for="m in visible" :key="m.id">
             <NuxtLink v-if="m.role === 'tool'" :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg study-link" @click="aiOpen = false"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
+            <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
+            <div v-else-if="m.role === 'assistant'" class="msg assistant md" v-html="renderChatMarkdown(m.content)" />
             <div v-else class="msg" :class="m.role">{{ m.content }}</div>
           </template>
-          <div v-if="streaming" class="msg assistant">{{ streaming }}</div>
+          <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
+          <div v-if="streaming" class="msg assistant md" v-html="renderChatMarkdown(streaming)" />
           <div v-if="busy && toolLog.length" class="tools"><Wrench :size="11" /> {{ toolLog.join(' · ') }}</div>
           <div v-for="s in suggestions" :key="s.id" class="sugg">
             <div class="sugg-head"><PenLine :size="13" /> {{ t('ai.chat.suggestion') }}</div>
@@ -313,6 +317,15 @@ const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' &
 .ai-list { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .hint { color: var(--text-3); font-size: var(--fs-sm); line-height: 1.45; margin: 4px 0; }
 .msg { white-space: pre-wrap; word-break: break-word; padding: 8px 10px; border-radius: var(--r-md); line-height: 1.5; max-width: 92%; }
+.msg.md { white-space: normal; }
+.msg.md :deep(p) { margin: 0 0 6px; }
+.msg.md :deep(p:last-child), .msg.md :deep(ul:last-child), .msg.md :deep(ol:last-child) { margin-bottom: 0; }
+.msg.md :deep(ul), .msg.md :deep(ol) { margin: 0 0 6px; padding-left: 20px; }
+.msg.md :deep(pre) { overflow-x: auto; padding: 6px 8px; border-radius: var(--r-sm); background: var(--bg-elevated); font-size: var(--fs-xs); }
+.msg.md :deep(code) { font-family: var(--font-mono, monospace); font-size: 0.92em; }
+.msg.md :deep(table) { border-collapse: collapse; font-size: var(--fs-sm); }
+.msg.md :deep(th), .msg.md :deep(td) { border: 1px solid var(--border); padding: 2px 6px; }
+.msg.md :deep(h1), .msg.md :deep(h2), .msg.md :deep(h3), .msg.md :deep(h4) { font-size: 1em; margin: 6px 0 4px; }
 .msg.user { align-self: flex-end; background: var(--accent-soft); }
 .msg.assistant { align-self: flex-start; background: var(--bg-hover); }
 .study-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); text-decoration: none; }

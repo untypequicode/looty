@@ -630,7 +630,7 @@ async fn load_history(pool: &PgPool, conv_id: Uuid) -> ApiResult<Vec<Msg>> {
                 let calls: Vec<ToolCall> = data
                     .as_ref()
                     .and_then(|d| d["calls"].as_array())
-                    .map(|a| a.iter().map(|c| ToolCall { id: c["id"].as_str().unwrap_or("").into(), name: c["name"].as_str().unwrap_or("").into(), args: c["args"].clone() }).collect())
+                    .map(|a| a.iter().map(|c| ToolCall { id: c["id"].as_str().unwrap_or("").into(), name: c["name"].as_str().unwrap_or("").into(), args: c["args"].clone(), signature: c["sig"].as_str().map(String::from) }).collect())
                     .unwrap_or_default();
                 out.push(Msg::Assistant { text: content, calls });
             }
@@ -735,7 +735,7 @@ async fn run_agent(pool: &PgPool, user: &AuthUser, conv_id: Uuid, provider: &dyn
         let (res, (text, calls)) = tokio::join!(produce, consume);
         // Ce qui a déjà été dit est conservé même si le fournisseur échoue ensuite.
         if !text.is_empty() || !calls.is_empty() {
-            let data = (!calls.is_empty()).then(|| json!({ "calls": calls.iter().map(|c| json!({ "id": c.id, "name": c.name, "args": c.args })).collect::<Vec<_>>() }));
+            let data = (!calls.is_empty()).then(|| json!({ "calls": calls.iter().map(|c| json!({ "id": c.id, "name": c.name, "args": c.args, "sig": c.signature })).collect::<Vec<_>>() }));
             store(pool, conv_id, "assistant", &text, data).await.map_err(|_| "internal_error".to_string())?;
         }
         res?;
@@ -778,5 +778,59 @@ mod tests {
         let s = serde_json::to_string(&dto(row)).unwrap();
         assert!(!s.contains("secretsecret") && !s.contains("api_key"));
         assert!(s.contains("\"has_key\":true"));
+    }
+
+    /// Fournisseur simulé : des tours d'outils (avec signature), puis une réponse finale.
+    struct Scripted {
+        round: std::sync::atomic::AtomicUsize,
+        seen: std::sync::Mutex<Vec<Vec<Msg>>>,
+        rounds_with_calls: usize,
+    }
+
+    #[async_trait::async_trait]
+    impl ai_provider::Provider for Scripted {
+        async fn stream(&self, req: &ChatRequest<'_>, tx: &mpsc::Sender<StreamEvent>) -> Result<(), String> {
+            let n = self.round.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.seen.lock().unwrap().push(req.messages.to_vec());
+            let ev = if n < self.rounds_with_calls {
+                let name = if n % 2 == 0 { "list_study_sets" } else { "list_pages" };
+                StreamEvent::Call(ToolCall { id: format!("c{n}"), name: name.into(), args: json!({}), signature: Some(format!("sig{n}")) })
+            } else {
+                StreamEvent::Text("done".into())
+            };
+            tx.send(ev).await.map_err(|e| e.to_string())
+        }
+    }
+
+    async fn setup(pool: &PgPool) -> (AuthUser, Uuid) {
+        let id: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ('a@example.org', 'a') RETURNING id").fetch_one(pool).await.unwrap();
+        let conv: Uuid = sqlx::query_scalar("INSERT INTO ai_conversations (user_id) VALUES ($1) RETURNING id").bind(id).fetch_one(pool).await.unwrap();
+        store(pool, conv, "user", "hello", None).await.unwrap();
+        (AuthUser { id, is_super_admin: false }, conv)
+    }
+
+    #[sqlx::test]
+    async fn the_agent_chains_several_tool_rounds_and_replays_signatures(pool: PgPool) {
+        let (user, conv) = setup(&pool).await;
+        let p = Scripted { round: Default::default(), seen: Default::default(), rounds_with_calls: 3 };
+        let (tx, _rx) = mpsc::channel::<Event>(256);
+        run_agent(&pool, &user, conv, &p, "sys", &[], &tx).await.unwrap();
+        assert_eq!(p.round.load(std::sync::atomic::Ordering::SeqCst), 4);
+        let seen = p.seen.lock().unwrap();
+        // Au dernier tour, l'historique rejoue les trois appels avec leur signature.
+        let sigs: Vec<_> = seen[3].iter().filter_map(|m| if let Msg::Assistant { calls, .. } = m { calls.first().and_then(|c| c.signature.clone()) } else { None }).collect();
+        assert_eq!(sigs, vec!["sig0", "sig1", "sig2"]);
+        let tools: i64 = sqlx::query_scalar("SELECT count(*) FROM ai_messages WHERE conversation_id = $1 AND role = 'tool'").bind(conv).fetch_one(&pool).await.unwrap();
+        assert_eq!(tools, 3);
+    }
+
+    #[sqlx::test]
+    async fn the_agent_stops_after_the_round_limit(pool: PgPool) {
+        let (user, conv) = setup(&pool).await;
+        let p = Scripted { round: Default::default(), seen: Default::default(), rounds_with_calls: 100 };
+        let (tx, _rx) = mpsc::channel::<Event>(256);
+        let r = run_agent(&pool, &user, conv, &p, "sys", &[], &tx).await;
+        assert_eq!(r, Err("too_many_tool_rounds".to_string()));
+        assert_eq!(p.round.load(std::sync::atomic::Ordering::SeqCst), MAX_TOOL_ROUNDS);
     }
 }

@@ -6,6 +6,7 @@ export default {
     api_key_unreadable: 'The stored key is unreadable: enter it again', invalid_mode: 'Invalid write mode',
     study_grant_target: 'Choose where the assistant may create study sets, or which set it may edit', invalid_expiry: 'Invalid duration', invalid_message: 'Invalid message', invalid_context: 'Invalid context',
     too_many_tool_rounds: 'The assistant looped on its tools; try again',
+    page_not_opened_in_editor: 'This page has never been opened in the editor: open it once, then retry',
   },
   ai: {
     title: 'AI assistant',
@@ -19,6 +20,15 @@ export default {
       deleteTitle: 'Delete “{name}”?', deleteMessage: 'Conversations using it keep their history but need another connection.',
     },
     chat: {
+      err: {
+        quota: 'The provider quota or rate limit is reached. Wait a moment or check your plan.',
+        auth: 'The provider refused the API key. Check the connection settings.',
+        model: 'Model not found. Check the model name in the connection settings.',
+        busy: 'The model is overloaded right now. Please retry in a few seconds.',
+        server: 'The provider had an internal error. Please retry shortly.',
+        request: 'The provider rejected the request. Check the connection settings.',
+        unreachable: 'The provider cannot be reached.',
+      },
       new: 'New conversation', untitled: 'Untitled', connection: 'Connection', context: 'Context', history: 'History',
       ctx: { page: 'This page', project: 'This project', workspace: 'This workspace', none: 'Global' },
       noConnection: 'Add an AI connection in the settings to start.', setUp: 'Open settings',
