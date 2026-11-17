@@ -10,6 +10,7 @@ export default {
     action: 'Move to another workspace…', title: 'Move “{name}”', hint: 'The page moves with all its sub-pages, its project, canvas, comments and history.',
     to: 'To', where: 'Location', root: 'At the root of the documents', searchPage: 'Search a page', submit: 'Move',
     note: 'Individual shares are removed, and links to items of the old workspace (boards, events) don’t follow.',
+    hintStudy: 'The training moves to the other workspace with its items, results and version history.', noteStudy: 'Links to items of the old workspace (documents, boards, events) don’t follow.',
     noSpace: 'No other workspace where you can create documents.', open: 'Open',
     done: { one: 'Page moved to {name}', other: '{count} pages moved to {name}' }, doneStudy: 'Training moved to {name}', dropHere: 'Drop to move here',
   },

@@ -199,6 +199,18 @@ _Avoid_: permission, accès, droit d'écriture (réservé aux rôles)
 Droit donné à une conversation IA, pour une durée limitée et révocable, soit de créer des entraînements dans un espace (ou l'espace personnel), soit de modifier un entraînement précis. Ceux créés par l'assistant sont personnels ; une modification garde la version précédente pour pouvoir l'annuler.
 _Avoid_: permission, droit d'écriture
 
+**Assistant**:
+Page d'un espace où une personne retrouve toutes ses conversations IA : liste à gauche (recherche, renommage, suppression), discussion à droite. Une conversation peut être ouverte seule ou depuis une page, un projet ou un entraînement, qui lui sert alors de contexte.
+_Avoid_: chat, panneau IA, bulle IA
+
+**Pièce jointe de message**:
+Élément (page, tâche, tableau, événement, document, entraînement…) que la personne joint à un message pour que l'assistant le lise avec la question. Elle ne donne aucun droit d'écriture. Aussi appelée contexte joint.
+_Avoid_: fichier joint, contexte (seul)
+
+**Carte d'autorisation**:
+Carte affichée dans la conversation quand l'assistant a besoin d'un droit d'écriture qu'il n'a pas : elle indique la page ou l'entraînement, le mode et la durée, et la personne l'accepte ou la refuse d'un clic. Accepter crée l'autorisation correspondante.
+_Avoid_: popup de permission, demande d'accès
+
 **Suggestion**:
 Modification proposée par l'assistant en mode « suggérer » : une différence que la personne accepte ou refuse, rien n'étant écrit avant.
 _Avoid_: brouillon, patch

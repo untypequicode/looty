@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Trash2, Pencil, Bot, ShieldCheck } from 'lucide-vue-next'
+import { Plus, Trash2, Pencil, Bot, ShieldCheck, ChevronDown } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
@@ -11,6 +11,8 @@ const qc = useQueryClient()
 const { data: connections } = useQuery({ queryKey: ['ai', 'connections'], queryFn: aiApi.connections })
 
 const open = ref(false)
+const providerOpen = ref(false)
+const providerItems = AI_PROVIDERS.map((p) => ({ value: p.value, label: p.label }))
 const editing = ref<AiConnection | null>(null)
 const saving = ref(false)
 const form = reactive({ provider: 'openai' as AiProvider, label: '', model: '', base_url: '', api_key: '' })
@@ -66,9 +68,9 @@ async function remove(c: AiConnection) {
     <form class="form" @submit.prevent="valid && save()">
       <template v-if="!editing">
         <label class="field-label">{{ t('ai.settings.provider') }}</label>
-        <select class="sel" :value="form.provider" @change="pickProvider(($event.target as HTMLSelectElement).value as AiProvider)">
-          <option v-for="p in AI_PROVIDERS" :key="p.value" :value="p.value">{{ p.label }}</option>
-        </select>
+        <UiCombobox v-model:open="providerOpen" :model-value="form.provider" :items="providerItems" :width="320" @update:model-value="(v) => pickProvider(v as AiProvider)">
+          <button type="button" class="sel"><span class="truncate">{{ providerLabel(form.provider) }}</span><ChevronDown :size="14" class="faint" /></button>
+        </UiCombobox>
       </template>
       <label class="field-label">{{ t('ai.settings.label') }}</label>
       <UiInput v-model="form.label" maxlength="80" :placeholder="t('ai.settings.labelPlaceholder')" />
@@ -91,5 +93,5 @@ async function remove(c: AiConnection) {
 .how { border-top: 1px solid var(--border); line-height: 1.45; }
 .form { display: flex; flex-direction: column; gap: 6px; }
 .field-label { font-size: var(--fs-sm); color: var(--text-2); font-weight: 500; margin-top: 6px; }
-.sel { height: 32px; border-radius: var(--r-sm); background: var(--bg-input, var(--bg-hover)); color: var(--text); border: 1px solid var(--border); padding: 0 8px; }
+.sel { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-input); color: var(--text); }
 </style>
