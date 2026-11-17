@@ -528,8 +528,8 @@ async fn revoke_study_grant(State(state): State<AppState>, user: AuthUser, Path(
 
 /// Annule une modification de jeu faite par l'IA (la version d'avant revient).
 async fn restore_study_revision(State(state): State<AppState>, user: AuthUser, Path(rev): Path<Uuid>) -> ApiResult<Json<Value>> {
-    let set_id = ai_tools::restore_study_revision(&state.pool, &user, rev).await?;
-    Ok(Json(json!({ "set_id": set_id })))
+    let (set_id, undo) = ai_tools::restore_study_revision(&state.pool, &user, rev).await?;
+    Ok(Json(json!({ "set_id": set_id, "undo_revision_id": undo })))
 }
 
 // ---------------------------------------------------------------------------

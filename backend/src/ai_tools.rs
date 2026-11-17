@@ -442,27 +442,37 @@ fn items_as_input(items: &[study::ItemRow]) -> Value {
     )
 }
 
+/// Verrouille le jeu puis garde son état courant (titre, type, éléments) comme version ; renvoie l'id de la version.
+async fn snapshot_locked(tx: &mut sqlx::PgConnection, set_id: Uuid, user_id: Uuid) -> ApiResult<Uuid> {
+    let (title, kind): (String, String) = sqlx::query_as("SELECT title, kind FROM study_sets WHERE id = $1 FOR UPDATE").bind(set_id).fetch_optional(&mut *tx).await?.ok_or(ApiError::NotFound)?;
+    let before: Vec<study::ItemRow> = sqlx::query_as("SELECT id, position, type, prompt, choices, answer, explanation FROM study_items WHERE set_id = $1 ORDER BY position, id").bind(set_id).fetch_all(&mut *tx).await?;
+    Ok(sqlx::query_scalar("INSERT INTO study_set_revisions (set_id, user_id, title, kind, items) VALUES ($1, $2, $3, $4, $5) RETURNING id")
+        .bind(set_id)
+        .bind(user_id)
+        .bind(&title)
+        .bind(&kind)
+        .bind(items_as_input(&before))
+        .fetch_one(&mut *tx)
+        .await?)
+}
+
 /// Remplace titre, type et éléments après avoir gardé la version d'avant ; renvoie l'id de cette version.
 pub async fn update_study_set(pool: &PgPool, user: &AuthUser, conv_id: Uuid, set_id: Uuid, title: Option<&str>, kind: Option<&str>, items: &[study::ItemIn]) -> ApiResult<Uuid> {
     own_conversation(pool, user, conv_id).await?;
     require_update_grant(pool, conv_id, set_id).await?;
     let (set, _) = study::load(pool, user, set_id, None, study::SetAccess::Edit).await?;
+    // Une liste vide effacerait tout le jeu : jamais par un modèle.
+    if items.is_empty() {
+        return Err(ApiError::bad_request("study_items_empty: send the full, non-empty item list"));
+    }
     let title = study::validate_title(title.unwrap_or(&set.title))?;
     let kind = kind.unwrap_or(&set.kind);
     if !study::KINDS.contains(&kind) {
         return Err(ApiError::bad_request("study_invalid_kind"));
     }
     study::validate_items(kind, items)?;
-    let before = study::items_of(pool, set_id).await?;
     let mut tx = pool.begin().await?;
-    let rev: Uuid = sqlx::query_scalar("INSERT INTO study_set_revisions (set_id, user_id, title, kind, items) VALUES ($1, $2, $3, $4, $5) RETURNING id")
-        .bind(set_id)
-        .bind(user.id)
-        .bind(&set.title)
-        .bind(&set.kind)
-        .bind(items_as_input(&before))
-        .fetch_one(&mut *tx)
-        .await?;
+    let rev = snapshot_locked(&mut tx, set_id, user.id).await?;
     sqlx::query("UPDATE study_sets SET title = $2, kind = $3, updated_at = NOW() WHERE id = $1").bind(set_id).bind(&title).bind(kind).execute(&mut *tx).await?;
     study::write_items(&mut tx, set_id, items).await?;
     tx.commit().await?;
@@ -470,15 +480,17 @@ pub async fn update_study_set(pool: &PgPool, user: &AuthUser, conv_id: Uuid, set
 }
 
 /// Annule une modification de l'IA : remet titre, type et éléments d'avant. Réservé à qui peut éditer le jeu.
-pub async fn restore_study_revision(pool: &PgPool, user: &AuthUser, rev_id: Uuid) -> ApiResult<Uuid> {
+/// L'état remplacé est lui-même gardé comme version (la restauration s'annule aussi) ; renvoie (jeu, cette version).
+pub async fn restore_study_revision(pool: &PgPool, user: &AuthUser, rev_id: Uuid) -> ApiResult<(Uuid, Uuid)> {
     let (set_id, title, kind, items): (Uuid, String, String, Value) = sqlx::query_as("SELECT set_id, title, kind, items FROM study_set_revisions WHERE id = $1").bind(rev_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
     study::load(pool, user, set_id, None, study::SetAccess::Edit).await?;
     let items: Vec<study::ItemIn> = serde_json::from_value(items).map_err(|e| ApiError::Internal(format!("revision items: {e}")))?;
     let mut tx = pool.begin().await?;
+    let undo = snapshot_locked(&mut tx, set_id, user.id).await?;
     sqlx::query("UPDATE study_sets SET title = $2, kind = $3, updated_at = NOW() WHERE id = $1").bind(set_id).bind(&title).bind(&kind).execute(&mut *tx).await?;
     study::write_items(&mut tx, set_id, &items).await?;
     tx.commit().await?;
-    Ok(set_id)
+    Ok((set_id, undo))
 }
 
 async fn create_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<ToolOutput> {
@@ -884,6 +896,29 @@ mod tests {
         restore_study_revision(&pool, &w.owner, rev).await.unwrap();
         let (title, prompt): (String, String) = sqlx::query_as("SELECT s.title, i.prompt FROM study_sets s JOIN study_items i ON i.set_id = s.id WHERE s.id = $1").bind(set).fetch_one(&pool).await.unwrap();
         assert_eq!((title.as_str(), prompt.as_str()), ("Réseaux", "TCP ?"));
+    }
+
+    #[sqlx::test]
+    async fn restoring_is_undoable_and_empty_updates_are_refused(pool: PgPool) {
+        let w = world(&pool).await;
+        let set = make_set(&pool, &w).await;
+        study_grant(&pool, w.conv, None, Some(set), 30).await;
+        // Liste vide : refusée, le jeu reste intact et aucune version n'est créée.
+        let out = execute(&pool, &w.owner, w.conv, "update_study_set", &json!({ "set_id": set, "items": [] })).await;
+        assert!(out.text.starts_with("error"), "{}", out.text);
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM study_items WHERE set_id = $1").bind(set).fetch_one(&pool).await.unwrap();
+        let revs: i64 = sqlx::query_scalar("SELECT count(*) FROM study_set_revisions WHERE set_id = $1").bind(set).fetch_one(&pool).await.unwrap();
+        assert_eq!((n, revs), (1, 0));
+        // Mise à jour puis restauration : la restauration garde l'état remplacé, qu'on peut remettre.
+        let args = json!({ "set_id": set, "title": "Nouveau", "items": [ { "type": "single", "prompt": "UDP ?", "choices": [ { "id": "a", "text": "x" }, { "id": "b", "text": "y" } ], "answer": { "choice": "b" } } ] });
+        assert!(execute(&pool, &w.owner, w.conv, "update_study_set", &args).await.text.starts_with("ok"));
+        let rev: Uuid = sqlx::query_scalar("SELECT id FROM study_set_revisions WHERE set_id = $1").bind(set).fetch_one(&pool).await.unwrap();
+        let (_, undo) = restore_study_revision(&pool, &w.owner, rev).await.unwrap();
+        let title: String = sqlx::query_scalar("SELECT title FROM study_sets WHERE id = $1").bind(set).fetch_one(&pool).await.unwrap();
+        assert_eq!(title, "Réseaux");
+        restore_study_revision(&pool, &w.owner, undo).await.unwrap();
+        let (title, prompt): (String, String) = sqlx::query_as("SELECT s.title, i.prompt FROM study_sets s JOIN study_items i ON i.set_id = s.id WHERE s.id = $1").bind(set).fetch_one(&pool).await.unwrap();
+        assert_eq!((title.as_str(), prompt.as_str()), ("Nouveau", "UDP ?"));
     }
 
     #[sqlx::test]
