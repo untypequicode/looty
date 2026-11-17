@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { api } from './api'
+import { api, errorMessage } from './api'
 
 /** Panneau de l'agent IA (reste ouvert d'une page à l'autre). */
 export const aiOpen = ref(false)
@@ -37,10 +37,28 @@ export interface AiSuggestion { id: string; page_id: string; diff: AiDiffLine[] 
 export const AI_PROVIDERS: { value: AiProvider; label: string; model: string; baseUrl?: string }[] = [
   { value: 'openai', label: 'OpenAI', model: 'gpt-4.1' },
   { value: 'anthropic', label: 'Anthropic (Claude)', model: 'claude-sonnet-4-5' },
-  { value: 'gemini', label: 'Google Gemini', model: 'gemini-2.5-flash' },
+  { value: 'gemini', label: 'Google Gemini', model: 'gemini-3.5-flash-lite' },
   { value: 'perplexity', label: 'Perplexity', model: 'sonar' },
   { value: 'openai_compatible', label: 'OpenAI-compatible (Ollama…)', model: 'llama3.1', baseUrl: 'http://localhost:11434/v1' },
 ]
+
+/**
+ * Erreur du fournisseur (« provider_http_503: {...} » dans le flux) → phrase courte et lisible.
+ * `t` est la fonction de traduction ; les autres codes passent par les messages d'erreur communs.
+ */
+export function aiErrorMessage(raw: string, t: (k: string) => string): string {
+  const m = /^provider_http_(\d{3})/.exec(raw)
+  if (m) {
+    const status = Number(m[1])
+    if (status === 429 || /quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(raw)) return t('ai.chat.err.quota')
+    if (status === 401 || status === 403) return t('ai.chat.err.auth')
+    if (status === 404) return t('ai.chat.err.model')
+    if (status === 503 || status === 502 || status === 504 || /overloaded|UNAVAILABLE/i.test(raw)) return t('ai.chat.err.busy')
+    return status >= 500 ? t('ai.chat.err.server') : t('ai.chat.err.request')
+  }
+  if (raw.startsWith('provider_unreachable')) return t('ai.chat.err.unreachable')
+  return errorMessage({ data: { error: raw } })
+}
 
 export type AiStreamEvent =
   | { type: 'text'; delta: string }

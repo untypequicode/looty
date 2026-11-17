@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.35.2",
+      "date": "2026-11-17",
+      "title": {
+        "en": "AI agents work with Gemini 3 and replies are formatted",
+        "fr": "Les agents IA fonctionnent avec Gemini 3 et les réponses sont mises en forme"
+      },
+      "notes": {
+        "en": [
+          "**Gemini**: an agent can now use its tools (read or edit a page, create a revision set) with Gemini 3 models without the conversation failing afterwards. The default Gemini model is now `gemini-3.5-flash-lite`.",
+          "**Chat**: agent replies are formatted (bold, lists, code, links). Provider errors (invalid key, quota, unknown model, service busy) now show a short readable message.",
+          "An agent can chain several tools in a single answer, and the message shown for a page that was never opened in the editor now explains what to do."
+        ],
+        "fr": [
+          "**Gemini** : un agent peut maintenant utiliser ses outils (lire ou modifier une page, créer un set de révision) avec les modèles Gemini 3 sans que la conversation échoue ensuite. Le modèle Gemini par défaut est désormais `gemini-3.5-flash-lite`.",
+          "**Chat** : les réponses des agents sont mises en forme (gras, listes, code, liens). Les erreurs du fournisseur (clé invalide, quota, modèle inconnu, service occupé) affichent maintenant un message court et lisible.",
+          "Un agent peut enchaîner plusieurs outils dans une même réponse, et le message affiché pour une page jamais ouverte dans l’éditeur explique maintenant quoi faire."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.35.1",
       "date": "2026-11-17",
       "title": {

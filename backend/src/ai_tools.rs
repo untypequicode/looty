@@ -233,7 +233,7 @@ pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op,
     let old = row.0.filter(|s| !s.is_empty());
     // Page jamais ouverte dans l'éditeur : son texte n'existe qu'en HTML, qu'on ne sait pas convertir sans perte.
     if old.is_none() && !ai_pages::html_to_text(row.1.as_deref().unwrap_or("")).trim().is_empty() {
-        return Err(ApiError::Conflict("page_not_opened_in_editor: open this page once in the editor, then retry".into()));
+        return Err(ApiError::Conflict("page_not_opened_in_editor: this page has never been opened in the Looty editor, so the assistant cannot edit it yet. Ask the user to open the page once in the editor (it is then converted automatically), then retry this write.".into()));
     }
     if let Some(expected) = expect_before {
         let current = match old.as_deref() {

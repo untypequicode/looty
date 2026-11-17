@@ -6,6 +6,7 @@ export default {
     api_key_unreadable: 'La clé enregistrée est illisible : saisissez-la à nouveau', invalid_mode: 'Mode d’écriture invalide',
     study_grant_target: 'Choisissez où l’assistant peut créer des jeux, ou quel jeu il peut modifier', invalid_expiry: 'Durée invalide', invalid_message: 'Message invalide', invalid_context: 'Contexte invalide',
     too_many_tool_rounds: 'L’assistant a tourné en rond avec ses outils, réessayez',
+    page_not_opened_in_editor: 'Cette page n’a jamais été ouverte dans l’éditeur : ouvrez-la une fois, puis réessayez',
   },
   ai: {
     title: 'Assistant IA',
@@ -19,6 +20,15 @@ export default {
       deleteTitle: 'Supprimer « {name} » ?', deleteMessage: 'Les conversations qui l’utilisent gardent leur historique mais demanderont une autre connexion.',
     },
     chat: {
+      err: {
+        quota: 'Le quota ou la limite de débit du fournisseur est atteint. Patientez un instant ou vérifiez votre offre.',
+        auth: 'Le fournisseur a refusé la clé d’API. Vérifiez la connexion dans les réglages.',
+        model: 'Modèle introuvable. Vérifiez son nom dans les réglages de la connexion.',
+        busy: 'Le modèle est surchargé pour le moment. Réessayez dans quelques secondes.',
+        server: 'Le fournisseur a rencontré une erreur interne. Réessayez bientôt.',
+        request: 'Le fournisseur a refusé la requête. Vérifiez la connexion dans les réglages.',
+        unreachable: 'Le fournisseur est injoignable.',
+      },
       new: 'Nouvelle conversation', untitled: 'Sans titre', connection: 'Connexion', context: 'Contexte', history: 'Historique',
       ctx: { page: 'Cette page', project: 'Ce projet', workspace: 'Cet espace', none: 'Global' },
       noConnection: 'Ajoutez une connexion IA dans les réglages pour commencer.', setUp: 'Ouvrir les réglages',
