@@ -106,8 +106,11 @@ pub async fn execute(pool: &PgPool, user: &AuthUser, conv_id: Uuid, name: &str, 
         Ok(o) => o,
         Err(e) => {
             let mut o = ToolOutput::text(error_text(&e));
+            if matches!(e, ApiError::Forbidden) && (name == "create_study_set" || name == "update_study_set") {
+                o.text = forbidden_study_text(pool, conv_id).await;
+            }
             if matches!(e, ApiError::Forbidden) {
-                o.grant_needed = grant_card(pool, user, name, args).await;
+                o.grant_needed = grant_card(pool, user, conv_id, name, args).await;
             }
             o
         }
@@ -116,7 +119,7 @@ pub async fn execute(pool: &PgPool, user: &AuthUser, conv_id: Uuid, name: &str, 
 
 /// Carte d'autorisation à proposer après un refus : seulement si la personne a elle-même le droit
 /// d'écrire là (sinon l'autorisation serait refusée aussi). Ne contient que des titres et des identifiants.
-async fn grant_card(pool: &PgPool, user: &AuthUser, name: &str, args: &Value) -> Option<Value> {
+async fn grant_card(pool: &PgPool, user: &AuthUser, conv_id: Uuid, name: &str, args: &Value) -> Option<Value> {
     match name {
         "write_page" => {
             let page_id = uuid_arg(args, "page_id").ok()?;
@@ -128,7 +131,7 @@ async fn grant_card(pool: &PgPool, user: &AuthUser, name: &str, args: &Value) ->
             Some(json!({ "kind": "page", "page_id": page_id, "workspace_id": ws, "title": title, "operation": args["operation"].as_str().unwrap_or("append") }))
         }
         "create_study_set" => {
-            let ws = args["workspace_id"].as_str().filter(|s| !s.is_empty()).and_then(|s| Uuid::parse_str(s).ok());
+            let ws = study_target(pool, user, conv_id, args).await.ok()?;
             if let Some(ws) = ws {
                 require_perm(pool, user, ws, |p| p.docs >= level::EDIT).await.ok()?;
             }
@@ -163,6 +166,50 @@ pub async fn restore_page_revision(pool: &PgPool, user: &AuthUser, rev_id: Uuid)
 
 fn uuid_arg(args: &Value, key: &str) -> ApiResult<Uuid> {
     args[key].as_str().and_then(|s| Uuid::parse_str(s.trim()).ok()).ok_or_else(|| ApiError::bad_request(format!("{key} must be a UUID")))
+}
+
+/// Cible d'un entraînement créé par l'IA : `None` = espace personnel. Un identifiant donné par le modèle
+/// l'emporte (l'identifiant de l'espace perso vaut « personnel ») ; sinon l'espace de la conversation
+/// (page, projet ou espace en contexte), puis l'espace courant de la personne, puis l'espace perso.
+async fn study_target(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<Option<Uuid>> {
+    let ws = match args["workspace_id"].as_str().filter(|s| !s.is_empty()) {
+        Some(_) => Some(uuid_arg(args, "workspace_id")?),
+        None => match context_workspace(pool, conv_id).await? {
+            Some(w) => Some(w),
+            None => sqlx::query_scalar::<_, Option<Uuid>>("SELECT default_workspace_id FROM ai_conversations WHERE id = $1").bind(conv_id).fetch_optional(pool).await?.flatten(),
+        },
+    };
+    Ok(match ws {
+        Some(w) if w == crate::personal::personal_space(pool, user.id).await? => None,
+        other => other,
+    })
+}
+
+/// Refus d'écrire un jeu : dit au modèle quelles autorisations sont actives pour qu'il se corrige.
+async fn forbidden_study_text(pool: &PgPool, conv_id: Uuid) -> String {
+    type Row = (String, Option<Uuid>, bool, Option<String>, Option<Uuid>, Option<String>);
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT g.kind, g.workspace_id, g.personal, w.name, g.set_id, s.title FROM ai_study_grants g
+           LEFT JOIN workspaces w ON w.id = g.workspace_id LEFT JOIN study_sets s ON s.id = g.set_id
+          WHERE g.conversation_id = $1 AND g.revoked_at IS NULL AND g.expires_at > now() ORDER BY g.created_at",
+    )
+    .bind(conv_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let active: Vec<String> = rows
+        .into_iter()
+        .map(|(kind, ws, personal, ws_name, set, title)| match (kind.as_str(), ws, set) {
+            ("update", _, Some(id)) => format!("update of study set \"{}\" (set_id {id})", title.unwrap_or_default()),
+            (_, Some(id), _) => format!("create in workspace \"{}\" (workspace_id {id})", ws_name.unwrap_or_default()),
+            _ if personal => "create in the personal space (omit workspace_id)".to_string(),
+            _ => "create".to_string(),
+        })
+        .collect();
+    let listed = if active.is_empty() { "none".to_string() } else { active.join("; ") };
+    format!(
+        "error: forbidden. No active authorization matches this exact target in this conversation. Active authorizations: {listed}. Do not change the target between attempts: either retry with exactly one of the active targets above, or (if none fits) tell the user an authorization card was shown in the chat, ask them to approve it, and call this tool again only after they say they did. It may also have expired, or the user may lack edit rights there."
+    )
 }
 
 /// Espace de la conversation (page, projet ou espace en contexte).
@@ -439,13 +486,13 @@ fn study_specs() -> Vec<ToolSpec> {
     vec![
         ToolSpec {
             name: "create_study_set",
-            description: "Create a PERSONAL entrainement (study set: qcm, questionnaire, flashcards or summary) visible to the user only. Only works in a workspace (or the personal space when workspace_id is omitted) for which the user granted 'create study sets' in this conversation. Items are validated strictly; fix and retry on error.",
+            description: "Create a PERSONAL entrainement (study set: qcm, questionnaire, flashcards or summary) visible to the user only. Only works in a workspace (or the personal space) for which the user granted 'create study sets' in this conversation. Items are validated strictly; fix and retry on error.",
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "title": { "type": "string" },
                     "kind": { "type": "string", "enum": ["qcm", "questionnaire", "flashcards", "summary"] },
-                    "workspace_id": { "type": "string", "description": "Omit for the user's personal space" },
+                    "workspace_id": { "type": "string", "description": "Omit to use the user's current workspace (their personal space if none). After the user approves the card, always reuse exactly the same target" },
                     "items": { "type": "array", "items": item_schema.clone() }
                 },
                 "required": ["title", "kind", "items"]
@@ -516,7 +563,20 @@ fn parse_items(args: &Value) -> ApiResult<Vec<study::ItemIn>> {
 
 pub async fn create_study_set(pool: &PgPool, user: &AuthUser, conv_id: Uuid, title: &str, kind: &str, workspace: Option<Uuid>, items: &[study::ItemIn]) -> ApiResult<Uuid> {
     own_conversation(pool, user, conv_id).await?;
-    require_create_grant(pool, conv_id, workspace).await?;
+    // Le modèle désigne souvent l'espace perso par son identifiant (list_pages le montre) : c'est la même cible que « espace personnel ».
+    let workspace = match workspace {
+        Some(ws) if ws == crate::personal::personal_space(pool, user.id).await? => None,
+        other => other,
+    };
+    match require_create_grant(pool, conv_id, workspace).await {
+        Ok(()) => {}
+        // Une autorisation donnée à l'espace perso par son identifiant (cartes de la 0.37.0) reste valable.
+        Err(ApiError::Forbidden) if workspace.is_none() => {
+            let personal = crate::personal::personal_space(pool, user.id).await?;
+            require_create_grant(pool, conv_id, Some(personal)).await?;
+        }
+        Err(e) => return Err(e),
+    }
     // Droit propre de la personne : modifier les documents de l'espace (l'espace perso est le sien).
     let ws = match workspace {
         Some(ws) => {
@@ -611,10 +671,7 @@ pub async fn restore_study_revision(pool: &PgPool, user: &AuthUser, rev_id: Uuid
 async fn create_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<ToolOutput> {
     let title = args["title"].as_str().ok_or_else(|| ApiError::bad_request("title is required"))?;
     let kind = args["kind"].as_str().ok_or_else(|| ApiError::bad_request("kind is required"))?;
-    let ws = match args["workspace_id"].as_str().filter(|s| !s.is_empty()) {
-        Some(_) => Some(uuid_arg(args, "workspace_id")?),
-        None => None,
-    };
+    let ws = study_target(pool, user, conv_id, args).await?;
     let items = parse_items(args)?;
     let id = create_study_set(pool, user, conv_id, title, kind, ws, &items).await?;
     let mut out = ToolOutput::text(json!({ "set_id": id, "url": format!("/study/{id}"), "personal": true, "items": items.len(), "note": "created as a personal entrainement; only the user can see it until they make it shared" }).to_string());
@@ -1114,6 +1171,73 @@ mod tests {
         let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(Some(ws))).await;
         assert!(out.text.starts_with("error: forbidden"), "{}", out.text);
         assert_eq!(count_sets(&pool).await, 0);
+    }
+
+    #[sqlx::test]
+    async fn the_personal_space_uuid_is_the_personal_target(pool: PgPool) {
+        let w = world(&pool).await;
+        let personal = crate::personal::personal_space(&pool, w.owner.id).await.unwrap();
+        // Sans autorisation : refus, message clair.
+        let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(Some(personal))).await;
+        assert!(out.text.starts_with("error: forbidden") && out.text.contains("Active authorizations: none"), "{}", out.text);
+        // La carte proposée est personnelle.
+        let card = out.grant_needed.expect("card");
+        assert_eq!(card["personal"], json!(true));
+        assert!(card["workspace_id"].is_null());
+        // Autorisation personnelle (workspace NULL) + identifiant de l'espace perso : créé.
+        study_grant(&pool, w.conv, None, None, 30).await;
+        let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(Some(personal))).await;
+        assert!(out.study_set.is_some(), "{}", out.text);
+        assert_eq!(count_sets(&pool).await, 1);
+    }
+
+    #[sqlx::test]
+    async fn the_current_workspace_is_the_default_target(pool: PgPool) {
+        let w = world(&pool).await;
+        let ws = ws_of(&pool, &w).await;
+        let personal = crate::personal::personal_space(&pool, w.owner.id).await.unwrap();
+        sqlx::query("UPDATE ai_conversations SET default_workspace_id = $2 WHERE id = $1").bind(w.conv).bind(ws).execute(&pool).await.unwrap();
+        // Sans workspace_id : la carte nomme l'espace courant, pas l'espace perso.
+        let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(None)).await;
+        let card = out.grant_needed.expect("card");
+        assert_eq!(card["personal"], json!(false));
+        assert_eq!(card["workspace_id"], json!(ws));
+        // Une autorisation pour l'espace perso n'élargit rien.
+        study_grant(&pool, w.conv, None, None, 30).await;
+        let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(None)).await;
+        assert!(out.text.starts_with("error: forbidden"), "{}", out.text);
+        assert!(out.text.contains("personal space"), "{}", out.text);
+        // Autorisation pour l'espace courant : créé là, en personnel.
+        study_grant(&pool, w.conv, Some(ws), None, 30).await;
+        let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(None)).await;
+        assert!(out.study_set.is_some(), "{}", out.text);
+        let row: (Uuid, Option<Uuid>) = sqlx::query_as("SELECT workspace_id, private_to FROM study_sets").fetch_one(&pool).await.unwrap();
+        assert_eq!(row, (ws, Some(w.owner.id)));
+        // Un autre espace ou l'espace perso explicites : toujours refusés, la liste des autorisations actives est donnée.
+        let other: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('Autre') RETURNING id").fetch_one(&pool).await.unwrap();
+        sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')").bind(other).bind(w.owner.id.to_string()).execute(&pool).await.unwrap();
+        for target in [other, personal] {
+            sqlx::query("DELETE FROM ai_study_grants WHERE personal").execute(&pool).await.unwrap();
+            let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(Some(target))).await;
+            assert!(out.text.starts_with("error: forbidden"), "{}", out.text);
+            assert!(out.text.contains(&format!("workspace_id {ws}")) && out.text.contains("retry with exactly"), "{}", out.text);
+        }
+        assert_eq!(count_sets(&pool).await, 1);
+    }
+
+    #[sqlx::test]
+    async fn a_grant_stored_with_the_personal_space_uuid_still_works(pool: PgPool) {
+        let w = world(&pool).await;
+        let personal = crate::personal::personal_space(&pool, w.owner.id).await.unwrap();
+        sqlx::query("INSERT INTO ai_study_grants (conversation_id, kind, workspace_id, personal, expires_at) VALUES ($1, 'create', $2, false, now() + interval '30 minutes')")
+            .bind(w.conv)
+            .bind(personal)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let out = execute(&pool, &w.owner, w.conv, "create_study_set", &qcm_args(None)).await;
+        assert!(out.study_set.is_some(), "{}", out.text);
+        assert_eq!(count_sets(&pool).await, 1);
     }
 
     #[sqlx::test]

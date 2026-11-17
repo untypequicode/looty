@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.37.2",
+      "date": "2026-11-17",
+      "title": {
+        "en": "The assistant can create trainings in your personal space",
+        "fr": "L’assistant peut créer des entraînements dans votre espace personnel"
+      },
+      "notes": {
+        "en": [
+          "**Assistant**: fixed a refusal when it created a training after you approved the card. By default it now uses the workspace you are in (or the one of the conversation), and the personal space is recognised however the assistant names it.",
+          "**Assistant**: when no authorization matches, the assistant is told which ones are active and asks you to approve the card instead of retrying with another target."
+        ],
+        "fr": [
+          "**Assistant** : correction d’un refus lors de la création d’un entraînement après approbation de la carte. Par défaut, il utilise désormais l’espace dans lequel vous êtes (ou celui de la conversation), et l’espace personnel est reconnu quelle que soit la façon dont l’assistant le désigne.",
+          "**Assistant** : quand aucune autorisation ne correspond, l’assistant connaît celles qui sont actives et vous demande d’approuver la carte au lieu de réessayer avec une autre cible."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.37.1",
       "date": "2026-11-17",
       "title": {
