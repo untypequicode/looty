@@ -79,7 +79,7 @@ export default {
       noConnection: 'Connect an AI agent (GPT, Claude, Gemini…) to start: you need an API key from your account.', setUp: 'Connect an agent',
       placeholder: 'Ask something…', send: 'Send', stop: 'Stop',
       allow: 'Allow', expiry: 'Duration', personal: 'Personal space',
-      studyLink: 'Open the training', studyRestore: 'Undo the change',
+      toPage: 'Create a page with this answer', studyLink: 'Open the training', studyRestore: 'Undo the change',
       mode: { suggest: 'Suggest', append: 'Append', replace: 'Replace' },
       suggestion: 'Proposed change', accept: 'Accept', reject: 'Reject', applied: 'Change applied (previous version saved in history)',
     },

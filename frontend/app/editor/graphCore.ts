@@ -44,7 +44,7 @@ export function graphSheet(s: DiagramStyle, c: Palette): any[] {
 export type LayoutKind = 'layers' | 'tree' | 'circle' | 'grid' | 'force'
 
 /** Options de disposition automatique ; `roots` : nœuds sans arc entrant (couches, arbre). */
-export function layoutOptions(kind: LayoutKind, roots: unknown): Record<string, any> {
+export function layoutOptions(kind: LayoutKind, roots: unknown): any {
   const r = roots && (roots as { length: number }).length ? roots : undefined
   const opts: Record<LayoutKind, any> = {
     // Couches de gauche à droite (réseaux de flot, DAG) : arbre en largeur, couché.

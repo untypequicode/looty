@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bot, PanelLeft, PenLine, Wrench, GraduationCap, Undo2, Paperclip } from 'lucide-vue-next'
+import { Bot, PanelLeft, PenLine, FilePlus2, Wrench, GraduationCap, Undo2, Paperclip } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
 import { api, errorMessage } from '~/composables/api'
@@ -8,8 +8,6 @@ import { useWorkspace, links } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { useStudyActions } from '~/composables/useStudy'
-import 'katex/dist/katex.min.css'
-import { renderChatMarkdown } from '~/editor/chatMarkdown'
 import { aiOpenItem } from '~/composables/useAiOpenItem'
 import {
   aiApi, aiInbox, streamMessage, aiErrorMessage,
@@ -242,6 +240,18 @@ async function decide(s: AiSuggestion, accept: boolean) {
 }
 const studyActions = useStudyActions()
 const restored = ref(new Set<string>())
+
+// « Créer une page avec cette réponse » : page personnelle de l'espace courant, puis ouverture.
+const toPageBusy = ref('')
+async function toPage(messageId: string) {
+  if (toPageBusy.value) return
+  toPageBusy.value = messageId
+  try {
+    const r = await api<{ page_id: string; workspace_id: string }>(`/api/ai/messages/${messageId}/to-page`, { method: 'POST', body: { workspace_id: wsId.value, personal: true } })
+    pageChanged()
+    await router.push(links.doc(r.workspace_id, r.page_id))
+  } catch (e) { toast.error(errorMessage(e)) } finally { toPageBusy.value = '' }
+}
 async function restoreStudy(setId: string, revId: string, undo = false) {
   try {
     const undoId = await studyActions.restore(setId, revId)
@@ -303,8 +313,10 @@ const empty = computed(() => !visible.value.length && !streaming.value)
                   <UiButton size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.page_revision_id)" @click="undoPage(m.data.page_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
                 </div>
               </template>
-              <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
-              <div v-else-if="m.role === 'assistant'" class="msg assistant md" v-html="renderChatMarkdown(m.content)" />
+              <div v-else-if="m.role === 'assistant'" class="as-answer">
+                <RichMarkdown class="msg assistant md" :src="m.content" />
+                <UiButton v-if="!String(m.id).startsWith('live-')" class="as-topage" size="xs" variant="ghost" :icon="FilePlus2" :loading="toPageBusy === m.id" @click="toPage(m.id)">{{ t('ai.chat.toPage') }}</UiButton>
+              </div>
               <div v-else class="msg user">
                 <div v-if="m.data?.attachments?.length" class="as-att">
                   <AiChip v-for="a in m.data.attachments" :key="a.id" class="as-chip" :kind="a.kind" :title="a.title" :expires-at="a.expires_at" :provider="providerName" />
@@ -312,8 +324,7 @@ const empty = computed(() => !visible.value.length && !streaming.value)
                 {{ m.content }}
               </div>
             </template>
-            <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
-            <div v-if="streaming" class="msg assistant md" v-html="renderChatMarkdown(streaming)" />
+            <RichMarkdown v-if="streaming" class="msg assistant md" :src="streaming" />
             <div v-if="busy && toolLog.length" class="as-tools"><Wrench :size="11" /> {{ toolLog.join(' · ') }}</div>
             <AiSuggestionCard
               v-for="s in suggestions" :key="s.id" :suggestion="s" :page-title="pageTitle(s.page_id)" :page-href="pageLink(s.page_id)" :busy="deciding.has(s.id)"
@@ -345,14 +356,9 @@ const empty = computed(() => !visible.value.length && !streaming.value)
 .as-sub { font-size: var(--fs-sm); color: var(--text-4); }
 .msg { white-space: pre-wrap; word-break: break-word; padding: 8px 12px; border-radius: var(--r-md); line-height: 1.55; max-width: 92%; }
 .msg.md { white-space: normal; }
-.msg.md :deep(p) { margin: 0 0 6px; }
-.msg.md :deep(p:last-child), .msg.md :deep(ul:last-child), .msg.md :deep(ol:last-child) { margin-bottom: 0; }
-.msg.md :deep(ul), .msg.md :deep(ol) { margin: 0 0 6px; padding-left: 20px; }
-.msg.md :deep(pre) { overflow-x: auto; padding: 6px 8px; border-radius: var(--r-sm); background: var(--bg-elevated); font-size: var(--fs-xs); }
-.msg.md :deep(code) { font-family: var(--font-mono, monospace); font-size: 0.92em; }
-.msg.md :deep(table) { border-collapse: collapse; font-size: var(--fs-sm); }
-.msg.md :deep(th), .msg.md :deep(td) { border: 1px solid var(--border); padding: 2px 6px; }
-.msg.md :deep(h1), .msg.md :deep(h2), .msg.md :deep(h3), .msg.md :deep(h4) { font-size: 1em; margin: 6px 0 4px; }
+.as-answer { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.as-topage { opacity: 0.7; }
+.as-answer:hover .as-topage, .as-topage:focus-visible { opacity: 1; }
 .msg.user { align-self: flex-end; background: var(--accent-soft); }
 .msg.assistant { align-self: flex-start; background: var(--bg-hover); }
 .as-att { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }

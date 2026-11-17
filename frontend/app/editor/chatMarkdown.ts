@@ -34,7 +34,8 @@ function fenceClosed(raw: string): boolean {
 /** Liens : seuls http(s), mailto, ancres et chemins relatifs survivent (jamais `javascript:`). */
 export function safeHref(href: string): boolean {
   const h = href.trim().replace(/[\u0000- ]/g, '')
-  return /^(https?:|mailto:|#|\/(?!\/)|\.{0,2}\/)/i.test(h) || !/^[a-z][a-z0-9+.-]*:/i.test(h)
+  if (h.startsWith('//')) return false
+  return /^(https?:|mailto:|#|\/|\.{1,2}\/)/i.test(h) || !/^[a-z][a-z0-9+.-]*:/i.test(h)
 }
 
 const calloutExt: TokenizerAndRendererExtension = {
@@ -44,7 +45,7 @@ const calloutExt: TokenizerAndRendererExtension = {
   tokenizer(this: any, src: string) {
     const m = new RegExp(`^:::(${CALLOUTS.join('|')})[ \\t]*\\n((?:[\\s\\S]*?\\n)?):::[ \\t]*(?:\\n|$)`).exec(src)
     if (!m) return undefined
-    const token = { type: 'callout', raw: m[0], kind: m[1]!, tokens: [] as unknown[] }
+    const token = { type: 'callout', raw: m[0], kind: m[1]!, tokens: [] as any[] }
     this.lexer.blockTokens(m[2]!, token.tokens)
     return token
   },
