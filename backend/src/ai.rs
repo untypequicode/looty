@@ -601,16 +601,17 @@ struct Attachment {
     kind: String,
     id: Uuid,
     title: Option<String>,
-    /// Extrait fourni par l'interface (pour ce que les outils ne savent pas lire) : texte de la personne, jamais une autorisation.
+    /// Ancien extrait fourni par l'interface : ignoré, tout est relu côté serveur.
+    #[allow(dead_code)]
     snippet: Option<String>,
 }
 
 const MAX_ATTACHMENTS: usize = 10;
 const ATTACHMENT_CHARS: usize = 8_000;
 
-/// Éléments joints → (liste pour l'affichage, texte donné au modèle). Pages et entraînements sont
-/// relus ici avec les droits de la personne (un élément illisible est ignoré, sans le dire au modèle) ;
-/// le reste est joint comme simple extrait.
+/// Éléments joints → (liste pour l'affichage, texte donné au modèle). Pages, entraînements, tâches,
+/// tableaux, événements et projets sont relus ici avec les droits de la personne (un élément illisible
+/// ou d'un autre type est ignoré, sans le dire au modèle).
 async fn resolve_attachments(pool: &PgPool, user: &AuthUser, items: &[Attachment]) -> (Vec<Value>, String) {
     let (mut meta, mut text) = (vec![], String::new());
     for a in items.iter().take(MAX_ATTACHMENTS) {
@@ -624,7 +625,9 @@ async fn resolve_attachments(pool: &PgPool, user: &AuthUser, items: &[Attachment
                 let out = ai_tools::read_study_set(pool, user, &json!({ "set_id": a.id })).await.ok();
                 out.map(|o| (title.clone(), o.text))
             }
-            _ => Some((title.clone(), a.snippet.clone().unwrap_or_default())),
+            // Tâches, tableaux, événements et projets : relus avec les droits de la personne ; l'extrait de l'interface n'est plus cru.
+            k if ai_tools::READ_ITEM_KINDS.contains(&k) => ai_tools::read_item(pool, user, k, a.id).await.ok(),
+            _ => None,
         };
         let Some((t, b)) = body else { continue };
         let b: String = b.chars().take(ATTACHMENT_CHARS).collect();

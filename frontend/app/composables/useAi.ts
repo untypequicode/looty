@@ -26,8 +26,8 @@ export interface AiConversation {
 
 /** Type d'élément joignable à un message (la même liste que les résultats de recherche utiles). */
 export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'event'
-/** Élément joint : le serveur relit pages et entraînements avec vos droits ; le reste part comme extrait. */
-export interface AiAttachment { kind: AiAttachKind; id: string; title: string; snippet?: string | null; ws?: string }
+/** Élément joint : le serveur le relit avec vos droits à l'envoi (rien du contenu ne part du navigateur). */
+export interface AiAttachment { kind: AiAttachKind; id: string; title: string; ws?: string }
 
 export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
@@ -92,7 +92,7 @@ export async function streamMessage(conversationId: string, content: string, att
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ content, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title, snippet: a.snippet ?? undefined })) }),
+    body: JSON.stringify({ content, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title })) }),
     signal,
   })
   if (!res.ok || !res.body) {

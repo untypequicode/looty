@@ -42,6 +42,15 @@ pub fn tool_specs() -> Vec<ToolSpec> {
                 "required": ["page_id", "markdown"]
             }),
         },
+        ToolSpec {
+            name: "read_item",
+            description: "Read a task, a board, a calendar event or a project (read-only, with the user's rights). Use it for items the user attached or mentioned; pages and study sets have their own tools.",
+            parameters: json!({
+                "type": "object",
+                "properties": { "kind": { "type": "string", "enum": ["task", "board", "event", "project"] }, "id": { "type": "string" } },
+                "required": ["kind", "id"]
+            }),
+        },
     ];
     v.extend(study_specs());
     v
@@ -85,6 +94,7 @@ pub async fn execute(pool: &PgPool, user: &AuthUser, conv_id: Uuid, name: &str, 
         "list_pages" => list_pages(pool, user, conv_id, args).await,
         "read_page" => read_page(pool, user, args).await,
         "write_page" => write_page_tool(pool, user, conv_id, args).await,
+        "read_item" => read_item_tool(pool, user, args).await,
         "create_study_set" => create_study_set_tool(pool, user, conv_id, args).await,
         "list_study_sets" => list_study_sets(pool, user).await,
         "read_study_set" => read_study_set(pool, user, args).await,
@@ -630,6 +640,91 @@ pub async fn read_study_set(pool: &PgPool, user: &AuthUser, args: &Value) -> Api
         }
     }
     Ok(ToolOutput::text(json!({ "set_id": id, "title": set.title, "kind": set.kind, "personal": set.private_to.is_some(), "workspace_id": set.workspace_id, "can_edit": can_edit, "items": items }).to_string()))
+}
+
+pub const READ_ITEM_KINDS: [&str; 4] = ["task", "board", "event", "project"];
+
+/// Lit une tâche, un tableau, un événement ou un projet avec les droits de la personne :
+/// (titre, texte). Un élément absent ou invisible pour elle donne `NotFound`, comme ailleurs.
+pub async fn read_item(pool: &PgPool, user: &AuthUser, kind: &str, id: Uuid) -> ApiResult<(String, String)> {
+    if !READ_ITEM_KINDS.contains(&kind) {
+        return Err(ApiError::bad_request("unsupported_kind"));
+    }
+    let (_, title) = study::resolve_target(pool, user, kind, id).await?.ok_or(ApiError::NotFound)?;
+    let text = match kind {
+        "task" => {
+            type When = Option<chrono::DateTime<chrono::Utc>>;
+            let row: (String, String, String, When, When, i32, bool) = sqlx::query_as(
+                "SELECT regexp_replace(coalesce(t.description, ''), '<[^>]*>', ' ', 'g'), c.name, b.name, t.start_date, t.due_date, t.priority, t.is_completed
+                 FROM tasks t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id WHERE t.id = $1",
+            )
+            .bind(id)
+            .fetch_one(pool)
+            .await?;
+            let subs: Vec<(String, bool)> = sqlx::query_as("SELECT title, is_completed FROM tasks WHERE parent_id = $1 AND (private_to IS NULL OR private_to = $2) ORDER BY position LIMIT 50")
+                .bind(id)
+                .bind(user.id)
+                .fetch_all(pool)
+                .await?;
+            let fmt = |d: Option<chrono::DateTime<chrono::Utc>>| d.map(|d| d.to_rfc3339()).unwrap_or_default();
+            let mut s = format!("Board: {}\nColumn: {}\nPriority: {}\nCompleted: {}\nStart: {}\nDue: {}\n\n{}", row.2, row.1, row.5, row.6, fmt(row.3), fmt(row.4), row.0.trim());
+            if !subs.is_empty() {
+                s.push_str("\n\nSubtasks:");
+                for (t, done) in subs {
+                    s.push_str(&format!("\n- [{}] {t}", if done { "x" } else { " " }));
+                }
+            }
+            s
+        }
+        "board" => {
+            let cols: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, name FROM board_columns WHERE board_id = $1 ORDER BY position").bind(id).fetch_all(pool).await?;
+            let mut s = String::new();
+            for (cid, name) in cols {
+                let tasks: Vec<(String, bool)> = sqlx::query_as("SELECT title, is_completed FROM tasks WHERE column_id = $1 AND parent_id IS NULL AND (private_to IS NULL OR private_to = $2) ORDER BY position LIMIT 40")
+                    .bind(cid)
+                    .bind(user.id)
+                    .fetch_all(pool)
+                    .await?;
+                s.push_str(&format!("## {name}\n"));
+                for (t, done) in tasks {
+                    s.push_str(&format!("- [{}] {t}\n", if done { "x" } else { " " }));
+                }
+            }
+            s
+        }
+        "event" => {
+            let ics: String = sqlx::query_scalar("SELECT ics FROM workspace_events WHERE id = $1").bind(id).fetch_one(pool).await?;
+            match crate::calendar::master_event(&ics) {
+                Some(e) => format!(
+                    "Start: {}\nEnd: {}\nAll day: {}\nLocation: {}\nRecurrence: {}\n\n{}",
+                    e.start.to_rfc3339(),
+                    e.end.to_rfc3339(),
+                    e.all_day,
+                    e.location.unwrap_or_default(),
+                    e.rrule.unwrap_or_default(),
+                    e.description.unwrap_or_default()
+                ),
+                None => String::new(),
+            }
+        }
+        _ => {
+            // Projet : s'il est porté par une page, il suit l'accès à cette page.
+            let page: Option<Uuid> = sqlx::query_scalar("SELECT id FROM pages WHERE project_id = $1").bind(id).fetch_optional(pool).await?;
+            if let Some(p) = page {
+                require_page_read(pool, user, p).await?;
+            }
+            let (kind, settings): (String, Value) = sqlx::query_as("SELECT kind::text, settings FROM projects WHERE id = $1").bind(id).fetch_one(pool).await?;
+            format!("Kind: {kind}\nSettings: {settings}{}", page.map(|p| format!("\nPage: {p} (read it with read_page)")).unwrap_or_default())
+        }
+    };
+    Ok((title, text))
+}
+
+async fn read_item_tool(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResult<ToolOutput> {
+    let id = uuid_arg(args, "id")?;
+    let kind = args["kind"].as_str().unwrap_or_default();
+    let (title, text) = read_item(pool, user, kind, id).await?;
+    Ok(ToolOutput::text(json!({ "kind": kind, "id": id, "title": title, "content": text }).to_string()))
 }
 
 async fn update_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<ToolOutput> {
@@ -1205,5 +1300,39 @@ mod tests {
             assert_eq!(v["weak_items"].as_array().unwrap().len(), theirs, "{}", one.text);
             assert!(!one.text.contains("MINE") && !one.text.contains("THEIRS"));
         }
+    }
+
+    /// Un tableau (avec une colonne et une tâche) dans l'espace du monde.
+    async fn board_with_task(pool: &PgPool, w: &World, private_to: Option<Uuid>) -> (Uuid, Uuid) {
+        let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(w.page).fetch_one(pool).await.unwrap();
+        let board: Uuid = sqlx::query_scalar("INSERT INTO boards (workspace_id, name, created_by, private_to) VALUES ($1, 'Sprint', $2, $3) RETURNING id").bind(ws).bind(w.owner.id).bind(private_to).fetch_one(pool).await.unwrap();
+        let col: Uuid = sqlx::query_scalar("INSERT INTO board_columns (board_id, name, position) VALUES ($1, 'Todo', 1) RETURNING id").bind(board).fetch_one(pool).await.unwrap();
+        let task: Uuid = sqlx::query_scalar("INSERT INTO tasks (column_id, title, description, position) VALUES ($1, 'Écrire le rapport', '<p>Plan détaillé</p>', 1) RETURNING id").bind(col).fetch_one(pool).await.unwrap();
+        (board, task)
+    }
+
+    #[sqlx::test]
+    async fn read_item_reads_tasks_and_boards_with_the_users_rights(pool: PgPool) {
+        let w = world(&pool).await;
+        let (board, task) = board_with_task(&pool, &w, None).await;
+        let (title, text) = read_item(&pool, &w.owner, "task", task).await.unwrap();
+        assert_eq!(title, "Écrire le rapport");
+        assert!(text.contains("Plan détaillé") && text.contains("Sprint") && !text.contains("<p>"), "{text}");
+        let (_, text) = read_item(&pool, &w.owner, "board", board).await.unwrap();
+        assert!(text.contains("## Todo") && text.contains("Écrire le rapport"), "{text}");
+        // Hors de l'espace : introuvable.
+        assert!(matches!(read_item(&pool, &w.outsider, "task", task).await, Err(ApiError::NotFound)));
+        assert!(matches!(read_item(&pool, &w.outsider, "board", board).await, Err(ApiError::NotFound)));
+        assert!(read_item(&pool, &w.owner, "page", w.page).await.is_err());
+    }
+
+    #[sqlx::test]
+    async fn a_personal_board_of_someone_else_cannot_be_read(pool: PgPool) {
+        let w = world(&pool).await;
+        let (board, task) = board_with_task(&pool, &w, Some(w.outsider.id)).await;
+        assert!(matches!(read_item(&pool, &w.owner, "board", board).await, Err(ApiError::NotFound)));
+        assert!(matches!(read_item(&pool, &w.owner, "task", task).await, Err(ApiError::NotFound)));
+        let o = execute(&pool, &w.owner, w.conv, "read_item", &json!({ "kind": "task", "id": task })).await;
+        assert!(o.text.starts_with("error"), "{}", o.text);
     }
 }

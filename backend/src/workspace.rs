@@ -1141,6 +1141,34 @@ mod tests {
         assert_eq!(like_pattern("50%_a\\b"), "%50\\%\\_a\\\\b%");
     }
 
+    #[sqlx::test]
+    async fn search_paths_show_visible_parent_titles_and_the_board(pool: PgPool) {
+        use std::collections::HashMap;
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        let uid: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ('a@example.org', 'a') RETURNING id").fetch_one(&pool).await.unwrap();
+        let mut ids = vec![];
+        let mut parent: Option<Uuid> = None;
+        for title in ["Cours", "Algèbre", "Fiche"] {
+            let id: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, parent_id, created_by) VALUES ($1, $2, $3, $4) RETURNING id").bind(ws).bind(title).bind(parent).bind(uid).fetch_one(&pool).await.unwrap();
+            ids.push(id);
+            parent = Some(id);
+        }
+        let board: Uuid = sqlx::query_scalar("INSERT INTO boards (workspace_id, name) VALUES ($1, 'Sprint') RETURNING id").bind(ws).fetch_one(&pool).await.unwrap();
+        let hit = |id: Uuid, kind: &str, parent_id: Option<Uuid>| SearchResult { id, title: String::new(), r#type: kind.into(), icon: None, snippet: None, parent_id, date: None, folder: None, keyword: None, path: vec![] };
+        let mut visible: HashMap<Uuid, PageAccess> = ids.iter().map(|i| (*i, PageAccess::Write)).collect();
+        let task = Uuid::new_v4();
+        let mut results = vec![hit(ids[2], "page", Some(ids[1])), hit(Uuid::new_v4(), "study", Some(ids[1])), hit(task, "task", Some(board))];
+        fill_paths(&pool, ws, &visible, &mut results).await.unwrap();
+        assert_eq!(results[0].path, vec!["Cours", "Algèbre"]);
+        assert_eq!(results[1].path, vec!["Cours", "Algèbre"]);
+        assert_eq!(results[2].path, vec!["Sprint"]);
+        // Un parent invisible coupe le chemin : on n'en révèle pas le titre.
+        visible.insert(ids[1], PageAccess::None);
+        let mut results = vec![hit(ids[2], "page", Some(ids[1]))];
+        fill_paths(&pool, ws, &visible, &mut results).await.unwrap();
+        assert!(results[0].path.is_empty());
+    }
+
     #[test]
     fn hash_searches_keywords_only() {
         assert_eq!(search_terms("#Algèbre  linéaire"), ("algebre lineaire".into(), true));

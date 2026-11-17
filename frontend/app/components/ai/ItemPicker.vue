@@ -60,7 +60,7 @@ watch(open, (v) => { if (v) { filter.value = 'all'; nextTick(() => setTimeout(()
 const path = (h: Hit) => hitPlace(h, { multiWorkspace: (workspaces.value?.length ?? 0) > 1 })
 function choose(h: Hit | undefined) {
   if (!h) return
-  emit('pick', { kind: h.kind, id: h.r.id, title: h.r.title, snippet: h.kind === 'page' || h.kind === 'study' ? undefined : (h.r.snippet ?? undefined), ws: h.ws })
+  emit('pick', { kind: h.kind, id: h.r.id, title: h.r.title, ws: h.ws })
   open.value = false
 }
 function onKey(e: KeyboardEvent) {
