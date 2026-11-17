@@ -95,6 +95,20 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(page_id): Pa
     Ok(Json(serde_json::json!({ "id": id })))
 }
 
+/// Instantané « avant restauration » d'une page, pris avant une écriture qui ne passe pas par
+/// l'éditeur (agents IA). Renvoie `None` si la page n'a encore aucun état enregistré.
+pub async fn snapshot_before_write(pool: &sqlx::PgPool, page_id: Uuid, user_id: Uuid, label: &str) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "INSERT INTO page_revisions (page_id, yjs_state, title, kind, label, created_by)
+         SELECT id, yjs_state, title, 'restore', $2, $3 FROM pages WHERE id = $1 AND yjs_state IS NOT NULL RETURNING id",
+    )
+    .bind(page_id)
+    .bind(clean_label(Some(label.to_string())))
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+}
+
 #[derive(Deserialize)]
 struct RenameReq {
     label: Option<String>,

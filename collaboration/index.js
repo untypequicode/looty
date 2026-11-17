@@ -396,6 +396,8 @@ async function storeDocument({ documentName, state, context, lastContext }) {
     })
     return
   }
+  // Page réécrite par le backend (agent IA) depuis le chargement : on n'écrase pas.
+  if ((loadedAt.get(documentName) ?? 0) < (resetAt.get(documentName) ?? 0)) return
   await retry(() => pool.query(
     'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
     [state, documentName, userId],
@@ -409,6 +411,19 @@ function onNotification(msg) {
   const hp = server.hocuspocus
   if (msg.channel === 'looty_access') {
     scheduleRevalidate()
+    return
+  }
+  if (msg.channel === 'looty_page_reset') {
+    // Texte d'une page réécrit par le backend : l'exemplaire en mémoire est périmé, les clients se reconnectent.
+    const name = msg.payload
+    resetAt.set(name, Date.now())
+    hp.closeConnections(name)
+    const doc = hp.documents.get(name)
+    failedStores.delete(name)
+    if (doc) {
+      hp.documents.delete(name)
+      try { doc.destroy() } catch {}
+    }
     return
   }
   if (msg.channel === 'looty_file_reset') {
@@ -445,6 +460,7 @@ async function listen() {
     await client.query('LISTEN looty_restore')
     await client.query('LISTEN looty_file_reset')
     await client.query('LISTEN looty_access')
+    await client.query('LISTEN looty_page_reset')
   } catch (e) {
     console.error('LISTEN failed, retrying in 5 s', e.message)
     client?.release(true)

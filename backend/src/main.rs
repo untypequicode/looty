@@ -1,4 +1,8 @@
 mod access;
+mod ai;
+mod ai_pages;
+mod ai_provider;
+mod ai_tools;
 mod admin;
 mod announcements;
 mod archive;
@@ -179,6 +183,7 @@ fn app(state: state::AppState) -> Router {
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
         .nest("/pages", page::access_routes().merge(revisions::routes()))
+        .nest("/ai", ai::routes())
         .nest("/comments", comments::routes())
         .nest("/workspaces", workspace::routes())
         .nest("/workspaces/{workspace_id}/boards", board::workspace_routes())
