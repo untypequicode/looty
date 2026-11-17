@@ -263,7 +263,7 @@ pub enum SetAccess {
 pub fn resolve_access(private_to: Option<Uuid>, user: Uuid, member: Option<(Role, Perms)>) -> SetAccess {
     let Some((_, p)) = member else { return SetAccess::None };
     if let Some(owner) = private_to {
-        return if owner == user { SetAccess::Edit } else { SetAccess::None };
+        return if owner == user && p.docs >= level::READ { SetAccess::Edit } else { SetAccess::None };
     }
     if p.docs >= level::EDIT {
         SetAccess::Edit
@@ -1011,6 +1011,8 @@ mod tests {
         assert_eq!(resolve_access(Some(owner), other, member(Role::Member)), SetAccess::None);
         // L'auteur sorti de l'espace n'y voit plus rien.
         assert_eq!(resolve_access(Some(owner), owner, None), SetAccess::None);
+        // Sans accès aux documents de l'espace, l'auteur n'a plus la main.
+        assert_eq!(resolve_access(Some(owner), owner, member(Role::Guest)), SetAccess::None);
     }
 
     #[test]

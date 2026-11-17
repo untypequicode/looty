@@ -551,6 +551,21 @@ async fn move_to_workspace(
 /// liens vers l'ancien espace retirés.
 pub(crate) async fn move_tree(pool: &PgPool, workspace_id: Uuid, page_id: Uuid, ids: &[Uuid], target: Uuid, parent: Option<Uuid>, actor: Uuid) -> ApiResult<()> {
     let ids = ids.to_vec();
+    // Entraînements personnels dont la personne n'est pas membre de l'espace cible : ils ne
+    // doivent pas y rester orphelins, ils rejoignent son espace perso (comme à son départ).
+    let strays: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        "SELECT id, private_to FROM study_sets WHERE parent_id = ANY($1) AND private_to IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = study_sets.private_to::text)",
+    )
+    .bind(&ids)
+    .bind(target)
+    .fetch_all(pool)
+    .await?;
+    let mut homes: Vec<(Uuid, Uuid)> = Vec::new();
+    for (set, owner) in &strays {
+        homes.push((*set, crate::personal::personal_space(pool, *owner).await?));
+    }
+    let stray_ids: Vec<Uuid> = strays.iter().map(|(s, _)| *s).collect();
     let mut tx = pool.begin().await?;
     sqlx::query(
         "UPDATE pages_all SET parent_id = $2, updated_by = $4, updated_at = NOW(),
@@ -566,7 +581,16 @@ pub(crate) async fn move_tree(pool: &PgPool, workspace_id: Uuid, page_id: Uuid, 
     sqlx::query("UPDATE pages_all SET workspace_id = $2 WHERE id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
     // Entraînements rangés sous ces pages (corbeille comprise) : ils changent d'espace avec elles ;
     // leurs liens vers l'ancien espace sont retirés, ceux vers les pages déplacées restent.
-    let sets: Vec<Uuid> = sqlx::query_scalar("UPDATE study_sets SET workspace_id = $2 WHERE parent_id = ANY($1) RETURNING id").bind(&ids).bind(target).fetch_all(&mut *tx).await?;
+    let sets: Vec<Uuid> = sqlx::query_scalar("UPDATE study_sets SET workspace_id = $2 WHERE parent_id = ANY($1) AND NOT (id = ANY($3)) RETURNING id")
+        .bind(&ids)
+        .bind(target)
+        .bind(&stray_ids)
+        .fetch_all(&mut *tx)
+        .await?;
+    for (set, home) in &homes {
+        sqlx::query("UPDATE study_sets SET workspace_id = $2, parent_id = NULL, private_to = NULL WHERE id = $1").bind(set).bind(home).execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM study_links WHERE set_id = $1").bind(set).execute(&mut *tx).await?;
+    }
     sqlx::query("DELETE FROM study_links WHERE set_id = ANY($1) AND NOT (target_kind = 'page' AND target_id = ANY($2))").bind(&sets).bind(&ids).execute(&mut *tx).await?;
     sqlx::query("DELETE FROM study_links WHERE target_kind = 'page' AND target_id = ANY($1) AND NOT (set_id = ANY($2))").bind(&ids).bind(&sets).execute(&mut *tx).await?;
     sqlx::query("UPDATE projects SET workspace_id = $2 WHERE id IN (SELECT project_id FROM pages_all WHERE id = ANY($1) AND project_id IS NOT NULL)")

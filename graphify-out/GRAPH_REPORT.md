@@ -1,7 +1,7 @@
 # Graph Report - revisions-design-permissions-ab9e36  (2026-11-17)
 
 ## Corpus Check
-- 729 files · ~661,294 words
+- 729 files · ~661,451 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 75 file(s) not represented in the graph (top: .xml 38, (none) 14, .example 4)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b145f10e`
+- Built from commit: `12bbded0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2325,13 +2325,13 @@ Nodes (3): addLabel(), onCreateLabel(), createLabel()
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `lucide-vue-next` connect `lucide-vue-next` to `frontend/package.json`, `Frontend Layout Components`, `vue`, `Editor Comments & Embeds`, `Notebook Editor UI`, `Project Workspace UI`, `@tanstack/vue-query`, `Doc Page View`, `Dashboard Widgets`, `Task Panel UI`, `Mail Page UI`, `Moodle Page UI`, `Calendar Page UI`, `Drive Page UI`, `Dashboard Layout Composable`, `Board Page UI`, `frontend BoardBlockView`, `frontend EventDialog`, `frontend CreateDialog`, `frontend Members`, `frontend Sidebar`, `frontend Calendars`, `GraphView.vue`, `frontend Panel`, `frontend EventPlanning`, `PageMentionView.vue`, `frontend Courses`, `frontend workspace`, `frontend Reader`, `frontend Cell`, `frontend EngineDialog`, `frontend useReleases`, `frontend CommandPalette`, `frontend Compose`, `ApiError`, `frontend NewMenu`, `frontend Pdf`, `frontend announcements`, `frontend ShareDialog`, `frontend PageTreeItem`, `frontend Activity`, `frontend Card`, `frontend Workspace`, `AiChat.vue`, `frontend Timeline`, `frontend InsertDialog`, `frontend Attachments`, `frontend latex`, `frontend graph`, `frontend projects/index`, `frontend CalendarFeeds`, `frontend Notifications`, `frontend my-tasks`, `frontend WorkspaceMenu`, `frontend Course`, `ExcalidrawView.vue`, `frontend Bubble`, `DiagramStyles.vue`, `frontend CalendarView`, `frontend Kanban`, `frontend SettingsDialog`, `frontend HistoryDialog`, `frontend AgendaBlockView`, `frontend BlockHandle`, `frontend Toolbar`, `frontend IconPicker`, `frontend ImportDialog`, `frontend MathBlockView`, `frontend Roles`, `frontend ExportDialog`, `frontend Preferences`, `canvas.vue`, `frontend MemberCard`, `frontend MoveDialog`, `frontend ActivityChart`, `frontend CalDavServer`, `frontend Groups`, `frontend DatePicker`, `frontend docs`, `frontend Keywords`, `frontend ListView`, `frontend Preview`, `frontend AdminStorage`, `frontend AdminUsers`, `frontend Security`, `frontend Combobox`, `frontend SplitPane`, `frontend TabBar`, `frontend AddDialog`, `frontend RecipientInput`, `frontend AdminAuth`, `MermaidView.vue`, `frontend Notepad`, `frontend EventPicker`, `frontend login`, `frontend inbox`, `frontend trash`, `study/Editor.vue`, `frontend Poll`, `frontend Card (2)`, `frontend RelatedPanel`, `frontend Profile`, `frontend PublicLinks`, `[ws]/study/[id].vue`, `frontend GridPanel`, `frontend QuickAdd`, `frontend FileTree`, `frontend Board`, `frontend CourseItem`, `frontend Deadlines`, `frontend Toaster`, `frontend pages/index`, `frontend Subtasks`, `frontend Dialog`, `frontend TabItem`, `FindBar.vue`, `frontend [token]`, `frontend whats-new`, `frontend Customize`, `frontend Guest`, `DiagramViewer.vue`, `AiConnections.vue`, `frontend ColorPicker`, `ProjectView.vue`, `Linked.vue`, `Insights.vue`, `Links.vue`, `Player.vue`, `EditToggle.vue`, `NewMenu.vue`, `AdminInstance.vue`, `[ws]/study/index.vue`, `WorkOnDialog.vue`, `MySpace.vue`, `DiagramStylePicker.vue`, `settings.vue`, `WhatsNewDialog.vue`, `CodeBlockView.vue`, `AdminOverview.vue`, `AdminWorkspaces.vue`?**
-  _High betweenness centrality (0.159) - this node is a cross-community bridge._
+  _High betweenness centrality (0.156) - this node is a cross-community bridge._
 - **What connects `backend`, `Guest`, `Viewer` to the rest of the system?**
   _102 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Android Board Models` be split into smaller, more focused modules?**
   _Cohesion score 0.03724774581365393 - nodes in this community are weakly interconnected._
 - **Why does `AppState` connect `AppState` to `mailclient.rs`, `backend releases`, `Backend CalDAV Server`, `Backend Board & Tasks`, `admin.rs`, `Backend Moodle Integration`, `Uuid`, `analytics.rs`, `projects.rs`, `require_ws`, `Backend Workspace & Auth User`, `Backend Jupyter Proxy`, `backup.rs`, `diagram_styles.rs`, `moodle_grades.rs`, `Backend Announcements`, `ApiResult`, `Backend OIDC Auth`, `moodle_content.rs`, `backend src/main`, `Backend Drive`, `keywords.rs`, `Backend Calendars`, `mail.rs`, `page.rs`, `study.rs`, `backend planning`, `backend roles`, `mailbox.rs`, `backend personal`, `storage.rs`, `path`, `backend caldav`, `ws.rs`, `ai.rs`, `backend/src/latex.rs`, `polls.rs`, `demo.rs`, `ics_feed.rs`, `delivery.rs`, `backend comments`, `send_message`, `graph.rs`, `backend prefs`, `revisions.rs`, `PgPool`, `backend push`, `backend trash`, `demo_mode.rs`, `backend events (2)`, `backend classes`, `Uuid`, `backend groups`, `backend user_settings`?**
-  _High betweenness centrality (0.065) - this node is a cross-community bridge._
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
 - **Should `frontend/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.030561269468116367 - nodes in this community are weakly interconnected._
 - **Why does `PgPool` connect `PgPool` to `Backend Access Control`, `Backend Board & Tasks`, `admin.rs`, `analytics.rs`, `projects.rs`, `Backend Workspace & Auth User`, `backup.rs`, `diagram_styles.rs`, `Backend Announcements`, `AppState`, `backend src/main`, `Backend Drive`, `mail.rs`, `page.rs`, `public_project.rs`, `study.rs`, `backend roles`, `mailbox.rs`, `backend personal`, `storage.rs`, `path`, `backend caldav`, `ws.rs`, `ai.rs`, `backend db`, `board_export.rs`, `polls.rs`, `demo.rs`, `delivery.rs`, `send_message`, `graph.rs`, `revisions.rs`, `ApiError`, `backend push`, `backend trash`, `demo_mode.rs`, `backend events (2)`, `backend archive`, `Uuid`, `backend groups`, `backend user_settings`?**
