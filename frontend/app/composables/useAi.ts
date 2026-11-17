@@ -88,12 +88,12 @@ export type AiStreamEvent =
   | { type: 'done' }
 
 /** Envoie un message et lit la réponse en flux (SSE par POST : pas d'`EventSource`). */
-export async function streamMessage(conversationId: string, content: string, attachments: AiAttachment[], onEvent: (e: AiStreamEvent) => void, signal?: AbortSignal) {
+export async function streamMessage(conversationId: string, content: string, attachments: AiAttachment[], onEvent: (e: AiStreamEvent) => void, signal?: AbortSignal, workspaceId?: string) {
   const res = await fetch(`/api/ai/conversations/${conversationId}/messages`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ content, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title })) }),
+    body: JSON.stringify({ content, workspace_id: workspaceId || undefined, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title })) }),
     signal,
   })
   if (!res.ok || !res.body) {

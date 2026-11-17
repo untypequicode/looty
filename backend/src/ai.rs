@@ -614,6 +614,9 @@ struct SendReq {
     /// Éléments joints par la personne (`@` ou « + » dans la zone de saisie).
     #[serde(default)]
     attachments: Vec<Attachment>,
+    /// Espace courant de la personne (route /w/[ws]/…) : cible par défaut des entraînements créés par l'IA.
+    #[serde(default)]
+    workspace_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -785,6 +788,12 @@ async fn send_message(State(state): State<AppState>, user: AuthUser, Path(id): P
     let (att_meta, att_text) = resolve_attachments(&state.pool, &user, &p.attachments).await;
     let user_data = (!att_meta.is_empty()).then(|| json!({ "attachments": att_meta, "context": att_text }));
     store(&state.pool, id, "user", &content, user_data).await?;
+    if let Some(ws) = p.workspace_id {
+        // Ignoré sans erreur si la personne n'en est pas membre : jamais une cible qu'elle ne pourrait pas écrire.
+        if crate::access::is_member(&state.pool, ws, &user.id.to_string()).await? {
+            sqlx::query("UPDATE ai_conversations SET default_workspace_id = $2 WHERE id = $1").bind(id).bind(ws).execute(&state.pool).await?;
+        }
+    }
 
     let (tx, rx) = mpsc::channel::<Event>(64);
     let pool = state.pool.clone();

@@ -135,7 +135,7 @@ async function send(override?: string) {
     toolLog.value = []
     scrollDown()
     abort = new AbortController()
-    await streamMessage(c.id, text, atts, onEvent, abort.signal)
+    await streamMessage(c.id, text, atts, onEvent, abort.signal, wsId.value)
   } catch (e: any) {
     if (e?.name !== 'AbortError') toast.error(errorMessage(e))
   } finally {
