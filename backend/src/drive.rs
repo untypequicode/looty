@@ -47,7 +47,7 @@ pub fn public_routes() -> Router<AppState> {
 const MAX_REQUEST: usize = 2 * 1024 * 1024 * 1024;
 pub const DAY_CHOICES: &[i32] = &[1, 3, 7, 14, 30, 60, 90, 180, 365];
 
-fn drive_dir(ws: Uuid) -> PathBuf {
+pub(crate) fn drive_dir(ws: Uuid) -> PathBuf {
     PathBuf::from(crate::upload::UPLOAD_DIR).join("drive").join(ws.to_string())
 }
 
@@ -67,7 +67,7 @@ fn can_manage(p: &Perms) -> bool {
     p.docs >= level::MANAGE || p.admin
 }
 
-fn clean_name(raw: &str) -> ApiResult<String> {
+pub(crate) fn clean_name(raw: &str) -> ApiResult<String> {
     let n = raw.trim();
     if n.is_empty() || n.len() > 200 || n == "." || n == ".." || n.chars().any(|c| c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')) {
         return Err(ApiError::bad_request("drive_invalid_name"));
@@ -92,17 +92,17 @@ fn join(folder: &str, name: &str) -> String {
 }
 
 #[derive(sqlx::FromRow)]
-struct Settings {
-    drive_max_days: i32,
-    drive_quota_mb: i32,
+pub(crate) struct Settings {
+    pub(crate) drive_max_days: i32,
+    pub(crate) drive_quota_mb: i32,
 }
 
-async fn settings_of(state: &AppState, ws: Uuid) -> ApiResult<Settings> {
-    Ok(sqlx::query_as("SELECT drive_max_days, drive_quota_mb FROM workspaces WHERE id = $1").bind(ws).fetch_one(&state.pool).await?)
+pub(crate) async fn settings_of(pool: &sqlx::PgPool, ws: Uuid) -> ApiResult<Settings> {
+    Ok(sqlx::query_as("SELECT drive_max_days, drive_quota_mb FROM workspaces WHERE id = $1").bind(ws).fetch_one(pool).await?)
 }
 
-async fn used_bytes(state: &AppState, ws: Uuid) -> ApiResult<i64> {
-    Ok(sqlx::query_scalar("SELECT COALESCE(SUM(size), 0)::bigint FROM drive_files WHERE workspace_id = $1 AND NOT is_dir").bind(ws).fetch_one(&state.pool).await?)
+pub(crate) async fn used_bytes(pool: &sqlx::PgPool, ws: Uuid) -> ApiResult<i64> {
+    Ok(sqlx::query_scalar("SELECT COALESCE(SUM(size), 0)::bigint FROM drive_files WHERE workspace_id = $1 AND NOT is_dir").bind(ws).fetch_one(pool).await?)
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -151,13 +151,13 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
-    let s = settings_of(&state, ws).await?;
+    let s = settings_of(&state.pool, ws).await?;
     Ok(Json(json!({
         "folder": folder,
         "items": items,
         "max_days": s.drive_max_days,
         "quota_bytes": s.drive_quota_mb as i64 * 1024 * 1024,
-        "used_bytes": used_bytes(&state, ws).await?,
+        "used_bytes": used_bytes(&state.pool, ws).await?,
         "day_choices": DAY_CHOICES,
         "can_upload": can_upload(&perms),
         "can_manage": can_manage(&perms),
@@ -185,14 +185,14 @@ async fn ensure_folder(state: &AppState, ws: Uuid, folder: &str, user: Uuid) -> 
 }
 
 /// Nom libre dans un dossier : « rapport.pdf », sinon « rapport (2).pdf »…
-async fn free_name(state: &AppState, ws: Uuid, folder: &str, name: &str) -> ApiResult<String> {
+pub(crate) async fn free_name(pool: &sqlx::PgPool, ws: Uuid, folder: &str, name: &str) -> ApiResult<String> {
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
         _ => (name.to_string(), String::new()),
     };
     let mut candidate = name.to_string();
     for i in 2..1000 {
-        let taken: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM drive_files WHERE workspace_id = $1 AND folder = $2 AND name = $3)").bind(ws).bind(folder).bind(&candidate).fetch_one(&state.pool).await?;
+        let taken: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM drive_files WHERE workspace_id = $1 AND folder = $2 AND name = $3)").bind(ws).bind(folder).bind(&candidate).fetch_one(pool).await?;
         if !taken {
             return Ok(candidate);
         }
@@ -201,7 +201,7 @@ async fn free_name(state: &AppState, ws: Uuid, folder: &str, name: &str) -> ApiR
     Err(ApiError::bad_request("drive_name_taken"))
 }
 
-fn days_or_max(days: Option<i32>, max: i32) -> i32 {
+pub(crate) fn days_or_max(days: Option<i32>, max: i32) -> i32 {
     days.filter(|d| *d >= 1).map(|d| d.min(max)).unwrap_or(max)
 }
 
@@ -211,9 +211,9 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     if !can_upload(&perms) {
         return Err(ApiError::Forbidden);
     }
-    let s = settings_of(&state, ws).await?;
+    let s = settings_of(&state.pool, ws).await?;
     let quota = s.drive_quota_mb as i64 * 1024 * 1024;
-    let mut used = used_bytes(&state, ws).await?;
+    let mut used = used_bytes(&state.pool, ws).await?;
     let mut folder = String::new();
     let mut days: Option<i32> = None;
     let mut personal = false;
@@ -265,7 +265,7 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
             return Err(e);
         }
         used += size;
-        let name = free_name(&state, ws, &sub, &base).await?;
+        let name = free_name(&state.pool, ws, &sub, &base).await?;
         let expires = Utc::now() + Duration::days(days_or_max(days, s.drive_max_days) as i64);
         let mime = mime_guess::from_path(&name).first_or_octet_stream().essence_str().to_string();
         let id: Uuid = sqlx::query_scalar(
@@ -358,6 +358,38 @@ async fn row(state: &AppState, ws: Uuid, id: Uuid, user: Uuid) -> ApiResult<Row>
         .ok_or(ApiError::NotFound)
 }
 
+/// Fichier du Drive tel que le voit une personne (accès : voir `file_for`).
+#[derive(sqlx::FromRow)]
+pub struct FileRef {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub name: String,
+    pub blob_path: Option<String>,
+    pub mime: Option<String>,
+    pub size: i64,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+/// Fichier (pas un dossier) lu par son seul identifiant, avec les contrôles de `row()` : élément
+/// personnel d'une autre personne, ou espace dont on n'est pas membre (ou sans lecture des
+/// documents) = `NotFound` ; fichier expiré, purgé ou non = `Conflict("file_expired")`.
+pub async fn file_for(pool: &sqlx::PgPool, user: Uuid, id: Uuid) -> ApiResult<FileRef> {
+    let f: FileRef = sqlx::query_as("SELECT id, workspace_id, name, blob_path, mime, size, expires_at FROM drive_files WHERE id = $1 AND NOT is_dir AND (private_to IS NULL OR private_to = $2)")
+        .bind(id)
+        .bind(user)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    match member_perms(pool, user, f.workspace_id).await? {
+        Some((_, p)) if p.docs >= level::READ => {}
+        _ => return Err(ApiError::NotFound),
+    }
+    if f.expires_at.is_some_and(|e| e <= Utc::now()) {
+        return Err(ApiError::Conflict("file_expired".into()));
+    }
+    Ok(f)
+}
+
 fn like_prefix(path: &str) -> String {
     format!("{}/%", path.replace('%', "\\%").replace('_', "\\_"))
 }
@@ -413,7 +445,7 @@ async fn update(State(state): State<AppState>, user: AuthUser, Path((ws, id)): P
         tx.commit().await?;
     }
     if let (Some(days), false) = (b.days, r.is_dir) {
-        let s = settings_of(&state, ws).await?;
+        let s = settings_of(&state.pool, ws).await?;
         let expires = Utc::now() + Duration::days(days_or_max(Some(days), s.drive_max_days) as i64);
         sqlx::query("UPDATE drive_files SET expires_at = $2 WHERE id = $1").bind(id).bind(expires).execute(&state.pool).await?;
     }

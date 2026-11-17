@@ -10,6 +10,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::access::{level, require_member_or_guest, require_perm, require_page_read, require_page_write, visible_pages, AuthUser, PageAccess};
+use crate::ai_files;
 use crate::ai_pages::{self, Op};
 use crate::ai_provider::ToolSpec;
 use crate::study;
@@ -52,6 +53,7 @@ pub fn tool_specs() -> Vec<ToolSpec> {
             }),
         },
     ];
+    v.extend(file_specs());
     v.extend(study_specs());
     v
 }
@@ -74,7 +76,7 @@ pub struct ToolOutput {
 }
 
 impl ToolOutput {
-    fn text(t: impl Into<String>) -> Self {
+    pub(crate) fn text(t: impl Into<String>) -> Self {
         ToolOutput { text: t.into(), suggestion: None, changed_page: None, study_set: None, study_revision: None, grant_needed: None, page_revision: None }
     }
 }
@@ -95,6 +97,8 @@ pub async fn execute(pool: &PgPool, user: &AuthUser, conv_id: Uuid, name: &str, 
         "read_page" => read_page(pool, user, args).await,
         "write_page" => write_page_tool(pool, user, conv_id, args).await,
         "read_item" => read_item_tool(pool, user, args).await,
+        "read_attachment" => ai_files::read_attachment(pool, user, conv_id, args).await.map(ToolOutput::text),
+        "search_attachment" => ai_files::search_attachment(pool, user, conv_id, args).await.map(ToolOutput::text),
         "create_study_set" => create_study_set_tool(pool, user, conv_id, args).await,
         "list_study_sets" => list_study_sets(pool, user).await,
         "read_study_set" => read_study_set(pool, user, args).await,
@@ -468,6 +472,35 @@ async fn write_page_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &V
 // ---------------------------------------------------------------------------
 // Jeux de révision (docs/study-items.md, ADR 0010 addendum)
 // ---------------------------------------------------------------------------
+
+/// Lecture des fichiers joints (ADR 0012) : texte extrait par le serveur, budget par conversation.
+fn file_specs() -> Vec<ToolSpec> {
+    vec![
+        ToolSpec {
+            name: "read_attachment",
+            description: "Read the text of a file the user attached (PDF, Word, PowerPoint, text, code) page by page. `id` is the file id shown in the attached item. Pass `page`, or `start` and `end` for several pages (page 1 by default). One call returns at most about 12,000 characters and counts against a reading budget for the conversation; the reply says where to continue. Use the outline in the attached summary to pick pages, or search_attachment to find them.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Attached file id" },
+                    "page": { "type": "integer", "description": "Page (or slide) number, from 1" },
+                    "start": { "type": "integer" },
+                    "end": { "type": "integer" }
+                },
+                "required": ["id"]
+            }),
+        },
+        ToolSpec {
+            name: "search_attachment",
+            description: "Search keywords in the attached files of this conversation (or in one file with `id`). Returns the best pages with the matching lines, accents and case ignored. It is a keyword search, not a semantic one: try synonyms and word variants. Then read the pages with read_attachment.",
+            parameters: json!({
+                "type": "object",
+                "properties": { "query": { "type": "string", "description": "A few keywords" }, "id": { "type": "string", "description": "Restrict to one attached file" } },
+                "required": ["query"]
+            }),
+        },
+    ]
+}
 
 fn study_specs() -> Vec<ToolSpec> {
     let item_schema = json!({
