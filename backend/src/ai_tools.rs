@@ -135,14 +135,28 @@ async fn list_pages(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value)
     Ok(ToolOutput::text(json!({ "workspace_id": ws, "pages": pages }).to_string()))
 }
 
-/// Markdown courant d'une page : l'état Yjs, ou à défaut l'ancien HTML.
+/// Markdown courant d'une page : l'état Yjs, ou à défaut l'ancien HTML (converti si possible, sinon
+/// son texte approximatif : lisible, mais la page ne sera pas modifiable, voir `legacy_state`).
 pub async fn page_markdown(pool: &PgPool, page_id: Uuid) -> ApiResult<(String, String)> {
     let row: (String, Option<Vec<u8>>, Option<String>) = sqlx::query_as("SELECT title, yjs_state, content FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
     let md = match row.1.as_deref().filter(|s| !s.is_empty()) {
         Some(state) => ai_pages::state_to_markdown(state).map_err(|e| ApiError::Internal(format!("yjs decode: {e}")))?,
-        None => ai_pages::html_to_text(row.2.as_deref().unwrap_or("")).trim().to_string(),
+        None => {
+            let html = row.2.as_deref().unwrap_or("");
+            match legacy_state(html) {
+                Ok(state) => ai_pages::state_to_markdown(&state).map_err(|e| ApiError::Internal(format!("yjs decode: {e}")))?,
+                Err(_) => ai_pages::html_to_text(html).trim().to_string(),
+            }
+        }
     };
     Ok((row.0, md))
+}
+
+/// État Yjs équivalent de l'ancien HTML d'une page jamais ouverte dans l'éditeur. `Err(balise)` si le
+/// HTML contient un bloc que la conversion ne sait pas reproduire sans perte (image, tableau…) : la page
+/// reste alors en lecture seule pour les agents.
+pub fn legacy_state(html: &str) -> Result<Vec<u8>, String> {
+    ai_pages::html_to_blocks(html).map(|b| ai_pages::blocks_to_state(&b))
 }
 
 async fn read_page(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResult<ToolOutput> {
@@ -230,10 +244,21 @@ pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op,
     require_page_write(pool, user, page_id).await?;
     let mut tx = pool.begin().await?;
     let row: (Option<Vec<u8>>, Option<String>) = sqlx::query_as("SELECT yjs_state, content FROM pages WHERE id = $1").bind(page_id).fetch_one(&mut *tx).await?;
-    let old = row.0.filter(|s| !s.is_empty());
-    // Page jamais ouverte dans l'éditeur : son texte n'existe qu'en HTML, qu'on ne sait pas convertir sans perte.
-    if old.is_none() && !ai_pages::html_to_text(row.1.as_deref().unwrap_or("")).trim().is_empty() {
-        return Err(ApiError::Conflict("page_not_opened_in_editor: this page has never been opened in the Looty editor, so the assistant cannot edit it yet. Ask the user to open the page once in the editor (it is then converted automatically), then retry this write.".into()));
+    let raw = row.0;
+    let mut old = raw.clone().filter(|s| !s.is_empty());
+    // Page jamais ouverte dans l'éditeur : son texte n'existe qu'en HTML. On le convertit en document
+    // Yjs seulement s'il ne contient que des blocs reproductibles sans perte ; sinon on refuse.
+    // Cette version convertie est l'instantané « avant » (la restauration redonne le texte d'origine).
+    let html = row.1.unwrap_or_default();
+    if old.is_none() && !html.trim().is_empty() {
+        match legacy_state(&html) {
+            Ok(state) => old = Some(state),
+            Err(what) => {
+                return Err(ApiError::Conflict(format!(
+                    "page_not_convertible: this page was never opened in the Looty editor and its old content has blocks the assistant cannot convert without loss ({what}). Ask the user to open the page once in the editor (it is then converted), then retry this write."
+                )))
+            }
+        }
     }
     if let Some(expected) = expect_before {
         let current = match old.as_deref() {
@@ -245,15 +270,19 @@ pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op,
         }
     }
     let new_state = ai_pages::apply_markdown(old.as_deref().unwrap_or(&[]), op, markdown).map_err(|e| ApiError::Internal(format!("yjs write: {e}")))?;
+    // `pages.content` (page publique, export, recherche) doit suivre le nouveau texte : le serveur de
+    // collaboration ne l'écrit pas (c'est le navigateur qui l'envoie) ; ici personne ne le fera.
+    let new_html = ai_pages::state_to_html(&new_state).map_err(|e| ApiError::Internal(format!("yjs html: {e}")))?;
     let revision = match old.as_deref() {
         Some(s) => Some(crate::revisions::snapshot_before_write(&mut tx, page_id, user.id, "Avant modification par l'IA", s).await?),
         None => None,
     };
-    let done = sqlx::query("UPDATE pages_all SET yjs_state = $1, updated_at = NOW(), updated_by = $2 WHERE id = $3 AND yjs_state IS NOT DISTINCT FROM $4")
+    let done = sqlx::query("UPDATE pages_all SET yjs_state = $1, content = $5, updated_at = NOW(), updated_by = $2 WHERE id = $3 AND yjs_state IS NOT DISTINCT FROM $4")
         .bind(&new_state)
         .bind(user.id)
         .bind(page_id)
-        .bind(old.as_deref())
+        .bind(raw.as_deref())
+        .bind(&new_html)
         .execute(&mut *tx)
         .await?;
     if done.rows_affected() != 1 {
@@ -755,6 +784,56 @@ mod tests {
         assert!(out.text.contains("Départ"));
         let out = execute(&pool, &w.owner, w.conv, "list_pages", &json!({ "workspace_id": ws })).await;
         assert!(out.text.contains(&w.page.to_string()));
+    }
+
+    async fn legacy_page(pool: &PgPool, w: &World, html: &str) -> Uuid {
+        let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(w.page).fetch_one(pool).await.unwrap();
+        let page: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, created_by, content) VALUES ($1, 'Vieille', $2, $3) RETURNING id").bind(ws).bind(w.owner.id).bind(html).fetch_one(pool).await.unwrap();
+        sqlx::query("INSERT INTO ai_write_grants (conversation_id, page_id, mode, expires_at) VALUES ($1, $2, 'replace', now() + interval '1 hour')").bind(w.conv).bind(page).execute(pool).await.unwrap();
+        page
+    }
+
+    #[sqlx::test]
+    async fn a_page_with_only_legacy_html_is_converted_snapshotted_and_written(pool: PgPool) {
+        let w = world(&pool).await;
+        let page = legacy_page(&pool, &w, "<h2>Cours</h2><p>Du <strong>gras</strong> et <a href=\"https://example.org\">un lien</a>.</p><ul><li><p>un</p></li><li><p>deux</p></li></ul>").await;
+        assert_eq!(md(&pool, page).await, "## Cours\n\nDu **gras** et [un lien](https://example.org).\n\n- un\n- deux");
+        let out = write_page(&pool, &w.owner, w.conv, page, Op::Append, "Fin").await.unwrap();
+        let WriteOutcome::Applied { revision: Some(rev) } = out else { panic!("expected a revision") };
+        // L'instantané est le texte d'origine, converti ; la page a maintenant un état Yjs et un HTML à jour.
+        let snap: Vec<u8> = sqlx::query_scalar("SELECT yjs_state FROM page_revisions WHERE id = $1").bind(rev).fetch_one(&pool).await.unwrap();
+        assert!(ai_pages::state_to_markdown(&snap).unwrap().starts_with("## Cours"));
+        assert!(md(&pool, page).await.ends_with("- deux\n\nFin"));
+        let content: String = sqlx::query_scalar("SELECT content FROM pages WHERE id = $1").bind(page).fetch_one(&pool).await.unwrap();
+        assert!(content.contains("<h2>Cours</h2>") && content.contains("<strong>gras</strong>") && content.contains("<p>Fin</p>"), "{content}");
+    }
+
+    #[sqlx::test]
+    async fn legacy_html_with_unsupported_blocks_is_still_refused(pool: PgPool) {
+        let w = world(&pool).await;
+        for html in ["<p>Avant</p><img src=\"/uploads/a.png\">", "<table><tbody><tr><td><p>x</p></td></tr></tbody></table>", "<p>a<br>b</p>"] {
+            let page = legacy_page(&pool, &w, html).await;
+            let r = write_page(&pool, &w.owner, w.conv, page, Op::Replace, "Neuf").await;
+            assert!(matches!(&r, Err(ApiError::Conflict(m)) if m.starts_with("page_not_convertible")), "{html}");
+            let (state, content): (Option<Vec<u8>>, String) = sqlx::query_as("SELECT yjs_state, content FROM pages WHERE id = $1").bind(page).fetch_one(&pool).await.unwrap();
+            assert!(state.is_none());
+            assert_eq!(content, html);
+        }
+    }
+
+    #[sqlx::test]
+    async fn the_html_copy_follows_every_write_and_accepted_suggestion(pool: PgPool) {
+        let w = world(&pool).await;
+        grant(&pool, &w, "replace", 30).await;
+        write_page(&pool, &w.owner, w.conv, w.page, Op::Replace, "# Titre\n\nTexte <b> & `code`\n\n- [x] fait\n\n$$\nx^2\n$$").await.unwrap();
+        let content: String = sqlx::query_scalar("SELECT content FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        assert!(content.starts_with("<h1>Titre</h1><p>Texte &lt;b&gt; &amp; <code>code</code></p>"), "{content}");
+        assert!(content.contains("data-checked=\"true\"") && content.contains("<div data-type=\"math-block\" latex=\"x^2\"></div>"), "{content}");
+        // Aller-retour : le HTML produit se reconvertit en le même Markdown (sauf tâches, non converties volontairement).
+        let plain = write_page(&pool, &w.owner, w.conv, w.page, Op::Replace, "Un\n\n1. a\n2. b").await;
+        assert!(plain.is_ok());
+        let content: String = sqlx::query_scalar("SELECT content FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        assert_eq!(content, "<p>Un</p><ol><li><p>a</p></li><li><p>b</p></li></ol>");
     }
 
     // --- Jeux de révision ---
