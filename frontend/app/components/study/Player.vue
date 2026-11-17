@@ -68,13 +68,13 @@ function restart() {
 .pl { display: flex; flex-direction: column; gap: 14px; }
 .pl-score { font-family: var(--font-display); font-size: 22px; }
 .pl-q { padding: 14px; border: 1px solid var(--border); border-radius: var(--r-md); display: flex; flex-direction: column; gap: 8px; }
-.pl-q.ok { border-color: var(--success, #2e9e5b); }
-.pl-q.ko { border-color: var(--danger, #d64545); }
+.pl-q.ok { border-color: var(--green); }
+.pl-q.ko { border-color: var(--red); }
 .pl-q h3 { margin: 0; font-size: var(--fs-md, 15px); }
 .pl-choice { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); cursor: pointer; }
 .pl-choice:hover { background: var(--bg-hover); }
 .pl-fix { font-size: var(--fs-sm); }
-.pl-fix .good { color: var(--success, #2e9e5b); display: inline-flex; align-items: center; gap: 4px; }
-.pl-fix .bad { color: var(--danger, #d64545); display: inline-flex; align-items: center; gap: 4px; }
+.pl-fix .good { color: var(--green); display: inline-flex; align-items: center; gap: 4px; }
+.pl-fix .bad { color: var(--red); display: inline-flex; align-items: center; gap: 4px; }
 .pl-actions { display: flex; justify-content: flex-end; }
 </style>

@@ -58,7 +58,7 @@ async function submit() {
 </script>
 
 <template>
-  <UiDialog v-model:open="open" :title="t('move.title', { name: moveRequest?.title || t('docs.untitled') })" :description="t('move.hint')">
+  <UiDialog v-model:open="open" :title="t('move.title', { name: moveRequest?.title || t('docs.untitled') })" :description="t(moveRequest?.kind === 'study' ? 'move.hintStudy' : 'move.hint')">
     <div class="mv">
       <div class="mv-label">{{ t('move.to') }}</div>
       <div class="mv-spaces" role="radiogroup">
@@ -77,7 +77,7 @@ async function submit() {
           <button class="mv-select"><span class="truncate">{{ parentLabel }}</span><ChevronDown :size="14" class="faint" /></button>
         </UiCombobox>
       </template>
-      <p class="mv-note faint">{{ t('move.note') }}</p>
+      <p class="mv-note faint">{{ t(moveRequest?.kind === 'study' ? 'move.noteStudy' : 'move.note') }}</p>
     </div>
     <template #footer>
       <UiButton variant="ghost" @click="open = false">{{ t('common.cancel') }}</UiButton>

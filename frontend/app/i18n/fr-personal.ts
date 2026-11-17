@@ -10,6 +10,7 @@ export default {
     action: 'Déplacer vers un autre espace…', title: 'Déplacer « {name} »', hint: 'La page change d’espace avec toutes ses sous-pages, son projet, son canevas, ses commentaires et son historique.',
     to: 'Vers', where: 'Emplacement', root: 'À la racine des documents', searchPage: 'Rechercher une page', submit: 'Déplacer',
     note: 'Les partages individuels sont retirés, et les liens vers des éléments de l’ancien espace (tableaux, événements) ne suivent pas.',
+    hintStudy: 'L’entraînement change d’espace avec ses éléments, ses résultats et son historique de versions.', noteStudy: 'Les liens vers des éléments de l’ancien espace (documents, tableaux, événements) ne suivent pas.',
     noSpace: 'Aucun autre espace où vous pouvez créer des documents.', open: 'Ouvrir',
     done: { one: 'Page déplacée vers {name}', other: '{count} pages déplacées vers {name}' }, doneStudy: 'Entraînement déplacé vers {name}', dropHere: 'Déposer pour déplacer ici',
   },

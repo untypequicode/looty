@@ -9,6 +9,7 @@ import { useWorkspace, links } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { useStudyActions } from '~/composables/useStudy'
+import 'katex/dist/katex.min.css'
 import { renderChatMarkdown } from '~/editor/chatMarkdown'
 import { aiOpenItem } from '~/composables/useAiOpenItem'
 import {
