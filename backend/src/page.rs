@@ -449,6 +449,7 @@ async fn update_page(
             .bind(owner)
             .fetch_all(pool)
             .await?;
+            sqlx::query("UPDATE study_sets SET private_to = $2 WHERE parent_id = ANY($1)").bind(&ids).bind(owner).execute(pool).await?;
             sqlx::query("DELETE FROM page_permissions WHERE page_id = ANY($1)").bind(&ids).execute(pool).await?;
             for p in &ids {
                 state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": p, "except": owner })).await;
@@ -563,6 +564,11 @@ pub(crate) async fn move_tree(pool: &PgPool, workspace_id: Uuid, page_id: Uuid, 
     .execute(&mut *tx)
     .await?;
     sqlx::query("UPDATE pages_all SET workspace_id = $2 WHERE id = ANY($1)").bind(&ids).bind(target).execute(&mut *tx).await?;
+    // Entraînements rangés sous ces pages (corbeille comprise) : ils changent d'espace avec elles ;
+    // leurs liens vers l'ancien espace sont retirés, ceux vers les pages déplacées restent.
+    let sets: Vec<Uuid> = sqlx::query_scalar("UPDATE study_sets SET workspace_id = $2 WHERE parent_id = ANY($1) RETURNING id").bind(&ids).bind(target).fetch_all(&mut *tx).await?;
+    sqlx::query("DELETE FROM study_links WHERE set_id = ANY($1) AND NOT (target_kind = 'page' AND target_id = ANY($2))").bind(&sets).bind(&ids).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM study_links WHERE target_kind = 'page' AND target_id = ANY($1) AND NOT (set_id = ANY($2))").bind(&ids).bind(&sets).execute(&mut *tx).await?;
     sqlx::query("UPDATE projects SET workspace_id = $2 WHERE id IN (SELECT project_id FROM pages_all WHERE id = ANY($1) AND project_id IS NOT NULL)")
         .bind(&ids)
         .bind(target)

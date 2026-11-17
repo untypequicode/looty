@@ -367,7 +367,7 @@ fn study_specs() -> Vec<ToolSpec> {
     vec![
         ToolSpec {
             name: "create_study_set",
-            description: "Create a PRIVATE study set (qcm, questionnaire, flashcards or summary) owned by the user. Only works in a workspace (or the personal space when workspace_id is omitted) for which the user granted 'create study sets' in this conversation. Items are validated strictly; fix and retry on error.",
+            description: "Create a PERSONAL entrainement (study set: qcm, questionnaire, flashcards or summary) visible to the user only. Only works in a workspace (or the personal space when workspace_id is omitted) for which the user granted 'create study sets' in this conversation. Items are validated strictly; fix and retry on error.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -379,7 +379,7 @@ fn study_specs() -> Vec<ToolSpec> {
                 "required": ["title", "kind", "items"]
             }),
         },
-        ToolSpec { name: "list_study_sets", description: "List the study sets the user can access (own sets and sets shared with the user's workspaces).", parameters: json!({ "type": "object", "properties": {} }) },
+        ToolSpec { name: "list_study_sets", description: "List the study sets (entrainements) the user can access (personal ones and those of the user workspaces).", parameters: json!({ "type": "object", "properties": {} }) },
         ToolSpec {
             name: "read_study_set",
             description: "Read a study set and its items. Expected answers and explanations are only returned when the user can edit the set.",
@@ -446,19 +446,25 @@ pub async fn create_study_set(pool: &PgPool, user: &AuthUser, conv_id: Uuid, tit
     own_conversation(pool, user, conv_id).await?;
     require_create_grant(pool, conv_id, workspace).await?;
     // Droit propre de la personne : modifier les documents de l'espace (l'espace perso est le sien).
-    if let Some(ws) = workspace {
-        require_perm(pool, user, ws, |p| p.docs >= level::EDIT).await?;
-    }
+    let ws = match workspace {
+        Some(ws) => {
+            require_perm(pool, user, ws, |p| p.docs >= level::EDIT).await?;
+            ws
+        }
+        None => crate::personal::personal_space(pool, user.id).await?,
+    };
     let title = study::validate_title(title)?;
     if !study::KINDS.contains(&kind) {
         return Err(ApiError::bad_request("study_invalid_kind"));
     }
     study::validate_items(kind, items)?;
     let mut tx = pool.begin().await?;
-    // Toujours privé : le partage reste un choix de la personne.
-    let id: Uuid = sqlx::query_scalar("INSERT INTO study_sets (owner_id, workspace_id, title, kind, visibility) VALUES ($1, $2, $3, $4, 'private') RETURNING id")
+    // Toujours personnel (private_to) : le partage reste un choix de la personne (ADR 0011).
+    let position = study::next_position(pool, ws, None).await?;
+    let id: Uuid = sqlx::query_scalar("INSERT INTO study_sets (owner_id, workspace_id, private_to, position, title, kind) VALUES ($1, $2, $1, $3, $4, $5) RETURNING id")
         .bind(user.id)
-        .bind(workspace)
+        .bind(ws)
+        .bind(position)
         .bind(&title)
         .bind(kind)
         .fetch_one(&mut *tx)
@@ -497,7 +503,7 @@ async fn snapshot_locked(tx: &mut sqlx::PgConnection, set_id: Uuid, user_id: Uui
 pub async fn update_study_set(pool: &PgPool, user: &AuthUser, conv_id: Uuid, set_id: Uuid, title: Option<&str>, kind: Option<&str>, items: &[study::ItemIn]) -> ApiResult<Uuid> {
     own_conversation(pool, user, conv_id).await?;
     require_update_grant(pool, conv_id, set_id).await?;
-    let (set, _) = study::load(pool, user, set_id, None, study::SetAccess::Edit).await?;
+    let (set, _) = study::load(pool, user, set_id, study::SetAccess::Edit).await?;
     // Une liste vide effacerait tout le jeu : jamais par un modèle.
     if items.is_empty() {
         return Err(ApiError::bad_request("study_items_empty: send the full, non-empty item list"));
@@ -520,7 +526,7 @@ pub async fn update_study_set(pool: &PgPool, user: &AuthUser, conv_id: Uuid, set
 /// L'état remplacé est lui-même gardé comme version (la restauration s'annule aussi) ; renvoie (jeu, cette version).
 pub async fn restore_study_revision(pool: &PgPool, user: &AuthUser, rev_id: Uuid) -> ApiResult<(Uuid, Uuid)> {
     let (set_id, title, kind, items): (Uuid, String, String, Value) = sqlx::query_as("SELECT set_id, title, kind, items FROM study_set_revisions WHERE id = $1").bind(rev_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
-    study::load(pool, user, set_id, None, study::SetAccess::Edit).await?;
+    study::load(pool, user, set_id, study::SetAccess::Edit).await?;
     let items: Vec<study::ItemIn> = serde_json::from_value(items).map_err(|e| ApiError::Internal(format!("revision items: {e}")))?;
     let mut tx = pool.begin().await?;
     let undo = snapshot_locked(&mut tx, set_id, user.id, "restore").await?;
@@ -539,20 +545,20 @@ async fn create_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, ar
     };
     let items = parse_items(args)?;
     let id = create_study_set(pool, user, conv_id, title, kind, ws, &items).await?;
-    let mut out = ToolOutput::text(json!({ "set_id": id, "url": format!("/study/{id}"), "visibility": "private", "items": items.len(), "note": "created private; only the user can see it until they share it" }).to_string());
+    let mut out = ToolOutput::text(json!({ "set_id": id, "url": format!("/study/{id}"), "personal": true, "items": items.len(), "note": "created as a personal entrainement; only the user can see it until they make it shared" }).to_string());
     out.study_set = Some(id);
     Ok(out)
 }
 
 async fn list_study_sets(pool: &PgPool, user: &AuthUser) -> ApiResult<ToolOutput> {
-    let mut sets = study::list_for(pool, user).await?;
+    let mut sets = study::list_for(pool, user, None).await?;
     sets.truncate(200);
     Ok(ToolOutput::text(json!({ "study_sets": sets }).to_string()))
 }
 
 async fn read_study_set(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResult<ToolOutput> {
     let id = uuid_arg(args, "set_id")?;
-    let (set, acc) = study::load(pool, user, id, None, study::SetAccess::View).await?;
+    let (set, acc) = study::load(pool, user, id, study::SetAccess::View).await?;
     let can_edit = acc == study::SetAccess::Edit;
     let mut items = study::items_of(pool, id).await?;
     if !can_edit {
@@ -561,7 +567,7 @@ async fn read_study_set(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResu
             it.explanation = String::new();
         }
     }
-    Ok(ToolOutput::text(json!({ "set_id": id, "title": set.title, "kind": set.kind, "visibility": set.visibility, "workspace_id": set.workspace_id, "can_edit": can_edit, "items": items }).to_string()))
+    Ok(ToolOutput::text(json!({ "set_id": id, "title": set.title, "kind": set.kind, "personal": set.private_to.is_some(), "workspace_id": set.workspace_id, "can_edit": can_edit, "items": items }).to_string()))
 }
 
 async fn update_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<ToolOutput> {
@@ -577,7 +583,7 @@ async fn update_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, ar
 /// Tentatives de la personne qui discute, et de personne d'autre : toutes les requêtes filtrent sur `user.id`.
 async fn read_attempts(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResult<ToolOutput> {
     if args["set_id"].as_str().filter(|s| !s.is_empty()).is_none() {
-        let sets = study::list_for(pool, user).await?;
+        let sets = study::list_for(pool, user, None).await?;
         let mut out = Vec::new();
         for s in sets.iter().take(100) {
             let Some(id) = s["id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) else { continue };
@@ -596,7 +602,7 @@ async fn read_attempts(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResul
         return Ok(ToolOutput::text(json!({ "your_attempts_by_set": out }).to_string()));
     }
     let id = uuid_arg(args, "set_id")?;
-    study::load(pool, user, id, None, study::SetAccess::View).await?;
+    study::load(pool, user, id, study::SetAccess::View).await?;
     let rows: Vec<(Uuid, chrono::DateTime<chrono::Utc>, i32, i32, Value)> = sqlx::query_as("SELECT id, started_at, score, max_score, answers FROM study_attempts WHERE set_id = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 50")
         .bind(id)
         .bind(user.id)
@@ -924,9 +930,12 @@ mod tests {
             let out = execute(&pool, &w.owner, w.conv, "create_study_set", &args).await;
             assert!(out.study_set.is_some(), "{}", out.text);
         }
-        let rows: Vec<(Uuid, String, Option<Uuid>)> = sqlx::query_as("SELECT owner_id, visibility, share_token FROM study_sets").fetch_all(&pool).await.unwrap();
+        let rows: Vec<(Uuid, Option<Uuid>, Option<Uuid>)> = sqlx::query_as("SELECT owner_id, private_to, parent_id FROM study_sets").fetch_all(&pool).await.unwrap();
         assert_eq!(rows.len(), 2);
-        assert!(rows.iter().all(|r| r.0 == w.owner.id && r.1 == "private" && r.2.is_none()));
+        // Personnels (private_to = l'autrice), à la racine ; sans espace précisé : dans l'espace perso.
+        assert!(rows.iter().all(|r| r.0 == w.owner.id && r.1 == Some(w.owner.id) && r.2.is_none()));
+        let in_personal: i64 = sqlx::query_scalar("SELECT count(*) FROM study_sets s JOIN workspaces w ON w.id = s.workspace_id WHERE w.personal_of = $1").bind(w.owner.id).fetch_one(&pool).await.unwrap();
+        assert_eq!(in_personal, 1);
         // Un autre membre ne le voit pas ; sa liste est vide.
         let out = execute(&pool, &w.outsider, w.conv, "list_study_sets", &json!({})).await;
         assert!(!out.text.contains("Réseaux"), "{}", out.text);
@@ -1041,7 +1050,7 @@ mod tests {
         // Un viewer de l'espace voit le jeu mais pas ses versions ; un tiers ne sait même pas qu'il existe.
         let viewer = user(&pool, "viewer").await;
         sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'viewer')").bind(ws).bind(viewer.id.to_string()).execute(&pool).await.unwrap();
-        sqlx::query("UPDATE study_sets SET workspace_id = $2, visibility = 'workspace' WHERE id = $1").bind(set).bind(ws).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE study_sets SET workspace_id = $2, private_to = NULL WHERE id = $1").bind(set).bind(ws).execute(&pool).await.unwrap();
         assert!(study::revisions_of(&pool, &viewer, set).await.is_err());
         assert!(study::revisions_of(&pool, &w.outsider, set).await.is_err());
     }
@@ -1065,7 +1074,7 @@ mod tests {
         let w = world(&pool).await;
         let ws = ws_of(&pool, &w).await;
         let set = make_set(&pool, &w).await;
-        sqlx::query("UPDATE study_sets SET workspace_id = $2, visibility = 'workspace' WHERE id = $1").bind(set).bind(ws).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE study_sets SET workspace_id = $2, private_to = NULL WHERE id = $1").bind(set).bind(ws).execute(&pool).await.unwrap();
         let out = execute(&pool, &w.owner, w.conv, "read_study_set", &json!({ "set_id": set })).await;
         assert!(out.text.contains("Poignée de main"), "{}", out.text);
         // Lecteur : voit le jeu, pas les réponses.
@@ -1080,7 +1089,7 @@ mod tests {
         let w = world(&pool).await;
         let ws = ws_of(&pool, &w).await;
         let set = make_set(&pool, &w).await;
-        sqlx::query("UPDATE study_sets SET workspace_id = $2, visibility = 'workspace' WHERE id = $1").bind(set).bind(ws).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE study_sets SET workspace_id = $2, private_to = NULL WHERE id = $1").bind(set).bind(ws).execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'viewer')").bind(ws).bind(w.outsider.id.to_string()).execute(&pool).await.unwrap();
         let item: Uuid = sqlx::query_scalar("SELECT id FROM study_items WHERE set_id = $1").bind(set).fetch_one(&pool).await.unwrap();
         for (u, score, tag) in [(w.owner.id, 1, "MINE"), (w.outsider.id, 0, "THEIRS")] {
