@@ -107,7 +107,7 @@ export default {
       err: {
         file_unsupported: 'This format is not supported (PDF, Word .docx, PowerPoint .pptx, text, Markdown, CSV or code).', file_too_large: 'This file is larger than 25 MB.',
         file_no_text: 'This file has no readable text (a scanned document, for example). Text recognition is not available yet.', file_unreadable: 'This file cannot be read: it may be damaged or protected by a password.',
-        drive_quota_exceeded: 'Your Drive is full.', demo_unavailable: 'Not available in the demo.', other: 'The upload failed. Try again.',
+        drive_quota_exceeded: 'Your Drive is full.', too_many_uploads: 'Too many files at once: wait a minute and try again.', demo_unavailable: 'Not available in the demo.', other: 'The upload failed. Try again.',
       },
     },
     composer: {

@@ -17,7 +17,11 @@ const CHUNK_CHARS: usize = 3_000;
 /// Plafond du texte gardé (le reste est ignoré) : évite qu'un fichier géant gonfle la base.
 const MAX_TEXT_CHARS: usize = 3_000_000;
 /// Taille maximale d'une partie XML décompressée (protège des archives piégées).
-const MAX_XML_BYTES: u64 = 40 * 1024 * 1024;
+const MAX_XML_BYTES: u64 = 8 * 1024 * 1024;
+/// Total décompressé d'un fichier Office, nombre d'entrées du zip et de diapositives lues.
+const MAX_INFLATED_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_ZIP_ENTRIES: usize = 5_000;
+const MAX_SLIDES: usize = 500;
 /// Un PDF avec moins de caractères visibles que cela (numéros de page, par exemple) n'a pas de vraie couche de texte.
 const MIN_TEXT_CHARS_PDF: usize = 40;
 
@@ -253,18 +257,27 @@ fn pdf_outline(bytes: &[u8]) -> Vec<OutlineItem> {
 // Office (zip + XML)
 // ---------------------------------------------------------------------------
 
-fn read_part(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, name: &str) -> Result<String, ExtractError> {
+/// Octets décompressés encore autorisés pour un fichier Office (protège des archives piégées).
+struct Inflate(u64);
+
+fn read_part(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, name: &str, left: &mut Inflate) -> Result<String, ExtractError> {
     let file = zip.by_name(name).map_err(|_| ExtractError::Unreadable)?;
+    let cap = MAX_XML_BYTES.min(left.0);
     let mut buf = Vec::new();
-    file.take(MAX_XML_BYTES + 1).read_to_end(&mut buf).map_err(|_| ExtractError::Unreadable)?;
-    if buf.len() as u64 > MAX_XML_BYTES {
+    file.take(cap + 1).read_to_end(&mut buf).map_err(|_| ExtractError::Unreadable)?;
+    if buf.len() as u64 > cap {
         return Err(ExtractError::Unreadable);
     }
+    left.0 -= buf.len() as u64;
     String::from_utf8(buf).map_err(|_| ExtractError::Unreadable)
 }
 
 fn open_zip(bytes: &[u8]) -> Result<zip::ZipArchive<std::io::Cursor<&[u8]>>, ExtractError> {
-    zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| ExtractError::Unreadable)
+    let zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| ExtractError::Unreadable)?;
+    if zip.len() > MAX_ZIP_ENTRIES {
+        return Err(ExtractError::Unreadable);
+    }
+    Ok(zip)
 }
 
 fn xml(text: &str) -> Result<roxmltree::Document<'_>, ExtractError> {
@@ -272,20 +285,21 @@ fn xml(text: &str) -> Result<roxmltree::Document<'_>, ExtractError> {
 }
 
 /// Texte d'un paragraphe (`w:p` ou `a:p`) : ses `t`, tabulations et sauts de ligne, sans ceux
-/// des paragraphes imbriqués (zones de texte).
+/// des paragraphes imbriqués (zones de texte, traités à part). Un seul parcours de l'arbre.
 fn paragraph_text(p: roxmltree::Node<'_, '_>) -> String {
-    let mut s = String::new();
-    for n in p.descendants().filter(|n| n.is_element()) {
-        if n.ancestors().skip(1).find(|a| a.is_element() && a.tag_name().name() == "p") != Some(p) {
-            continue;
-        }
-        match n.tag_name().name() {
-            "t" => s.push_str(n.text().unwrap_or("")),
-            "tab" => s.push('\t'),
-            "br" | "cr" => s.push('\n'),
-            _ => {}
+    fn walk(n: roxmltree::Node<'_, '_>, s: &mut String) {
+        for c in n.children().filter(|c| c.is_element()) {
+            match c.tag_name().name() {
+                "p" => {}
+                "t" => s.push_str(c.text().unwrap_or("")),
+                "tab" => s.push('\t'),
+                "br" | "cr" => s.push('\n'),
+                _ => walk(c, s),
+            }
         }
     }
+    let mut s = String::new();
+    walk(p, &mut s);
     s
 }
 
@@ -296,7 +310,7 @@ fn is_heading_style(id: &str) -> bool {
 
 fn docx(bytes: &[u8]) -> Result<Extracted, ExtractError> {
     let mut zip = open_zip(bytes)?;
-    let doc_xml = read_part(&mut zip, "word/document.xml")?;
+    let doc_xml = read_part(&mut zip, "word/document.xml", &mut Inflate(MAX_INFLATED_BYTES))?;
     let doc = xml(&doc_xml)?;
     let mut blocks = vec![];
     for p in doc.descendants().filter(|n| n.is_element() && n.tag_name().name() == "p") {
@@ -322,12 +336,14 @@ fn pptx(bytes: &[u8]) -> Result<Extracted, ExtractError> {
     let mut zip = open_zip(bytes)?;
     let mut slides: Vec<(u32, String)> = zip.file_names().filter_map(|n| n.ok().and_then(|n| slide_number(&n).map(|k| (k, n.to_string())))).collect();
     slides.sort();
+    slides.truncate(MAX_SLIDES);
+    let mut left = Inflate(MAX_INFLATED_BYTES);
     if slides.is_empty() {
         return Err(ExtractError::Unreadable);
     }
     let (mut pages, mut outline) = (vec![], vec![]);
     for (i, (_, name)) in slides.iter().enumerate() {
-        let text = read_part(&mut zip, name)?;
+        let text = read_part(&mut zip, name, &mut left)?;
         let doc = xml(&text)?;
         let mut lines = vec![];
         let mut title: Option<String> = None;

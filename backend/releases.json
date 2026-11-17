@@ -4,6 +4,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.38.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Chat with your files, and a much better @ picker",
+        "fr": "Discutez avec vos fichiers, et un sélecteur @ bien meilleur"
+      },
+      "notes": {
+        "en": [
+          "**Files in the chat**: drop, paste or pick (paperclip) a PDF, Word, PowerPoint, text or code file. It is stored in your private Drive folder “Assistant IA” and expires like any Drive file.",
+          "**Drive files**: attach any readable Drive file with @, like a page.",
+          "**Large files**: the assistant reads them on demand with read and search tools, within a reading budget. A one-time notice tells you that the content goes to your AI provider.",
+          "**Not supported yet**: scanned PDFs and images (no text recognition).",
+          "**@ picker**: recent items and favorites when empty, results grouped by type, a preview of the highlighted item and full keyboard navigation (arrows, Tab or Enter).",
+          "**Drag and drop**: drag a page or a training from the sidebar onto the chat to attach it."
+        ],
+        "fr": [
+          "**Fichiers dans le chat** : déposez, collez ou choisissez (trombone) un fichier PDF, Word, PowerPoint, texte ou code. Il est rangé dans votre dossier privé « Assistant IA » du Drive et expire comme tout fichier du Drive.",
+          "**Fichiers du Drive** : joignez n’importe quel fichier lisible du Drive avec @, comme une page.",
+          "**Gros fichiers** : l’assistant les lit à la demande avec des outils de lecture et de recherche, dans la limite d’un budget de lecture. Un avis, affiché une seule fois, vous prévient que le contenu part chez votre fournisseur d’IA.",
+          "**Pas encore pris en charge** : les PDF scannés et les images (pas de reconnaissance de texte).",
+          "**Sélecteur @** : éléments récents et favoris quand il est vide, résultats groupés par type, aperçu de l’élément en surbrillance et navigation complète au clavier (flèches, Tab ou Entrée).",
+          "**Glisser-déposer** : glissez une page ou un entraînement depuis le menu de gauche sur le chat pour le joindre."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.37.3",
       "date": "2026-11-17",
       "title": {

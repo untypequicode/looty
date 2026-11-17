@@ -107,7 +107,7 @@ export default {
       err: {
         file_unsupported: 'Ce format n’est pas pris en charge (PDF, Word .docx, PowerPoint .pptx, texte, Markdown, CSV ou code).', file_too_large: 'Ce fichier dépasse 25 Mo.',
         file_no_text: 'Ce fichier ne contient pas de texte lisible (un document scanné, par exemple). La reconnaissance de texte n’est pas encore disponible.', file_unreadable: 'Ce fichier est illisible : il est peut-être abîmé ou protégé par un mot de passe.',
-        drive_quota_exceeded: 'Votre Drive est plein.', demo_unavailable: 'Indisponible dans la démo.', other: 'L’envoi a échoué. Réessayez.',
+        drive_quota_exceeded: 'Votre Drive est plein.', too_many_uploads: 'Trop de fichiers d’un coup : attendez une minute et réessayez.', demo_unavailable: 'Indisponible dans la démo.', other: 'L’envoi a échoué. Réessayez.',
       },
     },
     composer: {

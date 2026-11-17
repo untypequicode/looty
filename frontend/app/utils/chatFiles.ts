@@ -43,7 +43,7 @@ export function checkFile(f: { name: string; size: number; type?: string }): Fil
 
 /** Clé de traduction du message d'une erreur de dépôt (code du serveur ou problème local). */
 export function uploadErrorKey(code: string): string {
-  const known = ['file_unsupported', 'file_too_large', 'file_no_text', 'file_unreadable', 'drive_quota_exceeded', 'demo_unavailable']
+  const known = ['file_unsupported', 'file_too_large', 'file_no_text', 'file_unreadable', 'too_many_uploads', 'drive_quota_exceeded', 'demo_unavailable']
   if (known.includes(code)) return `ai.files.err.${code}`
   if (code === 'unsupported' || code === 'too_large') return `ai.files.err.file_${code}`
   if (code === 'empty') return 'ai.files.err.file_no_text'
