@@ -95,7 +95,20 @@ export default {
     },
     picker: {
       search: 'Search for an item to attach…', hint: 'Type to search all your workspaces.', none: 'No results.', all: 'All',
-      kind: { page: 'Page', study: 'Training', task: 'Task', board: 'Board', event: 'Event', project: 'Project' },
+      kind: { page: 'Page', study: 'Training', task: 'Task', file: 'File', board: 'Board', event: 'Event', project: 'Project' },
+      group: { page: 'Pages', study: 'Trainings', task: 'Tasks', file: 'Files', board: 'Boards', event: 'Events', project: 'Projects' },
+      recent: 'Recent', favorites: 'Favorites', results: 'Results', preview: 'Preview', noExcerpt: 'No preview available.',
+      count: { one: '1 result', other: '{count} results' }, navigate: 'navigate', attachAction: 'attach',
+    },
+    files: {
+      dropFiles: 'Drop files to attach them', dropPage: 'Drop to attach this item', attachFile: 'Attach a file (PDF, Word, PowerPoint, text, code)',
+      expired: 'expired', expiredTip: '“{title}” has expired and was removed from your Drive: the assistant can no longer read it. Attach it again.', sentTo: 'sent to {provider}',
+      notice: 'The text of attached files is sent to {provider}, the provider you chose for this connection. Files are kept privately in your Drive, in the “Assistant IA” folder, until they expire.', noticeOk: 'Got it',
+      err: {
+        file_unsupported: 'This format is not supported (PDF, Word .docx, PowerPoint .pptx, text, Markdown, CSV or code).', file_too_large: 'This file is larger than 25 MB.',
+        file_no_text: 'This file has no readable text (a scanned document, for example). Text recognition is not available yet.', file_unreadable: 'This file cannot be read: it may be damaged or protected by a password.',
+        drive_quota_exceeded: 'Your Drive is full.', too_many_uploads: 'Too many files at once: wait a minute and try again.', demo_unavailable: 'Not available in the demo.', other: 'The upload failed. Try again.',
+      },
     },
     composer: {
       placeholder: 'Ask something…', attach: 'Attach an item', atHint: '@ to attach', detach: 'Remove “{title}”',

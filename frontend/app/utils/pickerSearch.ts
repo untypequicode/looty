@@ -26,3 +26,60 @@ export function hitPlace(h: PickerHit, opts: { multiWorkspace?: boolean; formatD
   }
   return place
 }
+
+// --- Regroupement par type, récents et favoris (palette « @ » de l'Assistant) ----------------------------
+
+/** Ordre des groupes dans la liste : pages, entraînements, tâches, fichiers, puis le reste. */
+export const GROUP_ORDER = ['page', 'study', 'task', 'file', 'board', 'event', 'project'] as const
+
+/** Un élément de la liste, qu'il vienne de la recherche, des récents ou des favoris. */
+export interface PickerEntry {
+  key: string
+  kind: string
+  id: string
+  ws: string
+  title: string
+  /** Lieu affiché (espace › pages parentes…). */
+  place: string
+  /** Extrait pour le volet d'aperçu. */
+  excerpt: string
+}
+
+export interface PickerSection<T> { id: string; items: T[] }
+
+/** Résultats d'une recherche rangés par type (ordre `GROUP_ORDER`), `limit` éléments au plus en tout. */
+export function groupByKind<T extends { kind: string }>(items: readonly T[], filter = 'all', limit = 40): PickerSection<T>[] {
+  const kept = filterHits(items, filter, limit)
+  const rank = (k: string) => { const i = (GROUP_ORDER as readonly string[]).indexOf(k); return i < 0 ? GROUP_ORDER.length : i }
+  const ids = [...new Set(kept.map((h) => h.kind))].sort((a, b) => rank(a) - rank(b))
+  return ids.map((id) => ({ id, items: kept.filter((h) => h.kind === id) }))
+}
+
+/** Éléments dans l'ordre d'affichage (pour la navigation au clavier). */
+export const flatten = <T>(sections: readonly PickerSection<T>[]): T[] => sections.flatMap((s) => s.items)
+
+/** Mémoire des éléments joints récemment (le plus récent d'abord, sans doublon, `max` au plus). */
+export interface RecentItem { kind: string; id: string; ws: string; title: string }
+
+export function pushRecent(list: readonly RecentItem[], item: RecentItem, max = 8): RecentItem[] {
+  return [item, ...list.filter((r) => !(r.kind === item.kind && r.id === item.id))].slice(0, max)
+}
+
+/** Lecture tolérante du stockage local : tout ce qui n'a pas la bonne forme est écarté. */
+export function parseRecents(raw: string | null | undefined): RecentItem[] {
+  try {
+    const v = JSON.parse(raw ?? '[]')
+    return Array.isArray(v) ? v.filter((r) => r && typeof r.kind === 'string' && typeof r.id === 'string' && typeof r.ws === 'string' && typeof r.title === 'string').slice(0, 8) : []
+  } catch { return [] }
+}
+
+/**
+ * Liste affichée quand la recherche est vide : récents puis favoris (sans doublon avec les récents).
+ * `favorites` vient des pages favorites de l'espace courant.
+ */
+export function emptyQuerySections<T extends { kind: string; id: string }>(recents: readonly T[], favorites: readonly T[], max = 6): PickerSection<T>[] {
+  const shown = recents.slice(0, max)
+  const seen = new Set(shown.map((r) => `${r.kind}:${r.id}`))
+  const favs = favorites.filter((f) => !seen.has(`${f.kind}:${f.id}`)).slice(0, max)
+  return [{ id: 'recent', items: [...shown] }, { id: 'favorite', items: favs }].filter((s) => s.items.length > 0)
+}

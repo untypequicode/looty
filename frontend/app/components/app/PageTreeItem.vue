@@ -97,7 +97,7 @@ const dropZone = ref<'before' | 'inside' | 'after' | null>(null)
 function onDragStart(e: DragEvent) {
   e.dataTransfer!.setData('application/x-looty-page', props.node.id)
   e.dataTransfer!.effectAllowed = 'move'
-  draggingPage.value = { ws: wsId.value, id: props.node.id, study: isStudy.value }
+  draggingPage.value = { ws: wsId.value, id: props.node.id, study: isStudy.value, title: props.node.title }
 }
 function onDragOver(e: DragEvent) {
   if (!e.dataTransfer?.types.includes('application/x-looty-page')) return
