@@ -3,6 +3,7 @@ import { Plus, Search, MoreHorizontal, Pencil, Trash2, MessageSquare } from 'luc
 import { useI18n } from '~/composables/useI18n'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import type { AiConversation } from '~/composables/useAi'
+import { groupConversations } from '~/utils/conversationGroups'
 
 /** Vos conversations (privées), groupées par date ; la recherche porte sur les titres et les messages. */
 const props = defineProps<{ conversations: AiConversation[]; activeId: string | null; loading?: boolean }>()
@@ -10,20 +11,7 @@ const query = defineModel<string>('query', { default: '' })
 const emit = defineEmits<{ select: [id: string]; new: []; rename: [AiConversation]; remove: [AiConversation] }>()
 const { t } = useI18n()
 
-const groups = computed(() => {
-  const day = 86_400_000
-  const startOfToday = new Date().setHours(0, 0, 0, 0)
-  const buckets: { key: string; label: string; items: AiConversation[] }[] = [
-    { key: 'today', label: t('ai.list.today'), items: [] },
-    { key: 'week', label: t('ai.list.week'), items: [] },
-    { key: 'older', label: t('ai.list.older'), items: [] },
-  ]
-  for (const c of props.conversations) {
-    const at = +new Date(c.updated_at)
-    buckets[at >= startOfToday ? 0 : at >= startOfToday - 6 * day ? 1 : 2]!.items.push(c)
-  }
-  return buckets.filter((b) => b.items.length)
-})
+const groups = computed(() => groupConversations(props.conversations).map((g) => ({ ...g, label: t(`ai.list.${g.key}`) })))
 
 const openMenu = ref<string | null>(null)
 const menuFor = (c: AiConversation): MenuItem[] => [

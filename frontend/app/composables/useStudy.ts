@@ -35,7 +35,8 @@ export interface StudyCorrection { item_id: string; correct: boolean | null; ans
 export interface CardState { item_id: string; ease: number; interval_days: number; due_at: string }
 export type Rating = 'again' | 'hard' | 'good' | 'easy'
 /** Éléments de l'espace auxquels on lie un entraînement. */
-export type StudyLinkKind = 'page' | 'task' | 'event' | 'board' | 'project'
+export const STUDY_LINK_KINDS = ['page', 'task', 'event', 'board', 'project'] as const
+export type StudyLinkKind = (typeof STUDY_LINK_KINDS)[number]
 export interface StudyLink { id: string; target_kind: StudyLinkKind; target_id: string; title: string }
 
 /** Types d'éléments permis par type d'entraînement (miroir du serveur). */

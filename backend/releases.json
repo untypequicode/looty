@@ -4,6 +4,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.37.1",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Trainings can be dragged in the tree, richer links and assistant context",
+        "fr": "Entraînements glissables dans l’arbre, liens et contexte de l’assistant enrichis"
+      },
+      "notes": {
+        "en": [
+          "**Tree**: drag and drop trainings in the sidebar tree, like pages (move under a page, reorder, back to the root).",
+          "**Links**: link a training to tasks, events and projects too, not only pages and boards.",
+          "**Assistant**: the `@` picker shows the full path of each result (parent pages, board, calendar).",
+          "**Agents** now read attached tasks, boards, events and projects with your own rights (new read_item tool).",
+          "Expired permission cards are shown as expired in a reloaded conversation.",
+          "Suggestion cards and the history dialog are polished; the rename button of a version is now reachable."
+        ],
+        "fr": [
+          "**Arbre** : glissez-déposez les entraînements dans l’arbre de la barre latérale, comme les pages (sous une page, réordonner, retour à la racine).",
+          "**Liens** : liez un entraînement aussi à des tâches, événements et projets, pas seulement aux pages et tableaux.",
+          "**Assistant** : le sélecteur `@` affiche le chemin complet de chaque résultat (pages parentes, tableau, calendrier).",
+          "Les **agents** lisent maintenant les tâches, tableaux, événements et projets joints avec vos propres droits (nouvel outil read_item).",
+          "Les cartes d’autorisation expirées s’affichent comme expirées dans une conversation rechargée.",
+          "Les cartes de suggestion et la fenêtre d’historique sont soignées ; le bouton de renommage d’une version est maintenant accessible."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.37.0",
       "date": "2026-11-17",
       "title": {

@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { ShieldCheck, ChevronDown, PenLine } from 'lucide-vue-next'
+import { ShieldCheck, ShieldOff, ChevronDown, PenLine } from 'lucide-vue-next'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 import { useWorkspaces } from '~/composables/useWorkspace'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import type { AiGrant, AiGrantNeed, AiMode, AiStudyGrant } from '~/composables/useAi'
+import { cardGrantState, needKey, type EndedGrant } from '~/utils/grantState'
 
 /**
  * L'assistant veut écrire sans en avoir le droit : une carte dans la discussion permet de l'autoriser
  * (mode et durée au choix). Le serveur revérifie tout à chaque écriture (ADR 0010) ; la carte ne fait
  * que créer l'autorisation, puis la discussion demande à l'assistant de réessayer.
  */
-const props = defineProps<{ need: AiGrantNeed; conversationId: string; grants: AiGrant[]; studyGrants: AiStudyGrant[] }>()
+const props = defineProps<{ need: AiGrantNeed; conversationId: string; grants: AiGrant[]; studyGrants: AiStudyGrant[]; ended?: EndedGrant[]; cardAt?: string }>()
 const emit = defineEmits<{ granted: []; changed: [] }>()
 const { t, relativeTime } = useI18n()
 const { data: workspaces } = useWorkspaces()
@@ -47,6 +48,9 @@ const active = computed<{ id: string; text: string; study: boolean } | null>(() 
   return g ? { id: g.id, text: relativeTime(g.expires_at), study: true } : null
 })
 
+/** Autorisation donnée depuis cette carte puis terminée : la carte ne propose plus rien. */
+const expired = computed(() => !active.value && cardGrantState(needKey(props.need), props.cardAt, new Set(), props.ended ?? []) === 'expired')
+
 async function grant(mode?: AiMode) {
   const n = props.need
   busy.value = true
@@ -75,8 +79,12 @@ async function revoke() {
 </script>
 
 <template>
-  <div class="gc" :class="{ done: !!active }" role="group" :aria-label="t('ai.card.title')">
-    <template v-if="active">
+  <div class="gc" :class="{ done: !!active || expired, expired }" role="group" :aria-label="t('ai.card.title')" :aria-disabled="expired || undefined">
+    <template v-if="expired">
+      <ShieldOff :size="14" class="gc-icon" />
+      <span class="gc-text truncate">{{ t('ai.card.expired', { what: label }) }}</span>
+    </template>
+    <template v-else-if="active">
       <ShieldCheck :size="14" class="gc-icon ok" />
       <span class="gc-text truncate">{{ t('ai.card.allowed', { what: label }) }} · {{ active.text }}</span>
       <UiButton size="xs" variant="ghost" @click="revoke">{{ t('common.revoke') }}</UiButton>
@@ -106,6 +114,8 @@ async function revoke() {
 .gc.done { align-items: center; border-style: dashed; color: var(--text-3); font-size: var(--fs-sm); }
 .gc-icon { flex: none; margin-top: 3px; color: var(--accent); }
 .gc.done .gc-icon { margin-top: 0; }
+.gc.expired { opacity: 0.75; }
+.gc.expired .gc-icon { color: var(--text-3); }
 .gc-icon.ok { color: var(--green, var(--accent)); }
 .gc-body { flex: 1; min-width: 0; }
 .gc-text { margin: 0; font-size: var(--fs-sm); min-width: 0; }

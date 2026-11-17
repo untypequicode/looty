@@ -57,7 +57,7 @@ export default {
     },
     card: {
       title: 'Autorisation d’écriture', page: 'L’assistant veut modifier « {title} ».', studyCreate: 'L’assistant veut créer un entraînement dans « {where} ».', studyUpdate: 'L’assistant veut modifier l’entraînement « {title} ».',
-      for: 'pour', allowed: 'Autorisé : {what}', hint: 'Suggérer : vous validez la modification. Ajouter ou Remplacer : appliquée tout de suite, la version précédente est gardée.',
+      for: 'pour', allowed: 'Autorisé : {what}', expired: 'Autorisation expirée : {what}', hint: 'Suggérer : vous validez la modification. Ajouter ou Remplacer : appliquée tout de suite, la version précédente est gardée.',
     },
   },
   nav: { aiAssistant: 'Assistant IA' },

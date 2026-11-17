@@ -9,7 +9,7 @@ import { translate } from './useI18n'
 /** Page à déplacer vers un autre espace (fenêtre « Déplacer vers… »). */
 export const moveRequest = ref<{ ws: string; id: string; title: string; kind: 'page' | 'study' } | null>(null)
 /** Page en cours de glisser (pour les dépôts d'un espace à l'autre). */
-export const draggingPage = ref<{ ws: string; id: string } | null>(null)
+export const draggingPage = ref<{ ws: string; id: string; study?: boolean } | null>(null)
 
 export function openMovePage(ws: string, page: Pick<Page, 'id' | 'title'>, kind: 'page' | 'study' = 'page') {
   moveRequest.value = { ws, id: page.id, title: page.title, kind }

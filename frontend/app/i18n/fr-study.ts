@@ -13,7 +13,7 @@ export default {
     kinds: { qcm: 'QCM', questionnaire: 'Questionnaire', flashcards: 'Fiches', summary: 'Synthèse' },
     itemCount: { zero: 'Aucun élément', one: '1 élément', other: '{count} éléments' }, lastScore: 'Dernier score : {score}/{max}',
     modeUse: 'Réviser', modeEdit: 'Éditer', modeStats: 'Résultats', untitled: 'Sans titre', notFound: 'Cet entraînement est introuvable ou ne vous est pas accessible.',
-    links: 'Liens', addLink: 'Lier', noLinks: 'Aucun lien. Reliez cet entraînement à une page ou à un tableau.', removeLink: 'Retirer le lien', linkSearch: 'Rechercher un élément', linkPages: 'Pages', linkBoards: 'Tableaux',
+    links: 'Liens', addLink: 'Lier', noLinks: 'Aucun lien. Reliez cet entraînement à une page, un tableau, une tâche, un événement ou un projet.', removeLink: 'Retirer le lien', linkSearch: 'Rechercher un élément', linkPages: 'Pages', linkBoards: 'Tableaux', linkTasks: 'Tâches', linkEvents: 'Événements', linkProjects: 'Projets', linkHint: 'Tapez pour trouver une tâche, un événement ou un projet.',
     linked: 'Entraînements liés', linkSet: 'Lier un entraînement', linkSetSearch: 'Rechercher un entraînement',
     privacyNote: 'Vos résultats ne sont visibles que de vous.',
     deleteSet: 'Supprimer l’entraînement', deleteConfirm: 'Supprimer « {title} » ? Il part à la corbeille, d’où vous pourrez le restaurer.',

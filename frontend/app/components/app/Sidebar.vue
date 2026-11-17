@@ -156,7 +156,7 @@ const personalAdd = computed<MenuItem[]>(() => [
 ])
 
 // Glisser une page de l'espace courant sur « Espace perso » l'y déplace (sous-pages comprises).
-const { move: crossMove } = useMovePage()
+const { move: crossMove, moveStudy } = useMovePage()
 const personalDrop = ref(false)
 const acceptsPersonalDrop = () => !!draggingPage.value && draggingPage.value.ws !== personal.id.value
 function onPersonalOver(e: DragEvent) {
@@ -168,12 +168,12 @@ async function onPersonalDrop() {
   personalDrop.value = false
   const from = draggingPage.value
   draggingPage.value = null
-  if (from && from.ws !== personal.id.value) await crossMove(from.ws, from.id, personal.id.value)
+  if (from && from.ws !== personal.id.value) await (from.study ? moveStudy : crossMove)(from.ws, from.id, personal.id.value)
 }
 
 // Dépôt d'une page à la racine de l'arbre
 const rootDrop = ref(false)
-const { updatePage } = usePages()
+const { moveToRoot } = usePages()
 async function onRootDrop(e: DragEvent) {
   rootDrop.value = false
   const id = e.dataTransfer?.getData('application/x-looty-page')
@@ -181,10 +181,8 @@ async function onRootDrop(e: DragEvent) {
   // Page d'un autre espace (perso) : elle arrive à la racine de celui-ci.
   const from = draggingPage.value
   draggingPage.value = null
-  if (from && from.id === id && from.ws !== wsId.value) return crossMove(from.ws, id, wsId.value)
-  const roots = (pages.data.value ?? []).filter((p) => !p.parent_id)
-  const max = roots.reduce((m, p) => Math.max(m, p.position), 0)
-  await updatePage(id, { parent_id: null, position: max + 65536 })
+  if (from && from.id === id && from.ws !== wsId.value) return (from.study ? moveStudy : crossMove)(from.ws, id, wsId.value)
+  await moveToRoot(id)
 }
 </script>
 

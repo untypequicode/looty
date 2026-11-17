@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { api, errorMessage } from './api'
 import { links } from './useWorkspace'
+import type { EndedGrant } from '~/utils/grantState'
 
 export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'perplexity' | 'openai_compatible'
 export type AiMode = 'suggest' | 'append' | 'replace'
@@ -26,10 +27,10 @@ export interface AiConversation {
 
 /** Type d'élément joignable à un message (la même liste que les résultats de recherche utiles). */
 export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'event'
-/** Élément joint : le serveur relit pages et entraînements avec vos droits ; le reste part comme extrait. */
-export interface AiAttachment { kind: AiAttachKind; id: string; title: string; snippet?: string | null; ws?: string }
+/** Élément joint : le serveur le relit avec vos droits à l'envoi (rien du contenu ne part du navigateur). */
+export interface AiAttachment { kind: AiAttachKind; id: string; title: string; ws?: string }
 
-export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any }
+export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any; created_at?: string }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
 export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
 export interface AiDiffLine { op: ' ' | '+' | '-'; text: string }
@@ -92,7 +93,7 @@ export async function streamMessage(conversationId: string, content: string, att
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ content, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title, snippet: a.snippet ?? undefined })) }),
+    body: JSON.stringify({ content, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title })) }),
     signal,
   })
   if (!res.ok || !res.body) {
@@ -121,6 +122,6 @@ export async function streamMessage(conversationId: string, content: string, att
 export const aiApi = {
   connections: () => api<AiConnection[]>('/api/ai/connections'),
   conversations: (q?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { q: q || undefined }, silent: true }),
-  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
+  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; ended_grants?: EndedGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
 }
 
