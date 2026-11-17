@@ -1,6 +1,6 @@
 export default {
   errors: {
-    jupyter_invalid_url: 'Adresse de serveur Jupyter invalide', jupyter_https_required: 'Le serveur Jupyter doit utiliser https://',
+    jupyter_invalid_url: 'Adresse de serveur Jupyter invalide', jupyter_hub_start_timeout: 'Le serveur JupyterHub n’a pas démarré à temps : réessayez dans un instant',
     jupyter_token_in_url: 'Ne mettez pas le jeton dans l’adresse : collez-le dans le champ Jeton', jupyter_private_address: 'Adresse réseau privée refusée (l’administrateur peut l’autoriser avec JUPYTER_ALLOW_PRIVATE)',
     jupyter_unreachable: 'Serveur Jupyter injoignable', jupyter_timeout: 'Le serveur Jupyter n’a pas répondu à temps', jupyter_auth_failed: 'Jeton refusé par le serveur Jupyter',
     jupyter_redirect: 'Le serveur Jupyter a répondu par une redirection : vérifiez l’adresse (avec JupyterHub, https://hub/user/<nom>/)', jupyter_unexpected_status: 'Réponse inattendue du serveur Jupyter',
@@ -88,8 +88,8 @@ export default {
       remoteHint: 'Le code s’exécute sur le serveur Jupyter du projet, dans votre propre noyau : variables, fichiers et bibliothèques sont ceux de cette machine. Le serveur Looty s’y connecte pour vous, le jeton n’arrive jamais dans les navigateurs. Les sorties sont partagées avec toutes les personnes qui modifient.',
       server: 'Serveur Jupyter du projet', url: 'Adresse du serveur', token: 'Jeton', tokenPlaceholder: 'Jeton Jupyter ou jeton d’API JupyterHub', tokenKeep: 'Inchangé (enregistré, masqué)', tokenClear: 'Retirer le jeton enregistré',
       tokenSet: 'Jeton enregistré', noToken: 'Sans jeton', defaultKernel: 'Noyau par défaut', notebookKernel: 'Noyau de ce notebook', useDefault: 'Celui du projet ({kernel})',
-      requirements: 'Jupyter Server, JupyterLab ou un serveur utilisateur JupyterHub. Donnez le jeton (jupyter server list, ou la page des jetons de JupyterHub) : les connexions par mot de passe ou OAuth ne sont pas prises en charge. Aucun réglage CORS ni WebSocket : seul le serveur Looty contacte Jupyter.',
-      privateHint: 'Les adresses d’un réseau local sont refusées, sauf si l’administrateur définit JUPYTER_ALLOW_PRIVATE=true.',
+      requirements: 'Jupyter Server, JupyterLab ou JupyterHub (http ou https). Pour JupyterHub, collez l’adresse du hub ou de votre serveur et un jeton d’API créé sur sa page des jetons (/hub/token) : un serveur arrêté est démarré pour vous. Les connexions par mot de passe, CAS ou OAuth ne sont pas prises en charge. Aucun réglage CORS ni WebSocket : seul le serveur Looty contacte Jupyter.',
+      privateHint: 'Les adresses d’un réseau local (dont localhost) sont refusées, sauf si l’administrateur définit JUPYTER_ALLOW_PRIVATE=true.',
       test: 'Tester', testOk: 'Connecté (Jupyter {version}, {n} noyaux)', saved: 'Serveur Jupyter enregistré', remove: 'Retirer', apply: 'Utiliser',
       notConfiguredReader: 'Aucun serveur Jupyter n’est configuré pour ce projet. Une personne qui peut le modifier doit en ajouter un.', readOnlyChoice: 'Vous ne pouvez que lire ce notebook : le moteur ne peut pas être changé.',
       readOnly: 'Exécuter sur le serveur Jupyter demande le droit de modifier ce projet.',
