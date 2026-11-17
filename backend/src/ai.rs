@@ -1,7 +1,7 @@
 //! Agents IA : connexions par personne, conversations, autorisations d'écriture et chat en flux.
 //!
 //! La clé d'API est chiffrée en base (`crypto`) et ne ressort jamais de l'API (seulement un
-//! indice masqué). Les outils et leurs garde-fous sont dans `ai_tools` ; docs/adr/0009.
+//! indice masqué). Les outils et leurs garde-fous sont dans `ai_tools` ; docs/adr/0010.
 
 use std::convert::Infallible;
 

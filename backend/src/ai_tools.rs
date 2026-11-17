@@ -1,4 +1,4 @@
-//! Outils offerts aux modèles et garde-fous d'écriture (docs/adr/0009).
+//! Outils offerts aux modèles et garde-fous d'écriture (docs/adr/0010).
 //!
 //! Tout est vérifié ici, côté serveur, avec les droits de la PERSONNE qui discute : le texte
 //! de l'invite ou du modèle n'accorde jamais rien. Lecture seule par défaut ; écrire exige

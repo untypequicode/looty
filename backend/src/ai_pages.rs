@@ -6,7 +6,7 @@
 //! Markdown : ce module le convertit depuis et vers cet état Yjs, avec les mêmes nœuds que
 //! l'éditeur (formules `mathBlock`/`mathInline`, `mermaid`, `graph`, encadrés `notice`…).
 //! Écrire de l'Yjs (plutôt que remplacer le HTML) garde l'historique et l'édition
-//! collaborative cohérents ; voir docs/adr/0009.
+//! collaborative cohérents ; voir docs/adr/0010.
 
 use std::collections::HashMap;
 use std::sync::Arc;
