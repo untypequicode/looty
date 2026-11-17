@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.35.1",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Restore previous versions of a revision set",
+        "fr": "Restaurer une version précédente d’un set de révision"
+      },
+      "notes": {
+        "en": [
+          "**Revision sets**: the editor has a new **Version history** panel listing the versions saved before each AI edit. Restore one after confirming; an **Undo** notification reverts the restore."
+        ],
+        "fr": [
+          "**Sets de révision** : l’éditeur a un nouveau panneau **Historique des versions** qui liste les versions enregistrées avant chaque modification par l’IA. Restaurez-en une après confirmation ; une notification **Annuler** défait la restauration."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.35.0",
       "date": "2026-11-17",
       "title": {

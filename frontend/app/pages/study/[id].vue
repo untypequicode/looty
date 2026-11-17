@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft, Link2, Trash2, Lock } from 'lucide-vue-next'
-import { isCardKind, useStudyActions, useStudyAttempts, useStudySet, type StudyVisibility } from '~/composables/useStudy'
+import { isCardKind, useStudyActions, useStudyAttempts, useStudyRevisions, useStudySet, type StudyVisibility } from '~/composables/useStudy'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useI18n } from '~/composables/useI18n'
@@ -15,6 +15,7 @@ const token = computed(() => (typeof route.query.token === 'string' ? route.quer
 const { data: set, isLoading, isError } = useStudySet(id, token)
 const attempts = useStudyAttempts(id, token)
 const actions = useStudyActions()
+const revisions = useStudyRevisions(id)
 
 type Mode = 'use' | 'edit' | 'stats'
 const mode = ref<Mode>(route.query.mode === 'edit' ? 'edit' : 'use')
@@ -25,6 +26,18 @@ const modes = computed(() => [
 ])
 
 const saving = ref(false)
+const editorKey = ref(0) // remonte l'éditeur après une restauration
+const restoring = ref<string | null>(null)
+/** Remet une version (après confirmation) ; le toast propose d'annuler en remettant l'état remplacé. */
+async function restoreRev(revId: string, undo = false) {
+  if (!undo && !(await confirmDialog({ title: t('study.restore'), message: t('study.restoreConfirm') }))) return
+  restoring.value = revId
+  try {
+    const undoId = await actions.restore(id.value, revId)
+    editorKey.value++
+    toast.success(t(undo ? 'study.restoreUndone' : 'study.restored'), undo ? {} : { duration: 10000, action: { label: t('study.undo'), run: () => { void restoreRev(undoId, true) } } })
+  } finally { restoring.value = null }
+}
 async function save(v: { title: string; kind: any; items: unknown[] }) {
   saving.value = true
   try {
@@ -83,7 +96,7 @@ useHead({ title: () => set.value?.title || t('study.title') })
           <UiButton v-if="set.visibility === 'link' && set.share_token" size="sm" :icon="Link2" @click="copyLink">{{ t('study.copyLink') }}</UiButton>
           <UiButton size="sm" variant="danger" :icon="Trash2" @click="remove">{{ t('study.deleteSet') }}</UiButton>
         </section>
-        <StudyEditor :key="set.id + set.items.length" :title="set.title" :kind="set.kind" :items="set.items" :saving="saving" @save="save" />
+        <StudyEditor :key="set.id + set.items.length + ':' + editorKey" :title="set.title" :kind="set.kind" :items="set.items" :saving="saving" :revisions="revisions.data.value" :restoring="restoring" @save="save" @restore="restoreRev($event)" />
       </template>
 
       <section v-else class="sd-stats">
