@@ -1278,15 +1278,15 @@
     "semantic_hash": "7235c040ee24b97dd084da6363c032f6"
   },
   "backend/src/workspace.rs": {
-    "mtime": 1794940430.8177335,
-    "seen": 1794942351.387265,
-    "ast_hash": "9427f9758e20e49484e9483b239a6aff",
+    "mtime": 1794943803.815232,
+    "seen": 1794944341.0598247,
+    "ast_hash": "8d43bbeb230ddf2f8e407cc731fcfe6a",
     "semantic_hash": ""
   },
   "backend/src/ws.rs": {
-    "mtime": 1794942223.011419,
-    "seen": 1794942351.387267,
-    "ast_hash": "5d53cc57de96333b3698a95df2ea4a5e",
+    "mtime": 1794943803.81749,
+    "seen": 1794944341.0598266,
+    "ast_hash": "6cef26dba231663d47f079f1c610303b",
     "semantic_hash": ""
   },
   "collaboration/index.js": {
@@ -1710,10 +1710,10 @@
     "semantic_hash": "4f4ff825f4e0d736d9f55d5ab9fa9e8e"
   },
   "frontend/app/components/app/CommandPalette.vue": {
-    "mtime": 1794940430.8198686,
-    "seen": 1794942351.3874238,
-    "ast_hash": "2652916221eac0b52a53bdd7bc6446bf",
-    "semantic_hash": "2652916221eac0b52a53bdd7bc6446bf"
+    "mtime": 1794944084.161816,
+    "seen": 1794944341.062961,
+    "ast_hash": "b7cb8b8ec111e785043313dfa22f1349",
+    "semantic_hash": ""
   },
   "frontend/app/components/app/CreateBoardDialog.vue": {
     "mtime": 1794940430.8198686,
@@ -1776,9 +1776,9 @@
     "semantic_hash": "a9c00f27c243cbc6ad411d628fa6b82f"
   },
   "frontend/app/components/app/PageTreeItem.vue": {
-    "mtime": 1794942063.8989093,
-    "seen": 1794942351.387446,
-    "ast_hash": "682e86a2e4bc89df37685b04e48a97af",
+    "mtime": 1794944250.2741613,
+    "seen": 1794944341.063445,
+    "ast_hash": "19f5fabf30db8ff81067b99155389eeb",
     "semantic_hash": ""
   },
   "frontend/app/components/app/PanelGrid.vue": {
@@ -1812,9 +1812,9 @@
     "semantic_hash": "fb7679c4b0a2c4a389a655d3550ca051"
   },
   "frontend/app/components/app/Sidebar.vue": {
-    "mtime": 1794942083.62585,
-    "seen": 1794942351.3874578,
-    "ast_hash": "5867a844c145463e75a1c09f720ace54",
+    "mtime": 1794944243.9076848,
+    "seen": 1794944341.0636876,
+    "ast_hash": "cc0bffea895a17fcf4dceb88494c4fc4",
     "semantic_hash": ""
   },
   "frontend/app/components/app/SidebarCustomize.vue": {
@@ -2922,9 +2922,9 @@
     "semantic_hash": "bc2119e36abf52bf8bb1076a85315ec0"
   },
   "frontend/app/composables/usePresenceInfo.ts": {
-    "mtime": 1794942219.2154312,
-    "seen": 1794942351.387917,
-    "ast_hash": "a6d2fbb52c7684efbeb742643f667588",
+    "mtime": 1794944167.8595276,
+    "seen": 1794944341.0737555,
+    "ast_hash": "49fc1d5f6edb4593523bdab7798651f4",
     "semantic_hash": ""
   },
   "frontend/app/composables/useProjectReader.ts": {
@@ -3018,9 +3018,9 @@
     "semantic_hash": "2e53de35043c7dbaf00cb77ffb494878"
   },
   "frontend/app/composables/useWorkspace.ts": {
-    "mtime": 1794941956.0532048,
-    "seen": 1794942351.3879576,
-    "ast_hash": "7cb002760bfd67691344e378cc44225b",
+    "mtime": 1794944065.4762948,
+    "seen": 1794944341.0745022,
+    "ast_hash": "dd1d3a5922bf1c2a8e387d8ff8821b38",
     "semantic_hash": ""
   },
   "frontend/app/editor/blocks.ts": {
@@ -3432,9 +3432,9 @@
     "semantic_hash": ""
   },
   "frontend/app/layouts/workspace.vue": {
-    "mtime": 1794942072.1638844,
-    "seen": 1794942351.3881574,
-    "ast_hash": "1553f6a7d863e856e95bea3f5da38bf2",
+    "mtime": 1794944167.857194,
+    "seen": 1794944341.0777504,
+    "ast_hash": "e48b57ca589abc45407b1d17454127af",
     "semantic_hash": ""
   },
   "frontend/app/middleware/auth.global.ts": {
@@ -3648,10 +3648,10 @@
     "semantic_hash": "1a0a11d0cd0fa215e2f286820b0d9e8d"
   },
   "frontend/app/types/index.ts": {
-    "mtime": 1794940430.8251514,
-    "seen": 1794942351.3882642,
-    "ast_hash": "96cc33bee949432a442290b8bb0c86c9",
-    "semantic_hash": "96cc33bee949432a442290b8bb0c86c9"
+    "mtime": 1794944084.1590865,
+    "seen": 1794944341.0797045,
+    "ast_hash": "d8dc2847879c98b2116c0c12ffc94925",
+    "semantic_hash": ""
   },
   "frontend/app/types/katex-contrib.d.ts": {
     "mtime": 1794940430.8251514,
@@ -4416,9 +4416,9 @@
     "semantic_hash": ""
   },
   "backend/src/ai.rs": {
-    "mtime": 1794941471.8252573,
-    "seen": 1794942351.3871303,
-    "ast_hash": "0e0e6070b83b718b37f554f7760eec81",
+    "mtime": 1794944019.1795633,
+    "seen": 1794944341.057015,
+    "ast_hash": "c60acc92772041c44fb36079a16cefc7",
     "semantic_hash": ""
   },
   "backend/src/ai_pages.rs": {
@@ -4440,9 +4440,9 @@
     "semantic_hash": ""
   },
   "backend/src/ai_tools.rs": {
-    "mtime": 1794941828.8657534,
-    "seen": 1794942351.3871393,
-    "ast_hash": "3a37dce78d24e8b718fe2cfe802f74ad",
+    "mtime": 1794943967.1939943,
+    "seen": 1794944341.0571504,
+    "ast_hash": "fbaa5a071a0c40ac754ad3bd8bc6a83f",
     "semantic_hash": ""
   },
   "backend/src/diagram_styles.rs": {
@@ -4491,12 +4491,6 @@
     "mtime": 1794940430.8177335,
     "seen": 1794942351.3873873,
     "ast_hash": "ea7868b15a5c5cde344156b8ea7ff8a3",
-    "semantic_hash": ""
-  },
-  "frontend/app/components/app/AiChat.vue": {
-    "mtime": 1794941125.4643788,
-    "seen": 1794942351.38742,
-    "ast_hash": "f7969481107b9d21a387442c93c7b47c",
     "semantic_hash": ""
   },
   "frontend/app/components/editor/DiagramStylePicker.vue": {
@@ -4572,9 +4566,9 @@
     "semantic_hash": ""
   },
   "frontend/app/composables/useAi.ts": {
-    "mtime": 1794941118.4934056,
-    "seen": 1794942351.387826,
-    "ast_hash": "84073735553fc9a9ab4af0ceb0833599",
+    "mtime": 1794944065.4836426,
+    "seen": 1794944341.0719984,
+    "ast_hash": "8bb73d2ef8951ddbe152f3c36a96d5eb",
     "semantic_hash": ""
   },
   "frontend/app/composables/useDiagramStyles.ts": {
@@ -4596,9 +4590,9 @@
     "semantic_hash": ""
   },
   "frontend/app/composables/useStudyMenu.ts": {
-    "mtime": 1794942063.8669093,
-    "seen": 1794942351.3879445,
-    "ast_hash": "6aea39f7611646036dded22bc21e7c15",
+    "mtime": 1794944250.2805755,
+    "seen": 1794944341.0742857,
+    "ast_hash": "04c07e0ac2345d00bf1c0d7833ace8ab",
     "semantic_hash": ""
   },
   "frontend/app/editor/chatMarkdown.ts": {
@@ -4620,9 +4614,9 @@
     "semantic_hash": ""
   },
   "frontend/app/i18n/en-ai.ts": {
-    "mtime": 1794942191.6765175,
-    "seen": 1794942351.3880305,
-    "ast_hash": "5640b2648abc504a9cb2eca58ea4fa8f",
+    "mtime": 1794944243.8946385,
+    "seen": 1794944341.0759325,
+    "ast_hash": "8d7540dbadcb4549c8d39f800ab84033",
     "semantic_hash": ""
   },
   "frontend/app/i18n/en-study.ts": {
@@ -4632,9 +4626,9 @@
     "semantic_hash": ""
   },
   "frontend/app/i18n/fr-ai.ts": {
-    "mtime": 1794942191.6765175,
-    "seen": 1794942351.388077,
-    "ast_hash": "21672a0b89d1f548b7e88005c5619a56",
+    "mtime": 1794944243.8918645,
+    "seen": 1794944341.0767972,
+    "ast_hash": "9fdfca3fb96e26d52e994a9f19e9ad23",
     "semantic_hash": ""
   },
   "frontend/app/i18n/fr-study.ts": {
@@ -4722,9 +4716,9 @@
     "semantic_hash": ""
   },
   "docs/adr/0010-ai-agents-read-only-with-write-grants.md": {
-    "mtime": 1794941125.4643788,
-    "seen": 1794942351.3884645,
-    "ast_hash": "b219f9469123602f3af02d317e6cdf8f",
+    "mtime": 1794944298.1779528,
+    "seen": 1794944341.083619,
+    "ast_hash": "a50eed95b7822bbffa4151a189b9517b",
     "semantic_hash": ""
   },
   "docs/adr/0011-trainings-are-workspace-items.md": {
@@ -4737,6 +4731,42 @@
     "mtime": 1794942265.3822849,
     "seen": 1794942351.388477,
     "ast_hash": "d7820ae26a96c891504ac642d265601c",
+    "semantic_hash": ""
+  },
+  "frontend/app/components/ai/Composer.vue": {
+    "mtime": 1794944129.5167015,
+    "seen": 1794944341.0628293,
+    "ast_hash": "edf3b9556bad0e86f02bba6db052cb07",
+    "semantic_hash": ""
+  },
+  "frontend/app/components/ai/ConversationList.vue": {
+    "mtime": 1794944113.880773,
+    "seen": 1794944341.0628319,
+    "ast_hash": "2b95aef235b5e616ceaa37b1a52ee953",
+    "semantic_hash": ""
+  },
+  "frontend/app/components/ai/GrantCard.vue": {
+    "mtime": 1794944101.929828,
+    "seen": 1794944341.0628335,
+    "ast_hash": "ddddaaf3984d88ba0063ec775ddf78b2",
+    "semantic_hash": ""
+  },
+  "frontend/app/components/ai/ItemPicker.vue": {
+    "mtime": 1794944080.4609275,
+    "seen": 1794944341.0628352,
+    "ast_hash": "29cced370906f3e8a615386f2fa49528",
+    "semantic_hash": ""
+  },
+  "frontend/app/composables/useAiOpenItem.ts": {
+    "mtime": 1794944167.8486516,
+    "seen": 1794944341.072001,
+    "ast_hash": "6f756e789bfe5737b96cedccb51edc74",
+    "semantic_hash": ""
+  },
+  "frontend/app/pages/w/[ws]/assistant.vue": {
+    "mtime": 1794944243.8891463,
+    "seen": 1794944341.0783272,
+    "ast_hash": "eb6041e1c4fcd6b0fd6b46eda4fe9186",
     "semantic_hash": ""
   }
 }
