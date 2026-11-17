@@ -611,6 +611,11 @@ async fn read_message(State(state): State<AppState>, user: AuthUser, Path((id, u
     let a = own_account(&state, &user, id).await?;
     let mut s = connect_account(&a).await?;
     s.select("INBOX").await.map_err(imap_err)?;
+    let sizes: Vec<_> = s.uid_fetch(uid.to_string(), "(UID RFC822.SIZE)").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
+    if sizes.iter().any(|f| f.size.is_some_and(|n| n as usize > crate::mailclient::MAX_FETCH_SIZE)) {
+        let _ = s.logout().await;
+        return Err(ApiError::bad_request("mail_too_large"));
+    }
     // BODY[] (sans PEEK) : le message est marqué comme lu, comme dans un client classique.
     let fetches: Vec<_> = s.uid_fetch(uid.to_string(), "(UID BODY[])").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
     let _ = s.logout().await;

@@ -10,7 +10,7 @@ const REPLAYABLE: &[i64] = &[20261020120000];
 pub async fn init_db() -> Result<PgPool, sqlx::Error> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
-        .max_connections(20)
+        .max_connections(12)
         .acquire_timeout(std::time::Duration::from_secs(8))
         .idle_timeout(std::time::Duration::from_secs(60))
         .max_lifetime(std::time::Duration::from_secs(1800))

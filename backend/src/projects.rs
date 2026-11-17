@@ -861,27 +861,34 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uu
     Ok(Json(json!({ "files": saved })))
 }
 
+/// Plafond (octets non compressés) des exports du projet (zip, bundle).
+const MAX_EXPORT_BYTES: usize = 200 * 1024 * 1024;
 /// Archive zip du projet.
 async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Response> {
     let (p, _) = project_for(&state, &user, id, Need::Read).await?;
     let files = all_files(&state, id).await?;
-    let mut entries = Vec::new();
+    // Chaque fichier est lu puis écrit dans l'archive aussitôt, sans garder tous les contenus en mémoire.
+    let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let mut total = 0usize;
     for f in files.iter().filter(|f| !f.is_dir) {
-        entries.push((f.path.clone(), file_bytes(f).await.unwrap_or_default()));
-    }
-    let zip = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
-        use std::io::Write;
-        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-        for (path, data) in entries {
+        let data = file_bytes(f).await.unwrap_or_default();
+        total += data.len();
+        if total > MAX_EXPORT_BYTES {
+            return Err(ApiError::bad_request("project_too_large_to_export"));
+        }
+        let path = f.path.clone();
+        w = tokio::task::spawn_blocking(move || -> std::io::Result<_> {
+            use std::io::Write;
+            let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
             w.start_file(path, opts).map_err(std::io::Error::other)?;
             w.write_all(&data)?;
-        }
-        Ok(w.finish().map_err(std::io::Error::other)?.into_inner())
-    })
-    .await
-    .map_err(|e| ApiError::Internal(e.to_string()))?
-    .map_err(|e| ApiError::Internal(e.to_string()))?;
+            Ok(w)
+        })
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
+    let zip = w.finish().map_err(|e| ApiError::Internal(e.to_string()))?.into_inner();
     let name: String = p.name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
     Ok((
         [(header::CONTENT_TYPE, "application/zip".to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}.zip\""))],
@@ -895,8 +902,18 @@ async fn bundle(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uu
     use base64::Engine;
     let (p, _) = project_for(&state, &user, id, Need::Read).await?;
     let mut out = Vec::new();
+    let mut total = 0usize;
     for f in all_files(&state, id).await? {
-        let data = if f.is_dir { String::new() } else { base64::engine::general_purpose::STANDARD.encode(file_bytes(&f).await.unwrap_or_default()) };
+        let data = if f.is_dir {
+            String::new()
+        } else {
+            let raw = file_bytes(&f).await.unwrap_or_default();
+            total += raw.len();
+            if total > MAX_EXPORT_BYTES {
+                return Err(ApiError::bad_request("project_too_large_to_export"));
+            }
+            base64::engine::general_purpose::STANDARD.encode(raw)
+        };
         out.push(json!({ "id": f.id, "path": f.path, "is_dir": f.is_dir, "text": f.blob_path.is_none(), "data": data }));
     }
     Ok(Json(json!({ "main": p.settings["main"].as_str().unwrap_or("main.tex"), "engine": p.settings["engine"].as_str().unwrap_or("pdflatex"), "files": out })))

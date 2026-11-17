@@ -78,7 +78,11 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     let perms = crate::access::member_perms(&state.pool, user.id, ws).await?.map(|(_, p)| p).ok_or(ApiError::NotFound)?;
     let visible = visible_pages(&state.pool, user, ws, role).await?;
     let pages: Vec<(Uuid, String, Option<String>, Option<Uuid>, Option<String>, Option<Vec<u8>>)> =
-        sqlx::query_as("SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, ''), yjs_state FROM pages WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
+        sqlx::query_as("SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, ''), yjs_state FROM pages WHERE workspace_id = $1 AND id = ANY($2)")
+            .bind(ws)
+            .bind(visible.iter().filter(|(_, a)| matches!(a, PageAccess::Read | PageAccess::Write)).map(|(id, _)| *id).collect::<Vec<Uuid>>())
+            .fetch_all(&state.pool)
+            .await?;
     let pages: Vec<_> = pages.into_iter().filter(|p| matches!(visible.get(&p.0), Some(PageAccess::Read | PageAccess::Write))).collect();
     // Tableaux et tâches : seulement avec l'accès aux tableaux ; événements : avec le calendrier.
     let see_boards = perms.boards > crate::access::level::NONE;
