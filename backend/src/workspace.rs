@@ -909,6 +909,25 @@ async fn search_workspace(
         results.extend(subscribed);
     }
 
+    // Entraînements : même droit que pour les ouvrir (lire les documents) ; un entraînement
+    // personnel n'apparaît qu'à son propriétaire. Pas de mots-clés : rien pour `#mot`.
+    if read_docs && !kw_only {
+        let sets: Vec<SearchResult> = sqlx::query_as(
+            "SELECT id, title, 'study' AS type, NULL::varchar AS icon, kind AS snippet,
+                    parent_id, NULL::timestamptz AS date, NULL::text AS folder, NULL::text AS keyword
+             FROM study_sets
+             WHERE workspace_id = $1 AND deleted_at IS NULL AND looty_fold(title) LIKE $2 AND (private_to IS NULL OR private_to = $3)
+             ORDER BY updated_at DESC
+             LIMIT 10",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .bind(user.id)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(sets);
+    }
+
     // Fichiers et dossiers du Drive (même droit que pour le parcourir : lire les documents).
     if read_docs {
         let files: Vec<SearchResult> = sqlx::query_as(
