@@ -392,7 +392,7 @@ async fn ended_grants(pool: &PgPool, conv_id: Uuid) -> ApiResult<Vec<Value>> {
             SELECT CASE WHEN kind = 'update' THEN 'u:' || set_id WHEN personal THEN 'c:personal' ELSE 'c:' || workspace_id END,
                    created_at, LEAST(expires_at, COALESCE(revoked_at, expires_at))
               FROM ai_study_grants WHERE conversation_id = $1
-         ) g WHERE ended_at <= now() ORDER BY created_at",
+         ) g WHERE key IS NOT NULL AND ended_at <= now() ORDER BY created_at",
     )
     .bind(conv_id)
     .fetch_all(pool)

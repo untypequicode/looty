@@ -709,12 +709,17 @@ pub async fn read_item(pool: &PgPool, user: &AuthUser, kind: &str, id: Uuid) -> 
         }
         _ => {
             // Projet : s'il est porté par une page, il suit l'accès à cette page.
-            let page: Option<Uuid> = sqlx::query_scalar("SELECT id FROM pages WHERE project_id = $1").bind(id).fetch_optional(pool).await?;
-            if let Some(p) = page {
+            let page: Option<(Uuid, bool)> = sqlx::query_as("SELECT id, deleted_at IS NOT NULL FROM pages_all WHERE project_id = $1").bind(id).fetch_optional(pool).await?;
+            if let Some((p, trashed)) = page {
+                if trashed {
+                    return Err(ApiError::NotFound);
+                }
                 require_page_read(pool, user, p).await?;
             }
             let (kind, settings): (String, Value) = sqlx::query_as("SELECT kind::text, settings FROM projects WHERE id = $1").bind(id).fetch_one(pool).await?;
-            format!("Kind: {kind}\nSettings: {settings}{}", page.map(|p| format!("\nPage: {p} (read it with read_page)")).unwrap_or_default())
+            // Seules les clés utiles à la lecture : pas le reste des réglages.
+            let shown: Vec<String> = ["main", "engine", "entry"].iter().filter_map(|k| settings[k].as_str().map(|v| format!("{k}: {v}"))).collect();
+            format!("Kind: {kind}\n{}{}", shown.join("\n"), page.map(|(p, _)| format!("\nPage: {p} (read it with read_page)")).unwrap_or_default())
         }
     };
     Ok((title, text))
@@ -1324,6 +1329,18 @@ mod tests {
         assert!(matches!(read_item(&pool, &w.outsider, "task", task).await, Err(ApiError::NotFound)));
         assert!(matches!(read_item(&pool, &w.outsider, "board", board).await, Err(ApiError::NotFound)));
         assert!(read_item(&pool, &w.owner, "page", w.page).await.is_err());
+    }
+
+    #[sqlx::test]
+    async fn a_project_whose_page_is_trashed_cannot_be_read(pool: PgPool) {
+        let w = world(&pool).await;
+        let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        let project: Uuid = sqlx::query_scalar("INSERT INTO projects (workspace_id, kind, name, settings) VALUES ($1, 'latex', 'Thèse', '{\"main\":\"main.tex\",\"secret\":\"x\"}') RETURNING id").bind(ws).fetch_one(&pool).await.unwrap();
+        sqlx::query("UPDATE pages_all SET project_id = $2 WHERE id = $1").bind(w.page).bind(project).execute(&pool).await.unwrap();
+        let (_, text) = read_item(&pool, &w.owner, "project", project).await.unwrap();
+        assert!(text.contains("main: main.tex") && !text.contains("secret"), "{text}");
+        sqlx::query("UPDATE pages_all SET deleted_at = now() WHERE id = $1").bind(w.page).execute(&pool).await.unwrap();
+        assert!(matches!(read_item(&pool, &w.owner, "project", project).await, Err(ApiError::NotFound)));
     }
 
     #[sqlx::test]
