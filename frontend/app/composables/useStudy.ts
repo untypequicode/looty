@@ -100,6 +100,7 @@ export function useStudyActions() {
     async save(id: string, body: { title: string; kind: StudyKind; items: unknown[] }) {
       await api(`/api/study/sets/${id}`, { method: 'PUT', body })
       await qc.invalidateQueries({ queryKey: ['study', 'set', id] })
+      await qc.invalidateQueries({ queryKey: ['study', 'revisions', id] })
       await refreshList()
     },
     async remove(id: string) {
