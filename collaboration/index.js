@@ -151,23 +151,30 @@ async function revalidate() {
   revalidating = (async () => {
     do {
       revalidateAgain = false
+      const tasks = []
       for (const [name, doc] of server.hocuspocus.documents) {
         for (const conn of doc.getConnections()) {
           const auth = conn.context?.auth
           if (!auth) continue
-          let res
-          try {
-            res = await fetch(accessUrl(name), { headers: auth, signal: AbortSignal.timeout(10_000) })
-          } catch {
-            continue // Backend injoignable : on garde la connexion, on réessaiera.
-          }
-          if (res.status === 401 || res.status === 403 || res.status === 404) {
-            conn.close({ code: 4403, reason: 'forbidden' })
-          } else if (res.ok) {
-            const access = await res.json().catch(() => null)
-            if (access) conn.readOnly = !access.can_write
-          }
+          tasks.push(async () => {
+            let res
+            try {
+              res = await fetch(accessUrl(name), { headers: auth, signal: AbortSignal.timeout(5_000) })
+            } catch {
+              return // Backend injoignable : on garde la connexion, on réessaiera.
+            }
+            if (res.status === 401 || res.status === 403 || res.status === 404) {
+              conn.close({ code: 4403, reason: 'forbidden' })
+            } else if (res.ok) {
+              const access = await res.json().catch(() => null)
+              if (access) conn.readOnly = !access.can_write
+            }
+          })
         }
+      }
+      // Parallélisation par lots de 10 requêtes pour éviter la surcharge réseau/CPU
+      for (let i = 0; i < tasks.length; i += 10) {
+        await Promise.allSettled(tasks.slice(i, i + 10).map((t) => t()))
       }
     } while (revalidateAgain)
     revalidating = null
@@ -362,7 +369,13 @@ const server = new Server({
         }
       },
     }),
-    { afterUnloadDocument: async ({ documentName }) => { failedStores.delete(documentName) } },
+    {
+      afterUnloadDocument: async ({ documentName }) => {
+        failedStores.delete(documentName)
+        loadedAt.delete(documentName)
+        resetAt.delete(documentName)
+      },
+    },
   ],
 })
 
@@ -430,6 +443,7 @@ function onNotification(msg) {
     try { doc.destroy() } catch {}
   }
   loadedAt.clear()
+  resetAt.clear()
   failedStores.clear()
   console.log('Backup restored: documents unloaded')
 }

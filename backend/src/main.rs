@@ -72,6 +72,13 @@ use time::Duration;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_sessions::{Expiry, SessionManagerLayer};
 
+#[cfg(not(target_env = "msvc"))]
+use mimalloc::MiMalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 async fn health_handler() -> Json<serde_json::Value> {
     // `desktop_sso` / `android_sso` : les applications peuvent se connecter via le navigateur système.
     Json(serde_json::json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION"), "desktop_sso": true, "android_sso": true }))
