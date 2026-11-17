@@ -25,7 +25,7 @@ export default {
       readOnlyHint: 'Read-only: the assistant can read the pages you can access. To let it write, choose a page below.',
       placeholder: 'Ask something… (Enter to send)', send: 'Send', stop: 'Stop',
       writeTarget: 'Write target', readOnly: 'read-only', workspace: 'Workspace', page: 'Page', modeLabel: 'Mode', expiry: 'Duration', allow: 'Allow',
-      studyGrants: 'Study sets', studyCreate: 'Create study sets in…', studyUpdate: 'Edit a study set', personal: 'Personal space', studySet: 'Study set', studyLink: 'Open the study set', studyGrantCreate: 'create sets in {where}', studyGrantUpdate: 'edit {title}',
+      studyGrants: 'Study sets', studyCreate: 'Create study sets in…', studyUpdate: 'Edit a study set', personal: 'Personal space', studySet: 'Study set', studyLink: 'Open the set (history to restore)', studyGrantCreate: 'create sets in {where}', studyGrantUpdate: 'edit {title}',
       mode: { suggest: 'Suggest', append: 'Append', replace: 'Replace' },
       modeHint: {
         suggest: 'Suggest: the assistant proposes a change and you accept or reject it.',

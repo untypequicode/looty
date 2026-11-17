@@ -32,6 +32,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/sets", get(list_sets).post(create_set))
         .route("/sets/{id}", get(get_set).put(update_set).delete(delete_set))
+        .route("/sets/{id}/revisions", get(list_revisions))
         .route("/sets/{id}/visibility", put(set_visibility))
         .route("/sets/{id}/attempts", get(list_attempts).post(submit_attempt))
         .route("/sets/{id}/cards", get(list_cards))
@@ -490,6 +491,18 @@ struct UpdateReq {
     /// Le type ne change que si tous les éléments restent valides pour lui.
     kind: Option<String>,
     items: Vec<ItemIn>,
+}
+
+/// Versions gardées avant chaque modification par l'IA ou restauration, la plus récente d'abord. Réservé à qui peut éditer le jeu.
+pub async fn revisions_of(pool: &PgPool, user: &AuthUser, id: Uuid) -> ApiResult<Vec<Value>> {
+    load(pool, user, id, None, SetAccess::Edit).await?;
+    let rows: Vec<(Uuid, DateTime<Utc>, String, String, i32)> =
+        sqlx::query_as("SELECT id, created_at, source, title, jsonb_array_length(items)::int FROM study_set_revisions WHERE set_id = $1 ORDER BY created_at DESC, id LIMIT 100").bind(id).fetch_all(pool).await?;
+    Ok(rows.into_iter().map(|(id, at, source, title, n)| json!({ "id": id, "created_at": at, "source": source, "title": title, "item_count": n })).collect())
+}
+
+async fn list_revisions(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Vec<Value>>> {
+    Ok(Json(revisions_of(&state.pool, &user, id).await?))
 }
 
 async fn update_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<UpdateReq>) -> ApiResult<Json<Value>> {

@@ -24,6 +24,7 @@ export default {
     start: 'Commencer', submit: 'Corriger', restart: 'Recommencer', yourAnswer: 'Votre réponse', expected: 'Attendu', right: 'Juste', wrong: 'Faux', unscored: 'Non noté',
     score: 'Score : {score}/{max}', typeAnswer: 'Votre réponse…',
     flip: 'Retourner', again: 'À revoir', hard: 'Difficile', good: 'Bien', easy: 'Facile', dueCards: '{count} à réviser', noneDue: 'Rien à réviser pour le moment.', reviewAll: 'Tout réviser',
+    revisions: 'Historique des versions', revisionsHint: 'Versions gardées avant chaque modification par l’IA ou restauration.', revSource: { ai: 'Avant une modification IA', restore: 'Avant une restauration' }, revItems: '{count} éléments', restore: 'Restaurer', restoreConfirm: 'Remettre cette version ? L’état actuel est gardé, vous pourrez l’annuler.', restored: 'Version restaurée', restoreUndone: 'Restauration annulée', undo: 'Annuler',
     history: 'Historique', noAttempts: 'Aucune tentative pour l’instant.', average: 'Moyenne', best: 'Meilleur score', lastAttempt: 'Dernière',
   },
 }

@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-vue-next'
-import { ITEM_TYPES, type StudyItem, type StudyItemType, type StudyKind } from '~/composables/useStudy'
+import { Plus, Trash2, ArrowUp, ArrowDown, RotateCcw } from 'lucide-vue-next'
+import { ITEM_TYPES, type StudyRevision, type StudyItem, type StudyItemType, type StudyKind } from '~/composables/useStudy'
 import { useI18n } from '~/composables/useI18n'
 
 /** Mode édition d'un jeu : titre, éléments (ajout, ordre, suppression) selon leur type. */
 interface Draft { id?: string; type: StudyItemType; prompt: string; choices: { id: string; text: string }[]; correct: string; multi: string[]; accepted: string; back: string; explanation: string }
 
-const props = defineProps<{ title: string; kind: StudyKind; items: StudyItem[]; saving?: boolean }>()
-const emit = defineEmits<{ (e: 'save', v: { title: string; kind: StudyKind; items: unknown[] }): void }>()
-const { t } = useI18n()
+const props = defineProps<{ title: string; kind: StudyKind; items: StudyItem[]; saving?: boolean; revisions?: StudyRevision[]; restoring?: string | null }>()
+const emit = defineEmits<{ (e: 'save', v: { title: string; kind: StudyKind; items: unknown[] }): void; (e: 'restore', id: string): void }>()
+const { t, formatDateTime } = useI18n()
+
 
 const LETTERS = 'abcdefghij'
 const title = ref(props.title)
@@ -95,6 +96,16 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
       <UiButton v-for="ty in allowed" :key="ty" size="sm" :icon="Plus" @click="add(ty)">{{ t('study.addItem') }} · {{ t(`study.types.${ty}`) }}</UiButton>
     </div>
     <div class="ed-save"><UiButton variant="primary" :disabled="!valid" :loading="saving" @click="submit">{{ t('study.save') }}</UiButton></div>
+    <section v-if="revisions?.length" class="ed-rev">
+      <b>{{ t('study.revisions') }}</b>
+      <small class="faint">{{ t('study.revisionsHint') }}</small>
+      <ul>
+        <li v-for="r in revisions" :key="r.id">
+          <span>{{ formatDateTime(r.created_at) }} · {{ t(`study.revSource.${r.source}`) }} · {{ t('study.revItems', { count: r.item_count }) }}<template v-if="r.title"> · {{ r.title }}</template></span>
+          <UiButton size="xs" :icon="RotateCcw" :loading="restoring === r.id" @click="emit('restore', r.id)">{{ t('study.restore') }}</UiButton>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>
 
@@ -107,4 +118,7 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
 .ed-choice > :nth-child(2) { flex: 1; }
 .ed-add { display: flex; flex-wrap: wrap; gap: 8px; }
 .ed-save { display: flex; justify-content: flex-end; }
+.ed-rev { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ed-rev ul { list-style: none; margin: 0; padding: 0; }
+.ed-rev li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 </style>

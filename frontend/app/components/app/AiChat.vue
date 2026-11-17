@@ -227,7 +227,7 @@ const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' &
         <div ref="list" class="ai-list">
           <p v-if="!visible.length && !streaming" class="hint">{{ t('ai.chat.readOnlyHint') }}</p>
           <template v-for="m in visible" :key="m.id">
-            <NuxtLink v-if="m.role === 'tool'" :to="`/study/${m.data.study_set_id}`" class="msg study-link" @click="aiOpen = false"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
+            <NuxtLink v-if="m.role === 'tool'" :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg study-link" @click="aiOpen = false"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
             <div v-else class="msg" :class="m.role">{{ m.content }}</div>
           </template>
           <div v-if="streaming" class="msg assistant">{{ streaming }}</div>

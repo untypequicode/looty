@@ -69,10 +69,29 @@ export function useStudyCards(id: Ref<string>, token: Ref<string | null>) {
   })
 }
 
+export interface StudyRevision { id: string; created_at: string; source: 'ai' | 'restore'; title: string; item_count: number }
+
+/** Versions gardées avant chaque modification par l'IA ou restauration (éditeurs seulement). */
+export function useStudyRevisions(id: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ['study', 'revisions', id.value]),
+    queryFn: () => api<StudyRevision[]>(`/api/study/sets/${id.value}/revisions`, { silent: true }),
+    retry: false,
+  })
+}
+
 export function useStudyActions() {
   const qc = useQueryClient()
   const refreshList = () => qc.invalidateQueries({ queryKey: studyKeys.list })
   return {
+    /** Remet une version ; renvoie la version qui annule cette restauration. */
+    async restore(setId: string, revisionId: string) {
+      const r = await api<{ set_id: string; undo_revision_id: string }>(`/api/ai/study-revisions/${revisionId}/restore`, { method: 'POST' })
+      await qc.invalidateQueries({ queryKey: studyKeys.set(setId) })
+      await qc.invalidateQueries({ queryKey: ['study', 'revisions', setId] })
+      await refreshList()
+      return r.undo_revision_id
+    },
     async create(body: { title: string; kind: StudyKind; workspace_id: string | null }) {
       const set = await api<{ id: string }>('/api/study/sets', { method: 'POST', body })
       await refreshList()

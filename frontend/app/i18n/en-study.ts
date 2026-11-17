@@ -24,6 +24,7 @@ export default {
     start: 'Start', submit: 'Check', restart: 'Restart', yourAnswer: 'Your answer', expected: 'Expected', right: 'Right', wrong: 'Wrong', unscored: 'Not scored',
     score: 'Score: {score}/{max}', typeAnswer: 'Your answer…',
     flip: 'Flip', again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy', dueCards: '{count} due', noneDue: 'Nothing to review right now.', reviewAll: 'Review all',
+    revisions: 'Version history', revisionsHint: 'Versions kept before each AI edit or restore.', revSource: { ai: 'Before an AI edit', restore: 'Before a restore' }, revItems: '{count} items', restore: 'Restore', restoreConfirm: 'Put this version back? The current state is kept, so you can undo.', restored: 'Version restored', restoreUndone: 'Restore undone', undo: 'Undo',
     history: 'History', noAttempts: 'No attempts yet.', average: 'Average', best: 'Best score', lastAttempt: 'Latest',
   },
 }
