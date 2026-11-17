@@ -152,7 +152,7 @@ pub fn start_worker(state: AppState) {
         let mut last_due = std::time::Instant::now() - Duration::from_secs(3600);
         loop {
             tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(20)) => {}
+                _ = tokio::time::sleep(Duration::from_secs(30)) => {}
                 _ = wake().notified() => {}
             }
             if last_due.elapsed() >= Duration::from_secs(600) {
@@ -277,10 +277,21 @@ async fn due_reminders(state: &AppState) -> ApiResult<()> {
     )
     .fetch_all(pool)
     .await?;
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let task_ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
+    let user_ids: Vec<Uuid> = rows.iter().map(|r| r.1).collect();
+    let dues: Vec<DateTime<Utc>> = rows.iter().map(|r| r.2).collect();
+    let inserted: std::collections::HashSet<(Uuid, Uuid)> = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "INSERT INTO task_due_reminders (task_id, user_id, due_date) SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::timestamptz[])
+         ON CONFLICT DO NOTHING RETURNING task_id, user_id",
+    )
+    .bind(&task_ids).bind(&user_ids).bind(&dues)
+    .fetch_all(pool).await?
+    .into_iter().collect();
     for (task_id, user_id, due, title, board_id, ws) in rows {
-        let inserted = sqlx::query("INSERT INTO task_due_reminders (task_id, user_id, due_date) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
-            .bind(task_id).bind(user_id).bind(due).execute(pool).await?.rows_affected();
-        if inserted > 0 {
+        if inserted.contains(&(task_id, user_id)) {
             crate::notifications::notify(pool, &state.hub, ws, user_id, None, "due_soon", &format!("task:{task_id}"),
                 serde_json::json!({ "title": title, "board_id": board_id, "due_date": due })).await;
         }

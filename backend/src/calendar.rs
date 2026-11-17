@@ -588,7 +588,7 @@ pub fn start_sync_loop(state: AppState) {
                     tracing::debug!("calendar {id}: {e:?}");
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(120)).await;
         }
     });
 }

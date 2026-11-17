@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.34.3",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Quieter server in the background and a clear message when a project is too big to export",
+        "fr": "Serveur plus discret en arrière-plan et message clair quand un projet est trop gros pour être exporté"
+      },
+      "notes": {
+        "en": [
+          "**Project export**: downloading a project as a zip now checks its size first. If it exceeds 200 MB, you get a clear message instead of a raw error page.",
+          "The server's background tasks wake up less often: delivery of notifications and emails every 30 s instead of 20 s, calendar refresh check every 2 minutes instead of 1, idle mail connections are cleaned every minute. Notifications are still sent immediately when something happens.",
+          "Due-date reminders are now saved in a single database request instead of one per task."
+        ],
+        "fr": [
+          "**Export de projet** : télécharger un projet en zip vérifie d’abord sa taille. S’il dépasse 200 Mo, un message clair s’affiche au lieu d’une page d’erreur brute.",
+          "Les tâches de fond du serveur se réveillent moins souvent : envoi des notifications et des e-mails toutes les 30 s au lieu de 20 s, vérification du rafraîchissement des agendas toutes les 2 minutes au lieu d’une, nettoyage des connexions mail inactives toutes les minutes. Les notifications partent toujours immédiatement quand quelque chose se passe.",
+          "Les rappels d’échéance sont maintenant enregistrés en une seule requête à la base de données au lieu d’une par tâche."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.34.2",
       "date": "2026-11-17",
       "title": {

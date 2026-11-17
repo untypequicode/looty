@@ -8,7 +8,7 @@ export default {
     jupyter_invalid_kernel: 'Invalid kernel name', jupyter_kernel_unknown: 'This kernel does not exist on the Jupyter server', jupyter_kernel_gone: 'The kernel no longer exists on the Jupyter server (restart it)',
     jupyter_too_many_kernels: 'Too many remote kernels open: close other notebooks first',
     project_invalid_path: 'Invalid file name or path', project_path_exists: 'A file with this name already exists', project_path_conflict: 'A file has the name of this folder',
-    project_too_many: 'Too many projects in this workspace (200 max)', project_too_many_files: 'Too many files in this project (2000 max)', project_file_too_large: 'Text file too large (2 MB max)',
+    project_too_many: 'Too many projects in this workspace (200 max)', project_too_many_files: 'Too many files in this project (2000 max)', project_file_too_large: 'Text file too large (2 MB max)', project_too_large_to_export: 'Project too large to export (200 MB max)',
     project_invalid_slug: 'Invalid address: lowercase letters, digits and dashes (2 to 64)', project_slug_taken: 'This address is already used by another site',
     latex_unavailable: 'No LaTeX engine is installed on the server', latex_timeout: 'Compilation took too long (1 min max per pass)', latex_busy: 'The server is busy compiling other documents, try again',
     latex_no_main: 'Main file not found: pick it in the file tree (“Set as main file”)', latex_local_missing: 'No LaTeX engine found on this computer (install TeX Live or MiKTeX)',

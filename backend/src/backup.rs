@@ -454,6 +454,7 @@ async fn restore(state: &AppState, path: &FsPath) -> ApiResult<serde_json::Value
 pub fn start_scheduler(pool: sqlx::PgPool) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(300));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tick.tick().await;
             let row: Result<(String, i16, i16, Option<DateTime<Utc>>), _> =
