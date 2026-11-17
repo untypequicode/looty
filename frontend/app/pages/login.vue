@@ -74,7 +74,7 @@ useHead({ title: () => t('auth.login') })
     <div ref="card" class="card">
       <div class="logo"><Sparkles :size="22" /></div>
       <h1>{{ t('auth.title') }}</h1>
-      <p v-else class="muted">{{ t('auth.subtitle') }}</p>
+      <p class="muted">{{ t('auth.subtitle') }}</p>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="isDemo" class="providers">
         <h2 class="demo-title">{{ t('demo.enter') }}</h2>
