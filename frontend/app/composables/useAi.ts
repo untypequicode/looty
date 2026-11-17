@@ -28,6 +28,8 @@ export interface AiConversation {
 
 export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
+export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
+export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
 export interface AiDiffLine { op: ' ' | '+' | '-'; text: string }
 export interface AiSuggestion { id: string; page_id: string; diff: AiDiffLine[] }
 
@@ -42,7 +44,7 @@ export const AI_PROVIDERS: { value: AiProvider; label: string; model: string; ba
 
 export type AiStreamEvent =
   | { type: 'text'; delta: string }
-  | { type: 'tool'; name: string; ok: boolean; page_id?: string }
+  | { type: 'tool'; name: string; ok: boolean; page_id?: string; study_set_id?: string | null }
   | { type: 'suggestion'; suggestion: AiSuggestion }
   | { type: 'page_changed'; page_id: string }
   | { type: 'error'; message: string }
@@ -83,6 +85,6 @@ export async function streamMessage(conversationId: string, content: string, onE
 export const aiApi = {
   connections: () => api<AiConnection[]>('/api/ai/connections'),
   conversations: (kind?: string, id?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { context_kind: kind, context_id: id }, silent: true }),
-  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
+  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
 }
 

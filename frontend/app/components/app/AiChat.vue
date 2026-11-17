@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, Bot, Send, Square, Plus, PenLine, Check, Ban, Wrench } from 'lucide-vue-next'
+import { X, Bot, Send, Square, Plus, PenLine, Check, Ban, Wrench, GraduationCap } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
@@ -7,7 +7,7 @@ import { useWorkspace } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
 import {
   aiOpen, aiApi, streamMessage,
-  type AiConversation, type AiMessage, type AiGrant, type AiSuggestion, type AiMode, type AiStreamEvent,
+  type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiMode, type AiStreamEvent,
 } from '~/composables/useAi'
 
 /**
@@ -42,6 +42,7 @@ const { data: history } = useQuery({
 const conv = ref<AiConversation | null>(null)
 const messages = ref<AiMessage[]>([])
 const grants = ref<AiGrant[]>([])
+const studyGrants = ref<AiStudyGrant[]>([])
 const suggestions = ref<AiSuggestion[]>([])
 const draft = ref('')
 const busy = ref(false)
@@ -51,11 +52,12 @@ let abort: AbortController | null = null
 const list = ref<HTMLElement | null>(null)
 
 async function openConversation(id: string) {
-  if (!id) { conv.value = null; messages.value = []; grants.value = []; suggestions.value = []; return }
+  if (!id) { conv.value = null; messages.value = []; grants.value = []; studyGrants.value = []; suggestions.value = []; return }
   const r = await aiApi.conversation(id)
   conv.value = r.conversation
   messages.value = r.messages
   grants.value = r.grants
+  studyGrants.value = r.study_grants ?? []
   suggestions.value = r.suggestions
   if (r.conversation.connection_id) connectionId.value = r.conversation.connection_id
   scrollDown()
@@ -154,7 +156,42 @@ async function decide(s: AiSuggestion, accept: boolean) {
     if (accept) { pageChanged(); toast.success(t('ai.chat.applied')) }
   } catch (e) { toast.error(errorMessage(e)) }
 }
-const visible = computed(() => messages.value.filter((m) => m.role !== 'tool' && (m.content || m.role === 'user')))
+
+// --- Jeux de révision : autorisation de créer (espace ou perso) ou de modifier un jeu ---------------
+interface StudyRow { id: string; title: string; can_edit?: boolean }
+const studyKind = ref<'create' | 'update'>('create')
+const studyWhere = ref('personal')
+const studySet = ref('')
+const { data: editableSets } = useQuery({
+  queryKey: ['ai', 'editable-study-sets'],
+  queryFn: async () => (await api<StudyRow[]>('/api/study/sets', { silent: true })).filter((s) => s.can_edit),
+  enabled: computed(() => aiOpen.value && studyKind.value === 'update'),
+})
+watch(editableSets, (s) => { if (!s?.some((x) => x.id === studySet.value)) studySet.value = s?.[0]?.id ?? '' })
+const canStudyGrant = computed(() => (studyKind.value === 'update' ? !!studySet.value : true))
+async function grantStudy() {
+  if (!canStudyGrant.value) return
+  const body: Record<string, unknown> = { expires_in_minutes: minutes.value }
+  if (studyKind.value === 'update') body.set_id = studySet.value
+  else if (studyWhere.value === 'personal') body.personal = true
+  else body.workspace_id = studyWhere.value
+  try {
+    const c = await ensureConversation()
+    studyGrants.value = await api<AiStudyGrant[]>(`/api/ai/conversations/${c.id}/study-grants`, { method: 'POST', body })
+  } catch (e) { toast.error(errorMessage(e)) }
+}
+async function revokeStudy(g: AiStudyGrant) {
+  if (!conv.value) return
+  await api(`/api/ai/conversations/${conv.value.id}/study-grants/${g.id}`, { method: 'DELETE' })
+  studyGrants.value = studyGrants.value.filter((x) => x.id !== g.id)
+}
+function studyGrantLabel(g: AiStudyGrant) {
+  return g.kind === 'update'
+    ? t('ai.chat.studyGrantUpdate', { title: g.set_title || t('ai.chat.untitled') })
+    : t('ai.chat.studyGrantCreate', { where: g.personal ? t('ai.chat.personal') : g.workspace_name || '' })
+}
+// Messages à afficher : le texte, et un lien vers chaque jeu créé ou modifié (aussi dans l'historique).
+const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' && (m.content || m.role === 'user')) || (m.role === 'tool' && m.data?.study_set_id)))
 </script>
 
 <template>
@@ -189,7 +226,10 @@ const visible = computed(() => messages.value.filter((m) => m.role !== 'tool' &&
 
         <div ref="list" class="ai-list">
           <p v-if="!visible.length && !streaming" class="hint">{{ t('ai.chat.readOnlyHint') }}</p>
-          <div v-for="m in visible" :key="m.id" class="msg" :class="m.role">{{ m.content }}</div>
+          <template v-for="m in visible" :key="m.id">
+            <NuxtLink v-if="m.role === 'tool'" :to="`/study/${m.data.study_set_id}`" class="msg study-link" @click="aiOpen = false"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
+            <div v-else class="msg" :class="m.role">{{ m.content }}</div>
+          </template>
           <div v-if="streaming" class="msg assistant">{{ streaming }}</div>
           <div v-if="busy && toolLog.length" class="tools"><Wrench :size="11" /> {{ toolLog.join(' · ') }}</div>
           <div v-for="s in suggestions" :key="s.id" class="sugg">
@@ -203,8 +243,8 @@ const visible = computed(() => messages.value.filter((m) => m.role !== 'tool' &&
           </div>
         </div>
 
-        <details class="target" :open="grants.length > 0">
-          <summary><PenLine :size="13" /> {{ t('ai.chat.writeTarget') }} <span v-if="!grants.length" class="faint">· {{ t('ai.chat.readOnly') }}</span></summary>
+        <details class="target" :open="grants.length > 0 || studyGrants.length > 0">
+          <summary><PenLine :size="13" /> {{ t('ai.chat.writeTarget') }} <span v-if="!grants.length && !studyGrants.length" class="faint">· {{ t('ai.chat.readOnly') }}</span></summary>
           <div v-for="g in grants" :key="g.id" class="grant">
             <span class="grant-text truncate">{{ g.page_title || t('ai.chat.untitled') }} · {{ t(`ai.chat.mode.${g.mode}`) }} · {{ relativeTime(g.expires_at) }}</span>
             <UiButton size="sm" variant="ghost" @click="revoke(g)">{{ t('common.revoke') }}</UiButton>
@@ -225,6 +265,26 @@ const visible = computed(() => messages.value.filter((m) => m.role !== 'tool' &&
             <UiButton size="sm" variant="primary" :disabled="!targetPage" @click="grant">{{ t('ai.chat.allow') }}</UiButton>
           </div>
           <p class="hint">{{ t(`ai.chat.modeHint.${mode}`) }}</p>
+
+          <div class="grant-title"><GraduationCap :size="13" /> {{ t('ai.chat.studyGrants') }}</div>
+          <div v-for="g in studyGrants" :key="g.id" class="grant">
+            <span class="grant-text truncate">{{ studyGrantLabel(g) }} · {{ relativeTime(g.expires_at) }}</span>
+            <UiButton size="sm" variant="ghost" @click="revokeStudy(g)">{{ t('common.revoke') }}</UiButton>
+          </div>
+          <div class="grant-form">
+            <select v-model="studyKind" class="sel" :aria-label="t('ai.chat.studyGrants')">
+              <option value="create">{{ t('ai.chat.studyCreate') }}</option>
+              <option value="update">{{ t('ai.chat.studyUpdate') }}</option>
+            </select>
+            <select v-if="studyKind === 'create'" v-model="studyWhere" class="sel" :aria-label="t('ai.chat.workspace')">
+              <option value="personal">{{ t('ai.chat.personal') }}</option>
+              <option v-for="w in workspaces" :key="w.id" :value="w.id">{{ w.name }}</option>
+            </select>
+            <select v-else v-model="studySet" class="sel" :aria-label="t('ai.chat.studySet')">
+              <option v-for="s in editableSets" :key="s.id" :value="s.id">{{ s.title }}</option>
+            </select>
+            <UiButton size="sm" variant="primary" :disabled="!canStudyGrant" @click="grantStudy">{{ t('ai.chat.allow') }}</UiButton>
+          </div>
         </details>
 
         <form class="ai-input" @submit.prevent="send">
@@ -255,6 +315,7 @@ const visible = computed(() => messages.value.filter((m) => m.role !== 'tool' &&
 .msg { white-space: pre-wrap; word-break: break-word; padding: 8px 10px; border-radius: var(--r-md); line-height: 1.5; max-width: 92%; }
 .msg.user { align-self: flex-end; background: var(--accent-soft); }
 .msg.assistant { align-self: flex-start; background: var(--bg-hover); }
+.study-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); text-decoration: none; }
 .tools { display: flex; align-items: center; gap: 6px; color: var(--text-4); font-size: var(--fs-xs); }
 .sugg { border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px; }
 .sugg-head { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-sm); margin-bottom: 6px; }
@@ -267,6 +328,7 @@ const visible = computed(() => messages.value.filter((m) => m.role !== 'tool' &&
 .faint { color: var(--text-4); font-weight: 400; }
 .grant { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
 .grant-text { min-width: 0; }
+.grant-title { display: flex; align-items: center; gap: 6px; margin-top: 12px; color: var(--text-2); font-weight: 500; }
 .grant-form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .grant-form .sel { flex: 1 1 110px; }
 .ai-input { display: flex; align-items: flex-end; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); }

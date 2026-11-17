@@ -4,7 +4,7 @@ export default {
     base_url_required: 'The server address is required', invalid_base_url: 'Invalid server address (https:// and a public address, unless an admin allows private networks with AI_ALLOW_PRIVATE)',
     too_many_connections: 'Limit of 20 connections reached', no_connection: 'Choose an AI connection first',
     api_key_unreadable: 'The stored key is unreadable: enter it again', invalid_mode: 'Invalid write mode',
-    invalid_expiry: 'Invalid duration', invalid_message: 'Invalid message', invalid_context: 'Invalid context',
+    study_grant_target: 'Choose where the assistant may create study sets, or which set it may edit', invalid_expiry: 'Invalid duration', invalid_message: 'Invalid message', invalid_context: 'Invalid context',
     too_many_tool_rounds: 'The assistant looped on its tools; try again',
   },
   ai: {
@@ -25,6 +25,7 @@ export default {
       readOnlyHint: 'Read-only: the assistant can read the pages you can access. To let it write, choose a page below.',
       placeholder: 'Ask something… (Enter to send)', send: 'Send', stop: 'Stop',
       writeTarget: 'Write target', readOnly: 'read-only', workspace: 'Workspace', page: 'Page', modeLabel: 'Mode', expiry: 'Duration', allow: 'Allow',
+      studyGrants: 'Study sets', studyCreate: 'Create study sets in…', studyUpdate: 'Edit a study set', personal: 'Personal space', studySet: 'Study set', studyLink: 'Open the study set', studyGrantCreate: 'create sets in {where}', studyGrantUpdate: 'edit {title}',
       mode: { suggest: 'Suggest', append: 'Append', replace: 'Replace' },
       modeHint: {
         suggest: 'Suggest: the assistant proposes a change and you accept or reject it.',

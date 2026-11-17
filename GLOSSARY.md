@@ -195,6 +195,10 @@ _Avoid_: chat, session
 Droit donné par une personne à une conversation IA d'écrire sur une page précise, dans un mode (suggérer, ajouter ou remplacer) et pour une durée limitée ; révocable à tout moment. Sans elle, l'assistant est en lecture seule, et elle ne dépasse jamais les droits de la personne sur la page.
 _Avoid_: permission, accès, droit d'écriture (réservé aux rôles)
 
+**Autorisation pour les jeux**:
+Droit donné à une conversation IA, pour une durée limitée et révocable, soit de créer des jeux de révision dans un espace (ou l'espace personnel), soit de modifier un jeu précis. Les jeux créés par l'assistant sont privés ; une modification garde la version précédente pour pouvoir l'annuler.
+_Avoid_: permission, droit d'écriture
+
 **Suggestion**:
 Modification proposée par l'assistant en mode « suggérer » : une différence que la personne accepte ou refuse, rien n'étant écrit avant.
 _Avoid_: brouillon, patch

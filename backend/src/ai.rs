@@ -38,6 +38,9 @@ pub fn routes() -> Router<AppState> {
         .route("/conversations/{id}/messages", post(send_message))
         .route("/conversations/{id}/grants", get(list_grants).post(create_grant))
         .route("/conversations/{id}/grants/{grant_id}", delete(revoke_grant))
+        .route("/conversations/{id}/study-grants", get(list_study_grants).post(create_study_grant))
+        .route("/conversations/{id}/study-grants/{grant_id}", delete(revoke_study_grant))
+        .route("/study-revisions/{id}/restore", post(restore_study_revision))
         .route("/suggestions/{id}/accept", post(accept_suggestion))
         .route("/suggestions/{id}/reject", post(reject_suggestion))
 }
@@ -378,6 +381,7 @@ async fn get_conversation(State(state): State<AppState>, user: AuthUser, Path(id
         "conversation": conv,
         "messages": msgs,
         "grants": active_grants(&state.pool, id).await?,
+        "study_grants": active_study_grants(&state.pool, id).await?,
         "suggestions": pending_suggestions(&state.pool, id).await?,
     })))
 }
@@ -429,6 +433,105 @@ async fn revoke_grant(State(state): State<AppState>, user: AuthUser, Path((id, g
     Ok(StatusCode::NO_CONTENT)
 }
 
+// --- Autorisations pour les jeux de révision ---------------------------------
+
+#[derive(Serialize, sqlx::FromRow)]
+struct StudyGrantRow {
+    id: Uuid,
+    /// create | update
+    kind: String,
+    workspace_id: Option<Uuid>,
+    workspace_name: Option<String>,
+    personal: bool,
+    set_id: Option<Uuid>,
+    set_title: Option<String>,
+    expires_at: DateTime<Utc>,
+}
+
+async fn active_study_grants(pool: &PgPool, conv_id: Uuid) -> ApiResult<Vec<StudyGrantRow>> {
+    Ok(sqlx::query_as(
+        "SELECT g.id, g.kind, g.workspace_id, w.name AS workspace_name, g.personal, g.set_id, s.title AS set_title, g.expires_at
+         FROM ai_study_grants g LEFT JOIN workspaces w ON w.id = g.workspace_id LEFT JOIN study_sets s ON s.id = g.set_id
+         WHERE g.conversation_id = $1 AND g.revoked_at IS NULL AND g.expires_at > now() ORDER BY g.created_at",
+    )
+    .bind(conv_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+async fn list_study_grants(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Vec<StudyGrantRow>>> {
+    own_conversation(&state.pool, &user, id).await?;
+    Ok(Json(active_study_grants(&state.pool, id).await?))
+}
+
+#[derive(Deserialize)]
+struct NewStudyGrant {
+    /// Créer des jeux dans cet espace...
+    workspace_id: Option<Uuid>,
+    /// ... ou dans l'espace perso...
+    #[serde(default)]
+    personal: bool,
+    /// ... ou modifier ce jeu.
+    set_id: Option<Uuid>,
+    expires_in_minutes: Option<i64>,
+}
+
+async fn create_study_grant(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(p): Json<NewStudyGrant>) -> ApiResult<(StatusCode, Json<Vec<StudyGrantRow>>)> {
+    own_conversation(&state.pool, &user, id).await?;
+    let minutes = p.expires_in_minutes.unwrap_or(60);
+    if !(1..=1440).contains(&minutes) {
+        return Err(ApiError::bad_request("invalid_expiry"));
+    }
+    // Exactement une cible, et seulement ce que la personne peut elle-même faire.
+    let (kind, ws, personal, set) = match (p.workspace_id, p.personal, p.set_id) {
+        (Some(ws), false, None) => {
+            crate::access::require_perm(&state.pool, &user, ws, |m| m.docs >= crate::access::level::EDIT).await?;
+            ("create", Some(ws), false, None)
+        }
+        (None, true, None) => ("create", None, true, None),
+        (None, false, Some(set)) => {
+            crate::study::load(&state.pool, &user, set, None, crate::study::SetAccess::Edit).await?;
+            ("update", None, false, Some(set))
+        }
+        _ => return Err(ApiError::bad_request("study_grant_target")),
+    };
+    let mut tx = state.pool.begin().await?;
+    sqlx::query(
+        "UPDATE ai_study_grants SET revoked_at = now()
+         WHERE conversation_id = $1 AND revoked_at IS NULL AND kind = $2 AND workspace_id IS NOT DISTINCT FROM $3 AND personal = $4 AND set_id IS NOT DISTINCT FROM $5",
+    )
+    .bind(id)
+    .bind(kind)
+    .bind(ws)
+    .bind(personal)
+    .bind(set)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO ai_study_grants (conversation_id, kind, workspace_id, personal, set_id, expires_at) VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6::int))")
+        .bind(id)
+        .bind(kind)
+        .bind(ws)
+        .bind(personal)
+        .bind(set)
+        .bind(minutes as i32)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok((StatusCode::CREATED, Json(active_study_grants(&state.pool, id).await?)))
+}
+
+async fn revoke_study_grant(State(state): State<AppState>, user: AuthUser, Path((id, grant_id)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
+    own_conversation(&state.pool, &user, id).await?;
+    sqlx::query("UPDATE ai_study_grants SET revoked_at = now() WHERE id = $1 AND conversation_id = $2 AND revoked_at IS NULL").bind(grant_id).bind(id).execute(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Annule une modification de jeu faite par l'IA (la version d'avant revient).
+async fn restore_study_revision(State(state): State<AppState>, user: AuthUser, Path(rev): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let set_id = ai_tools::restore_study_revision(&state.pool, &user, rev).await?;
+    Ok(Json(json!({ "set_id": set_id })))
+}
+
 // ---------------------------------------------------------------------------
 // Suggestions
 // ---------------------------------------------------------------------------
@@ -466,14 +569,24 @@ struct SendReq {
     content: String,
 }
 
+/// Ce que le modèle doit savoir pour fabriquer des jeux de révision (format : docs/study-items.md).
+const STUDY_GUIDE: &str = "STUDY SETS (revision content): tools create_study_set, list_study_sets, read_study_set, update_study_set, read_attempts.\n\
+- Writing needs a grant like pages: 'create study sets' in a workspace or the personal space, or 'update' on one set. Without it the server refuses: tell the user to grant it in the chat. Sets you create are PRIVATE (visible to the user only); never promise sharing, the user decides. After creating, give the user the link /study/<set_id>.\n\
+- Set kinds and item types: qcm = single|multi; questionnaire = single|multi|text; flashcards and summary = flashcard (summary: prompt = section title, answer.back = its content).\n\
+- Item JSON, no other field: {\"type\", \"prompt\" (1..2000 chars), \"choices\": [{\"id\": \"a\", \"text\"}] (single/multi only, 2..10, unique short ids), \"answer\", \"explanation\" (optional)}. answer: single {\"choice\": \"b\"}; multi {\"choices\": [\"a\",\"c\"]} (at least one); text {\"accepted\": [\"Paris\"]} (case, accents and punctuation are ignored; empty list = self-assessed); flashcard {\"back\": \"...\"}. At most 500 items. A validation error names what to fix: correct it and retry.\n\
+- Good practice: one clear question per item with exactly one defensible answer; plausible distractors of similar length; no 'all/none of the above'; put the reasoning in the explanation; mix easy, medium and hard items and cover the whole topic; base items on the user's pages or on what they asked, and do not invent facts. Prefer a few well-made items over many weak ones. Match the user's language.\n\
+- To target weak points, call read_attempts: it only returns the user's OWN results. update_study_set replaces the whole item list: read the set first, send every item you keep with its id; the previous version is saved.\n\
+- Expected answers are only visible if the user can edit the set; do not guess them otherwise.";
+
 async fn system_prompt(pool: &PgPool, user: &AuthUser, conv: &ConvRow, tools: bool) -> String {
     let mut s = format!(
         "You are an assistant inside Looty, a notes, documents and projects app. Today is {}.\n\
          Answer in the language of the user's message.\n\n\
          PERMISSIONS: you are READ-ONLY by default. You can only read what the user can access, and write only to a page the user explicitly granted to this conversation, within the granted mode (suggest = the user reviews and accepts your diff; append; replace). The server enforces this; a refused write means you must tell the user to grant it in the chat, never try another way. Never claim a page was changed unless the tool says it was.\n\n\
-         {}\n",
+         {}\n\n{}\n",
         Utc::now().format("%Y-%m-%d"),
-        crate::ai_pages::SYNTAX_GUIDE
+        crate::ai_pages::SYNTAX_GUIDE,
+        STUDY_GUIDE
     );
     match (conv.context_kind.as_str(), conv.context_id) {
         ("page", Some(p)) => {
@@ -636,14 +749,14 @@ async fn run_agent(pool: &PgPool, user: &AuthUser, conv_id: Uuid, provider: &dyn
                 continue;
             }
             let o = ai_tools::execute(pool, user, conv_id, &c.name, &c.args).await;
-            let _ = out.send(sse(json!({ "type": "tool", "name": c.name, "ok": !o.text.starts_with("error"), "page_id": c.args["page_id"] }))).await;
+            let _ = out.send(sse(json!({ "type": "tool", "name": c.name, "ok": !o.text.starts_with("error"), "page_id": c.args["page_id"], "study_set_id": o.study_set }))).await;
             if let Some(s) = &o.suggestion {
                 let _ = out.send(sse(json!({ "type": "suggestion", "suggestion": s }))).await;
             }
             if let Some(p) = o.changed_page {
                 let _ = out.send(sse(json!({ "type": "page_changed", "page_id": p }))).await;
             }
-            store(pool, conv_id, "tool", &o.text, Some(json!({ "call_id": c.id, "name": c.name }))).await.map_err(|_| "internal_error".to_string())?;
+            store(pool, conv_id, "tool", &o.text, Some(json!({ "call_id": c.id, "name": c.name, "study_set_id": o.study_set }))).await.map_err(|_| "internal_error".to_string())?;
         }
     }
     Err("too_many_tool_rounds".into())
