@@ -4,6 +4,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.35.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "AI agents and revision sets (quizzes, flashcards)",
+        "fr": "Agents IA et révisions (QCM, fiches)"
+      },
+      "notes": {
+        "en": [
+          "**AI agents**: connect your own AI (OpenAI, Anthropic Claude, Google Gemini, Perplexity, or any OpenAI-compatible endpoint such as Ollama) with an API key in Settings > AI. Your key is stored encrypted and is never shown again. A consumer ChatGPT/Claude account cannot be connected: only API keys.",
+          "**Chat with an agent** on a page, a project, a workspace or globally. An agent is read-only by default and only sees what you can access.",
+          "**Controlled writing**: you can allow an agent to write to one specific page (in any workspace, or your personal space), in suggestion, append or replace mode, with an expiry. A revision is saved before every write, and suggestions show a diff you accept or reject.",
+          "**Revisions**: new document type for quizzes, questionnaires, flashcards and summaries. An edit mode builds the set; each user then takes it on their own, with private scores, history and spaced repetition for flashcards. A set is private by default and can be shared with a link or through workspace rights.",
+          "**Agents and revisions together**: an agent can create revision sets for you, edit one you allow, and read your own results to target your weak points. Edits can be restored."
+        ],
+        "fr": [
+          "**Agents IA** : connectez votre propre IA (OpenAI, Anthropic Claude, Google Gemini, Perplexity, ou tout endpoint compatible OpenAI comme Ollama) avec une clé API dans Réglages > IA. Votre clé est stockée chiffrée et n’est plus jamais affichée. Un compte grand public ChatGPT/Claude ne peut pas être connecté : uniquement des clés API.",
+          "**Discutez avec un agent** sur une page, un projet, un workspace ou en global. Un agent est en lecture seule par défaut et ne voit que ce à quoi vous avez accès.",
+          "**Écriture contrôlée** : vous pouvez autoriser un agent à écrire dans une seule page précise (de n’importe quel workspace, ou de votre espace perso), en mode suggestion, ajout ou remplacement, avec une durée. Une révision est enregistrée avant chaque écriture, et les suggestions affichent un diff que vous acceptez ou refusez.",
+          "**Révisions** : nouveau type de document pour QCM, questionnaires, fiches et synthèses. Un mode édition construit le set ; chaque utilisateur le passe ensuite de son côté, avec des scores et un historique privés et une répétition espacée pour les fiches. Un set est privé par défaut et se partage par lien ou par droits de workspace.",
+          "**Agents et révisions ensemble** : un agent peut créer des sets de révision pour vous, en modifier un que vous autorisez, et lire vos propres résultats pour cibler vos points faibles. Les modifications peuvent être restaurées."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.34.4",
       "date": "2026-11-17",
       "title": {
