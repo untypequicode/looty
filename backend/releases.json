@@ -4,6 +4,35 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.37.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Trainings live in the workspace, and the assistant gets its own page",
+        "fr": "Les entraînements vivent dans l’espace, et l’assistant a sa propre page"
+      },
+      "notes": {
+        "en": [
+          "**Trainings** (formerly revision sets): a training is now an item of the workspace like a page. It sits in the tree, can be renamed, duplicated, moved to another workspace, made personal and sent to the trash. It opens in a tab of the usual interface, no longer full screen.",
+          "**Rights**: a training follows the workspace's documents role. Read lets you take it, edit lets you modify, move and delete it. Your attempts stay yours only.",
+          "**Links**: link a training to any page, task, event or board; it then shows as a related training there, only to people who can see the target.",
+          "**Migration**: trainings shared with a workspace become normal items; private ones become personal. Public share links are removed.",
+          "**Assistant**: the floating chat is replaced by an Assistant page with the list of your conversations (grouped by date, search, rename, delete, automatic title). Attach pages, tasks, events and trainings with `@` or the + button.",
+          "**Write permissions**: when an agent wants to write, a card appears in the conversation (suggest, append or replace, for a chosen duration) instead of hidden menus. You can undo an agent's change from the conversation.",
+          "**Formulas**: the agents' replies now display LaTeX formulas."
+        ],
+        "fr": [
+          "**Entraînements** (anciens sets de révision) : un entraînement est maintenant un élément de l’espace, comme une page. Il apparaît dans l’arbre, se renomme, se duplique, se déplace vers un autre espace, devient personnel et passe par la corbeille. Il s’ouvre dans un onglet de l’interface habituelle, plus en plein écran.",
+          "**Droits** : un entraînement suit le rôle sur les documents de l’espace. La lecture permet de le passer, l’édition de le modifier, le déplacer et le supprimer. Vos tentatives restent à vous seul·e.",
+          "**Liens** : liez un entraînement à une page, une tâche, un événement ou un tableau ; il apparaît alors comme entraînement lié, seulement pour les personnes qui voient la cible.",
+          "**Migration** : les entraînements partagés avec un espace deviennent des éléments normaux ; les privés deviennent personnels. Les liens de partage publics sont supprimés.",
+          "**Assistant** : le chat flottant est remplacé par une page Assistant avec la liste de vos conversations (groupées par date, recherche, renommage, suppression, titre automatique). Joignez pages, tâches, événements et entraînements avec `@` ou le bouton +.",
+          "**Autorisations d’écriture** : quand un agent veut écrire, une carte apparaît dans la conversation (suggérer, ajouter ou remplacer, pour une durée choisie) au lieu de menus cachés. Vous pouvez annuler une modification d’un agent depuis la conversation.",
+          "**Formules** : les réponses des agents affichent maintenant les formules LaTeX."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.36.0",
       "date": "2026-11-17",
       "title": {
