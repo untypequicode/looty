@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.34.4",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Large projects can be downloaded as several zip files",
+        "fr": "Les gros projets se téléchargent en plusieurs fichiers zip"
+      },
+      "notes": {
+        "en": [
+          "**Project download**: a project larger than 200 MB is no longer refused. It is split into several zip files of at most 200 MB each (`name-part1-of-3.zip`…), downloaded one after the other. Your browser may ask you to allow multiple downloads the first time.",
+          "Building each zip still only needs memory for one part, so downloading a big project does not make the server's memory spike."
+        ],
+        "fr": [
+          "**Téléchargement de projet** : un projet de plus de 200 Mo n’est plus refusé. Il est découpé en plusieurs fichiers zip de 200 Mo au plus (`nom-part1-of-3.zip`…), téléchargés l’un après l’autre. Votre navigateur peut vous demander d’autoriser les téléchargements multiples la première fois.",
+          "La construction de chaque zip ne demande de la mémoire que pour une partie : télécharger un gros projet ne fait donc pas grimper la mémoire du serveur."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.34.3",
       "date": "2026-11-17",
       "title": {
