@@ -14,8 +14,12 @@
 //! - Chaque personne a son propre noyau (comme avec Pyodide). Le backend ne touche qu'aux
 //!   noyaux qu'il a démarrés, pour la personne qui les a démarrés ; un noyau sans connexion
 //!   depuis `IDLE_SHUTDOWN` est arrêté.
-//! - Réseau : https et adresse publique, sauf `JUPYTER_ALLOW_PRIVATE=true` (serveur du
-//!   réseau local, http accepté).
+//! - Réseau : http et https acceptés ; une adresse privée (réseau local, localhost) n'est
+//!   jointe que si `JUPYTER_ALLOW_PRIVATE=true`.
+//! - JupyterHub : le jeton d'API du Hub (page `/hub/token`) sert d'identifiant. L'adresse
+//!   peut être celle du Hub (`/hub/login…`, `/hub/`) : le nom d'utilisateur est lu avec le
+//!   jeton et l'adresse devient `/user/<nom>/`. Un serveur utilisateur arrêté est démarré
+//!   via l'API du Hub avant la connexion.
 
 use axum::{
     extract::{
@@ -70,13 +74,10 @@ fn allow_private() -> bool {
 
 /// Normalise l'adresse donnée (celle de JupyterLab, d'un serveur JupyterHub…) en adresse
 /// de base du serveur, terminée par `/`. Refuse un jeton dans l'URL : il a son propre champ.
-pub(crate) fn parse_base(raw: &str, private_ok: bool) -> ApiResult<Url> {
+pub(crate) fn parse_base(raw: &str) -> ApiResult<Url> {
     let mut url = Url::parse(raw.trim()).map_err(|_| ApiError::bad_request("jupyter_invalid_url"))?;
-    match url.scheme() {
-        "https" => {}
-        "http" if private_ok => {}
-        "http" => return Err(ApiError::bad_request("jupyter_https_required")),
-        _ => return Err(ApiError::bad_request("jupyter_invalid_url")),
+    if !matches!(url.scheme(), "https" | "http") {
+        return Err(ApiError::bad_request("jupyter_invalid_url"));
     }
     if url.query_pairs().any(|(k, _)| k == "token") || url.password().is_some() {
         return Err(ApiError::bad_request("jupyter_token_in_url"));
@@ -88,7 +89,9 @@ pub(crate) fn parse_base(raw: &str, private_ok: bool) -> ApiResult<Url> {
     url.set_fragment(None);
     // Adresse copiée depuis l'interface : …/lab, …/tree, …/lab/tree/x.ipynb → la base.
     let mut segs: Vec<String> = url.path_segments().map(|s| s.filter(|x| !x.is_empty()).map(str::to_string).collect()).unwrap_or_default();
-    if let Some(i) = segs.iter().position(|s| matches!(s.as_str(), "lab" | "tree" | "notebooks" | "api")) {
+    // `/user/<nom>/…` : un nom d'utilisateur JupyterHub peut s'appeler « lab » ou « hub ».
+    let marker = |i: usize, s: &str| matches!(s, "lab" | "tree" | "notebooks" | "api" | "hub") && !(i > 0 && segs[i - 1] == "user");
+    if let Some(i) = segs.iter().enumerate().position(|(i, s)| marker(i, s)) {
         segs.truncate(i);
     }
     let path = if segs.is_empty() { "/".to_string() } else { format!("/{}/", segs.join("/")) };
@@ -99,7 +102,7 @@ pub(crate) fn parse_base(raw: &str, private_ok: bool) -> ApiResult<Url> {
 /// Vérifie l'adresse puis la résolution DNS (pas d'adresse privée sauf autorisation).
 async fn check_base(raw: &str) -> ApiResult<Url> {
     let private_ok = allow_private();
-    let url = parse_base(raw, private_ok)?;
+    let url = parse_base(raw)?;
     let host = url.host_str().unwrap_or_default().trim_start_matches('[').trim_end_matches(']').to_string();
     let port = url.port_or_known_default().unwrap_or(443);
     let ips: Vec<IpAddr> = match host.parse::<IpAddr>() {
@@ -140,13 +143,77 @@ fn http() -> &'static reqwest::Client {
 struct Server {
     base: Url,
     token: Option<String>,
+    hub: Option<Hub>,
+}
+
+/// JupyterHub derrière le serveur : racine du Hub (préfixe de `hub/api`, `user/…`) et nom.
+#[derive(Clone)]
+struct Hub {
+    root: Url,
+    user: String,
+}
+
+fn valid_hub_user(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 128 && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '@'))
 }
 
 impl Server {
+    /// Serveur d'une adresse normalisée ; reconnaît un JupyterHub (voir l'en-tête du module).
+    async fn new(base: Url, token: Option<String>) -> Server {
+        let mut s = Server { base, token, hub: None };
+        s.detect_hub().await;
+        s
+    }
+
+    async fn detect_hub(&mut self) {
+        let segs: Vec<String> = self.base.path_segments().map(|s| s.filter(|x| !x.is_empty()).map(str::to_string).collect()).unwrap_or_default();
+        let n = segs.len();
+        if n >= 2 && segs[n - 2] == "user" {
+            let mut root = self.base.clone();
+            root.set_path(&if n == 2 { "/".to_string() } else { format!("/{}/", segs[..n - 2].join("/")) });
+            self.hub = Some(Hub { root, user: segs[n - 1].clone() });
+            return;
+        }
+        // Adresse du Hub lui-même : le jeton dit à qui il appartient.
+        if self.token.is_none() {
+            return;
+        }
+        let Ok(v) = self.call(Method::GET, "hub/api/user", None, "jupyter_not_jupyter").await else { return };
+        let Some(name) = v.get("name").and_then(Value::as_str).filter(|n| valid_hub_user(n)).map(str::to_string) else { return };
+        let root = self.base.clone();
+        let Ok(base) = root.join(&format!("user/{name}/")) else { return };
+        self.base = base;
+        self.hub = Some(Hub { root, user: name });
+    }
+
+    /// Démarre le serveur utilisateur JupyterHub s'il est arrêté (le Hub redirige alors vers
+    /// sa page d'attente) et attend qu'il réponde. Sans Hub : ne fait rien.
+    async fn ensure_up(&self) -> ApiResult<()> {
+        let Some(hub) = &self.hub else { return Ok(()) };
+        match self.call(Method::GET, "api", None, "jupyter_not_jupyter").await {
+            Ok(_) => return Ok(()),
+            Err(ApiError::BadRequest(c)) if matches!(c.as_str(), "jupyter_redirect" | "jupyter_unexpected_status" | "jupyter_not_jupyter") => {}
+            Err(e) => return Err(e),
+        }
+        // 201/202 : démarrage ; 400 : déjà en cours (erreur ignorée).
+        let _ = self.call_at(&hub.root, Method::POST, &format!("hub/api/users/{}/server", hub.user), None, "jupyter_not_jupyter").await;
+        for _ in 0..30 {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            if self.call(Method::GET, "api", None, "jupyter_not_jupyter").await.is_ok() {
+                return Ok(());
+            }
+        }
+        Err(ApiError::bad_request("jupyter_hub_start_timeout"))
+    }
+
+    async fn call(&self, method: Method, path: &str, body: Option<Value>, gone: &'static str) -> ApiResult<Value> {
+        self.call_at(&self.base, method, path, body, gone).await
+    }
+
     /// Appel à l'API du serveur. Les erreurs sont traduites en codes explicites ; ni l'URL
     /// ni le jeton n'apparaissent dans les messages ou les journaux.
-    async fn call(&self, method: Method, path: &str, body: Option<Value>, gone: &'static str) -> ApiResult<Value> {
-        let url = self.base.join(path).map_err(|_| ApiError::bad_request("jupyter_invalid_url"))?;
+    async fn call_at(&self, base: &Url, method: Method, path: &str, body: Option<Value>, gone: &'static str) -> ApiResult<Value> {
+        let url = base.join(path).map_err(|_| ApiError::bad_request("jupyter_invalid_url"))?;
         let mut req = http().request(method, url);
         if let Some(t) = &self.token {
             req = req.header(reqwest::header::AUTHORIZATION, format!("token {t}"));
@@ -221,7 +288,7 @@ async fn server_for(state: &AppState, project: Uuid) -> ApiResult<(Server, Confi
     let row = load(state, project).await?.ok_or_else(|| ApiError::bad_request("jupyter_not_configured"))?;
     let base = check_base(&row.url).await?;
     let token = decrypt_token(&row)?;
-    Ok((Server { base, token }, row))
+    Ok((Server::new(base, token).await, row))
 }
 
 fn config_json(row: Option<&ConfigRow>, can_edit: bool) -> Value {
@@ -315,10 +382,11 @@ async fn test_config(State(state): State<AppState>, user: AuthUser, Path(id): Pa
                     None => None,
                 },
             };
-            Server { base, token }
+            Server::new(base, token).await
         }
         None => server_for(&state, id).await?.0,
     };
+    server.ensure_up().await?;
     Ok(Json(server.kernelspecs().await?))
 }
 
@@ -375,6 +443,7 @@ async fn start_kernel(State(state): State<AppState>, user: AuthUser, Path(id): P
     if kernels().values().filter(|k| k.user == user.id).count() >= MAX_KERNELS_PER_USER {
         return Err(ApiError::bad_request("jupyter_too_many_kernels"));
     }
+    server.ensure_up().await?;
     let v = server.call(Method::POST, "api/kernels", Some(json!({ "name": name })), "jupyter_kernel_unknown").await?;
     let kid = v.get("id").and_then(Value::as_str).filter(|k| Uuid::parse_str(k).is_ok()).ok_or_else(|| ApiError::bad_request("jupyter_not_jupyter"))?.to_string();
     kernels().insert(kid.clone(), Kernel { project: id, user: user.id, server, connections: 0, last_seen: Instant::now() });
@@ -530,8 +599,8 @@ pub fn start_reaper() {
 mod tests {
     use super::parse_base;
 
-    fn base(raw: &str, private_ok: bool) -> Result<String, String> {
-        parse_base(raw, private_ok).map(|u| u.to_string()).map_err(|e| match e {
+    fn base(raw: &str) -> Result<String, String> {
+        parse_base(raw).map(|u| u.to_string()).map_err(|e| match e {
             crate::error::ApiError::BadRequest(c) => c,
             _ => "other".into(),
         })
@@ -539,20 +608,23 @@ mod tests {
 
     #[test]
     fn normalizes_server_addresses() {
-        assert_eq!(base("https://jupyter.example.org", false).unwrap(), "https://jupyter.example.org/");
-        assert_eq!(base("https://jupyter.example.org/lab", false).unwrap(), "https://jupyter.example.org/");
-        assert_eq!(base("https://hub.example.org/user/alice/lab/tree/a.ipynb#x", false).unwrap(), "https://hub.example.org/user/alice/");
-        assert_eq!(base("https://hub.example.org/user/alice", false).unwrap(), "https://hub.example.org/user/alice/");
-        assert_eq!(base("http://10.0.0.5:8888/tree", true).unwrap(), "http://10.0.0.5:8888/");
+        assert_eq!(base("https://jupyter.example.org").unwrap(), "https://jupyter.example.org/");
+        assert_eq!(base("https://jupyter.example.org/lab").unwrap(), "https://jupyter.example.org/");
+        assert_eq!(base("https://hub.example.org/user/alice/lab/tree/a.ipynb#x").unwrap(), "https://hub.example.org/user/alice/");
+        assert_eq!(base("https://hub.example.org/user/alice").unwrap(), "https://hub.example.org/user/alice/");
+        assert_eq!(base("http://10.0.0.5:8888/tree").unwrap(), "http://10.0.0.5:8888/");
+        assert_eq!(base("https://jupyterhub.emi.u-bordeaux.fr/hub/login?next=%2Fhub%2F").unwrap(), "https://jupyterhub.emi.u-bordeaux.fr/");
+        assert_eq!(base("https://jupyterhub.emi.u-bordeaux.fr/user/etfacca/lab").unwrap(), "https://jupyterhub.emi.u-bordeaux.fr/user/etfacca/");
+        assert_eq!(base("https://h.example.org/user/lab/lab").unwrap(), "https://h.example.org/user/lab/");
     }
 
     #[test]
     fn rejects_unsafe_addresses() {
-        assert_eq!(base("https://j.example.org/lab?token=abc", false).unwrap_err(), "jupyter_token_in_url");
-        assert_eq!(base("https://u:p@j.example.org/", false).unwrap_err(), "jupyter_token_in_url");
-        assert_eq!(base("http://j.example.org/", false).unwrap_err(), "jupyter_https_required");
-        assert_eq!(base("ftp://j.example.org/", true).unwrap_err(), "jupyter_invalid_url");
-        assert_eq!(base("not a url", false).unwrap_err(), "jupyter_invalid_url");
+        assert_eq!(base("https://j.example.org/lab?token=abc").unwrap_err(), "jupyter_token_in_url");
+        assert_eq!(base("https://u:p@j.example.org/").unwrap_err(), "jupyter_token_in_url");
+        assert_eq!(base("http://j.example.org:8888/lab").unwrap(), "http://j.example.org:8888/");
+        assert_eq!(base("ftp://j.example.org/").unwrap_err(), "jupyter_invalid_url");
+        assert_eq!(base("not a url").unwrap_err(), "jupyter_invalid_url");
     }
 
     #[test]
