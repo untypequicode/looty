@@ -3,6 +3,8 @@
 services:
   postgres:
     image: postgres:18-alpine
+    # Réglages sobres (mem_limit 768m) : le défaut de Postgres vise une machine dédiée.
+    command: ["postgres", "-c", "shared_buffers=96MB", "-c", "max_connections=40", "-c", "work_mem=4MB", "-c", "maintenance_work_mem=48MB", "-c", "effective_cache_size=384MB"]
     environment:
       POSTGRES_DB: ${DB_NAME:-looty_db}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -20,6 +22,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    mem_limit: 768m
     restart: unless-stopped
 
   backend:
@@ -70,6 +73,7 @@ services:
     extra_hosts:
       - "${AUTH_DOMAIN:?AUTH_DOMAIN must be set in .env}:host-gateway"
 #@end
+    mem_limit: 1024m
     restart: unless-stopped
 
   collaboration:
@@ -88,6 +92,7 @@ services:
       - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
 #@end
+    mem_limit: 512m
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -99,6 +104,7 @@ services:
       - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
 #@end
+    mem_limit: 384m
     restart: unless-stopped
 #@if caddy
 
@@ -122,6 +128,7 @@ services:
       - backend
       - collaboration
       - frontend
+    mem_limit: 128m
     restart: unless-stopped
 #@end
 #@if caddy pocket-id
@@ -156,6 +163,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 24
+    mem_limit: 256m
     restart: unless-stopped
 #@end
 #@if traefik pocket-id

@@ -4,6 +4,77 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.34.4",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Large projects can be downloaded as several zip files",
+        "fr": "Les gros projets se téléchargent en plusieurs fichiers zip"
+      },
+      "notes": {
+        "en": [
+          "**Project download**: a project larger than 200 MB is no longer refused. It is split into several zip files of at most 200 MB each (`name-part1-of-3.zip`…), downloaded one after the other. Your browser may ask you to allow multiple downloads the first time.",
+          "Building each zip still only needs memory for one part, so downloading a big project does not make the server's memory spike."
+        ],
+        "fr": [
+          "**Téléchargement de projet** : un projet de plus de 200 Mo n’est plus refusé. Il est découpé en plusieurs fichiers zip de 200 Mo au plus (`nom-part1-of-3.zip`…), téléchargés l’un après l’autre. Votre navigateur peut vous demander d’autoriser les téléchargements multiples la première fois.",
+          "La construction de chaque zip ne demande de la mémoire que pour une partie : télécharger un gros projet ne fait donc pas grimper la mémoire du serveur."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.34.3",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Quieter server in the background and a clear message when a project is too big to export",
+        "fr": "Serveur plus discret en arrière-plan et message clair quand un projet est trop gros pour être exporté"
+      },
+      "notes": {
+        "en": [
+          "**Project export**: downloading a project as a zip now checks its size first. If it exceeds 200 MB, you get a clear message instead of a raw error page.",
+          "The server's background tasks wake up less often: delivery of notifications and emails every 30 s instead of 20 s, calendar refresh check every 2 minutes instead of 1, idle mail connections are cleaned every minute. Notifications are still sent immediately when something happens.",
+          "Due-date reminders are now saved in a single database request instead of one per task."
+        ],
+        "fr": [
+          "**Export de projet** : télécharger un projet en zip vérifie d’abord sa taille. S’il dépasse 200 Mo, un message clair s’affiche au lieu d’une page d’erreur brute.",
+          "Les tâches de fond du serveur se réveillent moins souvent : envoi des notifications et des e-mails toutes les 30 s au lieu de 20 s, vérification du rafraîchissement des agendas toutes les 2 minutes au lieu d’une, nettoyage des connexions mail inactives toutes les minutes. Les notifications partent toujours immédiatement quand quelque chose se passe.",
+          "Les rappels d’échéance sont maintenant enregistrés en une seule requête à la base de données au lieu d’une par tâche."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.34.2",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Lighter server: far less memory when many people work at once",
+        "fr": "Serveur plus léger : bien moins de mémoire quand beaucoup de monde travaille en même temps"
+      },
+      "notes": {
+        "en": [
+          "**Much lower memory use under load**: in a test with 80 simultaneous users, the server's peak memory went from about 12 GB to 5 GB, and from 1 GB to 0.5 GB once the activity calmed down. Project downloads and exports are also faster.",
+          "The server uses a **leaner memory allocator**, frees the resources of workspaces nobody is connected to, and keeps fewer database connections open.",
+          "Downloading a project as a zip or exporting it no longer holds every file in memory at once. Projects larger than **200 MB** can no longer be exported in one go.",
+          "Large emails and attachments (over about 35 MB) are refused instead of being loaded entirely in memory; compiled PDFs are streamed.",
+          "The knowledge graph only loads the pages you can see, and new database indexes speed up *My tasks* and label filters.",
+          "The collaboration server and the web interface have a **bounded memory heap**, and open documents are revalidated in small batches.",
+          "Old task activities are archived by batches of at most 2,500 and are only removed from the database **after** the archive file has been written. Backups and restores work on the backup disk instead of `/tmp` (often held in RAM).",
+          "Self-hosting: the `docker-compose.yml` files now set a memory limit and sober settings on each service (database 768 MB, backend 1 GB, collaboration 512 MB, web interface 384 MB); update your compose file to get them."
+        ],
+        "fr": [
+          "**Beaucoup moins de mémoire sous charge** : lors d’un test avec 80 utilisateurs simultanés, le pic de mémoire du serveur est passé d’environ 12 Go à 5 Go, et de 1 Go à 0,5 Go une fois l’activité retombée. Les téléchargements et exports de projet sont aussi plus rapides.",
+          "Le serveur utilise un **allocateur mémoire plus économe**, libère les ressources des espaces de travail où plus personne n’est connecté et garde moins de connexions ouvertes à la base de données.",
+          "Télécharger un projet en zip ou l’exporter ne charge plus tous les fichiers en mémoire en même temps. Un projet de plus de **200 Mo** ne peut plus être exporté d’un seul bloc.",
+          "Les gros e-mails et pièces jointes (plus de 35 Mo environ) sont refusés au lieu d’être chargés entièrement en mémoire ; les PDF compilés sont envoyés au fil de l’eau.",
+          "Le graphe de connaissances ne charge que les pages que vous pouvez voir, et de nouveaux index de base de données accélèrent *Mes tâches* et les filtres par étiquette.",
+          "Le serveur de collaboration et l’interface web ont un **tas mémoire borné**, et les documents ouverts sont revalidés par petits lots.",
+          "Les anciennes activités de tâches sont archivées par lots de 2 500 au plus et ne sont supprimées de la base **qu’après** l’écriture du fichier d’archive. Les sauvegardes et restaurations travaillent sur le disque des sauvegardes plutôt que dans `/tmp` (souvent en mémoire vive).",
+          "Auto-hébergement : les fichiers `docker-compose.yml` fixent maintenant une limite de mémoire et des réglages sobres pour chaque service (base de données 768 Mo, backend 1 Go, collaboration 512 Mo, interface web 384 Mo) ; mettez à jour votre fichier compose pour en profiter."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.34.1",
       "date": "2026-11-13",
       "title": {

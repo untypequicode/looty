@@ -1,6 +1,6 @@
 export default {
   errors: {
-    jupyter_invalid_url: 'Invalid Jupyter server address', jupyter_https_required: 'The Jupyter server must use https://',
+    jupyter_invalid_url: 'Invalid Jupyter server address', jupyter_hub_start_timeout: 'The JupyterHub server did not start in time: try again in a moment',
     jupyter_token_in_url: 'Do not put the token in the address: paste it in the Token field', jupyter_private_address: 'Private network address refused (an admin can allow it with JUPYTER_ALLOW_PRIVATE)',
     jupyter_unreachable: 'Jupyter server unreachable', jupyter_timeout: 'The Jupyter server did not answer in time', jupyter_auth_failed: 'Token rejected by the Jupyter server',
     jupyter_redirect: 'The Jupyter server answered with a redirect: check the address (for JupyterHub, use https://hub/user/<name>/)', jupyter_unexpected_status: 'Unexpected response from the Jupyter server',
@@ -8,7 +8,7 @@ export default {
     jupyter_invalid_kernel: 'Invalid kernel name', jupyter_kernel_unknown: 'This kernel does not exist on the Jupyter server', jupyter_kernel_gone: 'The kernel no longer exists on the Jupyter server (restart it)',
     jupyter_too_many_kernels: 'Too many remote kernels open: close other notebooks first',
     project_invalid_path: 'Invalid file name or path', project_path_exists: 'A file with this name already exists', project_path_conflict: 'A file has the name of this folder',
-    project_too_many: 'Too many projects in this workspace (200 max)', project_too_many_files: 'Too many files in this project (2000 max)', project_file_too_large: 'Text file too large (2 MB max)',
+    project_too_many: 'Too many projects in this workspace (200 max)', project_too_many_files: 'Too many files in this project (2000 max)', project_file_too_large: 'Text file too large (2 MB max)', project_too_large_to_export: 'Project too large to export (200 MB max)',
     project_invalid_slug: 'Invalid address: lowercase letters, digits and dashes (2 to 64)', project_slug_taken: 'This address is already used by another site',
     latex_unavailable: 'No LaTeX engine is installed on the server', latex_timeout: 'Compilation took too long (1 min max per pass)', latex_busy: 'The server is busy compiling other documents, try again',
     latex_no_main: 'Main file not found: pick it in the file tree (“Set as main file”)', latex_local_missing: 'No LaTeX engine found on this computer (install TeX Live or MiKTeX)',
@@ -44,7 +44,7 @@ export default {
     compile: 'Compile', compiled: 'Compiled in {s} s', compiledWithErrors: { one: 'PDF produced, 1 error', other: 'PDF produced, {count} errors' }, failed: { one: 'Failed: 1 error', other: 'Failed: {count} errors' },
     compileHint: 'Compile to see the PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Compilation log', downloadPdf: 'Download PDF',
     compileServer: 'Compile on the server', compileLocal: 'Compile on this computer', local: 'on this computer',
-    downloadZip: 'Download project (zip)', renameProject: 'Rename project', deleteProject: 'Delete project',
+    downloadZip: 'Download project (zip)', zipParts: 'Large project: downloading {count} zip files (200 MB max each)', renameProject: 'Rename project', deleteProject: 'Delete project',
     deleteProjectTitle: 'Delete “{name}”?', deleteProjectHint: 'All files are deleted and the site, if any, is taken offline. This can’t be undone.',
   },
   drive: {
@@ -88,8 +88,8 @@ export default {
       remoteHint: 'Code runs on the project’s Jupyter server, in your own kernel: variables, files and libraries are those of that machine. Looty’s server connects to it for you, the token never reaches browsers. Outputs are shared with everyone editing.',
       server: 'Project Jupyter server', url: 'Server address', token: 'Token', tokenPlaceholder: 'Jupyter token or JupyterHub API token', tokenKeep: 'Unchanged (stored, hidden)', tokenClear: 'Remove the stored token',
       tokenSet: 'Token stored', noToken: 'No token', defaultKernel: 'Default kernel', notebookKernel: 'Kernel for this notebook', useDefault: 'Project default ({kernel})',
-      requirements: 'Jupyter Server, JupyterLab or a JupyterHub user server. Give the token (jupyter server list, or the JupyterHub token page): password and OAuth logins are not supported. No CORS or WebSocket setting needed: Looty’s server is the only one to contact Jupyter.',
-      privateHint: 'Addresses on a local network are refused unless the administrator sets JUPYTER_ALLOW_PRIVATE=true.',
+      requirements: 'Jupyter Server, JupyterLab or JupyterHub (http or https). For JupyterHub, paste the address of the hub or of your server and an API token created on its token page (/hub/token): a stopped server is started for you. Password, CAS and OAuth logins are not supported. No CORS or WebSocket setting needed: Looty’s server is the only one to contact Jupyter.',
+      privateHint: 'Local network addresses (including localhost) are refused unless the administrator sets JUPYTER_ALLOW_PRIVATE=true.',
       test: 'Test', testOk: 'Connected (Jupyter {version}, {n} kernels)', saved: 'Jupyter server saved', remove: 'Remove', apply: 'Use',
       notConfiguredReader: 'No Jupyter server configured for this project. Someone who can edit it must add one.', readOnlyChoice: 'You can only read this notebook: the engine cannot be changed.',
       readOnly: 'Running on the Jupyter server requires edit rights on this project.',

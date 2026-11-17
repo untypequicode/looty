@@ -56,6 +56,7 @@ mod revisions;
 mod roles;
 mod planning;
 mod polls;
+mod study;
 mod analytics;
 mod backup;
 mod session_store;
@@ -75,6 +76,13 @@ use std::net::SocketAddr;
 use time::Duration;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_sessions::{Expiry, SessionManagerLayer};
+
+#[cfg(not(target_env = "msvc"))]
+use mimalloc::MiMalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 async fn health_handler() -> Json<serde_json::Value> {
     // `desktop_sso` / `android_sso` : les applications peuvent se connecter via le navigateur système.
@@ -202,6 +210,7 @@ fn app(state: state::AppState) -> Router {
         .nest("/workspaces/{workspace_id}/keywords", keywords::workspace_routes())
         .nest("/keywords", keywords::routes())
         .nest("/personal", personal::routes())
+        .nest("/study", study::routes())
         .nest("/workspaces/{workspace_id}/announcements", announcements::workspace_routes())
         .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
         .nest("/workspaces/{workspace_id}", classes::workspace_routes())

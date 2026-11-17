@@ -122,26 +122,45 @@ impl Hub {
     }
 
     async fn disconnected(&self, workspace_id: Uuid, user_id: Uuid) {
-        let is_last = {
+        let (is_last, is_workspace_empty) = {
             let mut conns = self.connections.write().await;
             let m = conns.entry(workspace_id).or_default();
             let remaining = m.get_mut(&user_id).map(|c| {
                 *c = c.saturating_sub(1);
                 *c
             });
-            if remaining.unwrap_or(0) == 0 {
+            let last = if remaining.unwrap_or(0) == 0 {
                 m.remove(&user_id);
                 true
             } else {
                 false
+            };
+            let ws_empty = m.is_empty();
+            if ws_empty {
+                conns.remove(&workspace_id);
             }
+            (last, ws_empty)
         };
         if is_last {
-            if let Some(m) = self.presence.write().await.get_mut(&workspace_id) {
-                m.remove(&user_id);
+            {
+                let mut p = self.presence.write().await;
+                if let Some(m) = p.get_mut(&workspace_id) {
+                    m.remove(&user_id);
+                    if m.is_empty() {
+                        p.remove(&workspace_id);
+                    }
+                }
             }
             self.broadcast(workspace_id, serde_json::json!({ "type": "USER_OFFLINE", "user_id": user_id }))
                 .await;
+        }
+        if is_workspace_empty {
+            let mut rooms = self.rooms.write().await;
+            if let Some(tx) = rooms.get(&workspace_id) {
+                if tx.receiver_count() == 0 {
+                    rooms.remove(&workspace_id);
+                }
+            }
         }
     }
 
@@ -314,6 +333,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
         // Vérification régulière : compte suspendu, accès à l'espace perdu (invité dont les partages
         // ont été retirés) : la connexion est fermée.
         let mut check = tokio::time::interval(std::time::Duration::from_secs(120));
+        check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         check.tick().await;
         loop {
             let received = tokio::select! {

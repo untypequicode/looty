@@ -10,5 +10,6 @@ RUN npm run build
 FROM node:24-slim
 WORKDIR /app
 COPY --from=builder /app/.output /app/.output
+ENV NODE_OPTIONS=--max-old-space-size=256
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
