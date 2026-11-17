@@ -206,7 +206,7 @@ _Avoid_: brouillon, patch
 ## Révisions
 
 **Jeu de révision**:
-Document de révision d'une personne ou d'un espace : QCM, questionnaire, fiches de révision ou synthèse, fait d'éléments au format strict (`docs/study-items.md`). Privé par défaut ; partageable à l'espace ou par lien. Deux modes : *édition* (propriétaire et éditeurs) et *utilisation* (toute personne qui peut le voir).
+Document de révision d'une personne ou d'un espace : QCM, questionnaire, fiches de révision ou synthèse (lue comme un document de sections titre + Markdown, avec sommaire), fait d'éléments au format strict (`docs/study-items.md`). Privé par défaut ; partageable à l'espace ou par lien (le lien ne dispense pas de se connecter : les tentatives sont personnelles). Deux modes : *édition* (propriétaire et éditeurs) et *utilisation* (toute personne qui peut le voir).
 _Avoid_: quiz, test, cours
 
 **Tentative**:

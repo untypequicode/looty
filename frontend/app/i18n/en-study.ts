@@ -18,6 +18,7 @@ export default {
     deleteSet: 'Delete set', deleteConfirm: 'Delete “{title}”? Everyone’s attempts are deleted too.',
     saved: 'Set saved', save: 'Save', space: 'Workspace', personalSpace: 'Personal space',
     addItem: 'Add', types: { single: 'Single choice', multi: 'Multiple choice', text: 'Short answer', flashcard: 'Card' },
+    summaryToc: 'Contents', summaryProgress: '{done} / {total} sections read', summaryRead: 'Read', summaryMarkRead: 'Mark as read', section: 'Section', sectionTitle: 'Section title', sectionBody: 'Content (Markdown: lists, bold, tables, code…)', addSection: 'Add a section',
     prompt: 'Question', front: 'Front', back: 'Back', choice: 'Choice {n}', addChoice: 'Add a choice', correct: 'Right answer',
     accepted: 'Accepted answers (one per line)', acceptedHint: 'Case and accents are ignored. Empty: question is not scored.', explanation: 'Explanation (optional)',
     moveUp: 'Move up', moveDown: 'Move down', removeItem: 'Delete item', noItems: 'Add a first item.',
