@@ -9,12 +9,12 @@ import { moveRequest, useMovePage } from '~/composables/useMovePage'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
 
-/** « Déplacer vers… » : une page et ses sous-pages changent d'espace (perso compris). */
+/** « Déplacer vers… » : une page (et ses sous-pages) ou un entraînement change d'espace (perso compris). */
 const { t } = useI18n()
 const { user } = useAuth()
 const { data: workspaces } = useWorkspaces()
 const personal = usePersonalSpace()
-const { move } = useMovePage()
+const { move, moveStudy } = useMovePage()
 
 const open = computed({ get: () => !!moveRequest.value, set: (v) => { if (!v) moveRequest.value = null } })
 const target = ref('')
@@ -48,7 +48,8 @@ async function submit() {
   if (!req || !target.value) return
   busy.value = true
   try {
-    await move(req.ws, req.id, target.value, parent.value)
+    if (req.kind === 'study') await moveStudy(req.ws, req.id, target.value, parent.value)
+    else await move(req.ws, req.id, target.value, parent.value)
     moveRequest.value = null
   } finally {
     busy.value = false

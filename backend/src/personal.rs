@@ -40,6 +40,7 @@ async fn set_personal(State(state): State<AppState>, user: AuthUser, Path((kind,
         "task" => set_task(&state, &user, id, owner).await?,
         "project" => set_project(&state, &user, id, owner).await?,
         "file" => set_file(&state, &user, id, owner).await?,
+        "study" => set_study(&state, &user, id, owner).await?,
         _ => return Err(ApiError::NotFound),
     }
     Ok(Json(serde_json::json!({ "personal": req.personal })))
@@ -58,6 +59,27 @@ fn check_change(current: Option<Uuid>, author: Option<Uuid>, admin_fallback: boo
             _ => Err(ApiError::bad_request("personal_not_author")),
         },
     }
+}
+
+/// Entraînement : même règle qu'une page. Sous une page personnelle, il l'est forcément.
+async fn set_study(state: &AppState, user: &AuthUser, id: Uuid, owner: Option<Uuid>) -> ApiResult<()> {
+    let pool = &state.pool;
+    let (set, _) = crate::study::load(pool, user, id, crate::study::SetAccess::Edit).await?;
+    if !check_change(set.private_to, Some(set.owner_id), false, user, owner)? {
+        return Ok(());
+    }
+    if owner.is_none() {
+        if let Some(parent) = set.parent_id {
+            let parent_owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages_all WHERE id = $1").bind(parent).fetch_optional(pool).await?.flatten();
+            if parent_owner.is_some() {
+                return Err(ApiError::bad_request("personal_parent"));
+            }
+        }
+    }
+    sqlx::query("UPDATE study_sets SET private_to = $2 WHERE id = $1").bind(id).bind(owner).execute(pool).await?;
+    // Rendu personnel : disparaît pour les autres ; repartagé : réapparaît (listes rechargées).
+    state.emit(set.workspace_id, serde_json::json!({ "type": "STUDY_UPDATED", "study_id": id })).await;
+    Ok(())
 }
 
 async fn set_page(state: &AppState, user: &AuthUser, id: Uuid, owner: Option<Uuid>) -> ApiResult<()> {
@@ -81,6 +103,8 @@ async fn set_page(state: &AppState, user: &AuthUser, id: Uuid, owner: Option<Uui
         .bind(owner)
         .fetch_all(pool)
         .await?;
+    // Entraînements rangés sous ces pages : mêmes droits.
+    sqlx::query("UPDATE study_sets SET private_to = $2 WHERE parent_id = ANY($1)").bind(&ids).bind(owner).execute(pool).await?;
     // Projets portés par ces pages : mêmes droits.
     sqlx::query("UPDATE projects SET private_to = $2 WHERE id IN (SELECT project_id FROM pages_all WHERE id = ANY($1))").bind(&ids).bind(owner).execute(pool).await?;
     if owner.is_some() {
@@ -252,6 +276,7 @@ pub async fn evacuate(state: &AppState, ws: Uuid, user: Uuid) -> ApiResult<()> {
              OR EXISTS (SELECT 1 FROM tasks_all t JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
                          WHERE b.workspace_id = $1 AND t.private_to = $2)
              OR EXISTS (SELECT 1 FROM projects WHERE workspace_id = $1 AND private_to = $2)
+             OR EXISTS (SELECT 1 FROM study_sets WHERE workspace_id = $1 AND private_to = $2)
              OR EXISTS (SELECT 1 FROM drive_files WHERE workspace_id = $1 AND private_to = $2)",
     )
     .bind(ws)
@@ -280,11 +305,19 @@ pub async fn evacuate(state: &AppState, ws: Uuid, user: Uuid) -> ApiResult<()> {
             let ids: Vec<Uuid> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("{SUBPAGES} SELECT id FROM sub ORDER BY depth"))).bind(root).fetch_all(pool).await?;
             crate::page::move_tree(pool, ws, root, &ids, home, Some(container), user).await?;
             sqlx::query("UPDATE pages_all SET private_to = NULL WHERE id = ANY($1)").bind(&ids).execute(pool).await?;
+            sqlx::query("UPDATE study_sets SET private_to = NULL WHERE parent_id = ANY($1)").bind(&ids).execute(pool).await?;
             sqlx::query("UPDATE projects SET private_to = NULL WHERE id IN (SELECT project_id FROM pages_all WHERE id = ANY($1))").bind(&ids).execute(pool).await?;
             for p in &ids {
                 state.emit(ws, serde_json::json!({ "type": "PAGE_DELETED", "page_id": p })).await;
             }
         }
+    }
+
+    // Entraînements personnels restants : à la racine de l'espace perso.
+    let sets: Vec<Uuid> = sqlx::query_scalar("UPDATE study_sets SET workspace_id = $3, parent_id = NULL, private_to = NULL WHERE workspace_id = $1 AND private_to = $2 RETURNING id").bind(ws).bind(user).bind(home).fetch_all(pool).await?;
+    if !sets.is_empty() {
+        sqlx::query("DELETE FROM study_links WHERE set_id = ANY($1)").bind(&sets).execute(pool).await?;
+        state.emit(ws, serde_json::json!({ "type": "STUDY_UPDATED", "study_id": sets[0] })).await;
     }
 
     // Tableaux personnels : déplacés avec leur calendrier.

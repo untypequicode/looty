@@ -1,8 +1,9 @@
-//! Révisions (GLOSSARY : Jeu de révision) : QCM, questionnaires, fiches de révision et
-//! synthèses. Deux modes : ÉDITION (propriétaire et éditeurs : titre, type, éléments) et
-//! UTILISATION (toute personne qui peut voir le jeu le passe). Les tentatives et l'état des
+//! Entraînements (GLOSSARY, ADR 0011) : QCM, questionnaires, fiches de révision et
+//! synthèses, éléments de l'espace comme les pages (arbre, déplacement, corbeille, personnel).
+//! Deux modes : ÉDITION (droit d'édition des documents : titre, type, éléments, déplacement,
+//! suppression) et UTILISATION (droit de lecture : s'entraîner). Les tentatives et l'état des
 //! fiches sont strictement par personne : aucune route ne les montre à une autre personne,
-//! pas même au propriétaire du jeu.
+//! pas même à l'autrice de l'entraînement.
 //!
 //! Format des éléments : voir `docs/study-items.md` (schéma strict, destiné aussi à la
 //! génération par une IA). Les types `ItemIn` / `Choice` ci-dessous en sont la définition
@@ -11,7 +12,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use chrono::{DateTime, Duration, Utc};
@@ -33,7 +34,11 @@ pub fn routes() -> Router<AppState> {
         .route("/sets", get(list_sets).post(create_set))
         .route("/sets/{id}", get(get_set).put(update_set).delete(delete_set))
         .route("/sets/{id}/revisions", get(list_revisions))
-        .route("/sets/{id}/visibility", put(set_visibility))
+        .route("/sets/{id}/move", post(move_set))
+        .route("/sets/{id}/duplicate", post(duplicate_set))
+        .route("/sets/{id}/links", get(list_links).post(create_link))
+        .route("/sets/{id}/links/{link_id}", axum::routing::delete(delete_link))
+        .route("/linked", get(linked_sets))
         .route("/sets/{id}/attempts", get(list_attempts).post(submit_attempt))
         .route("/sets/{id}/cards", get(list_cards))
         .route("/items/{id}/review", post(review_card))
@@ -239,71 +244,75 @@ pub fn next_review(ease: f32, interval_days: i32, rating: &str) -> Option<(f32, 
 }
 
 // ---------------------------------------------------------------------------
-// Accès
+// Accès (ADR 0011) : un entraînement suit les droits des documents de l'espace
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SetAccess {
     None,
-    /// Peut passer le jeu.
+    /// Peut s'entraîner (lecture des documents).
     View,
-    /// Peut le modifier.
+    /// Peut le modifier, le déplacer et le supprimer (édition des documents).
     Edit,
 }
 
 /// Qui peut quoi, sans accès à la base (testé). `member` : rôle et droits de la personne dans
-/// l'espace du jeu. Un jeu privé n'est vu que de son propriétaire ; « espace » : les membres
-/// qui lisent les documents le passent, ceux qui les modifient l'éditent ; « lien » : il
-/// suffit du jeton (la personne doit être connectée : ses tentatives lui sont propres).
-pub fn resolve_access(owner: Uuid, user: Uuid, visibility: &str, share_token: Option<Uuid>, given: Option<Uuid>, member: Option<(Role, Perms)>) -> SetAccess {
-    if owner == user {
-        return SetAccess::Edit;
+/// l'espace de l'entraînement. Un entraînement personnel (`private_to`) n'est vu que de son
+/// propriétaire, administrateurs exclus ; sinon le niveau « documents » du rôle décide : lecture
+/// pour s'entraîner, édition pour modifier.
+pub fn resolve_access(private_to: Option<Uuid>, user: Uuid, member: Option<(Role, Perms)>) -> SetAccess {
+    let Some((_, p)) = member else { return SetAccess::None };
+    if let Some(owner) = private_to {
+        return if owner == user && p.docs >= level::READ { SetAccess::Edit } else { SetAccess::None };
     }
-    match visibility {
-        "workspace" => match member {
-            Some((_, p)) if p.docs >= level::EDIT => SetAccess::Edit,
-            Some((_, p)) if p.docs >= level::READ => SetAccess::View,
-            _ => SetAccess::None,
-        },
-        "link" if share_token.is_some() && share_token == given => SetAccess::View,
-        _ => SetAccess::None,
+    if p.docs >= level::EDIT {
+        SetAccess::Edit
+    } else if p.docs >= level::READ {
+        SetAccess::View
+    } else {
+        SetAccess::None
     }
 }
 
 #[derive(sqlx::FromRow, Serialize, Clone)]
 pub struct SetRow {
     pub id: Uuid,
+    /// Autrice de l'entraînement (elle seule peut le rendre personnel).
     pub owner_id: Uuid,
-    pub workspace_id: Option<Uuid>,
+    pub workspace_id: Uuid,
+    pub parent_id: Option<Uuid>,
+    pub private_to: Option<Uuid>,
+    pub position: f64,
     pub title: String,
     pub kind: String,
-    pub visibility: String,
-    pub share_token: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Deserialize)]
-struct TokenQ {
-    token: Option<Uuid>,
+pub async fn access_for(pool: &PgPool, user: &AuthUser, set: &SetRow) -> ApiResult<SetAccess> {
+    let member = member_perms(pool, user.id, set.workspace_id).await?;
+    Ok(resolve_access(set.private_to, user.id, member))
 }
 
-pub async fn access_for(pool: &PgPool, user: &AuthUser, set: &SetRow, token: Option<Uuid>) -> ApiResult<SetAccess> {
-    let member = match (set.workspace_id, set.visibility.as_str()) {
-        (Some(ws), "workspace") => member_perms(pool, user.id, ws).await?,
-        _ => None,
-    };
-    Ok(resolve_access(set.owner_id, user.id, &set.visibility, set.share_token, token, member))
-}
-
-/// Charge le jeu et exige au moins `need` ; NotFound sinon (n'en révèle pas l'existence).
-pub async fn load(pool: &PgPool, user: &AuthUser, id: Uuid, token: Option<Uuid>, need: SetAccess) -> ApiResult<(SetRow, SetAccess)> {
-    let set: SetRow = sqlx::query_as("SELECT * FROM study_sets WHERE id = $1").bind(id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
-    let acc = access_for(pool, user, &set, token).await?;
+/// Charge l'entraînement (hors corbeille) et exige au moins `need` ; NotFound sinon
+/// (n'en révèle pas l'existence).
+pub async fn load(pool: &PgPool, user: &AuthUser, id: Uuid, need: SetAccess) -> ApiResult<(SetRow, SetAccess)> {
+    let set: SetRow = sqlx::query_as("SELECT * FROM study_sets WHERE id = $1 AND deleted_at IS NULL").bind(id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
+    let acc = access_for(pool, user, &set).await?;
     if acc < need || acc == SetAccess::None {
         return Err(ApiError::NotFound);
     }
     Ok((set, acc))
+}
+
+/// Comme `load`, mais Forbidden (et non NotFound) quand la personne voit l'entraînement sans
+/// pouvoir le modifier.
+async fn load_edit(pool: &PgPool, user: &AuthUser, id: Uuid) -> ApiResult<SetRow> {
+    let (set, acc) = load(pool, user, id, SetAccess::View).await?;
+    if acc != SetAccess::Edit {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(set)
 }
 
 // ---------------------------------------------------------------------------
@@ -334,10 +343,13 @@ pub async fn items_of(pool: &PgPool, set_id: Uuid) -> ApiResult<Vec<ItemRow>> {
 struct SetSummary {
     id: Uuid,
     owner_id: Uuid,
-    workspace_id: Option<Uuid>,
+    workspace_id: Uuid,
+    parent_id: Option<Uuid>,
+    private_to: Option<Uuid>,
+    position: f64,
     title: String,
     kind: String,
-    visibility: String,
+    created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     item_count: i64,
     /// Ma dernière tentative : (points, total) ; absent si jamais passé.
@@ -345,39 +357,48 @@ struct SetSummary {
     last_max: Option<i32>,
 }
 
-/// Mes jeux, puis ceux que mon espace partage. Jamais de liste publique.
-async fn list_sets(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<Value>> {
-    Ok(Json(json!(list_for(&state.pool, &user).await?)))
+#[derive(Deserialize)]
+struct ListQ {
+    workspace_id: Option<Uuid>,
 }
 
-/// Les jeux que la personne peut ouvrir, avec `can_edit` (aussi utilisé par les outils IA).
-pub async fn list_for(pool: &PgPool, user: &AuthUser) -> ApiResult<Vec<Value>> {
+/// Les entraînements des espaces dont je suis membre (ceux d'un espace : `?workspace_id=`).
+async fn list_sets(State(state): State<AppState>, user: AuthUser, Query(q): Query<ListQ>) -> ApiResult<Json<Value>> {
+    Ok(Json(json!(list_for(&state.pool, &user, q.workspace_id).await?)))
+}
+
+/// Les entraînements que la personne peut ouvrir, avec `can_edit` (aussi utilisé par les outils IA).
+pub async fn list_for(pool: &PgPool, user: &AuthUser, workspace: Option<Uuid>) -> ApiResult<Vec<Value>> {
+    list_filtered(pool, user, workspace, None).await
+}
+
+async fn list_filtered(pool: &PgPool, user: &AuthUser, workspace: Option<Uuid>, only: Option<&[Uuid]>) -> ApiResult<Vec<Value>> {
     let rows: Vec<SetSummary> = sqlx::query_as(
-        "SELECT s.id, s.owner_id, s.workspace_id, s.title, s.kind, s.visibility, s.updated_at,
+        "SELECT s.id, s.owner_id, s.workspace_id, s.parent_id, s.private_to, s.position, s.title, s.kind, s.created_at, s.updated_at,
                 (SELECT COUNT(*) FROM study_items i WHERE i.set_id = s.id) AS item_count,
                 (SELECT a.score FROM study_attempts a WHERE a.set_id = s.id AND a.user_id = $1 ORDER BY a.started_at DESC LIMIT 1) AS last_score,
                 (SELECT a.max_score FROM study_attempts a WHERE a.set_id = s.id AND a.user_id = $1 ORDER BY a.started_at DESC LIMIT 1) AS last_max
          FROM study_sets s
-         WHERE s.owner_id = $1
-            OR (s.visibility = 'workspace' AND s.workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = $2))
+         WHERE s.deleted_at IS NULL
+           AND s.workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = $2)
+           AND (s.private_to IS NULL OR s.private_to = $1)
+           AND ($3::uuid IS NULL OR s.workspace_id = $3)
+           AND ($4::uuid[] IS NULL OR s.id = ANY($4))
          ORDER BY s.updated_at DESC",
     )
     .bind(user.id)
     .bind(user.id.to_string())
+    .bind(workspace)
+    .bind(only)
     .fetch_all(pool)
     .await?;
     let mut perms: HashMap<Uuid, Option<(Role, Perms)>> = HashMap::new();
     let mut out = Vec::new();
     for r in rows {
-        let access = if r.owner_id == user.id {
-            SetAccess::Edit
-        } else {
-            let ws = r.workspace_id.ok_or(ApiError::NotFound)?;
-            if !perms.contains_key(&ws) {
-                perms.insert(ws, member_perms(pool, user.id, ws).await?);
-            }
-            resolve_access(r.owner_id, user.id, &r.visibility, None, None, perms[&ws])
-        };
+        if !perms.contains_key(&r.workspace_id) {
+            perms.insert(r.workspace_id, member_perms(pool, user.id, r.workspace_id).await?);
+        }
+        let access = resolve_access(r.private_to, user.id, perms[&r.workspace_id]);
         if access == SetAccess::None {
             continue;
         }
@@ -388,13 +409,61 @@ pub async fn list_for(pool: &PgPool, user: &AuthUser) -> ApiResult<Vec<Value>> {
     Ok(out)
 }
 
+/// Distingue un champ absent d'un champ explicitement `null`.
+fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(de).map(Some)
+}
+
 #[derive(Deserialize)]
 struct CreateReq {
     title: String,
     kind: String,
-    workspace_id: Option<Uuid>,
+    workspace_id: Uuid,
+    /// Page sous laquelle ranger l'entraînement (sinon à la racine de l'espace).
+    parent_id: Option<Uuid>,
+    /// Personnel : visible de son autrice seulement (ADR 0002).
+    #[serde(default)]
+    personal: bool,
     #[serde(default)]
     items: Vec<ItemIn>,
+}
+
+/// Emplacement d'un nouvel élément : `Some(propriétaire)` si l'entraînement doit être personnel.
+/// Rôle qui crée des documents (ou qui les lit, pour un entraînement personnel, même sous une
+/// page partagée qu'il ne peut que lire) ; sous une page personnelle, il l'est aussi.
+async fn creation_place(pool: &PgPool, user: &AuthUser, ws: Uuid, parent: Option<Uuid>, personal: bool) -> ApiResult<Option<Uuid>> {
+    let (_, perms) = member_perms(pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
+    let parent_owner: Option<Uuid> = match parent {
+        Some(p) => sqlx::query_scalar("SELECT private_to FROM pages WHERE id = $1").bind(p).fetch_optional(pool).await?.flatten(),
+        None => None,
+    };
+    let personal = personal || parent_owner.is_some();
+    if personal {
+        if perms.docs < level::READ {
+            return Err(ApiError::Forbidden);
+        }
+    } else if perms.docs < level::EDIT {
+        return Err(ApiError::Forbidden);
+    }
+    if let Some(p) = parent {
+        let (pws, _, access) = crate::access::page_access(pool, user, p).await?;
+        if pws != ws || access == crate::access::PageAccess::None || (!personal && access != crate::access::PageAccess::Write) {
+            return Err(ApiError::NotFound);
+        }
+    }
+    Ok(personal.then_some(user.id))
+}
+
+pub async fn next_position(pool: &PgPool, ws: Uuid, parent: Option<Uuid>) -> ApiResult<f64> {
+    Ok(sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 65536 FROM study_sets WHERE workspace_id = $1 AND parent_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL")
+        .bind(ws)
+        .bind(parent)
+        .fetch_one(pool)
+        .await?)
 }
 
 async fn create_set(State(state): State<AppState>, user: AuthUser, Json(req): Json<CreateReq>) -> ApiResult<(StatusCode, Json<Value>)> {
@@ -403,20 +472,29 @@ async fn create_set(State(state): State<AppState>, user: AuthUser, Json(req): Js
         return Err(bad("study_invalid_kind"));
     }
     validate_items(&req.kind, &req.items)?;
-    if let Some(ws) = req.workspace_id {
-        crate::access::require_perm(&state.pool, &user, ws, |p| p.docs >= level::EDIT).await?;
-    }
+    let private_to = creation_place(&state.pool, &user, req.workspace_id, req.parent_id, req.personal).await?;
+    let position = next_position(&state.pool, req.workspace_id, req.parent_id).await?;
     let mut tx = state.pool.begin().await?;
-    let set: SetRow = sqlx::query_as("INSERT INTO study_sets (owner_id, workspace_id, title, kind) VALUES ($1, $2, $3, $4) RETURNING *")
+    let set: SetRow = sqlx::query_as("INSERT INTO study_sets (owner_id, workspace_id, parent_id, private_to, position, title, kind) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *")
         .bind(user.id)
         .bind(req.workspace_id)
+        .bind(req.parent_id)
+        .bind(private_to)
+        .bind(position)
         .bind(&title)
         .bind(&req.kind)
         .fetch_one(&mut *tx)
         .await?;
     write_items(&mut tx, set.id, &req.items).await?;
     tx.commit().await?;
+    emit(&state, &set, "STUDY_CREATED").await;
     Ok((StatusCode::CREATED, Json(json!(set))))
+}
+
+/// Prévient les autres onglets de l'espace (listes et arbre rechargés). Un entraînement
+/// personnel n'est annoncé qu'à son propriétaire côté client (la liste est refiltrée).
+async fn emit(state: &AppState, set: &SetRow, kind: &str) {
+    state.emit(set.workspace_id, json!({ "type": kind, "study": { "id": set.id, "private_to": set.private_to } })).await;
 }
 
 /// Remplace la liste d'éléments en gardant les identifiants connus (les fiches mémorisées
@@ -460,11 +538,11 @@ pub async fn write_items(tx: &mut sqlx::PgConnection, set_id: Uuid, items: &[Ite
     Ok(())
 }
 
-/// Le jeu et ses éléments. Pour qui ne peut que passer le jeu, les réponses attendues et
+/// L'entraînement et ses éléments. Pour qui ne peut que s'entraîner, les réponses attendues et
 /// les explications des questions sont retirées (elles arrivent avec la correction) ; le
 /// verso des fiches reste, il fait partie de l'étude.
-async fn get_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>) -> ApiResult<Json<Value>> {
-    let (set, acc) = load(&state.pool, &user, id, q.token, SetAccess::View).await?;
+async fn get_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let (set, acc) = load(&state.pool, &user, id, SetAccess::View).await?;
     let mut items = items_of(&state.pool, id).await?;
     if acc != SetAccess::Edit {
         for it in items.iter_mut() {
@@ -475,10 +553,6 @@ async fn get_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<U
         }
     }
     let mut v = serde_json::to_value(&set).unwrap_or(Value::Null);
-    if acc != SetAccess::Edit || set.owner_id != user.id {
-        // Le jeton ne sort que pour le propriétaire.
-        v["share_token"] = Value::Null;
-    }
     v["can_edit"] = json!(acc == SetAccess::Edit);
     v["is_owner"] = json!(set.owner_id == user.id);
     v["items"] = json!(items);
@@ -487,15 +561,19 @@ async fn get_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<U
 
 #[derive(Deserialize)]
 struct UpdateReq {
-    title: String,
-    /// Le type ne change que si tous les éléments restent valides pour lui.
+    title: Option<String>,
+    /// Le type ne change que si tous les éléments restent valides pour lui (éléments fournis).
     kind: Option<String>,
-    items: Vec<ItemIn>,
+    items: Option<Vec<ItemIn>>,
+    /// Rangement : une page de l'espace, ou `null` pour la racine.
+    #[serde(default, deserialize_with = "double_option")]
+    parent_id: Option<Option<Uuid>>,
+    position: Option<f64>,
 }
 
-/// Versions gardées avant chaque modification par l'IA ou restauration, la plus récente d'abord. Réservé à qui peut éditer le jeu.
+/// Versions gardées avant chaque modification par l'IA ou restauration, la plus récente d'abord. Réservé à qui peut éditer l'entraînement.
 pub async fn revisions_of(pool: &PgPool, user: &AuthUser, id: Uuid) -> ApiResult<Vec<Value>> {
-    load(pool, user, id, None, SetAccess::Edit).await?;
+    load(pool, user, id, SetAccess::Edit).await?;
     let rows: Vec<(Uuid, DateTime<Utc>, String, String, i32)> =
         sqlx::query_as("SELECT id, created_at, source, title, jsonb_array_length(items)::int FROM study_set_revisions WHERE set_id = $1 ORDER BY created_at DESC, id LIMIT 100").bind(id).fetch_all(pool).await?;
     Ok(rows.into_iter().map(|(id, at, source, title, n)| json!({ "id": id, "created_at": at, "source": source, "title": title, "item_count": n })).collect())
@@ -506,57 +584,284 @@ async fn list_revisions(State(state): State<AppState>, user: AuthUser, Path(id):
 }
 
 async fn update_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<UpdateReq>) -> ApiResult<Json<Value>> {
-    let (set, _) = load(&state.pool, &user, id, None, SetAccess::Edit).await?;
-    let title = validate_title(&req.title)?;
-    let kind = req.kind.unwrap_or_else(|| set.kind.clone());
+    let set = load_edit(&state.pool, &user, id).await?;
+    let title = match &req.title {
+        Some(t) => validate_title(t)?,
+        None => set.title.clone(),
+    };
+    let kind = req.kind.clone().unwrap_or_else(|| set.kind.clone());
     if !KINDS.contains(&kind.as_str()) {
         return Err(bad("study_invalid_kind"));
     }
-    validate_items(&kind, &req.items)?;
+    match &req.items {
+        Some(items) => validate_items(&kind, items)?,
+        // Changer de type sans renvoyer les éléments les laisserait peut-être invalides.
+        None if kind != set.kind => return Err(bad("study_items_required")),
+        None => {}
+    }
+    // Rangement sous une page de l'espace, modifiable ; l'entraînement suit une page personnelle.
+    let mut private_to = set.private_to;
+    if let Some(Some(parent)) = req.parent_id {
+        let (pws, _) = crate::access::require_page_write(&state.pool, &user, parent).await?;
+        if pws != set.workspace_id {
+            return Err(bad("invalid_parent"));
+        }
+        let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages WHERE id = $1").bind(parent).fetch_one(&state.pool).await?;
+        private_to = owner.or(private_to);
+    }
+    // Remonter à la racine : réservé aux rôles qui créent des documents, comme pour une page.
+    if req.parent_id == Some(None) && set.parent_id.is_some() {
+        crate::access::require_perm(&state.pool, &user, set.workspace_id, |p| p.docs >= level::EDIT).await?;
+    }
     let mut tx = state.pool.begin().await?;
-    sqlx::query("UPDATE study_sets SET title = $2, kind = $3, updated_at = NOW() WHERE id = $1").bind(id).bind(&title).bind(&kind).execute(&mut *tx).await?;
-    write_items(&mut tx, id, &req.items).await?;
+    let updated: SetRow = sqlx::query_as(
+        "UPDATE study_sets SET title = $2, kind = $3,
+            parent_id = CASE WHEN $4 THEN $5 ELSE parent_id END,
+            position = COALESCE($6, position), private_to = $7, updated_at = NOW()
+         WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(&title)
+    .bind(&kind)
+    .bind(req.parent_id.is_some())
+    .bind(req.parent_id.flatten())
+    .bind(req.position)
+    .bind(private_to)
+    .fetch_one(&mut *tx)
+    .await?;
+    if let Some(items) = &req.items {
+        write_items(&mut tx, id, items).await?;
+    }
     tx.commit().await?;
+    emit(&state, &updated, "STUDY_UPDATED").await;
     Ok(Json(json!({ "ok": true })))
 }
 
+/// À la corbeille (ou supprimé si l'espace n'en a pas) : droit d'édition des documents.
 async fn delete_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
-    let (set, _) = load(&state.pool, &user, id, None, SetAccess::Edit).await?;
-    if set.owner_id != user.id {
-        return Err(ApiError::Forbidden);
-    }
-    sqlx::query("DELETE FROM study_sets WHERE id = $1").bind(id).execute(&state.pool).await?;
+    let set = load_edit(&state.pool, &user, id).await?;
+    crate::trash::trash_study(&state, &set, Some(user.id)).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]
-struct VisibilityReq {
-    visibility: String,
+struct MoveReq {
+    workspace_id: Uuid,
+    /// Page d'accueil dans l'espace cible (sinon à la racine).
+    parent_id: Option<Uuid>,
 }
 
-/// Change la visibilité (propriétaire seulement). « lien » crée le jeton (conservé tant que
-/// le lien reste actif) ; quitter « lien » le révoque.
-async fn set_visibility(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<VisibilityReq>) -> ApiResult<Json<SetRow>> {
-    let (set, _) = load(&state.pool, &user, id, None, SetAccess::Edit).await?;
-    if set.owner_id != user.id {
-        return Err(ApiError::Forbidden);
+/// Déplace l'entraînement (dans le même espace ou vers un autre, perso compris), comme une
+/// page : rôles qui créent des documents dans les deux espaces. Les liens vers l'ancien espace
+/// sont retirés ; tentatives et état des fiches suivent chaque personne.
+async fn move_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<MoveReq>) -> ApiResult<Json<Value>> {
+    let set = load_edit(&state.pool, &user, id).await?;
+    let target = req.workspace_id;
+    crate::access::require_perm(&state.pool, &user, set.workspace_id, |p| p.docs >= level::EDIT).await?;
+    crate::access::require_perm(&state.pool, &user, target, |p| p.docs >= level::EDIT).await?;
+    let mut private_to = set.private_to;
+    if let Some(parent) = req.parent_id {
+        let (pws, _) = crate::access::require_page_write(&state.pool, &user, parent).await?;
+        if pws != target {
+            return Err(bad("invalid_parent"));
+        }
+        let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages WHERE id = $1").bind(parent).fetch_one(&state.pool).await?;
+        private_to = owner.or(private_to);
     }
-    match req.visibility.as_str() {
-        "private" | "link" => {}
-        "workspace" if set.workspace_id.is_some() => {}
-        _ => return Err(bad("study_invalid_visibility")),
+    let position = next_position(&state.pool, target, req.parent_id).await?;
+    let mut tx = state.pool.begin().await?;
+    let moved: SetRow = sqlx::query_as("UPDATE study_sets SET workspace_id = $2, parent_id = $3, position = $4, private_to = $5, updated_at = NOW() WHERE id = $1 RETURNING *")
+        .bind(id)
+        .bind(target)
+        .bind(req.parent_id)
+        .bind(position)
+        .bind(private_to)
+        .fetch_one(&mut *tx)
+        .await?;
+    if target != set.workspace_id {
+        sqlx::query("DELETE FROM study_links WHERE set_id = $1").bind(id).execute(&mut *tx).await?;
     }
-    let row: SetRow = sqlx::query_as(
-        "UPDATE study_sets SET visibility = $2,
-                share_token = CASE WHEN $2 = 'link' THEN COALESCE(share_token, gen_random_uuid()) ELSE NULL END,
-                updated_at = NOW()
-         WHERE id = $1 RETURNING *",
+    tx.commit().await?;
+    if target != set.workspace_id {
+        emit(&state, &set, "STUDY_DELETED").await;
+    }
+    emit(&state, &moved, if target != set.workspace_id { "STUDY_CREATED" } else { "STUDY_UPDATED" }).await;
+    Ok(Json(json!({ "workspace_id": target, "study_id": id })))
+}
+
+#[derive(Deserialize, Default)]
+struct DuplicateReq {
+    title: Option<String>,
+}
+
+/// Copie l'entraînement (éléments et liens) au même endroit, au nom de la personne.
+async fn duplicate_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, body: Option<Json<DuplicateReq>>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let set = load_edit(&state.pool, &user, id).await?;
+    crate::access::require_perm(&state.pool, &user, set.workspace_id, |p| p.docs >= level::EDIT).await?;
+    let title = match body.and_then(|b| b.0.title) {
+        Some(t) => validate_title(&t)?,
+        None => validate_title(&format!("{} (copy)", set.title.chars().take(180).collect::<String>()))?,
+    };
+    let position = next_position(&state.pool, set.workspace_id, set.parent_id).await?;
+    let mut tx = state.pool.begin().await?;
+    let copy: SetRow = sqlx::query_as("INSERT INTO study_sets (owner_id, workspace_id, parent_id, private_to, position, title, kind) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *")
+        .bind(user.id)
+        .bind(set.workspace_id)
+        .bind(set.parent_id)
+        .bind(set.private_to)
+        .bind(position)
+        .bind(&title)
+        .bind(&set.kind)
+        .fetch_one(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO study_items (set_id, position, type, prompt, choices, answer, explanation) SELECT $2, position, type, prompt, choices, answer, explanation FROM study_items WHERE set_id = $1")
+        .bind(id)
+        .bind(copy.id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO study_links (set_id, target_kind, target_id, created_by) SELECT $2, target_kind, target_id, $3 FROM study_links WHERE set_id = $1")
+        .bind(id)
+        .bind(copy.id)
+        .bind(user.id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    emit(&state, &copy, "STUDY_CREATED").await;
+    Ok((StatusCode::CREATED, Json(json!(copy))))
+}
+
+// --- Liens vers les autres éléments de l'espace ------------------------------
+
+pub const LINK_KINDS: [&str; 5] = ["page", "task", "event", "board", "project"];
+
+/// L'élément visé s'il est visible de la personne : (espace, titre). `None` : il n'existe pas
+/// ou elle ne le voit pas (page personnelle d'autrui, tableau sans accès...).
+pub async fn resolve_target(pool: &PgPool, user: &AuthUser, kind: &str, id: Uuid) -> ApiResult<Option<(Uuid, String)>> {
+    let found = match kind {
+        "page" => match crate::access::page_access(pool, user, id).await {
+            Ok((ws, _, access)) if access != crate::access::PageAccess::None => {
+                let title: Option<String> = sqlx::query_scalar("SELECT title FROM pages WHERE id = $1").bind(id).fetch_optional(pool).await?;
+                title.map(|t| (ws, t))
+            }
+            _ => None,
+        },
+        "task" => match crate::access::task_ctx_for(pool, user, id).await {
+            Ok(ctx) => {
+                let ok = member_perms(pool, user.id, ctx.workspace_id).await?.is_some_and(|(_, p)| p.boards >= level::READ);
+                let title: Option<String> = sqlx::query_scalar("SELECT title FROM tasks WHERE id = $1").bind(id).fetch_optional(pool).await?;
+                title.filter(|_| ok).map(|t| (ctx.workspace_id, t))
+            }
+            Err(_) => None,
+        },
+        "board" => match crate::access::board_workspace_for(pool, user, id).await {
+            Ok(ws) => {
+                let ok = member_perms(pool, user.id, ws).await?.is_some_and(|(_, p)| p.boards >= level::READ);
+                let name: Option<String> = sqlx::query_scalar("SELECT name FROM boards WHERE id = $1").bind(id).fetch_optional(pool).await?;
+                name.filter(|_| ok).map(|n| (ws, n))
+            }
+            Err(_) => None,
+        },
+        "event" => {
+            let row: Option<(Uuid, String)> = sqlx::query_as("SELECT workspace_id, ics FROM workspace_events WHERE id = $1").bind(id).fetch_optional(pool).await?;
+            match row {
+                Some((ws, ics)) if member_perms(pool, user.id, ws).await?.is_some_and(|(_, p)| p.calendar >= level::READ) => {
+                    Some((ws, crate::calendar::master_event(&ics).map(|e| e.summary).unwrap_or_default()))
+                }
+                _ => None,
+            }
+        }
+        "project" => {
+            let row: Option<(Uuid, String, Option<Uuid>)> = sqlx::query_as("SELECT workspace_id, name, private_to FROM projects WHERE id = $1").bind(id).fetch_optional(pool).await?;
+            match row {
+                Some((ws, name, owner)) if owner.is_none_or(|o| o == user.id) && member_perms(pool, user.id, ws).await?.is_some_and(|(_, p)| p.docs >= level::READ) => Some((ws, name)),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    Ok(found)
+}
+
+#[derive(Serialize)]
+struct LinkOut {
+    id: Uuid,
+    target_kind: String,
+    target_id: Uuid,
+    title: String,
+}
+
+/// Liens de l'entraînement, sans ceux dont la cible échappe à la personne.
+async fn list_links(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Vec<LinkOut>>> {
+    let (set, _) = load(&state.pool, &user, id, SetAccess::View).await?;
+    let rows: Vec<(Uuid, String, Uuid)> = sqlx::query_as("SELECT id, target_kind, target_id FROM study_links WHERE set_id = $1 ORDER BY created_at").bind(id).fetch_all(&state.pool).await?;
+    let mut out = Vec::new();
+    for (lid, kind, target) in rows {
+        if let Some((ws, title)) = resolve_target(&state.pool, &user, &kind, target).await? {
+            if ws == set.workspace_id {
+                out.push(LinkOut { id: lid, target_kind: kind, target_id: target, title });
+            }
+        }
+    }
+    Ok(Json(out))
+}
+
+#[derive(Deserialize)]
+struct LinkReq {
+    target_kind: String,
+    target_id: Uuid,
+}
+
+/// Lie l'entraînement à un élément du même espace que la personne voit ; idempotent.
+async fn create_link(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<LinkReq>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let set = load_edit(&state.pool, &user, id).await?;
+    if !LINK_KINDS.contains(&req.target_kind.as_str()) {
+        return Err(bad("link_invalid"));
+    }
+    match resolve_target(&state.pool, &user, &req.target_kind, req.target_id).await? {
+        Some((ws, _)) if ws == set.workspace_id => {}
+        _ => return Err(bad("link_invalid")),
+    }
+    let link: Uuid = sqlx::query_scalar(
+        "INSERT INTO study_links (set_id, target_kind, target_id, created_by) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (set_id, target_kind, target_id) DO UPDATE SET set_id = EXCLUDED.set_id RETURNING id",
     )
     .bind(id)
-    .bind(&req.visibility)
+    .bind(&req.target_kind)
+    .bind(req.target_id)
+    .bind(user.id)
     .fetch_one(&state.pool)
     .await?;
-    Ok(Json(row))
+    emit(&state, &set, "STUDY_UPDATED").await;
+    Ok((StatusCode::CREATED, Json(json!({ "id": link }))))
+}
+
+async fn delete_link(State(state): State<AppState>, user: AuthUser, Path((id, link_id)): Path<(Uuid, Uuid)>) -> ApiResult<StatusCode> {
+    let set = load_edit(&state.pool, &user, id).await?;
+    let n = sqlx::query("DELETE FROM study_links WHERE id = $1 AND set_id = $2").bind(link_id).bind(id).execute(&state.pool).await?.rows_affected();
+    if n == 0 {
+        return Err(ApiError::NotFound);
+    }
+    emit(&state, &set, "STUDY_UPDATED").await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct LinkedQ {
+    target_kind: String,
+    target_id: Uuid,
+}
+
+/// « Entraînements liés » d'un élément : ceux de son espace qui y sont liés et que la personne
+/// peut ouvrir. Vide si elle ne voit pas l'élément.
+async fn linked_sets(State(state): State<AppState>, user: AuthUser, Query(q): Query<LinkedQ>) -> ApiResult<Json<Vec<Value>>> {
+    let Some((ws, _)) = resolve_target(&state.pool, &user, &q.target_kind, q.target_id).await? else {
+        return Ok(Json(vec![]));
+    };
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT set_id FROM study_links WHERE target_kind = $1 AND target_id = $2").bind(&q.target_kind).bind(q.target_id).fetch_all(&state.pool).await?;
+    if ids.is_empty() {
+        return Ok(Json(vec![]));
+    }
+    Ok(Json(list_filtered(&state.pool, &user, Some(ws), Some(&ids)).await?))
 }
 
 // --- Tentatives (privées) ---------------------------------------------------
@@ -581,8 +886,8 @@ struct AttemptRow {
 
 /// Corrige et enregistre une tentative ; renvoie la correction (réponses attendues,
 /// explications) seulement maintenant.
-async fn submit_attempt(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>, Json(req): Json<AttemptReq>) -> ApiResult<(StatusCode, Json<Value>)> {
-    let (_, _) = load(&state.pool, &user, id, q.token, SetAccess::View).await?;
+async fn submit_attempt(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<AttemptReq>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let (_, _) = load(&state.pool, &user, id, SetAccess::View).await?;
     if req.answers.len() > MAX_ITEMS {
         return Err(bad("too_many_answers"));
     }
@@ -624,8 +929,8 @@ async fn submit_attempt(State(state): State<AppState>, user: AuthUser, Path(id):
 }
 
 /// Mes tentatives sur ce jeu (celles des autres n'existent pas pour moi).
-async fn list_attempts(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>) -> ApiResult<Json<Vec<AttemptRow>>> {
-    load(&state.pool, &user, id, q.token, SetAccess::View).await?;
+async fn list_attempts(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Vec<AttemptRow>>> {
+    load(&state.pool, &user, id, SetAccess::View).await?;
     Ok(Json(
         sqlx::query_as("SELECT id, set_id, started_at, finished_at, score, max_score, answers FROM study_attempts WHERE set_id = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 200")
             .bind(id)
@@ -645,8 +950,8 @@ struct CardState {
     due_at: DateTime<Utc>,
 }
 
-async fn list_cards(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>) -> ApiResult<Json<Vec<CardState>>> {
-    load(&state.pool, &user, id, q.token, SetAccess::View).await?;
+async fn list_cards(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Vec<CardState>>> {
+    load(&state.pool, &user, id, SetAccess::View).await?;
     Ok(Json(
         sqlx::query_as(
             "SELECT c.item_id, c.ease, c.interval_days, c.due_at FROM study_card_state c
@@ -665,9 +970,9 @@ struct ReviewReq {
     rating: String,
 }
 
-async fn review_card(State(state): State<AppState>, user: AuthUser, Path(item_id): Path<Uuid>, Query(q): Query<TokenQ>, Json(req): Json<ReviewReq>) -> ApiResult<Json<CardState>> {
+async fn review_card(State(state): State<AppState>, user: AuthUser, Path(item_id): Path<Uuid>, Json(req): Json<ReviewReq>) -> ApiResult<Json<CardState>> {
     let set_id: Uuid = sqlx::query_scalar("SELECT set_id FROM study_items WHERE id = $1 AND type = 'flashcard'").bind(item_id).fetch_optional(&state.pool).await?.ok_or(ApiError::NotFound)?;
-    load(&state.pool, &user, set_id, q.token, SetAccess::View).await?;
+    load(&state.pool, &user, set_id, SetAccess::View).await?;
     let cur: Option<(f32, i32)> = sqlx::query_as("SELECT ease, interval_days FROM study_card_state WHERE user_id = $1 AND item_id = $2").bind(user.id).bind(item_id).fetch_optional(&state.pool).await?;
     let (ease, interval) = cur.unwrap_or((2.5, 0));
     let (ease, interval, delay) = next_review(ease, interval, &req.rating).ok_or_else(|| bad("study_invalid_rating"))?;
@@ -699,29 +1004,24 @@ mod tests {
     }
 
     #[test]
-    fn private_set_is_readable_by_its_owner_only() {
-        let (owner, other, tok) = (u(1), u(2), u(9));
-        assert_eq!(resolve_access(owner, owner, "private", None, None, None), SetAccess::Edit);
-        assert_eq!(resolve_access(owner, other, "private", None, None, member(Role::Owner)), SetAccess::None);
-        // Un jeton même exact ne sert à rien tant que le jeu n'est pas en mode lien.
-        assert_eq!(resolve_access(owner, other, "private", Some(tok), Some(tok), None), SetAccess::None);
-    }
-
-    #[test]
-    fn link_token_lets_view_but_not_edit() {
-        let (owner, other, tok) = (u(1), u(2), u(9));
-        assert_eq!(resolve_access(owner, other, "link", Some(tok), Some(tok), None), SetAccess::View);
-        assert_eq!(resolve_access(owner, other, "link", Some(tok), Some(u(8)), None), SetAccess::None);
-        assert_eq!(resolve_access(owner, other, "link", Some(tok), None, None), SetAccess::None);
-    }
-
-    #[test]
-    fn workspace_visibility_follows_document_permissions() {
+    fn personal_set_is_readable_by_its_owner_only_administrators_included() {
         let (owner, other) = (u(1), u(2));
-        assert_eq!(resolve_access(owner, other, "workspace", None, None, member(Role::Member)), SetAccess::Edit);
-        assert_eq!(resolve_access(owner, other, "workspace", None, None, member(Role::Viewer)), SetAccess::View);
-        assert_eq!(resolve_access(owner, other, "workspace", None, None, member(Role::Guest)), SetAccess::None);
-        assert_eq!(resolve_access(owner, other, "workspace", None, None, None), SetAccess::None);
+        assert_eq!(resolve_access(Some(owner), owner, member(Role::Member)), SetAccess::Edit);
+        assert_eq!(resolve_access(Some(owner), other, member(Role::Owner)), SetAccess::None);
+        assert_eq!(resolve_access(Some(owner), other, member(Role::Member)), SetAccess::None);
+        // L'auteur sorti de l'espace n'y voit plus rien.
+        assert_eq!(resolve_access(Some(owner), owner, None), SetAccess::None);
+        // Sans accès aux documents de l'espace, l'auteur n'a plus la main.
+        assert_eq!(resolve_access(Some(owner), owner, member(Role::Guest)), SetAccess::None);
+    }
+
+    #[test]
+    fn shared_set_follows_the_documents_level_of_the_role() {
+        let other = u(2);
+        assert_eq!(resolve_access(None, other, member(Role::Member)), SetAccess::Edit);
+        assert_eq!(resolve_access(None, other, member(Role::Viewer)), SetAccess::View);
+        assert_eq!(resolve_access(None, other, member(Role::Guest)), SetAccess::None);
+        assert_eq!(resolve_access(None, other, None), SetAccess::None);
     }
 
     fn item(kind: &str, choices: &[&str], answer: Value) -> ItemIn {
@@ -782,5 +1082,112 @@ mod tests {
         let (e3, i3, d) = next_review(2.5, 6, "again").unwrap();
         assert!(e3 < 2.5 && i3 == 0 && d == Duration::minutes(10));
         assert!(next_review(2.5, 1, "nope").is_none());
+    }
+
+    // --- Avec la base ---
+
+    async fn user(pool: &PgPool, name: &str) -> AuthUser {
+        let id: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id").bind(format!("{name}@example.org")).bind(name).fetch_one(pool).await.unwrap();
+        AuthUser { id, is_super_admin: false }
+    }
+
+    async fn join(pool: &PgPool, ws: Uuid, u: &AuthUser, role: &str) {
+        sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)").bind(ws).bind(u.id.to_string()).bind(role).execute(pool).await.unwrap();
+    }
+
+    struct World {
+        ws: Uuid,
+        owner: AuthUser,
+        member: AuthUser,
+        viewer: AuthUser,
+        outsider: AuthUser,
+    }
+
+    async fn world(pool: &PgPool) -> World {
+        let (owner, member, viewer, outsider) = (user(pool, "owner").await, user(pool, "member").await, user(pool, "viewer").await, user(pool, "outsider").await);
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(pool).await.unwrap();
+        join(pool, ws, &owner, "owner").await;
+        join(pool, ws, &member, "member").await;
+        join(pool, ws, &viewer, "viewer").await;
+        World { ws, owner, member, viewer, outsider }
+    }
+
+    async fn insert_set(pool: &PgPool, w: &World, author: &AuthUser, private_to: Option<Uuid>, parent: Option<Uuid>) -> Uuid {
+        sqlx::query_scalar("INSERT INTO study_sets (owner_id, workspace_id, parent_id, private_to, title, kind) VALUES ($1, $2, $3, $4, 'T', 'qcm') RETURNING id")
+            .bind(author.id)
+            .bind(w.ws)
+            .bind(parent)
+            .bind(private_to)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[sqlx::test]
+    async fn loading_follows_the_documents_level_and_personal_items(pool: PgPool) {
+        let w = world(&pool).await;
+        let shared = insert_set(&pool, &w, &w.member, None, None).await;
+        let personal = insert_set(&pool, &w, &w.member, Some(w.member.id), None).await;
+        // Éditeur de documents : modifie ; lecteur : s'entraîne seulement ; extérieur : rien.
+        assert_eq!(load(&pool, &w.owner, shared, SetAccess::Edit).await.unwrap().1, SetAccess::Edit);
+        assert_eq!(load(&pool, &w.viewer, shared, SetAccess::View).await.unwrap().1, SetAccess::View);
+        assert!(matches!(load(&pool, &w.viewer, shared, SetAccess::Edit).await, Err(ApiError::NotFound)));
+        assert!(load_edit(&pool, &w.viewer, shared).await.is_err());
+        assert!(matches!(load(&pool, &w.outsider, shared, SetAccess::View).await, Err(ApiError::NotFound)));
+        // Personnel : son auteur seul, même l'administrateur de l'espace n'y a pas accès.
+        assert!(load(&pool, &w.member, personal, SetAccess::Edit).await.is_ok());
+        assert!(matches!(load(&pool, &w.owner, personal, SetAccess::View).await, Err(ApiError::NotFound)));
+        // La liste applique les mêmes règles.
+        let ids = |v: Vec<Value>| v.iter().map(|s| s["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+        assert_eq!(ids(list_for(&pool, &w.owner, None).await.unwrap()), vec![shared.to_string()]);
+        assert_eq!(ids(list_for(&pool, &w.member, Some(w.ws)).await.unwrap()).len(), 2);
+        assert!(list_for(&pool, &w.outsider, None).await.unwrap().is_empty());
+        // Corbeille : un entraînement supprimé n'est plus ouvrable.
+        sqlx::query("UPDATE study_sets SET deleted_at = NOW() WHERE id = $1").bind(shared).execute(&pool).await.unwrap();
+        assert!(load(&pool, &w.owner, shared, SetAccess::View).await.is_err());
+    }
+
+    #[sqlx::test]
+    async fn creation_place_follows_pages_rules(pool: PgPool) {
+        let w = world(&pool).await;
+        // Le lecteur ne crée pas d'entraînement partagé, mais peut en avoir un personnel.
+        assert!(matches!(creation_place(&pool, &w.viewer, w.ws, None, false).await, Err(ApiError::Forbidden)));
+        assert_eq!(creation_place(&pool, &w.viewer, w.ws, None, true).await.unwrap(), Some(w.viewer.id));
+        assert_eq!(creation_place(&pool, &w.member, w.ws, None, false).await.unwrap(), None);
+        assert!(creation_place(&pool, &w.outsider, w.ws, None, true).await.is_err());
+        // Sous une page personnelle : personnel d'office ; sous la page personnelle d'autrui : introuvable.
+        let page: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, created_by, private_to) VALUES ($1, 'P', $2, $2) RETURNING id").bind(w.ws).bind(w.member.id).fetch_one(&pool).await.unwrap();
+        assert_eq!(creation_place(&pool, &w.member, w.ws, Some(page), false).await.unwrap(), Some(w.member.id));
+        assert!(creation_place(&pool, &w.owner, w.ws, Some(page), false).await.is_err());
+        // Sous une page partagée : l'éditeur peut, le lecteur seulement en personnel.
+        let shared: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, created_by) VALUES ($1, 'S', $2) RETURNING id").bind(w.ws).bind(w.owner.id).fetch_one(&pool).await.unwrap();
+        assert_eq!(creation_place(&pool, &w.member, w.ws, Some(shared), false).await.unwrap(), None);
+        assert!(creation_place(&pool, &w.viewer, w.ws, Some(shared), false).await.is_err());
+        assert_eq!(creation_place(&pool, &w.viewer, w.ws, Some(shared), true).await.unwrap(), Some(w.viewer.id));
+    }
+
+    #[sqlx::test]
+    async fn links_are_hidden_from_people_who_cannot_see_the_target(pool: PgPool) {
+        let w = world(&pool).await;
+        let open: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, created_by) VALUES ($1, 'Cours', $2) RETURNING id").bind(w.ws).bind(w.owner.id).fetch_one(&pool).await.unwrap();
+        let secret: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, created_by, private_to) VALUES ($1, 'Secret', $2, $2) RETURNING id").bind(w.ws).bind(w.owner.id).fetch_one(&pool).await.unwrap();
+        assert_eq!(resolve_target(&pool, &w.viewer, "page", open).await.unwrap(), Some((w.ws, "Cours".to_string())));
+        assert_eq!(resolve_target(&pool, &w.viewer, "page", secret).await.unwrap(), None);
+        assert!(resolve_target(&pool, &w.owner, "page", secret).await.unwrap().is_some());
+        assert_eq!(resolve_target(&pool, &w.outsider, "page", open).await.unwrap(), None);
+        assert_eq!(resolve_target(&pool, &w.owner, "page", Uuid::new_v4()).await.unwrap(), None);
+        assert_eq!(resolve_target(&pool, &w.owner, "nonsense", open).await.unwrap(), None);
+    }
+
+    #[sqlx::test]
+    async fn attempts_stay_per_user_whoever_edits(pool: PgPool) {
+        let w = world(&pool).await;
+        let set = insert_set(&pool, &w, &w.member, None, None).await;
+        sqlx::query("INSERT INTO study_attempts (set_id, user_id, score, max_score) VALUES ($1, $2, 3, 4)").bind(set).bind(w.viewer.id).execute(&pool).await.unwrap();
+        // L'autrice voit ses propres résultats (aucun), pas ceux du lecteur.
+        let rows: Vec<Value> = list_for(&pool, &w.member, None).await.unwrap();
+        assert!(rows[0]["last_score"].is_null());
+        let rows = list_for(&pool, &w.viewer, None).await.unwrap();
+        assert_eq!(rows[0]["last_score"], json!(3));
     }
 }

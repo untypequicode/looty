@@ -266,6 +266,7 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
           />
           <TaskAttachments :task-id="task.id" :can-write="canWrite" />
           <GraphRelatedPanel kind="task" :id="task.id" compact />
+          <StudyLinked kind="task" :target-id="task.id" />
           <TaskActivity :task-id="task.id" :board="board" :can-write="canWrite" />
         </div>
 

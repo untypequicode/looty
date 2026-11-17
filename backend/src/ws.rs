@@ -201,12 +201,12 @@ pub async fn ws_handler(
 
 fn sanitize_location(raw: &str) -> String {
     // Format attendu : un écran ("home", "calendar"…), "hidden", ou "<kind>:<uuid>"
-    const SCREENS: &[&str] = &["home", "hidden", "calendar", "mail", "moodle", "projects", "drive", "inbox", "my-tasks", "docs", "trash", "settings", "activity", "graph", "canvas"];
+    const SCREENS: &[&str] = &["home", "hidden", "calendar", "mail", "moodle", "projects", "drive", "inbox", "my-tasks", "docs", "trash", "settings", "activity", "graph", "canvas", "study"];
     let valid = SCREENS.contains(&raw)
         || raw
             .split_once(':')
             .map(|(kind, id)| {
-                matches!(kind, "page" | "board" | "task" | "settings") && Uuid::parse_str(id).is_ok()
+                matches!(kind, "page" | "board" | "task" | "settings" | "study") && Uuid::parse_str(id).is_ok()
             })
             .unwrap_or(false);
     if valid { raw.to_string() } else { "home".into() }

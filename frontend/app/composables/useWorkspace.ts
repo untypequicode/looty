@@ -133,6 +133,8 @@ export const links = {
   board: (ws: string, board: string) => `/w/${ws}/board/${board}`,
   task: (ws: string, board: string, task: string) => `/w/${ws}/board/${board}?task=${task}`,
   taskById: (ws: string, task: string) => `/w/${ws}/task/${task}`,
+  study: (ws: string) => `/w/${ws}/study`,
+  studySet: (ws: string, id: string, mode?: string) => `/w/${ws}/study/${id}${mode ? `?mode=${mode}` : ''}`,
   doc: (ws: string, page: string, anchor?: string) => `/w/${ws}/doc/${page}${anchor ? `#${anchor}` : ''}`,
   /** Vue de lecture (cours). */
   read: (ws: string, page: string) => `/w/${ws}/read/${page}`,

@@ -384,6 +384,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
               </div>
             </section>
             <GraphRelatedPanel v-if="!isGuest" kind="page" :id="pageId" class="doc-related" />
+            <StudyLinked v-if="!isGuest" kind="page" :target-id="pageId" />
           </template>
         </article>
         <aside class="toc-col"><DocToc :headings="headings" :scroller="scroller" /></aside>

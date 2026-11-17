@@ -1,6 +1,6 @@
 # Study set item schema (version 1)
 
-Reference format for the items of a study set (GLOSSARY: *Jeu de révision*). It is enforced by the backend (`backend/src/study.rs`: `ItemIn`, `validate_item`) and meant to be produced by humans or by an AI. Unknown fields are rejected.
+Reference format for the items of an entraînement / training (GLOSSARY: *Entraînement*; formerly study set). It is enforced by the backend (`backend/src/study.rs`: `ItemIn`, `validate_item`) and meant to be produced by humans or by an AI. Unknown fields are rejected.
 
 A set has a `kind`; each kind accepts only some item types:
 
@@ -61,7 +61,7 @@ At most 500 items per set; set title 1..200 chars.
 }
 ```
 
-`POST /api/study/sets` accepts this object (plus optional `workspace_id`).
+`POST /api/study/sets` accepts `title`, `kind` and `items` (this object's list) plus a required `workspace_id` and optional `parent_id` (a page of that workspace) and `personal`. A training is a workspace item (ADR 0011): move, duplicate, trash, personal and links have their own routes under `/api/study`.
 
 ## Submitting an attempt
 `POST /api/study/sets/{id}/attempts` with `{ "answers": { "<item uuid>": <value> } }` where value is the choice id (`single`), an array of choice ids (`multi`) or a string (`text`).

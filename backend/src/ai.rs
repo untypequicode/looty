@@ -490,7 +490,7 @@ async fn create_study_grant(State(state): State<AppState>, user: AuthUser, Path(
         }
         (None, true, None) => ("create", None, true, None),
         (None, false, Some(set)) => {
-            crate::study::load(&state.pool, &user, set, None, crate::study::SetAccess::Edit).await?;
+            crate::study::load(&state.pool, &user, set, crate::study::SetAccess::Edit).await?;
             ("update", None, false, Some(set))
         }
         _ => return Err(ApiError::bad_request("study_grant_target")),
@@ -571,7 +571,7 @@ struct SendReq {
 
 /// Ce que le modèle doit savoir pour fabriquer des jeux de révision (format : docs/study-items.md).
 const STUDY_GUIDE: &str = "STUDY SETS (revision content): tools create_study_set, list_study_sets, read_study_set, update_study_set, read_attempts.\n\
-- Writing needs a grant like pages: 'create study sets' in a workspace or the personal space, or 'update' on one set. Without it the server refuses: tell the user to grant it in the chat. Sets you create are PRIVATE (visible to the user only); never promise sharing, the user decides. After creating, give the user the link /study/<set_id>.\n\
+- Writing needs a grant like pages: 'create study sets' in a workspace or the personal space, or 'update' on one set. Without it the server refuses: tell the user to grant it in the chat. Sets you create are PERSONAL (visible to the user only, at the root of the workspace or personal space); never promise sharing, the user decides. After creating, give the user the link /study/<set_id>.\n\
 - Set kinds and item types: qcm = single|multi; questionnaire = single|multi|text; flashcards and summary = flashcard. SUMMARY sets are read as a document, not played as cards: one item per section, prompt = the section heading (short, 3..80 chars, no Markdown), answer.back = the section body in Markdown (paragraphs, lists, **bold**, tables, code; no images or HTML; at most 4000 chars, split longer sections), in reading order, no explanation field. A good summary has 4..12 sections that follow the structure of the source (definition, key points, example, pitfalls), written in the user's language.\n\
 - Item JSON, no other field: {\"type\", \"prompt\" (1..2000 chars), \"choices\": [{\"id\": \"a\", \"text\"}] (single/multi only, 2..10, unique short ids), \"answer\", \"explanation\" (optional)}. answer: single {\"choice\": \"b\"}; multi {\"choices\": [\"a\",\"c\"]} (at least one); text {\"accepted\": [\"Paris\"]} (case, accents and punctuation are ignored; empty list = self-assessed); flashcard {\"back\": \"...\"}. At most 500 items. A validation error names what to fix: correct it and retry.\n\
 - Good practice: one clear question per item with exactly one defensible answer; plausible distractors of similar length; no 'all/none of the above'; put the reasoning in the explanation; mix easy, medium and hard items and cover the whole topic; base items on the user's pages or on what they asked, and do not invent facts. Prefer a few well-made items over many weak ones. Match the user's language.\n\

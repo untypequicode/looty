@@ -3,11 +3,10 @@ import { useStudyActions, useStudyCards, type Rating, type StudySet } from '~/co
 import { useI18n } from '~/composables/useI18n'
 
 /** Fiches : recto/verso, puis évaluation (répétition espacée propre à la personne). */
-const props = defineProps<{ set: StudySet; token: string | null }>()
+const props = defineProps<{ set: StudySet }>()
 const { t } = useI18n()
 const id = computed(() => props.set.id)
-const token = computed(() => props.token)
-const states = useStudyCards(id, token)
+const states = useStudyCards(id)
 const actions = useStudyActions()
 
 const all = ref(false)
@@ -29,7 +28,7 @@ const current = computed(() => due.value[0])
 async function rate(r: Rating) {
   const it = current.value
   if (!it) return
-  await actions.review(props.set.id, it.id!, props.token, r)
+  await actions.review(props.set.id, it.id!, r)
   done.value = new Set([...done.value, it.id!])
   flipped.value = false
 }

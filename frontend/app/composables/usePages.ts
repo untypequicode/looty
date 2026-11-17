@@ -8,10 +8,22 @@ import { confirmDialog } from './useConfirm'
 import { translate } from './useI18n'
 import { toast } from './useToast'
 import { trashedToast } from './useTrash'
+import { useStudySets, type StudyKind, type StudySummary } from './useStudy'
 
 export interface PageNode extends Page {
   children: PageNode[]
   depth: number
+  /** Entraînement rangé dans l'arbre (ADR 0011) : type du jeu ; absent pour une page. */
+  study?: StudyKind
+}
+
+/** Un entraînement sous forme de nœud d'arbre : mêmes champs de rangement qu'une page. */
+export function studyAsNode(s: StudySummary): Page & { study: StudyKind } {
+  return {
+    id: s.id, workspace_id: s.workspace_id, private_to: s.private_to, parent_id: s.parent_id, icon: null, title: s.title, content: null,
+    created_by: s.owner_id, updated_by: null, position: s.position, created_at: s.created_at, updated_at: s.updated_at,
+    can_edit: s.can_edit, study: s.kind,
+  } as unknown as Page & { study: StudyKind }
 }
 
 /** Construit l'arbre des pages (trié par position). */
@@ -50,7 +62,9 @@ export interface NewPageProject { kind: 'latex' | 'site' | 'notebook'; template?
 export function usePages() {
   const qc = useQueryClient()
   const { wsId, pages } = useWorkspace()
-  const tree = computed(() => buildTree(pages.data.value ?? []))
+  const study = useStudySets(wsId)
+  // Les entraînements se rangent dans l'arbre parmi les pages.
+  const tree = computed(() => buildTree([...(pages.data.value ?? []), ...(study.data.value ?? []).map(studyAsNode)]) as PageNode[])
   const favorites = computed(() => (pages.data.value ?? []).filter((p) => p.is_favorite))
 
   function patchLocal(id: string, patch: Partial<Page>) {

@@ -35,7 +35,7 @@ export default {
       readOnlyHint: 'Lecture seule : l’assistant lit les pages auxquelles vous avez accès. Pour qu’il écrive, choisissez une page ci-dessous.',
       placeholder: 'Posez une question… (Entrée pour envoyer)', send: 'Envoyer', stop: 'Arrêter',
       writeTarget: 'Page modifiable', readOnly: 'lecture seule', workspace: 'Espace', page: 'Page', modeLabel: 'Mode', expiry: 'Durée', allow: 'Autoriser',
-      studyGrants: 'Jeux de révision', studyCreate: 'Créer des jeux dans…', studyUpdate: 'Modifier un jeu', personal: 'Espace personnel', studySet: 'Jeu de révision', studyLink: 'Ouvrir le jeu', studyRestore: 'Restaurer la version précédente', studyGrantCreate: 'créer des jeux dans {where}', studyGrantUpdate: 'modifier {title}',
+      studyGrants: 'Entraînements', studyCreate: 'Créer des entraînements dans…', studyUpdate: 'Modifier un entraînement', personal: 'Espace personnel', studySet: 'Entraînement', studyLink: 'Ouvrir l’entraînement', studyRestore: 'Restaurer la version précédente', studyGrantCreate: 'créer des entraînements dans {where}', studyGrantUpdate: 'modifier {title}',
       mode: { suggest: 'Suggérer', append: 'Ajouter', replace: 'Remplacer' },
       modeHint: {
         suggest: 'Suggérer : l’assistant propose une modification que vous acceptez ou refusez.',

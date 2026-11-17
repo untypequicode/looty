@@ -93,19 +93,38 @@ pub async fn trash_page(state: &AppState, workspace_id: Uuid, page_id: Uuid, by:
     .bind(page_id)
     .fetch_all(&state.pool)
     .await?;
+    // Entraînements rangés sous ces pages : ils suivent (ADR 0011).
+    let sets: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM study_sets WHERE parent_id = ANY($1) AND deleted_at IS NULL").bind(&ids).fetch_all(&state.pool).await?;
     if retention_days(&state.pool, workspace_id).await? == 0 {
+        sqlx::query("DELETE FROM study_sets WHERE id = ANY($1)").bind(&sets).execute(&state.pool).await?;
         sqlx::query("DELETE FROM pages_all WHERE id = $1").bind(page_id).execute(&state.pool).await?;
     } else {
+        let batch = Uuid::new_v4();
         sqlx::query("UPDATE pages_all SET deleted_at = NOW(), deleted_by = $2, trash_batch = $3 WHERE id = ANY($1)")
             .bind(&ids)
             .bind(by)
-            .bind(Uuid::new_v4())
+            .bind(batch)
             .execute(&state.pool)
             .await?;
+        sqlx::query("UPDATE study_sets SET deleted_at = NOW(), deleted_by = $2, trash_batch = $3 WHERE id = ANY($1)").bind(&sets).bind(by).bind(batch).execute(&state.pool).await?;
+    }
+    for id in &sets {
+        state.emit(workspace_id, serde_json::json!({ "type": "STUDY_DELETED", "study": { "id": id } })).await;
     }
     for id in ids.iter().rev() {
         state.emit(workspace_id, serde_json::json!({ "type": "PAGE_DELETED", "page_id": id })).await;
     }
+    Ok(())
+}
+
+/// Met un entraînement à la corbeille (ou le supprime si l'espace n'en a pas). Sans contrôle d'accès.
+pub async fn trash_study(state: &AppState, set: &crate::study::SetRow, by: Option<Uuid>) -> ApiResult<()> {
+    if retention_days(&state.pool, set.workspace_id).await? == 0 {
+        sqlx::query("DELETE FROM study_sets WHERE id = $1").bind(set.id).execute(&state.pool).await?;
+    } else {
+        sqlx::query("UPDATE study_sets SET deleted_at = NOW(), deleted_by = $2, trash_batch = $3 WHERE id = $1").bind(set.id).bind(by).bind(Uuid::new_v4()).execute(&state.pool).await?;
+    }
+    state.emit(set.workspace_id, serde_json::json!({ "type": "STUDY_DELETED", "study": { "id": set.id } })).await;
     Ok(())
 }
 
@@ -133,6 +152,15 @@ pub fn start_purge_loop(state: AppState) {
             {
                 tracing::warn!("trash purge (pages): {e:?}");
             }
+            if let Err(e) = sqlx::query(
+                "DELETE FROM study_sets s USING workspaces w
+                 WHERE s.workspace_id = w.id AND s.deleted_at < NOW() - make_interval(days => w.trash_retention_days)",
+            )
+            .execute(&state.pool)
+            .await
+            {
+                tracing::warn!("trash purge (study): {e:?}");
+            }
             crate::graph::prune_links(&state.pool).await;
             crate::projects::prune_blob_dirs(&state.pool).await;
             tokio::time::sleep(Duration::from_secs(3600)).await;
@@ -156,6 +184,8 @@ pub fn routes() -> Router<AppState> {
         .route("/tasks/{id}", delete(delete_task))
         .route("/pages/{id}/restore", post(restore_page))
         .route("/pages/{id}", delete(delete_page))
+        .route("/study/{id}/restore", post(restore_study))
+        .route("/study/{id}", delete(delete_study))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -181,6 +211,17 @@ struct TrashedPage {
     deleted_by: Option<Uuid>,
     deleted_by_name: Option<String>,
     subpages: i64,
+    expires_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct TrashedStudy {
+    id: Uuid,
+    title: String,
+    kind: String,
+    deleted_at: DateTime<Utc>,
+    deleted_by: Option<Uuid>,
+    deleted_by_name: Option<String>,
     expires_at: DateTime<Utc>,
 }
 
@@ -226,7 +267,23 @@ async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid
     .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
-    Ok(Json(serde_json::json!({ "retention_days": days, "can_manage": role.is_admin(), "tasks": tasks, "pages": pages })))
+    // Entraînements : mêmes règles que les pages (administrateurs et auteur de la suppression).
+    let studies: Vec<TrashedStudy> = sqlx::query_as(
+        "SELECT s.id, s.title, s.kind, s.deleted_at, s.deleted_by, u.name AS deleted_by_name,
+            s.deleted_at + make_interval(days => $2) AS expires_at
+         FROM study_sets s LEFT JOIN users u ON u.id = s.deleted_by
+         WHERE s.workspace_id = $1 AND s.deleted_at IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM pages_all q WHERE q.id = s.parent_id AND q.trash_batch = s.trash_batch)
+           AND ($3 OR s.deleted_by = $4) AND (s.private_to IS NULL OR s.private_to = $4)
+         ORDER BY s.deleted_at DESC LIMIT 500",
+    )
+    .bind(ws)
+    .bind(days)
+    .bind(role.is_admin())
+    .bind(user.id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(serde_json::json!({ "retention_days": days, "can_manage": role.is_admin(), "tasks": tasks, "pages": pages, "studies": studies })))
 }
 
 #[derive(Deserialize)]
@@ -254,6 +311,7 @@ async fn empty(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uui
     .await?;
     purge_tasks(&state, &ids).await?;
     sqlx::query("DELETE FROM pages_all WHERE workspace_id = $1 AND deleted_at IS NOT NULL").bind(ws).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM study_sets WHERE workspace_id = $1 AND deleted_at IS NOT NULL").bind(ws).execute(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -350,6 +408,8 @@ async fn restore_page(State(state): State<AppState>, user: AuthUser, Path(id): P
     .bind(id)
     .fetch_all(&state.pool)
     .await?;
+    sqlx::query("UPDATE study_sets SET deleted_at = NULL, deleted_by = NULL, trash_batch = NULL WHERE trash_batch = $1").bind(e.trash_batch).execute(&state.pool).await?;
+    state.emit(e.workspace_id, serde_json::json!({ "type": "STUDY_UPDATED", "study": { "id": id } })).await;
     if let Some(parent) = e.parent_id {
         let visible: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pages WHERE id = $1)").bind(parent).fetch_one(&state.pool).await?;
         if !visible {
@@ -368,5 +428,48 @@ async fn restore_page(State(state): State<AppState>, user: AuthUser, Path(id): P
 async fn delete_page(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
     let _ = trashed_page(&state, &user, id).await?;
     sqlx::query("DELETE FROM pages_all WHERE id = $1").bind(id).execute(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(sqlx::FromRow)]
+struct StudyEntry {
+    workspace_id: Uuid,
+    parent_id: Option<Uuid>,
+    deleted_by: Option<Uuid>,
+}
+
+async fn trashed_study(state: &AppState, user: &AuthUser, id: Uuid) -> ApiResult<StudyEntry> {
+    let e: StudyEntry = sqlx::query_as("SELECT workspace_id, parent_id, deleted_by FROM study_sets WHERE id = $1 AND deleted_at IS NOT NULL AND (private_to IS NULL OR private_to = $2)")
+        .bind(id)
+        .bind(user.id)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let role = require_member(&state.pool, user, e.workspace_id).await?;
+    if !role.is_admin() && e.deleted_by != Some(user.id) {
+        return Err(ApiError::NotFound);
+    }
+    Ok(e)
+}
+
+/// Restaurer un entraînement : droit d'édition des documents de l'espace.
+async fn restore_study(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
+    let e = trashed_study(&state, &user, id).await?;
+    crate::access::require_perm(&state.pool, &user, e.workspace_id, |p| p.docs >= crate::access::level::EDIT).await?;
+    sqlx::query("UPDATE study_sets SET deleted_at = NULL, deleted_by = NULL, trash_batch = NULL WHERE id = $1").bind(id).execute(&state.pool).await?;
+    // Page parente toujours à la corbeille : l'entraînement revient à la racine.
+    if let Some(parent) = e.parent_id {
+        let visible: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pages WHERE id = $1)").bind(parent).fetch_one(&state.pool).await?;
+        if !visible {
+            sqlx::query("UPDATE study_sets SET parent_id = NULL WHERE id = $1").bind(id).execute(&state.pool).await?;
+        }
+    }
+    state.emit(e.workspace_id, serde_json::json!({ "type": "STUDY_UPDATED", "study": { "id": id } })).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn delete_study(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
+    let _ = trashed_study(&state, &user, id).await?;
+    sqlx::query("DELETE FROM study_sets WHERE id = $1").bind(id).execute(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
 }

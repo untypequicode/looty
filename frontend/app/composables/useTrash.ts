@@ -26,7 +26,8 @@ export interface TrashedPage {
   subpages: number
   expires_at: string
 }
-export interface TrashList { retention_days: number; can_manage: boolean; tasks: TrashedTask[]; pages: TrashedPage[] }
+export interface TrashedStudy { id: string; title: string; kind: string; deleted_at: string; deleted_by?: string | null; deleted_by_name?: string | null; expires_at: string }
+export interface TrashList { retention_days: number; can_manage: boolean; tasks: TrashedTask[]; pages: TrashedPage[]; studies: TrashedStudy[] }
 
 export const trashKey = (ws: string) => ['ws', ws, 'trash'] as const
 
@@ -35,12 +36,12 @@ export function useTrash(ws: Ref<string>) {
 }
 
 /** Restauration ; le temps réel remet l'élément dans les listes. */
-export async function restoreFromTrash(kind: 'tasks' | 'pages', id: string) {
+export async function restoreFromTrash(kind: 'tasks' | 'pages' | 'study', id: string) {
   await api(`/api/trash/${kind}/${id}/restore`, { method: 'POST' })
 }
 
 /** Après une suppression : message « Déplacé dans la corbeille » avec « Annuler ». */
-export function trashedToast(kind: 'tasks' | 'pages', id: string, onRestored?: () => void) {
+export function trashedToast(kind: 'tasks' | 'pages' | 'study', id: string, onRestored?: () => void) {
   toast(translate('trash.moved'), {
     duration: 7000,
     action: {
