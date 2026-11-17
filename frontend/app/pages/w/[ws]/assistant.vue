@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { Bot, PanelLeft, PenLine, Wrench, GraduationCap, Undo2, FileText, BookCheck, CheckSquare, Kanban, CalendarDays, FolderCode } from 'lucide-vue-next'
-import type { Component } from 'vue'
+import { Bot, PanelLeft, PenLine, Wrench, GraduationCap, Undo2, Paperclip } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
 import { api, errorMessage } from '~/composables/api'
@@ -14,9 +13,12 @@ import { renderChatMarkdown } from '~/editor/chatMarkdown'
 import { aiOpenItem } from '~/composables/useAiOpenItem'
 import {
   aiApi, aiInbox, streamMessage, aiErrorMessage,
-  type AiAttachKind, type AiAttachment, type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiGrantNeed, type AiStreamEvent,
+  type AiAttachment, type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiGrantNeed, type AiStreamEvent,
 } from '~/composables/useAi'
 import { needKey, type EndedGrant } from '~/utils/grantState'
+import { draggingPage } from '~/composables/useMovePage'
+import { dropIntent, type DropIntent } from '~/utils/chatFiles'
+import { AI_PROVIDER_CATALOG } from '~/utils/aiProviders'
 
 /**
  * Assistant : page de l'espace à deux colonnes (conversations à gauche, discussion à droite). Lecture seule
@@ -30,7 +32,6 @@ const qc = useQueryClient()
 const { wsId, pages } = useWorkspace()
 useHead({ title: () => t('ai.page.title') })
 
-const ICONS: Record<AiAttachKind, Component> = { page: FileText, study: BookCheck, task: CheckSquare, board: Kanban, event: CalendarDays, project: FolderCode }
 
 // --- Connexions et liste ----------------------------------------------------------------------
 const { data: connections } = useQuery({ queryKey: ['ai', 'connections'], queryFn: aiApi.connections })
@@ -149,6 +150,42 @@ async function send(override?: string) {
 }
 function stop() { abort?.abort() }
 
+// --- Dépôt sur la discussion : fichiers de l'ordinateur ou page / entraînement glissé depuis l'arbre ---
+const composer = ref<{ addFiles: (f: File[]) => Promise<void>; addPage: (d: NonNullable<typeof draggingPage.value>) => void } | null>(null)
+const dropping = ref<DropIntent>('none')
+let dragDepth = 0
+const canAttach = () => !!connections.value?.length
+function onDragEnter(e: DragEvent) {
+  const intent = dropIntent(e.dataTransfer?.types)
+  if (intent === 'none' || !canAttach()) return
+  dragDepth++
+  dropping.value = intent
+}
+function onDragOver(e: DragEvent) {
+  const intent = dropIntent(e.dataTransfer?.types)
+  if (intent === 'none' || !canAttach()) return
+  e.preventDefault()
+  // La page glissée de l'arbre n'autorise que « move » : on ne la déplace pas, on la joint.
+  if (e.dataTransfer) e.dataTransfer.dropEffect = intent === 'files' ? 'copy' : 'move'
+}
+function onDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (!dragDepth) dropping.value = 'none'
+}
+function onDrop(e: DragEvent) {
+  const intent = dropIntent(e.dataTransfer?.types)
+  dragDepth = 0
+  dropping.value = 'none'
+  if (intent === 'none' || !canAttach()) return
+  e.preventDefault()
+  if (intent === 'files') void composer.value?.addFiles(Array.from(e.dataTransfer?.files ?? []))
+  else if (draggingPage.value && e.dataTransfer?.getData('application/x-looty-page') === draggingPage.value.id) composer.value?.addPage(draggingPage.value)
+}
+const providerName = computed(() => {
+  const c = connections.value?.find((x) => x.id === (conv.value?.connection_id ?? connectionId.value))
+  return c ? AI_PROVIDER_CATALOG.find((p) => p.value === c.provider)?.name ?? c.provider : ''
+})
+
 // --- Liste : renommer, supprimer ----------------------------------------------------------------
 async function rename(c: AiConversation) {
   const title = await promptDialog({ title: t('ai.page.renameTitle'), initial: c.title, confirmLabel: t('common.rename') })
@@ -241,7 +278,11 @@ const empty = computed(() => !visible.value.length && !streaming.value)
       <aside class="as-side">
         <AiConversationList v-model:query="search" :conversations="history ?? []" :active-id="conv?.id ?? null" :loading="historyLoading" @select="select" @new="openNew" @rename="rename" @remove="remove" />
       </aside>
-      <section class="as-main" :aria-label="conv?.title || t('ai.page.title')">
+      <section class="as-main" :class="{ 'as-dropping': dropping !== 'none' }" :aria-label="conv?.title || t('ai.page.title')" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
+        <div v-if="dropping !== 'none'" class="as-drop" aria-hidden="true">
+          <Paperclip :size="22" />
+          <span>{{ t(dropping === 'files' ? 'ai.files.dropFiles' : 'ai.files.dropPage') }}</span>
+        </div>
         <div ref="scroller" class="as-thread">
           <div class="as-col">
             <div v-if="empty" class="as-intro">
@@ -266,7 +307,7 @@ const empty = computed(() => !visible.value.length && !streaming.value)
               <div v-else-if="m.role === 'assistant'" class="msg assistant md" v-html="renderChatMarkdown(m.content)" />
               <div v-else class="msg user">
                 <div v-if="m.data?.attachments?.length" class="as-att">
-                  <span v-for="a in m.data.attachments" :key="a.id" class="as-chip"><component :is="ICONS[a.kind as AiAttachKind] ?? FileText" :size="11" /><span class="truncate">{{ a.title }}</span></span>
+                  <AiChip v-for="a in m.data.attachments" :key="a.id" class="as-chip" :kind="a.kind" :title="a.title" :expires-at="a.expires_at" :provider="providerName" />
                 </div>
                 {{ m.content }}
               </div>
@@ -282,7 +323,7 @@ const empty = computed(() => !visible.value.length && !streaming.value)
         </div>
         <div class="as-compose">
           <div class="as-col">
-            <AiComposer v-model:draft="draft" v-model:attachments="attachments" v-model:connection-id="connectionId" :busy="busy" :connections="connections ?? []" @send="send()" @stop="stop" />
+            <AiComposer ref="composer" v-model:draft="draft" :dropping="dropping" v-model:attachments="attachments" v-model:connection-id="connectionId" :busy="busy" :connections="connections ?? []" @send="send()" @stop="stop" />
           </div>
         </div>
       </section>
@@ -315,7 +356,9 @@ const empty = computed(() => !visible.value.length && !streaming.value)
 .msg.user { align-self: flex-end; background: var(--accent-soft); }
 .msg.assistant { align-self: flex-start; background: var(--bg-hover); }
 .as-att { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
-.as-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 200px; padding: 1px 6px; border-radius: var(--r-sm); background: var(--bg-elevated); font-size: var(--fs-xs); color: var(--text-2); }
+.as-chip { --chip-bg: var(--bg-elevated); --chip-color: var(--text-2); }
+.as-main { position: relative; }
+.as-drop { position: absolute; inset: 8px; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 2px dashed var(--border-focus); border-radius: var(--r-lg); background: color-mix(in srgb, var(--bg) 82%, transparent); color: var(--text-2); pointer-events: none; }
 .as-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .as-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); text-decoration: none; }
 .as-tools { display: flex; align-items: center; gap: 6px; color: var(--text-4); font-size: var(--fs-xs); }

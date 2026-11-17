@@ -95,7 +95,20 @@ export default {
     },
     picker: {
       search: 'Rechercher un élément à joindre…', hint: 'Tapez pour chercher dans tous vos espaces.', none: 'Aucun résultat.', all: 'Tout',
-      kind: { page: 'Page', study: 'Entraînement', task: 'Tâche', board: 'Tableau', event: 'Événement', project: 'Projet' },
+      kind: { page: 'Page', study: 'Entraînement', task: 'Tâche', file: 'Fichier', board: 'Tableau', event: 'Événement', project: 'Projet' },
+      group: { page: 'Pages', study: 'Entraînements', task: 'Tâches', file: 'Fichiers', board: 'Tableaux', event: 'Événements', project: 'Projets' },
+      recent: 'Récents', favorites: 'Favoris', results: 'Résultats', preview: 'Aperçu', noExcerpt: 'Aucun aperçu disponible.',
+      count: { one: '1 résultat', other: '{count} résultats' }, navigate: 'naviguer', attachAction: 'joindre',
+    },
+    files: {
+      dropFiles: 'Déposez les fichiers pour les joindre', dropPage: 'Déposez pour joindre cet élément', attachFile: 'Joindre un fichier (PDF, Word, PowerPoint, texte, code)',
+      expired: 'expiré', expiredTip: '« {title} » a expiré et a été supprimé de votre Drive : l’assistant ne peut plus le lire. Joignez-le de nouveau.', sentTo: 'envoyé à {provider}',
+      notice: 'Le texte des fichiers joints est envoyé à {provider}, le fournisseur choisi pour cette connexion. Les fichiers sont gardés en privé dans votre Drive, dossier « Assistant IA », jusqu’à leur expiration.', noticeOk: 'Compris',
+      err: {
+        file_unsupported: 'Ce format n’est pas pris en charge (PDF, Word .docx, PowerPoint .pptx, texte, Markdown, CSV ou code).', file_too_large: 'Ce fichier dépasse 25 Mo.',
+        file_no_text: 'Ce fichier ne contient pas de texte lisible (un document scanné, par exemple). La reconnaissance de texte n’est pas encore disponible.', file_unreadable: 'Ce fichier est illisible : il est peut-être abîmé ou protégé par un mot de passe.',
+        drive_quota_exceeded: 'Votre Drive est plein.', demo_unavailable: 'Indisponible dans la démo.', other: 'L’envoi a échoué. Réessayez.',
+      },
     },
     composer: {
       placeholder: 'Posez une question…', attach: 'Joindre un élément', atHint: '@ pour joindre', detach: 'Retirer « {title} »',
