@@ -733,6 +733,9 @@ pub struct SearchResult {
     /// Mot-clé de l'élément qui correspond à la recherche.
     #[sqlx(default)]
     pub keyword: Option<String>,
+    /// Chemin affichable : titres des pages parentes, tableau d'une tâche, calendrier d'un événement.
+    #[sqlx(default)]
+    pub path: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -759,6 +762,53 @@ fn search_terms(q: &str) -> (String, bool) {
         Some(k) if !k.is_empty() => (escape_like(&crate::classes::fold(&k)), true),
         _ => (like_pattern(&q), false),
     }
+}
+
+/// Complète `path` : titres des pages parentes (pages, entraînements, projets d'une page), nom du
+/// tableau d'une tâche, nom du calendrier d'un événement. Les parents que la personne ne voit pas
+/// sont omis, avec ce qui les surmonte.
+pub async fn fill_paths(pool: &PgPool, workspace_id: Uuid, visible: &std::collections::HashMap<Uuid, PageAccess>, results: &mut [SearchResult]) -> ApiResult<()> {
+    use std::collections::HashMap;
+    if results.iter().any(|r| matches!(r.r#type.as_str(), "page" | "study" | "project")) {
+        let rows: Vec<(Uuid, Option<Uuid>, String)> = sqlx::query_as("SELECT id, parent_id, title FROM pages WHERE workspace_id = $1").bind(workspace_id).fetch_all(pool).await?;
+        let pages: HashMap<Uuid, (Option<Uuid>, String)> = rows.into_iter().map(|(id, parent, title)| (id, (parent, title))).collect();
+        for r in results.iter_mut() {
+            let start = match r.r#type.as_str() {
+                "page" => pages.get(&r.id).and_then(|p| p.0),
+                "study" => r.parent_id,
+                // Le projet d'une page : le chemin est celui de cette page.
+                "project" => r.parent_id.and_then(|pg| pages.get(&pg).and_then(|p| p.0)),
+                _ => continue,
+            };
+            let mut chain = Vec::new();
+            let mut cur = start;
+            while let Some(id) = cur {
+                if chain.len() >= 12 || !visible.get(&id).is_some_and(|a| *a != PageAccess::None) {
+                    break;
+                }
+                let Some((parent, title)) = pages.get(&id) else { break };
+                chain.push(title.clone());
+                cur = *parent;
+            }
+            chain.reverse();
+            r.path = chain;
+        }
+    }
+    let boards: Vec<Uuid> = results.iter().filter(|r| r.r#type == "task").filter_map(|r| r.parent_id).collect();
+    if !boards.is_empty() {
+        let names: HashMap<Uuid, String> = sqlx::query_as::<_, (Uuid, String)>("SELECT id, name FROM boards WHERE id = ANY($1)").bind(&boards).fetch_all(pool).await?.into_iter().collect();
+        for r in results.iter_mut().filter(|r| r.r#type == "task") {
+            r.path = r.parent_id.and_then(|b| names.get(&b)).cloned().into_iter().collect();
+        }
+    }
+    let cals: Vec<Uuid> = results.iter().filter(|r| r.r#type == "event").filter_map(|r| r.parent_id).collect();
+    if !cals.is_empty() {
+        let names: HashMap<Uuid, String> = sqlx::query_as::<_, (Uuid, String)>("SELECT id, name FROM looty_calendars WHERE id = ANY($1)").bind(&cals).fetch_all(pool).await?.into_iter().collect();
+        for r in results.iter_mut().filter(|r| r.r#type == "event") {
+            r.path = r.parent_id.and_then(|c| names.get(&c)).cloned().into_iter().collect();
+        }
+    }
+    Ok(())
 }
 
 async fn search_workspace(
@@ -948,6 +998,7 @@ async fn search_workspace(
         .await?;
         results.extend(files);
     }
+    fill_paths(&pool, workspace_id, &visible, &mut results).await?;
     Ok(Json(serde_json::json!({ "results": results })))
 }
 

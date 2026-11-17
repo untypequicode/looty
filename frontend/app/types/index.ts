@@ -221,6 +221,8 @@ export interface SearchResult {
   folder?: string | null
   /** Mot-clé de l'élément qui correspond à la recherche. */
   keyword?: string | null
+  /** Chemin affichable : pages parentes, tableau d'une tâche, calendrier d'un événement. */
+  path?: string[]
 }
 
 export interface Presence {

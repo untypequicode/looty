@@ -13,7 +13,7 @@ export default {
     kinds: { qcm: 'MCQ', questionnaire: 'Questionnaire', flashcards: 'Flashcards', summary: 'Summary' },
     itemCount: { zero: 'No items', one: '1 item', other: '{count} items' }, lastScore: 'Last score: {score}/{max}',
     modeUse: 'Study', modeEdit: 'Edit', modeStats: 'Results', untitled: 'Untitled', notFound: 'This training does not exist or you cannot access it.',
-    links: 'Links', addLink: 'Link', noLinks: 'No links. Link this training to a page or a board.', removeLink: 'Remove link', linkSearch: 'Search an item', linkPages: 'Pages', linkBoards: 'Boards',
+    links: 'Links', addLink: 'Link', noLinks: 'No links. Link this training to a page, a board, a task, an event or a project.', removeLink: 'Remove link', linkSearch: 'Search an item', linkPages: 'Pages', linkBoards: 'Boards', linkTasks: 'Tasks', linkEvents: 'Events', linkProjects: 'Projects', linkHint: 'Type to find a task, an event or a project.',
     linked: 'Linked trainings', linkSet: 'Link a training', linkSetSearch: 'Search a training',
     privacyNote: 'Your results are visible to you only.',
     deleteSet: 'Delete training', deleteConfirm: 'Delete “{title}”? It goes to the trash, where you can restore it.',

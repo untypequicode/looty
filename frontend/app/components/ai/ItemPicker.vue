@@ -8,6 +8,7 @@ import { useI18n } from '~/composables/useI18n'
 import { useWorkspaces } from '~/composables/useWorkspace'
 import type { AiAttachKind, AiAttachment } from '~/composables/useAi'
 import type { SearchResult } from '~/types'
+import { filterHits, hitPlace } from '~/utils/pickerSearch'
 
 /**
  * Palette de recherche pour joindre un élément à un message : pages, entraînements, tâches, tableaux,
@@ -51,15 +52,12 @@ const { data: hits, isFetching } = useQuery({
   enabled: computed(() => open.value && !!debounced.value.trim() && !!workspaces.value?.length),
 })
 
-const shown = computed(() => (hits.value ?? []).filter((h) => filter.value === 'all' || h.kind === filter.value).slice(0, 40))
+const shown = computed(() => filterHits(hits.value ?? [], filter.value))
 const active = ref(0)
 watch([shown, open], () => { active.value = 0 })
 watch(open, (v) => { if (v) { filter.value = 'all'; nextTick(() => setTimeout(() => input.value?.focus(), 30)) } })
 
-function path(h: Hit) {
-  const place = h.wsName
-  return h.r.type === 'event' && h.r.date ? `${place} · ${new Date(h.r.date).toLocaleDateString()}` : place
-}
+const path = (h: Hit) => hitPlace(h, { multiWorkspace: (workspaces.value?.length ?? 0) > 1 })
 function choose(h: Hit | undefined) {
   if (!h) return
   emit('pick', { kind: h.kind, id: h.r.id, title: h.r.title, snippet: h.kind === 'page' || h.kind === 'study' ? undefined : (h.r.snippet ?? undefined), ws: h.ws })
