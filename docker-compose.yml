@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:18-alpine
+    # Réglages sobres (mem_limit 768m) : le défaut de Postgres vise une machine dédiée.
+    command: ["postgres", "-c", "shared_buffers=96MB", "-c", "max_connections=40", "-c", "work_mem=4MB", "-c", "maintenance_work_mem=48MB", "-c", "effective_cache_size=384MB"]
     environment:
       POSTGRES_DB: ${DB_NAME:-looty_db}
       POSTGRES_USER: ${DB_USER:-postgres}
