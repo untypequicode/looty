@@ -251,7 +251,8 @@ pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op,
     // Page jamais ouverte dans l'éditeur : son texte n'existe qu'en HTML. On le convertit en document
     // Yjs seulement s'il ne contient que des blocs reproductibles sans perte ; sinon on refuse.
     // Cette version convertie est l'instantané « avant » (la restauration redonne le texte d'origine).
-    let html = row.1.unwrap_or_default();
+    let raw_content = row.1;
+    let html = raw_content.clone().unwrap_or_default();
     if old.is_none() && !html.trim().is_empty() {
         match legacy_state(&html) {
             Ok(state) => old = Some(state),
@@ -274,17 +275,20 @@ pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op,
     let new_state = ai_pages::apply_markdown(old.as_deref().unwrap_or(&[]), op, markdown).map_err(|e| ApiError::Internal(format!("yjs write: {e}")))?;
     // `pages.content` (page publique, export, recherche) doit suivre le nouveau texte : le serveur de
     // collaboration ne l'écrit pas (c'est le navigateur qui l'envoie) ; ici personne ne le fera.
-    let new_html = ai_pages::state_to_html(&new_state).map_err(|e| ApiError::Internal(format!("yjs html: {e}")))?;
+    // Si le nouvel état contient un bloc ou une marque que le HTML ne sait pas écrire (intégrations, tableaux de
+    // bord, commentaires...), la copie HTML reste telle quelle plutôt que de les perdre.
+    let new_html = ai_pages::state_to_html(&new_state).ok().or_else(|| raw_content.clone());
     let revision = match old.as_deref() {
         Some(s) => Some(crate::revisions::snapshot_before_write(&mut tx, page_id, user.id, "Avant modification par l'IA", s).await?),
         None => None,
     };
-    let done = sqlx::query("UPDATE pages_all SET yjs_state = $1, content = $5, updated_at = NOW(), updated_by = $2 WHERE id = $3 AND yjs_state IS NOT DISTINCT FROM $4")
+    let done = sqlx::query("UPDATE pages_all SET yjs_state = $1, content = $5, updated_at = NOW(), updated_by = $2 WHERE id = $3 AND yjs_state IS NOT DISTINCT FROM $4 AND content IS NOT DISTINCT FROM $6")
         .bind(&new_state)
         .bind(user.id)
         .bind(page_id)
         .bind(raw.as_deref())
         .bind(&new_html)
+        .bind(&raw_content)
         .execute(&mut *tx)
         .await?;
     if done.rows_affected() != 1 {
@@ -823,6 +827,18 @@ mod tests {
             assert!(state.is_none());
             assert_eq!(content, html);
         }
+    }
+
+    #[sqlx::test]
+    async fn the_html_copy_is_left_alone_when_it_cannot_represent_the_document(pool: PgPool) {
+        let w = world(&pool).await;
+        grant(&pool, &w, "replace", 30).await;
+        let state = ai_pages::tests::state_with_unknown_block();
+        sqlx::query("UPDATE pages SET yjs_state = $2, content = '<div data-type=\"excalidraw\"></div>' WHERE id = $1").bind(w.page).bind(state).execute(&pool).await.unwrap();
+        write_page(&pool, &w.owner, w.conv, w.page, Op::Append, "Ajout").await.unwrap();
+        let content: String = sqlx::query_scalar("SELECT content FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        assert_eq!(content, "<div data-type=\"excalidraw\"></div>");
+        assert!(md(&pool, w.page).await.ends_with("Ajout"));
     }
 
     #[sqlx::test]

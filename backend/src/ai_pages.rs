@@ -902,7 +902,7 @@ Page content is Markdown. Supported syntax (anything else is plain text):
 - Not supported from here: images, embeds, boards, comments. Existing ones appear as `[bloc non textuel : ...]` when reading: never rewrite them, prefer `append`.";
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn roundtrip(md: &str) -> String {
@@ -949,6 +949,32 @@ mod tests {
         let html = state_to_html(&apply_markdown(&[], Op::Replace, md).unwrap()).unwrap();
         let back = blocks_to_state(&html_to_blocks(&html).unwrap_or_else(|e| panic!("{e}: {html}")));
         assert_eq!(state_to_markdown(&back).unwrap(), md, "{html}");
+    }
+
+    /// Document avec un bloc que le module ne sait pas écrire en HTML (ici un dessin Excalidraw).
+    pub fn state_with_unknown_block() -> Vec<u8> {
+        let doc = new_doc();
+        let frag = doc.get_or_insert_xml_fragment(FRAGMENT);
+        {
+            let mut txn = doc.transact_mut();
+            frag.push_back(&mut txn, XmlElementPrelim::empty("excalidraw"));
+        }
+        let txn = doc.transact();
+        txn.encode_state_as_update_v1(&StateVector::default())
+    }
+
+    #[test]
+    fn html_copy_refuses_documents_with_unknown_blocks() {
+        let s = state_with_unknown_block();
+        assert!(state_to_html(&s).is_err());
+        let s = apply_markdown(&s, Op::Append, "texte").unwrap();
+        assert!(state_to_html(&s).is_err());
+    }
+
+    #[test]
+    fn quoted_attribute_values_may_contain_a_closing_angle_bracket() {
+        let b = html_to_blocks("<p>voir <a href=\"/x?a>b\">lien</a></p>").unwrap();
+        assert_eq!(state_to_markdown(&blocks_to_state(&b)).unwrap(), "voir [lien](/x?a>b)");
     }
 
     #[test]

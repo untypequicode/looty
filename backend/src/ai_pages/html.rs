@@ -4,6 +4,9 @@
 
 use super::*;
 
+/// Marqueur d'un bloc ou d'une marque que la copie HTML ne sait pas écrire : `state_to_html` échoue alors.
+const UNSUPPORTED: &str = "\u{0}";
+
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
@@ -17,6 +20,9 @@ fn html_text<T: ReadTxn>(txn: &T, t: &yrs::XmlTextRef) -> String {
         }
         let mut s = esc(&text);
         if let Some(attrs) = d.attributes.as_ref() {
+            if attrs.keys().any(|k| !matches!(k.split("--").next(), Some("bold" | "italic" | "code" | "strike" | "link"))) {
+                out.push_str(UNSUPPORTED);
+            }
             let has = |n: &str| attrs.keys().any(|k| k.split("--").next() == Some(n));
             if has("code") {
                 s = format!("<code>{s}</code>");
@@ -49,7 +55,7 @@ fn html_inline<T: ReadTxn>(txn: &T, node: &impl XmlFragment) -> String {
             XmlOut::Element(e) => match e.tag().as_ref() {
                 "mathInline" => out.push_str(&format!("<span data-type=\"math-inline\" latex=\"{}\"></span>", esc(&plain(txn, &e)))),
                 "hardBreak" => out.push_str("<br>"),
-                _ => {}
+                _ => out.push_str(UNSUPPORTED),
             },
             XmlOut::Fragment(_) => {}
         }
@@ -124,7 +130,7 @@ fn html_block<T: ReadTxn>(txn: &T, e: &yrs::XmlElementRef) -> String {
             None => String::new(),
         },
         // Blocs que ce module ne sait pas écrire (tableaux de bord, intégrations…) : absents de la copie HTML.
-        _ => String::new(),
+        _ => UNSUPPORTED.to_string(),
     }
 }
 
@@ -134,7 +140,11 @@ pub fn state_to_html(state: &[u8]) -> Result<String, String> {
     let doc = load(state)?;
     let frag = doc.get_or_insert_xml_fragment(FRAGMENT);
     let txn = doc.transact();
-    Ok(html_children(&txn, &frag))
+    let html = html_children(&txn, &frag);
+    if html.contains(UNSUPPORTED) {
+        return Err("the document has blocks or marks the HTML copy cannot represent".into());
+    }
+    Ok(html)
 }
 
 #[derive(Debug)]
@@ -183,6 +193,20 @@ fn decode_entities(s: &str) -> String {
     out
 }
 
+/// Position du `>` qui ferme la balise commençant `rest` (hors valeurs d'attributs entre guillemets).
+fn tag_end(rest: &str) -> Option<usize> {
+    let mut quote: Option<char> = None;
+    for (i, c) in rest.char_indices() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (None, '>') => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
 fn tokenize(html: &str) -> Vec<Tok> {
     let mut toks = vec![];
     let mut rest = html;
@@ -199,7 +223,7 @@ fn tokenize(html: &str) -> Vec<Tok> {
             rest = r.find("-->").map_or("", |e| &r[e + 3..]);
             continue;
         }
-        let Some(end) = rest.find('>') else {
+        let Some(end) = tag_end(rest) else {
             toks.push(Tok::Text(decode_entities(rest)));
             break;
         };
