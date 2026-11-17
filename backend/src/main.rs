@@ -52,6 +52,7 @@ mod revisions;
 mod roles;
 mod planning;
 mod polls;
+mod study;
 mod analytics;
 mod backup;
 mod session_store;
@@ -204,6 +205,7 @@ fn app(state: state::AppState) -> Router {
         .nest("/workspaces/{workspace_id}/keywords", keywords::workspace_routes())
         .nest("/keywords", keywords::routes())
         .nest("/personal", personal::routes())
+        .nest("/study", study::routes())
         .nest("/workspaces/{workspace_id}/announcements", announcements::workspace_routes())
         .nest("/workspaces/{workspace_id}/planning", planning::workspace_routes())
         .nest("/workspaces/{workspace_id}", classes::workspace_routes())
