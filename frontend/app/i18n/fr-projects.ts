@@ -44,7 +44,7 @@ export default {
     compile: 'Compiler', compiled: 'Compilé en {s} s', compiledWithErrors: { one: 'PDF produit, 1 erreur', other: 'PDF produit, {count} erreurs' }, failed: { one: 'Échec : 1 erreur', other: 'Échec : {count} erreurs' },
     compileHint: 'Compilez pour voir le PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Journal de compilation', downloadPdf: 'Télécharger le PDF',
     compileServer: 'Compiler sur le serveur', compileLocal: 'Compiler sur cet ordinateur', local: 'sur cet ordinateur',
-    downloadZip: 'Télécharger le projet (zip)', renameProject: 'Renommer le projet', deleteProject: 'Supprimer le projet',
+    downloadZip: 'Télécharger le projet (zip)', zipParts: 'Gros projet : téléchargement de {count} fichiers zip (200 Mo max chacun)', renameProject: 'Renommer le projet', deleteProject: 'Supprimer le projet',
     deleteProjectTitle: 'Supprimer « {name} » ?', deleteProjectHint: 'Tous les fichiers sont supprimés et le site éventuel est retiré du web. Cette action est irréversible.',
   },
   drive: {

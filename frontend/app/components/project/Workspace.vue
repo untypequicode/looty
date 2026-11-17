@@ -190,9 +190,18 @@ async function setPublished(published: boolean) {
   } catch { /* toast */ } finally { publishing.value = false }
 }
 function copy(text: string) { navigator.clipboard.writeText(text); toast.success(t('common.linkCopied')) }
-/** Vérifie d'abord la taille (message lisible si le projet dépasse la limite d'export), puis lance le téléchargement. */
+/** Télécharge le projet en zip ; au-delà de 200 Mo il est découpé en plusieurs archives, téléchargées l'une après l'autre. */
 async function downloadZip() {
-  try { await api(`/api/projects/${id.value}/download?check=1`); window.location.href = `/api/projects/${id.value}/download` } catch { /* toast par api() */ }
+  try {
+    const { parts } = await api<{ parts: number }>(`/api/projects/${id.value}/download?check=1`)
+    for (let k = 1; k <= parts; k++) {
+      const a = document.createElement('a')
+      a.href = `/api/projects/${id.value}/download?part=${k}`
+      document.body.appendChild(a); a.click(); a.remove()
+      if (k < parts) await new Promise((r) => setTimeout(r, 1500))
+    }
+    if (parts > 1) toast.success(t('projects.zipParts', { count: parts }))
+  } catch { /* toast par api() */ }
 }
 
 // --- LaTeX ---

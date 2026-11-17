@@ -44,7 +44,7 @@ export default {
     compile: 'Compile', compiled: 'Compiled in {s} s', compiledWithErrors: { one: 'PDF produced, 1 error', other: 'PDF produced, {count} errors' }, failed: { one: 'Failed: 1 error', other: 'Failed: {count} errors' },
     compileHint: 'Compile to see the PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Compilation log', downloadPdf: 'Download PDF',
     compileServer: 'Compile on the server', compileLocal: 'Compile on this computer', local: 'on this computer',
-    downloadZip: 'Download project (zip)', renameProject: 'Rename project', deleteProject: 'Delete project',
+    downloadZip: 'Download project (zip)', zipParts: 'Large project: downloading {count} zip files (200 MB max each)', renameProject: 'Rename project', deleteProject: 'Delete project',
     deleteProjectTitle: 'Delete “{name}”?', deleteProjectHint: 'All files are deleted and the site, if any, is taken offline. This can’t be undone.',
   },
   drive: {
