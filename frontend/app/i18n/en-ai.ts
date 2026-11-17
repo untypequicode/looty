@@ -57,7 +57,7 @@ export default {
     },
     card: {
       title: 'Write permission', page: 'The assistant wants to edit “{title}”.', studyCreate: 'The assistant wants to create a training in “{where}”.', studyUpdate: 'The assistant wants to edit the training “{title}”.',
-      for: 'for', allowed: 'Allowed: {what}', hint: 'Suggest: you approve the change. Append or Replace: applied right away, the previous version is kept.',
+      for: 'for', allowed: 'Allowed: {what}', expired: 'Authorization expired: {what}', hint: 'Suggest: you approve the change. Append or Replace: applied right away, the previous version is kept.',
     },
   },
   nav: { aiAssistant: 'AI assistant' },

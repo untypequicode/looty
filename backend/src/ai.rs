@@ -380,6 +380,26 @@ async fn active_grants(pool: &PgPool, conv_id: Uuid) -> ApiResult<Vec<GrantRow>>
     .await?)
 }
 
+/// Autorisations terminées (échues ou retirées) de la discussion : l'interface en déduit qu'une carte
+/// « Autoriser » ancienne est périmée. `key` suit la clé des cartes (`p:` page, `u:` jeu modifié,
+/// `c:` création dans un espace ou `c:personal`).
+async fn ended_grants(pool: &PgPool, conv_id: Uuid) -> ApiResult<Vec<Value>> {
+    let rows: Vec<(String, DateTime<Utc>, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT key, created_at, ended_at FROM (
+            SELECT 'p:' || page_id AS key, created_at, LEAST(expires_at, COALESCE(revoked_at, expires_at)) AS ended_at
+              FROM ai_write_grants WHERE conversation_id = $1
+            UNION ALL
+            SELECT CASE WHEN kind = 'update' THEN 'u:' || set_id WHEN personal THEN 'c:personal' ELSE 'c:' || workspace_id END,
+                   created_at, LEAST(expires_at, COALESCE(revoked_at, expires_at))
+              FROM ai_study_grants WHERE conversation_id = $1
+         ) g WHERE ended_at <= now() ORDER BY created_at",
+    )
+    .bind(conv_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(key, created_at, ended_at)| json!({ "key": key, "created_at": created_at, "ended_at": ended_at })).collect())
+}
+
 async fn pending_suggestions(pool: &PgPool, conv_id: Uuid) -> ApiResult<Vec<Value>> {
     let rows: Vec<(Uuid, Uuid, String, String)> = sqlx::query_as("SELECT id, page_id, before_md, after_md FROM ai_suggestions WHERE conversation_id = $1 AND status = 'pending' ORDER BY created_at")
         .bind(conv_id)
@@ -399,6 +419,7 @@ async fn get_conversation(State(state): State<AppState>, user: AuthUser, Path(id
         "messages": msgs,
         "grants": active_grants(&state.pool, id).await?,
         "study_grants": active_study_grants(&state.pool, id).await?,
+        "ended_grants": ended_grants(&state.pool, id).await?,
         "suggestions": pending_suggestions(&state.pool, id).await?,
     })))
 }
@@ -894,6 +915,28 @@ mod tests {
     fn masking_never_reveals_more_than_the_last_four_characters() {
         assert_eq!(mask("sk-abcdefghijklmnop"), "••••mnop");
         assert_eq!(mask("short"), "••••");
+    }
+
+    #[sqlx::test]
+    async fn ended_grants_list_only_expired_or_revoked_ones(pool: PgPool) {
+        let uid: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ('a@example.org', 'a') RETURNING id").fetch_one(&pool).await.unwrap();
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        let conv: Uuid = sqlx::query_scalar("INSERT INTO ai_conversations (user_id) VALUES ($1) RETURNING id").bind(uid).fetch_one(&pool).await.unwrap();
+        for (personal, ws_id, mins, revoked) in [(false, Some(ws), -5, false), (true, None, 30, true), (false, Some(ws), 30, false)] {
+            sqlx::query("INSERT INTO ai_study_grants (conversation_id, kind, workspace_id, personal, expires_at, revoked_at) VALUES ($1, 'create', $2, $3, now() + make_interval(mins => $4), CASE WHEN $5 THEN now() ELSE NULL END)")
+                .bind(conv)
+                .bind(ws_id)
+                .bind(personal)
+                .bind(mins)
+                .bind(revoked)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let ended = ended_grants(&pool, conv).await.unwrap();
+        let keys: Vec<&str> = ended.iter().map(|g| g["key"].as_str().unwrap()).collect();
+        assert_eq!(keys.len(), 2, "{keys:?}");
+        assert!(keys.contains(&"c:personal") && keys.contains(&format!("c:{ws}").as_str()));
     }
 
     #[test]

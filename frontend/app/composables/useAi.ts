@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { api, errorMessage } from './api'
 import { links } from './useWorkspace'
+import type { EndedGrant } from '~/utils/grantState'
 
 export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'perplexity' | 'openai_compatible'
 export type AiMode = 'suggest' | 'append' | 'replace'
@@ -29,7 +30,7 @@ export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'ev
 /** Élément joint : le serveur le relit avec vos droits à l'envoi (rien du contenu ne part du navigateur). */
 export interface AiAttachment { kind: AiAttachKind; id: string; title: string; ws?: string }
 
-export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any }
+export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any; created_at?: string }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
 export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
 export interface AiDiffLine { op: ' ' | '+' | '-'; text: string }
@@ -121,6 +122,6 @@ export async function streamMessage(conversationId: string, content: string, att
 export const aiApi = {
   connections: () => api<AiConnection[]>('/api/ai/connections'),
   conversations: (q?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { q: q || undefined }, silent: true }),
-  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
+  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; ended_grants?: EndedGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
 }
 

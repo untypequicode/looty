@@ -16,6 +16,7 @@ import {
   aiApi, aiInbox, streamMessage, aiErrorMessage,
   type AiAttachKind, type AiAttachment, type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiGrantNeed, type AiStreamEvent,
 } from '~/composables/useAi'
+import { needKey, type EndedGrant } from '~/utils/grantState'
 
 /**
  * Assistant : page de l'espace à deux colonnes (conversations à gauche, discussion à droite). Lecture seule
@@ -49,6 +50,7 @@ const conv = ref<AiConversation | null>(null)
 const messages = ref<AiMessage[]>([])
 const grants = ref<AiGrant[]>([])
 const studyGrants = ref<AiStudyGrant[]>([])
+const endedGrants = ref<EndedGrant[]>([])
 const suggestions = ref<AiSuggestion[]>([])
 const draft = ref('')
 const attachments = ref<AiAttachment[]>([])
@@ -71,12 +73,13 @@ async function loadConversation(id: string) {
   messages.value = r.messages
   grants.value = r.grants
   studyGrants.value = r.study_grants ?? []
+  endedGrants.value = r.ended_grants ?? []
   suggestions.value = r.suggestions
   if (r.conversation.connection_id) connectionId.value = r.conversation.connection_id
   scrollDown()
 }
 function reset() {
-  conv.value = null; messages.value = []; grants.value = []; studyGrants.value = []; suggestions.value = []
+  conv.value = null; messages.value = []; grants.value = []; studyGrants.value = []; endedGrants.value = []; suggestions.value = []
   draft.value = ''; streaming.value = ''
   attachments.value = defaultAttachments()
 }
@@ -171,6 +174,7 @@ async function refreshGrants() {
   const r = await aiApi.conversation(conv.value.id)
   grants.value = r.grants
   studyGrants.value = r.study_grants ?? []
+  endedGrants.value = r.ended_grants ?? []
 }
 function onGranted() { if (busy.value) retryAfter = true; else void send(t('ai.page.retry')) }
 
@@ -203,7 +207,6 @@ async function restoreStudy(setId: string, revId: string, undo = false) {
 }
 
 // --- Affichage -------------------------------------------------------------------------------------
-const needKey = (n: AiGrantNeed) => (n.kind === 'page' ? `p:${n.page_id}` : n.kind === 'study_update' ? `u:${n.set_id}` : `c:${n.personal ? 'personal' : n.workspace_id}`)
 const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' && (m.content || m.role === 'user')) || (m.role === 'tool' && (m.data?.study_set_id || m.data?.page_revision_id || m.data?.grant_needed))))
 /** Une seule carte par cible : la plus récente. */
 const lastNeed = computed(() => {
@@ -241,7 +244,7 @@ const empty = computed(() => !visible.value.length && !streaming.value)
             </div>
             <template v-for="m in visible" :key="m.id">
               <template v-if="m.role === 'tool'">
-                <AiGrantCard v-if="m.data?.grant_needed && showNeed(m) && conv" :need="m.data.grant_needed" :conversation-id="conv.id" :grants="grants" :study-grants="studyGrants" @changed="refreshGrants" @granted="onGranted" />
+                <AiGrantCard v-if="m.data?.grant_needed && showNeed(m) && conv" :need="m.data.grant_needed" :conversation-id="conv.id" :grants="grants" :study-grants="studyGrants" :ended="endedGrants" :card-at="m.created_at" @changed="refreshGrants" @granted="onGranted" />
                 <div v-if="m.data?.study_set_id" class="as-row">
                   <NuxtLink :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg as-link"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
                   <UiButton v-if="m.data.study_revision_id" size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.study_revision_id)" @click="restoreStudy(m.data.study_set_id, m.data.study_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
