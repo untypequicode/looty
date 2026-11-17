@@ -208,35 +208,77 @@ pub async fn write_page(pool: &PgPool, user: &AuthUser, conv_id: Uuid, page_id: 
         .await?;
         return Ok(WriteOutcome::Suggested { suggestion_id: id, diff });
     }
-    let revision = apply_change(pool, user, page_id, op, markdown).await?;
+    let revision = apply_change(pool, user, page_id, op, markdown, None).await?;
     Ok(WriteOutcome::Applied { revision })
 }
 
-/// Écrit réellement : instantané de l'état actuel (restaurable depuis l'historique), puis état
-/// Yjs mis à jour, seulement si personne n'a écrit entre-temps. Les droits sont revérifiés.
-pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op, markdown: &str) -> ApiResult<Option<Uuid>> {
+/// Écrit réellement : l'instantané de l'état lu et le remplacement conditionnel (seulement si
+/// personne n'a écrit entre-temps) forment une seule transaction : pas de version orpheline si
+/// l'échange échoue. `expect_before` : Markdown que la page doit encore avoir (suggestion périmée).
+/// Le serveur de collaboration fusionne ensuite le nouvel état dans son exemplaire en mémoire.
+pub async fn apply_change(pool: &PgPool, user: &AuthUser, page_id: Uuid, op: Op, markdown: &str, expect_before: Option<&str>) -> ApiResult<Option<Uuid>> {
     require_page_write(pool, user, page_id).await?;
-    let row: (Option<Vec<u8>>, Option<String>) = sqlx::query_as("SELECT yjs_state, content FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+    let mut tx = pool.begin().await?;
+    let row: (Option<Vec<u8>>, Option<String>) = sqlx::query_as("SELECT yjs_state, content FROM pages WHERE id = $1").bind(page_id).fetch_one(&mut *tx).await?;
     let old = row.0.filter(|s| !s.is_empty());
     // Page jamais ouverte dans l'éditeur : son texte n'existe qu'en HTML, qu'on ne sait pas convertir sans perte.
     if old.is_none() && !ai_pages::html_to_text(row.1.as_deref().unwrap_or("")).trim().is_empty() {
         return Err(ApiError::Conflict("page_not_opened_in_editor: open this page once in the editor, then retry".into()));
     }
+    if let Some(expected) = expect_before {
+        let current = match old.as_deref() {
+            Some(s) => ai_pages::state_to_markdown(s).map_err(|e| ApiError::Internal(format!("yjs decode: {e}")))?,
+            None => String::new(),
+        };
+        if current != expected {
+            return Err(ApiError::Conflict("suggestion_stale: the page changed since this suggestion was made".into()));
+        }
+    }
     let new_state = ai_pages::apply_markdown(old.as_deref().unwrap_or(&[]), op, markdown).map_err(|e| ApiError::Internal(format!("yjs write: {e}")))?;
-    let revision = crate::revisions::snapshot_before_write(pool, page_id, user.id, "Avant modification par l'IA").await?;
+    let revision = match old.as_deref() {
+        Some(s) => Some(crate::revisions::snapshot_before_write(&mut tx, page_id, user.id, "Avant modification par l'IA", s).await?),
+        None => None,
+    };
     let done = sqlx::query("UPDATE pages_all SET yjs_state = $1, updated_at = NOW(), updated_by = $2 WHERE id = $3 AND yjs_state IS NOT DISTINCT FROM $4")
         .bind(&new_state)
         .bind(user.id)
         .bind(page_id)
         .bind(old.as_deref())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     if done.rows_affected() != 1 {
         return Err(ApiError::Conflict("page_changed_meanwhile: read the page again and retry".into()));
     }
-    // Le serveur de collaboration abandonne son exemplaire en mémoire et rouvre les connexions.
+    tx.commit().await?;
+    // Le serveur de collaboration fusionne ce nouvel état dans le document ouvert (aucune frappe perdue).
     let _ = sqlx::query("SELECT pg_notify('looty_page_reset', $1)").bind(page_id.to_string()).execute(pool).await;
     Ok(revision)
+}
+
+/// Accepte une suggestion, une seule fois : elle passe d'abord de `pending` à `accepted` (une
+/// seconde acceptation échoue), puis revient à `pending` si l'écriture échoue.
+pub async fn accept_suggestion(pool: &PgPool, user: &AuthUser, id: Uuid) -> ApiResult<(Uuid, Option<Uuid>)> {
+    let claimed: Option<(Uuid, String, String, String)> = sqlx::query_as(
+        "UPDATE ai_suggestions s SET status = 'accepted'
+         WHERE s.id = $1 AND s.status = 'pending' AND EXISTS (SELECT 1 FROM ai_conversations c WHERE c.id = s.conversation_id AND c.user_id = $2)
+         RETURNING s.page_id, s.apply_mode, s.payload_md, s.before_md",
+    )
+    .bind(id)
+    .bind(user.id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((page_id, mode, md, before)) = claimed else {
+        return Err(ApiError::Conflict("suggestion_not_pending".into()));
+    };
+    let op = if mode == "append" { Op::Append } else { Op::Replace };
+    let expect = (op == Op::Replace).then_some(before.as_str());
+    match apply_change(pool, user, page_id, op, &md, expect).await {
+        Ok(rev) => Ok((page_id, rev)),
+        Err(e) => {
+            let _ = sqlx::query("UPDATE ai_suggestions SET status = 'pending' WHERE id = $1 AND status = 'accepted'").bind(id).execute(pool).await;
+            Err(e)
+        }
+    }
 }
 
 async fn write_page_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<ToolOutput> {
@@ -368,6 +410,44 @@ mod tests {
         let WriteOutcome::Suggested { diff, .. } = out else { panic!("expected a suggestion") };
         assert!(diff.contains(&('-', "Départ".into())) && diff.contains(&('+', "Nouveau".into())));
         assert_eq!(md(&pool, w.page).await, "Départ");
+        let revs: i64 = sqlx::query_scalar("SELECT count(*) FROM page_revisions WHERE page_id = $1 AND kind = 'restore'").bind(w.page).fetch_one(&pool).await.unwrap();
+        assert_eq!(revs, 0);
+    }
+
+    async fn suggest(pool: &PgPool, w: &World, op: Op, md: &str) -> Uuid {
+        grant(pool, w, "suggest", 30).await;
+        match write_page(pool, &w.owner, w.conv, w.page, op, md).await.unwrap() {
+            WriteOutcome::Suggested { suggestion_id, .. } => suggestion_id,
+            _ => panic!("expected a suggestion"),
+        }
+    }
+
+    #[sqlx::test]
+    async fn a_suggestion_can_only_be_accepted_once(pool: PgPool) {
+        let w = world(&pool).await;
+        let id = suggest(&pool, &w, Op::Append, "Ajout").await;
+        assert!(accept_suggestion(&pool, &w.owner, id).await.is_ok());
+        assert!(matches!(accept_suggestion(&pool, &w.owner, id).await, Err(ApiError::Conflict(_))));
+        assert_eq!(md(&pool, w.page).await, "Départ\n\nAjout");
+        // Quelqu'un d'autre ne peut pas l'accepter non plus.
+        let id2 = suggest(&pool, &w, Op::Append, "Autre").await;
+        assert!(accept_suggestion(&pool, &w.outsider, id2).await.is_err());
+        let status: String = sqlx::query_scalar("SELECT status FROM ai_suggestions WHERE id = $1").bind(id2).fetch_one(&pool).await.unwrap();
+        assert_eq!(status, "pending");
+    }
+
+    #[sqlx::test]
+    async fn a_stale_replace_suggestion_is_refused_and_stays_pending(pool: PgPool) {
+        let w = world(&pool).await;
+        let id = suggest(&pool, &w, Op::Replace, "Tout neuf").await;
+        // La page change avant l'acceptation.
+        let s = sqlx::query_scalar::<_, Vec<u8>>("SELECT yjs_state FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        let changed = ai_pages::apply_markdown(&s, Op::Append, "Modif humaine").unwrap();
+        sqlx::query("UPDATE pages_all SET yjs_state = $1 WHERE id = $2").bind(changed).bind(w.page).execute(&pool).await.unwrap();
+        assert!(matches!(accept_suggestion(&pool, &w.owner, id).await, Err(ApiError::Conflict(_))));
+        assert_eq!(md(&pool, w.page).await, "Départ\n\nModif humaine");
+        let status: String = sqlx::query_scalar("SELECT status FROM ai_suggestions WHERE id = $1").bind(id).fetch_one(&pool).await.unwrap();
+        assert_eq!(status, "pending");
         let revs: i64 = sqlx::query_scalar("SELECT count(*) FROM page_revisions WHERE page_id = $1 AND kind = 'restore'").bind(w.page).fetch_one(&pool).await.unwrap();
         assert_eq!(revs, 0);
     }

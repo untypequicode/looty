@@ -396,8 +396,6 @@ async function storeDocument({ documentName, state, context, lastContext }) {
     })
     return
   }
-  // Page réécrite par le backend (agent IA) depuis le chargement : on n'écrase pas.
-  if ((loadedAt.get(documentName) ?? 0) < (resetAt.get(documentName) ?? 0)) return
   await retry(() => pool.query(
     'UPDATE pages SET yjs_state = $1, updated_at = NOW(), updated_by = COALESCE($3::uuid, updated_by) WHERE id = $2',
     [state, documentName, userId],
@@ -414,16 +412,16 @@ function onNotification(msg) {
     return
   }
   if (msg.channel === 'looty_page_reset') {
-    // Texte d'une page réécrit par le backend : l'exemplaire en mémoire est périmé, les clients se reconnectent.
+    // Texte d'une page réécrit par le backend (agent IA) à partir de l'état enregistré : on le FUSIONNE
+    // dans le document ouvert (CRDT) au lieu de l'abandonner, donc aucune frappe non enregistrée n'est
+    // perdue ; les clients connectés reçoivent le changement en direct et le stockage normal suit.
     const name = msg.payload
-    resetAt.set(name, Date.now())
-    hp.closeConnections(name)
     const doc = hp.documents.get(name)
-    failedStores.delete(name)
-    if (doc) {
-      hp.documents.delete(name)
-      try { doc.destroy() } catch {}
-    }
+    if (!doc) return
+    pool.query('SELECT yjs_state FROM pages WHERE id = $1', [name]).then((res) => {
+      const state = res.rows[0]?.yjs_state
+      if (state && state.length > 0 && hp.documents.get(name) === doc) Y.applyUpdate(doc, state, 'backend')
+    }).catch((e) => console.error('Page merge failed', name, e.message))
     return
   }
   if (msg.channel === 'looty_file_reset') {

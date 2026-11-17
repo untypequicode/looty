@@ -21,7 +21,6 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::access::{require_member_or_guest, require_page_read, require_page_write, AuthUser};
-use crate::ai_pages::Op;
 use crate::ai_provider::{self, ChatRequest, Conn, Msg, StreamEvent, ToolCall};
 use crate::ai_tools;
 use crate::error::{ApiError, ApiResult};
@@ -115,6 +114,19 @@ async fn check_base_url(raw: &str) -> ApiResult<String> {
         crate::caldav::check_url(raw).await.map_err(|_| ApiError::bad_request("invalid_base_url"))?;
     }
     Ok(raw.to_string())
+}
+
+/// Vrai si l'adresse pointe vers le réseau interne (ou ne se résout pas) : les erreurs détaillées
+/// du serveur ne doivent alors pas être renvoyées au client (sinon : sonde du réseau interne).
+async fn is_internal(raw: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(raw) else { return true };
+    let Some(host) = url.host_str() else { return true };
+    let port = url.port_or_known_default().unwrap_or(443);
+    let res = tokio::net::lookup_host((host, port)).await;
+    match res {
+        Ok(addrs) => addrs.into_iter().any(|a| crate::caldav::is_private(a.ip())),
+        Err(_) => true,
+    }
 }
 
 fn clean(s: &str, max: usize, err: &'static str) -> ApiResult<String> {
@@ -434,11 +446,8 @@ async fn own_suggestion(pool: &PgPool, user: &AuthUser, id: Uuid) -> ApiResult<(
 }
 
 async fn accept_suggestion(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
-    let (page_id, mode, md) = own_suggestion(&state.pool, &user, id).await?;
-    let op = if mode == "append" { Op::Append } else { Op::Replace };
     // Accepter est un acte de la personne : ses droits sur la page sont revérifiés dans `apply_change`.
-    let revision = ai_tools::apply_change(&state.pool, &user, page_id, op, &md).await?;
-    sqlx::query("UPDATE ai_suggestions SET status = 'accepted' WHERE id = $1").bind(id).execute(&state.pool).await?;
+    let (page_id, revision) = ai_tools::accept_suggestion(&state.pool, &user, id).await?;
     Ok(Json(json!({ "page_id": page_id, "revision_id": revision })))
 }
 
@@ -551,7 +560,17 @@ async fn send_message(State(state): State<AppState>, user: AuthUser, Path(id): P
         return Err(ApiError::bad_request("api_key_unreadable"));
     }
     let tools_ok = ai_provider::supports_tools(&row.0);
-    let provider = ai_provider::build(&Conn { provider: row.0, model: row.1, base_url: row.2, api_key }).map_err(ApiError::bad_request)?;
+    // L'adresse est revalidée (et re-résolue) à chaque requête : un nom de domaine peut changer de cible après l'enregistrement.
+    let mut quiet = false;
+    let base_url = match row.2.as_deref().filter(|b| !b.trim().is_empty()) {
+        Some(b) => {
+            let checked = check_base_url(b).await?;
+            quiet = is_internal(&checked).await;
+            Some(checked)
+        }
+        None => None,
+    };
+    let provider = ai_provider::build(&Conn { provider: row.0, model: row.1, base_url, api_key, quiet }).map_err(ApiError::bad_request)?;
     store(&state.pool, id, "user", &content, None).await?;
 
     let (tx, rx) = mpsc::channel::<Event>(64);
@@ -611,6 +630,11 @@ async fn run_agent(pool: &PgPool, user: &AuthUser, conv_id: Uuid, provider: &dyn
             return Ok(());
         }
         for c in calls {
+            // Flux abandonné : plus aucun outil ne tourne ; l'appel reçoit tout de même un résultat pour garder l'historique valide.
+            if out.is_closed() {
+                store(pool, conv_id, "tool", "error: cancelled by the user", Some(json!({ "call_id": c.id, "name": c.name }))).await.map_err(|_| "internal_error".to_string())?;
+                continue;
+            }
             let o = ai_tools::execute(pool, user, conv_id, &c.name, &c.args).await;
             let _ = out.send(sse(json!({ "type": "tool", "name": c.name, "ok": !o.text.starts_with("error"), "page_id": c.args["page_id"] }))).await;
             if let Some(s) = &o.suggestion {

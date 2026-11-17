@@ -97,15 +97,17 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(page_id): Pa
 
 /// Instantané « avant restauration » d'une page, pris avant une écriture qui ne passe pas par
 /// l'éditeur (agents IA). Renvoie `None` si la page n'a encore aucun état enregistré.
-pub async fn snapshot_before_write(pool: &sqlx::PgPool, page_id: Uuid, user_id: Uuid, label: &str) -> Result<Option<Uuid>, sqlx::Error> {
+/// Enregistre `state` (l'état lu par l'appelant, dans sa transaction) plutôt que de relire la page.
+pub async fn snapshot_before_write(conn: &mut sqlx::PgConnection, page_id: Uuid, user_id: Uuid, label: &str, state: &[u8]) -> Result<Uuid, sqlx::Error> {
     sqlx::query_scalar(
         "INSERT INTO page_revisions (page_id, yjs_state, title, kind, label, created_by)
-         SELECT id, yjs_state, title, 'restore', $2, $3 FROM pages WHERE id = $1 AND yjs_state IS NOT NULL RETURNING id",
+         SELECT id, $4, title, 'restore', $2, $3 FROM pages WHERE id = $1 RETURNING id",
     )
     .bind(page_id)
     .bind(clean_label(Some(label.to_string())))
     .bind(user_id)
-    .fetch_optional(pool)
+    .bind(state)
+    .fetch_one(conn)
     .await
 }
 

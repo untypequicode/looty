@@ -53,6 +53,8 @@ pub struct Conn {
     pub model: String,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+    /// Cible interne (réseau privé) : le corps des erreurs du fournisseur n'est jamais renvoyé.
+    pub quiet: bool,
 }
 
 pub fn default_base_url(provider: &str) -> Option<&'static str> {
@@ -79,7 +81,7 @@ pub fn build(conn: &Conn) -> Result<Box<dyn Provider>, String> {
         .ok_or("missing_base_url")?
         .trim_end_matches('/')
         .to_string();
-    let c = Common { base, model: conn.model.clone(), key: conn.api_key.clone().unwrap_or_default() };
+    let c = Common { base, model: conn.model.clone(), key: conn.api_key.clone().unwrap_or_default(), quiet: conn.quiet };
     Ok(match conn.provider.as_str() {
         "openai" | "perplexity" | "openai_compatible" => Box::new(OpenAiLike(c)),
         "anthropic" => Box::new(Anthropic(c)),
@@ -92,6 +94,7 @@ struct Common {
     base: String,
     model: String,
     key: String,
+    quiet: bool,
 }
 
 fn client() -> Result<reqwest::Client, String> {
@@ -132,9 +135,20 @@ async fn read_sse(mut resp: reqwest::Response, tx: &Sender<StreamEvent>, mut on_
     }
 }
 
+fn transport_error(e: reqwest::Error, quiet: bool) -> String {
+    if quiet {
+        "provider_unreachable".into()
+    } else {
+        e.without_url().to_string()
+    }
+}
+
 /// Erreur HTTP lisible, sans jamais répéter la clé.
-async fn http_error(resp: reqwest::Response, key: &str) -> String {
+async fn http_error(resp: reqwest::Response, key: &str, quiet: bool) -> String {
     let status = resp.status();
+    if quiet {
+        return format!("provider_http_{}", status.as_u16());
+    }
     let mut body = resp.text().await.unwrap_or_default();
     if !key.is_empty() {
         body = body.replace(key, "***");
@@ -221,9 +235,9 @@ impl Provider for OpenAiLike {
         if !self.0.key.is_empty() {
             rb = rb.bearer_auth(&self.0.key);
         }
-        let resp = rb.send().await.map_err(|e| e.without_url().to_string())?;
+        let resp = rb.send().await.map_err(|e| transport_error(e, self.0.quiet))?;
         if !resp.status().is_success() {
-            return Err(http_error(resp, &self.0.key).await);
+            return Err(http_error(resp, &self.0.key, self.0.quiet).await);
         }
         let mut calls = OpenAiCalls::default();
         read_sse(resp, tx, |d, out| {
@@ -299,9 +313,9 @@ impl Provider for Anthropic {
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.without_url().to_string())?;
+            .map_err(|e| transport_error(e, self.0.quiet))?;
         if !resp.status().is_success() {
-            return Err(http_error(resp, &self.0.key).await);
+            return Err(http_error(resp, &self.0.key, self.0.quiet).await);
         }
         // Bloc d'outil en cours : (id, nom, JSON partiel des arguments).
         let mut tool: Option<(String, String, String)> = None;
@@ -385,9 +399,9 @@ impl Provider for Gemini {
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.without_url().to_string())?;
+            .map_err(|e| transport_error(e, self.0.quiet))?;
         if !resp.status().is_success() {
-            return Err(http_error(resp, &self.0.key).await);
+            return Err(http_error(resp, &self.0.key, self.0.quiet).await);
         }
         read_sse(resp, tx, |d, events| {
             let v: Value = serde_json::from_str(d).map_err(|e| e.to_string())?;
@@ -440,6 +454,6 @@ mod tests {
     fn defaults_and_tool_support() {
         assert!(default_base_url("openai_compatible").is_none());
         assert!(!supports_tools("perplexity"));
-        assert!(build(&Conn { provider: "openai_compatible".into(), model: "m".into(), base_url: None, api_key: None }).is_err());
+        assert!(build(&Conn { provider: "openai_compatible".into(), model: "m".into(), base_url: None, api_key: None, quiet: false }).is_err());
     }
 }
