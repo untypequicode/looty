@@ -8,7 +8,8 @@ import { confirmDialog } from './useConfirm'
 import { translate } from './useI18n'
 import { toast } from './useToast'
 import { trashedToast } from './useTrash'
-import { useStudySets, type StudyKind, type StudySummary } from './useStudy'
+import { useStudySets, useStudyActions, type StudyKind, type StudySummary } from './useStudy'
+import { computeMove, lastRootPosition, type DropWhere, type TreeEntry } from './treeMove'
 
 export interface PageNode extends Page {
   children: PageNode[]
@@ -63,6 +64,7 @@ export function usePages() {
   const qc = useQueryClient()
   const { wsId, pages } = useWorkspace()
   const study = useStudySets(wsId)
+  const studyActions = useStudyActions()
   // Les entraînements se rangent dans l'arbre parmi les pages.
   const tree = computed(() => buildTree([...(pages.data.value ?? []), ...(study.data.value ?? []).map(studyAsNode)]) as PageNode[])
   const favorites = computed(() => (pages.data.value ?? []).filter((p) => p.is_favorite))
@@ -102,34 +104,29 @@ export function usePages() {
     }
   }
 
-  /** Déplace une page avant/après une autre, ou à l'intérieur (en dernier enfant). */
-  async function movePage(id: string, targetId: string, where: 'before' | 'after' | 'inside') {
-    const all = pages.data.value ?? []
-    const target = all.find((p) => p.id === targetId)
-    if (!target || id === targetId) return
-    let parentId: string | null
-    let position: number
-    if (where === 'inside') {
-      parentId = target.id
-      const kids = all.filter((p) => p.parent_id === target.id && p.id !== id)
-      position = (kids.reduce((m, p) => Math.max(m, p.position), 0) || 0) + 65536
-    } else {
-      parentId = target.parent_id ?? null
-      const siblings = all.filter((p) => (p.parent_id ?? null) === parentId && p.id !== id).sort((a, b) => a.position - b.position)
-      const idx = siblings.findIndex((p) => p.id === target.id)
-      const before = where === 'before' ? siblings[idx - 1] : target
-      const after = where === 'before' ? target : siblings[idx + 1]
-      const lo = before?.position ?? 0
-      const hi = after?.position ?? lo + 131072
-      position = (lo + hi) / 2
-    }
-    // Interdit de déplacer une page dans sa propre descendance.
-    let cur: string | null = parentId
-    while (cur) {
-      if (cur === id) return
-      cur = all.find((p) => p.id === cur)?.parent_id ?? null
-    }
-    await updatePage(id, { parent_id: parentId, position })
+  /** Éléments de l'arbre (pages et entraînements) pour calculer un rangement. */
+  function entries(): TreeEntry[] {
+    return [
+      ...(pages.data.value ?? []).map((p) => ({ id: p.id, parent_id: p.parent_id ?? null, position: p.position })),
+      ...(study.data.value ?? []).map((s) => ({ id: s.id, parent_id: s.parent_id ?? null, position: s.position, study: true })),
+    ]
+  }
+  async function place(all: TreeEntry[], id: string, parentId: string | null, position: number) {
+    if (all.find((p) => p.id === id)?.study) await studyActions.patch(id, { parent_id: parentId, position })
+    else await updatePage(id, { parent_id: parentId, position })
+  }
+
+  /** Déplace une page ou un entraînement avant/après un élément, ou à l'intérieur d'une page (en dernier enfant). */
+  async function movePage(id: string, targetId: string, where: DropWhere) {
+    const all = entries()
+    const m = computeMove(all, id, targetId, where)
+    if (m) await place(all, id, m.parentId, m.position)
+  }
+
+  /** Remonte une page ou un entraînement à la racine de l'espace, en dernier. */
+  async function moveToRoot(id: string) {
+    const all = entries()
+    await place(all, id, null, lastRootPosition(all))
   }
 
   async function deletePage(page: Pick<Page, 'id' | 'title'>) {
@@ -175,7 +172,7 @@ export function usePages() {
     await navigateTo(links.doc(wsId.value, copy.id))
   }
 
-  return { tree, favorites, createPage, createAndOpen, updatePage, movePage, deletePage, toggleFavorite, duplicatePage, patchLocal }
+  return { tree, favorites, createPage, createAndOpen, updatePage, movePage, moveToRoot, deletePage, toggleFavorite, duplicatePage, patchLocal }
 }
 
 /** Icône d'une page sans emoji : celle de son projet (LaTeX, site, notebook) ou d'un document. */

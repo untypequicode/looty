@@ -24,7 +24,7 @@ const canWrite = computed(() => can.value.editDocs)
 const canAddChild = computed(() => (canWrite.value && props.node.can_edit !== false) || !!props.node.can_add_child)
 const { createPage, movePage, deletePage, toggleFavorite, duplicatePage, updatePage } = usePages()
 const route = useRoute()
-const { move: crossMove } = useMovePage()
+const { move: crossMove, moveStudy } = useMovePage()
 // Entraînement (ADR 0011) : même arbre, mêmes gestes, sans sous-éléments.
 const isStudy = computed(() => !!props.node.study)
 const studyActions = useStudyActions()
@@ -95,17 +95,16 @@ const menuItems = computed<MenuItem[]>(() => isStudy.value ? studyMenu.value : [
 // --- Glisser-déposer (avant / dedans / après) ---
 const dropZone = ref<'before' | 'inside' | 'after' | null>(null)
 function onDragStart(e: DragEvent) {
-  if (isStudy.value) return e.preventDefault()
   e.dataTransfer!.setData('application/x-looty-page', props.node.id)
   e.dataTransfer!.effectAllowed = 'move'
-  draggingPage.value = { ws: wsId.value, id: props.node.id }
+  draggingPage.value = { ws: wsId.value, id: props.node.id, study: isStudy.value }
 }
 function onDragOver(e: DragEvent) {
-  if (isStudy.value || !e.dataTransfer?.types.includes('application/x-looty-page')) return
+  if (!e.dataTransfer?.types.includes('application/x-looty-page')) return
   e.preventDefault()
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const y = (e.clientY - rect.top) / rect.height
-  dropZone.value = y < 0.28 ? 'before' : y > 0.72 ? 'after' : 'inside'
+  dropZone.value = isStudy.value ? (y < 0.5 ? 'before' : 'after') : y < 0.28 ? 'before' : y > 0.72 ? 'after' : 'inside'
 }
 async function onDrop(e: DragEvent) {
   const id = e.dataTransfer?.getData('application/x-looty-page')
@@ -116,7 +115,8 @@ async function onDrop(e: DragEvent) {
   const from = draggingPage.value
   draggingPage.value = null
   if (from && from.id === id && from.ws !== wsId.value) {
-    await crossMove(from.ws, id, wsId.value, zone === 'inside' ? props.node.id : props.node.parent_id ?? null)
+    const dest = zone === 'inside' ? props.node.id : props.node.parent_id ?? null
+    await (from.study ? moveStudy : crossMove)(from.ws, id, wsId.value, dest)
     if (zone === 'inside') expanded.value = true
     return
   }
@@ -132,7 +132,7 @@ async function onDrop(e: DragEvent) {
       class="tree-row"
       :class="{ active, [`drop-${dropZone}`]: dropZone }"
       :style="{ paddingLeft: `${4 + node.depth * 14}px` }"
-      :draggable="canWrite && !renaming && !isStudy"
+      :draggable="canWrite && !renaming && (!isStudy || node.can_edit !== false)"
       @dragstart="onDragStart"
       @dragend="draggingPage = null"
       @dragover="onDragOver"
