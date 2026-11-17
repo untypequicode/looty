@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { X, Bot, Send, Square, Plus, PenLine, Check, Ban, Wrench, GraduationCap } from 'lucide-vue-next'
+import { X, Bot, Send, Square, Plus, PenLine, Check, Ban, Wrench, GraduationCap, Undo2 } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
+import { useStudyActions } from '~/composables/useStudy'
 import { renderChatMarkdown } from '~/editor/chatMarkdown'
 import {
   aiOpen, aiApi, streamMessage, aiErrorMessage,
@@ -192,6 +193,18 @@ function studyGrantLabel(g: AiStudyGrant) {
     : t('ai.chat.studyGrantCreate', { where: g.personal ? t('ai.chat.personal') : g.workspace_name || '' })
 }
 // Messages à afficher : le texte, et un lien vers chaque jeu créé ou modifié (aussi dans l'historique).
+// Restauration de la version d'un jeu gardée avant une modification de l'IA ; le toast propose d'annuler.
+const studyActions = useStudyActions()
+const restoredRevs = ref(new Set<string>())
+async function restoreStudy(setId: string, revId: string, undo = false) {
+  try {
+    const undoId = await studyActions.restore(setId, revId)
+    if (!undo) restoredRevs.value = new Set(restoredRevs.value).add(revId)
+    toast.success(t(undo ? 'study.restoreUndone' : 'study.restored'), undo ? {} : { duration: 10000, action: { label: t('study.undo'), run: () => { void restoreStudy(setId, undoId, true) } } })
+  } catch (e: any) {
+    toast.error(errorMessage(e))
+  }
+}
 const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' && (m.content || m.role === 'user')) || (m.role === 'tool' && m.data?.study_set_id)))
 </script>
 
@@ -228,7 +241,10 @@ const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' &
         <div ref="list" class="ai-list">
           <p v-if="!visible.length && !streaming" class="hint">{{ t('ai.chat.readOnlyHint') }}</p>
           <template v-for="m in visible" :key="m.id">
-            <NuxtLink v-if="m.role === 'tool'" :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg study-link" @click="aiOpen = false"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
+            <div v-if="m.role === 'tool'" class="study-row">
+              <NuxtLink :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg study-link" @click="aiOpen = false"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
+              <UiButton v-if="m.data.study_revision_id" size="sm" variant="ghost" :icon="Undo2" :disabled="restoredRevs.has(m.data.study_revision_id)" @click="restoreStudy(m.data.study_set_id, m.data.study_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
+            </div>
             <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
             <div v-else-if="m.role === 'assistant'" class="msg assistant md" v-html="renderChatMarkdown(m.content)" />
             <div v-else class="msg" :class="m.role">{{ m.content }}</div>
@@ -328,6 +344,7 @@ const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' &
 .msg.md :deep(h1), .msg.md :deep(h2), .msg.md :deep(h3), .msg.md :deep(h4) { font-size: 1em; margin: 6px 0 4px; }
 .msg.user { align-self: flex-end; background: var(--accent-soft); }
 .msg.assistant { align-self: flex-start; background: var(--bg-hover); }
+.study-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .study-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); text-decoration: none; }
 .tools { display: flex; align-items: center; gap: 6px; color: var(--text-4); font-size: var(--fs-xs); }
 .sugg { border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px; }

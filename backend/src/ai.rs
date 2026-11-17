@@ -572,7 +572,7 @@ struct SendReq {
 /// Ce que le modèle doit savoir pour fabriquer des jeux de révision (format : docs/study-items.md).
 const STUDY_GUIDE: &str = "STUDY SETS (revision content): tools create_study_set, list_study_sets, read_study_set, update_study_set, read_attempts.\n\
 - Writing needs a grant like pages: 'create study sets' in a workspace or the personal space, or 'update' on one set. Without it the server refuses: tell the user to grant it in the chat. Sets you create are PRIVATE (visible to the user only); never promise sharing, the user decides. After creating, give the user the link /study/<set_id>.\n\
-- Set kinds and item types: qcm = single|multi; questionnaire = single|multi|text; flashcards and summary = flashcard (summary: prompt = section title, answer.back = its content).\n\
+- Set kinds and item types: qcm = single|multi; questionnaire = single|multi|text; flashcards and summary = flashcard. SUMMARY sets are read as a document, not played as cards: one item per section, prompt = the section heading (short, 3..80 chars, no Markdown), answer.back = the section body in Markdown (paragraphs, lists, **bold**, tables, code; no images or HTML; at most 4000 chars, split longer sections), in reading order, no explanation field. A good summary has 4..12 sections that follow the structure of the source (definition, key points, example, pitfalls), written in the user's language.\n\
 - Item JSON, no other field: {\"type\", \"prompt\" (1..2000 chars), \"choices\": [{\"id\": \"a\", \"text\"}] (single/multi only, 2..10, unique short ids), \"answer\", \"explanation\" (optional)}. answer: single {\"choice\": \"b\"}; multi {\"choices\": [\"a\",\"c\"]} (at least one); text {\"accepted\": [\"Paris\"]} (case, accents and punctuation are ignored; empty list = self-assessed); flashcard {\"back\": \"...\"}. At most 500 items. A validation error names what to fix: correct it and retry.\n\
 - Good practice: one clear question per item with exactly one defensible answer; plausible distractors of similar length; no 'all/none of the above'; put the reasoning in the explanation; mix easy, medium and hard items and cover the whole topic; base items on the user's pages or on what they asked, and do not invent facts. Prefer a few well-made items over many weak ones. Match the user's language.\n\
 - To target weak points, call read_attempts: it only returns the user's OWN results. update_study_set replaces the whole item list: read the set first, send every item you keep with its id; the previous version is saved.\n\
@@ -749,14 +749,14 @@ async fn run_agent(pool: &PgPool, user: &AuthUser, conv_id: Uuid, provider: &dyn
                 continue;
             }
             let o = ai_tools::execute(pool, user, conv_id, &c.name, &c.args).await;
-            let _ = out.send(sse(json!({ "type": "tool", "name": c.name, "ok": !o.text.starts_with("error"), "page_id": c.args["page_id"], "study_set_id": o.study_set }))).await;
+            let _ = out.send(sse(json!({ "type": "tool", "name": c.name, "ok": !o.text.starts_with("error"), "page_id": c.args["page_id"], "study_set_id": o.study_set, "study_revision_id": o.study_revision }))).await;
             if let Some(s) = &o.suggestion {
                 let _ = out.send(sse(json!({ "type": "suggestion", "suggestion": s }))).await;
             }
             if let Some(p) = o.changed_page {
                 let _ = out.send(sse(json!({ "type": "page_changed", "page_id": p }))).await;
             }
-            store(pool, conv_id, "tool", &o.text, Some(json!({ "call_id": c.id, "name": c.name, "study_set_id": o.study_set }))).await.map_err(|_| "internal_error".to_string())?;
+            store(pool, conv_id, "tool", &o.text, Some(json!({ "call_id": c.id, "name": c.name, "study_set_id": o.study_set, "study_revision_id": o.study_revision }))).await.map_err(|_| "internal_error".to_string())?;
         }
     }
     Err("too_many_tool_rounds".into())

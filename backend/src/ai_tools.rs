@@ -56,11 +56,13 @@ pub struct ToolOutput {
     pub changed_page: Option<Uuid>,
     /// Jeu de révision créé ou modifié (l'interface en affiche un lien).
     pub study_set: Option<Uuid>,
+    /// Version du jeu enregistrée avant une modification : l'interface propose de la restaurer.
+    pub study_revision: Option<Uuid>,
 }
 
 impl ToolOutput {
     fn text(t: impl Into<String>) -> Self {
-        ToolOutput { text: t.into(), suggestion: None, changed_page: None, study_set: None }
+        ToolOutput { text: t.into(), suggestion: None, changed_page: None, study_set: None, study_revision: None }
     }
 }
 
@@ -329,12 +331,13 @@ async fn write_page_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &V
         _ => return Err(ApiError::bad_request("operation must be append or replace")),
     };
     Ok(match write_page(pool, user, conv_id, page_id, op, md).await? {
-        WriteOutcome::Applied { .. } => ToolOutput { text: "ok: the page was updated (a restorable version was saved before).".into(), suggestion: None, changed_page: Some(page_id), study_set: None },
+        WriteOutcome::Applied { .. } => ToolOutput { text: "ok: the page was updated (a restorable version was saved before).".into(), suggestion: None, changed_page: Some(page_id), study_set: None, study_revision: None },
         WriteOutcome::Suggested { suggestion_id, diff } => ToolOutput {
             text: "ok: the change was NOT applied; it was proposed to the user, who must accept it in the chat. Do not claim the page changed.".into(),
             suggestion: Some(json!({ "id": suggestion_id, "page_id": page_id, "diff": diff.iter().map(|(o, l)| json!({ "op": o.to_string(), "text": l })).collect::<Vec<_>>() })),
             changed_page: None,
             study_set: None,
+            study_revision: None,
         },
     })
 }
@@ -563,6 +566,7 @@ async fn update_study_set_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, ar
     let rev = update_study_set(pool, user, conv_id, id, args["title"].as_str(), args["kind"].as_str(), &items).await?;
     let mut out = ToolOutput::text(format!("ok: the study set was updated (the previous version was saved, revision_id {rev}, and the user can restore it)."));
     out.study_set = Some(id);
+    out.study_revision = Some(rev);
     Ok(out)
 }
 
@@ -972,6 +976,8 @@ mod tests {
         let title: String = sqlx::query_scalar("SELECT title FROM study_sets WHERE id = $1").bind(set).fetch_one(&pool).await.unwrap();
         assert_eq!(title, "Nouveau");
         let rev: Uuid = sqlx::query_scalar("SELECT id FROM study_set_revisions WHERE set_id = $1").bind(set).fetch_one(&pool).await.unwrap();
+        // L'identifiant renvoyé à l'interface (bouton « restaurer ») est cette version.
+        assert_eq!(out.study_revision, Some(rev));
         assert!(restore_study_revision(&pool, &w.outsider, rev).await.is_err());
         restore_study_revision(&pool, &w.owner, rev).await.unwrap();
         let (title, prompt): (String, String) = sqlx::query_as("SELECT s.title, i.prompt FROM study_sets s JOIN study_items i ON i.set_id = s.id WHERE s.id = $1").bind(set).fetch_one(&pool).await.unwrap();
