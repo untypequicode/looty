@@ -207,6 +207,14 @@ _Avoid_: chat, panneau IA, bulle IA
 Élément (page, tâche, tableau, événement, document, entraînement…) que la personne joint à un message pour que l'assistant le lise avec la question. Elle ne donne aucun droit d'écriture. Aussi appelée contexte joint.
 _Avoid_: fichier joint, contexte (seul)
 
+**Fichier de l'assistant**:
+Fichier déposé par une personne dans une conversation avec l'assistant (PDF, document Word, présentation, texte…). Il est rangé dans le Drive personnel, dossier « Assistant IA », privé, et disparaît comme tout fichier du Drive à l'échéance de celui-ci ; l'assistant n'en lit que le texte.
+_Avoid_: upload, document IA
+
+**Texte extrait**:
+Texte qu'on tire d'un fichier (Drive, Moodle ou déposé dans le chat) pour que l'assistant puisse le lire. Il vit avec le fichier et disparaît avec lui. Un fichier sans texte (PDF scanné, image) n'en a pas et n'est pas lisible par l'assistant.
+_Avoid_: OCR, contenu du fichier
+
 **Carte d'autorisation**:
 Carte affichée dans la conversation quand l'assistant a besoin d'un droit d'écriture qu'il n'a pas : elle indique la page ou l'entraînement, le mode et la durée, et la personne l'accepte ou la refuse d'un clic. Accepter crée l'autorisation correspondante.
 _Avoid_: popup de permission, demande d'accès
