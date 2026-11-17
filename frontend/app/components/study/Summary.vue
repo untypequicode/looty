@@ -2,6 +2,7 @@
 import { Check, Circle } from 'lucide-vue-next'
 import type { StudySet } from '~/composables/useStudy'
 import { useI18n } from '~/composables/useI18n'
+import 'katex/dist/katex.min.css'
 import { renderChatMarkdown } from '~/editor/chatMarkdown'
 
 /**
