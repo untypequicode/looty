@@ -45,7 +45,14 @@ const checks = {
   },
 
   async 'collaboration over /collab'() {
-    const res = await fetch(new URL('/collab', base))
+    // La collaboration démarre en parallèle du backend et le proxy ne la route qu'une fois saine : on l'attend aussi.
+    const deadline = Date.now() + waitSeconds * 1000
+    let res
+    for (;;) {
+      res = await fetch(new URL('/collab', base))
+      if (res.status === 200 || Date.now() > deadline) break
+      await new Promise((r) => setTimeout(r, 2000))
+    }
     assert.equal(res.status, 200)
     assert.match(await res.text(), /Hocuspocus/)
   },
