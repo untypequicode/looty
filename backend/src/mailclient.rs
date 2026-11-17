@@ -539,6 +539,11 @@ struct MsgQuery {
 
 async fn fetch_raw(s: &mut Imap, folder: &str, uid: u32, peek: bool) -> ApiResult<Vec<u8>> {
     s.select(folder).await.map_err(imap_err)?;
+    // Taille d'abord : on ne télécharge pas un message démesuré en mémoire.
+    let sizes: Vec<_> = s.uid_fetch(uid.to_string(), "(UID RFC822.SIZE)").await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
+    if sizes.iter().any(|f| f.uid == Some(uid) && f.size.is_some_and(|n| n as usize > MAX_FETCH_SIZE)) {
+        return Err(ApiError::bad_request("mail_too_large"));
+    }
     let item = if peek { "(UID BODY.PEEK[])" } else { "(UID FLAGS BODY[])" };
     let fetches: Vec<_> = s.uid_fetch(uid.to_string(), item).await.map_err(imap_err)?.try_collect().await.map_err(imap_err)?;
     fetches.iter().find(|f| f.uid == Some(uid)).and_then(|f| f.body()).map(<[u8]>::to_vec).ok_or(ApiError::NotFound)
@@ -964,6 +969,8 @@ struct SendReq {
 }
 
 const MAX_SIZE: usize = 25 * 1024 * 1024;
+/// Taille maximale d'un message reçu qu'on accepte de charger en mémoire.
+pub(crate) const MAX_FETCH_SIZE: usize = 35 * 1024 * 1024;
 
 fn parse_mailboxes(list: &[String]) -> ApiResult<Vec<Mailbox>> {
     list.iter()
@@ -980,6 +987,10 @@ async fn read_upload(url: &str) -> ApiResult<(Vec<u8>, String)> {
         return Err(ApiError::bad_request("mail_invalid_attachment"));
     }
     let path = std::path::PathBuf::from(crate::upload::UPLOAD_DIR).join(name);
+    let meta = tokio::fs::metadata(&path).await.map_err(|_| ApiError::bad_request("mail_invalid_attachment"))?;
+    if meta.len() > MAX_SIZE as u64 {
+        return Err(ApiError::bad_request("mail_too_large"));
+    }
     let data = tokio::fs::read(&path).await.map_err(|_| ApiError::bad_request("mail_invalid_attachment"))?;
     Ok((data, mime_guess::from_path(&path).first_or_octet_stream().essence_str().to_string()))
 }

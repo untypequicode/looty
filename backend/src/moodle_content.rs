@@ -239,9 +239,13 @@ async fn page_html_live(State(state): State<AppState>, user: AuthUser, Path(ws):
     let (c, client, _) = conn_of(&state, &user, ws).await?;
     let page = plugin_url(&client.base, &q.url).ok_or_else(|| ApiError::bad_request("moodle_bad_file"))?;
     let r = track(&state, c.id, fetch(&client, &q.url).await).await?;
-    let bytes = r.bytes().await.map_err(|_| ApiError::bad_request("moodle_unreachable"))?;
-    if bytes.len() > 5 * 1024 * 1024 {
-        return Err(ApiError::bad_request("moodle_too_large"));
+    let mut r = r;
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(chunk) = r.chunk().await.map_err(|_| ApiError::bad_request("moodle_unreachable"))? {
+        if bytes.len() + chunk.len() > 5 * 1024 * 1024 {
+            return Err(ApiError::bad_request("moodle_too_large"));
+        }
+        bytes.extend_from_slice(&chunk);
     }
     let html = String::from_utf8_lossy(&bytes);
     Ok(Json(json!({ "html": clean(&html, &client.base, ws, Some(&page)) })))

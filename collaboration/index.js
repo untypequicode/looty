@@ -9,6 +9,7 @@ const pool = new Pool({
   // Base morte : l'échec est rapide (et relancé) au lieu de rester suspendu indéfiniment.
   connectionTimeoutMillis: 5000,
   idleTimeoutMillis: 30000,
+  max: 5,
 })
 
 // Filet de sécurité : une promesse rejetée ou une exception oubliée ne doit pas tuer le

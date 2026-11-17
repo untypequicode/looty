@@ -248,17 +248,20 @@ async fn log_needs_rerun(dir: &FsPath, base: &str) -> bool {
 
 pub async fn output_pdf(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Response> {
     let (p, _) = project_for(&state, &user, id, Need::Read).await?;
-    let bytes = tokio::fs::read(output_path(id)).await.map_err(|_| ApiError::NotFound)?;
+    let file = tokio::fs::File::open(output_path(id)).await.map_err(|_| ApiError::NotFound)?;
+    let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    let body = Body::from_stream(tokio_util::io::ReaderStream::new(file));
     let name: String = p.name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
     Ok((
         [
             (header::CONTENT_TYPE, "application/pdf".to_string()),
             (header::CONTENT_DISPOSITION, format!("inline; filename=\"{name}.pdf\"")),
+            (header::CONTENT_LENGTH, len.to_string()),
             (header::CACHE_CONTROL, "no-store".into()),
             (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
             (header::X_FRAME_OPTIONS, "SAMEORIGIN".into()),
         ],
-        Body::from(bytes),
+        body,
     )
         .into_response())
 }
