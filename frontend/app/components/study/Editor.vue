@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Plus, Trash2, ArrowUp, ArrowDown, RotateCcw } from 'lucide-vue-next'
+import { Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Eye } from 'lucide-vue-next'
 import { ITEM_TYPES, type StudyRevision, type StudyItem, type StudyItemType, type StudyKind } from '~/composables/useStudy'
 import { useI18n } from '~/composables/useI18n'
 
 /** Mode édition d'un jeu : titre, éléments (ajout, ordre, suppression) selon leur type. */
-interface Draft { id?: string; type: StudyItemType; prompt: string; choices: { id: string; text: string }[]; correct: string; multi: string[]; accepted: string; back: string; explanation: string }
+interface Draft { id?: string; type: StudyItemType; prompt: string; choices: { id: string; text: string }[]; correct: string; multi: string[]; accepted: string; back: string; explanation: string; preview?: boolean }
 
 const props = defineProps<{ title: string; kind: StudyKind; items: StudyItem[]; saving?: boolean; revisions?: StudyRevision[]; restoring?: string | null }>()
 const emit = defineEmits<{ (e: 'save', v: { title: string; kind: StudyKind; items: unknown[] }): void; (e: 'restore', id: string): void }>()
@@ -72,6 +72,7 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
       <header class="ed-head">
         <b>{{ i + 1 }}. {{ isSummary ? t('study.section') : t(`study.types.${d.type}`) }}</b>
         <span class="ed-tools">
+          <UiButton size="xs" :variant="d.preview ? 'secondary' : 'ghost'" :icon="Eye" :aria-pressed="!!d.preview" @click="d.preview = !d.preview">{{ t('study.preview') }}</UiButton>
           <UiButton size="xs" variant="ghost" :icon="ArrowUp" :disabled="i === 0" :aria-label="t('study.moveUp')" @click="move(i, -1)" />
           <UiButton size="xs" variant="ghost" :icon="ArrowDown" :disabled="i === drafts.length - 1" :aria-label="t('study.moveDown')" @click="move(i, 1)" />
           <UiButton size="xs" variant="ghost" :icon="Trash2" :aria-label="t('study.removeItem')" @click="remove(i)" />
@@ -95,6 +96,15 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
       <UiInput v-else-if="isSummary" v-model="d.back" multiline :rows="8" maxlength="4000" :placeholder="t('study.sectionBody')" :aria-label="t('study.sectionBody')" />
       <UiInput v-else v-model="d.back" multiline :rows="3" :placeholder="t('study.back')" :aria-label="t('study.back')" />
       <UiInput v-if="!isCards(d)" v-model="d.explanation" size="sm" :placeholder="t('study.explanation')" :aria-label="t('study.explanation')" />
+      <small class="faint">{{ t('study.markdownHint') }}</small>
+      <div v-if="d.preview" class="ed-preview" :aria-label="t('study.preview')">
+        <RichMarkdown :src="d.prompt" :mode="isSummary ? 'inline' : 'auto'" class="ed-pv-prompt" />
+        <ul v-if="d.type === 'single' || d.type === 'multi'">
+          <li v-for="c in d.choices" :key="c.id"><RichMarkdown :src="c.text" mode="inline" /></li>
+        </ul>
+        <RichMarkdown v-if="d.type === 'flashcard' && d.back" :src="d.back" />
+        <RichMarkdown v-if="!isCards(d) && d.explanation" :src="d.explanation" class="faint" />
+      </div>
     </article>
     <div class="ed-add">
       <UiButton v-for="ty in allowed" :key="ty" size="sm" :icon="Plus" @click="add(ty)">{{ isSummary ? t('study.addSection') : `${t('study.addItem')} · ${t(`study.types.${ty}`)}` }}</UiButton>
@@ -120,6 +130,9 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
 .ed-tools { display: inline-flex; gap: 2px; }
 .ed-choice { display: flex; align-items: center; gap: 8px; }
 .ed-choice > :nth-child(2) { flex: 1; }
+.ed-preview { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--r-md); background: var(--bg-hover); }
+.ed-preview ul { margin: 0; padding-left: 20px; }
+.ed-pv-prompt { font-weight: 600; }
 .ed-add { display: flex; flex-wrap: wrap; gap: 8px; }
 .ed-save { display: flex; justify-content: flex-end; }
 .ed-rev { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--border); }
