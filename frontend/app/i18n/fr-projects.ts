@@ -8,7 +8,7 @@ export default {
     jupyter_invalid_kernel: 'Nom de noyau invalide', jupyter_kernel_unknown: 'Ce noyau n’existe pas sur le serveur Jupyter', jupyter_kernel_gone: 'Le noyau n’existe plus sur le serveur Jupyter (redémarrez-le)',
     jupyter_too_many_kernels: 'Trop de noyaux distants ouverts : fermez d’abord d’autres notebooks',
     project_invalid_path: 'Nom ou chemin de fichier invalide', project_path_exists: 'Un fichier porte déjà ce nom', project_path_conflict: 'Un fichier porte le nom de ce dossier',
-    project_too_many: 'Trop de projets dans cet espace (200 max)', project_too_many_files: 'Trop de fichiers dans ce projet (2000 max)', project_file_too_large: 'Fichier texte trop volumineux (2 Mo max)',
+    project_too_many: 'Trop de projets dans cet espace (200 max)', project_too_many_files: 'Trop de fichiers dans ce projet (2000 max)', project_file_too_large: 'Fichier texte trop volumineux (2 Mo max)', project_too_large_to_export: 'Projet trop volumineux pour être exporté (200 Mo max)',
     project_invalid_slug: 'Adresse invalide : lettres minuscules, chiffres et tirets (2 à 64)', project_slug_taken: 'Cette adresse est déjà utilisée par un autre site',
     latex_unavailable: 'Aucun moteur LaTeX n’est installé sur le serveur', latex_timeout: 'La compilation a pris trop de temps (1 min max par passe)', latex_busy: 'Le serveur compile déjà d’autres documents, réessayez',
     latex_no_main: 'Fichier principal introuvable : choisissez-le dans l’arborescence (« Définir comme fichier principal »)', latex_local_missing: 'Aucun moteur LaTeX trouvé sur cet ordinateur (installez TeX Live ou MiKTeX)',
@@ -44,7 +44,7 @@ export default {
     compile: 'Compiler', compiled: 'Compilé en {s} s', compiledWithErrors: { one: 'PDF produit, 1 erreur', other: 'PDF produit, {count} erreurs' }, failed: { one: 'Échec : 1 erreur', other: 'Échec : {count} erreurs' },
     compileHint: 'Compilez pour voir le PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Journal de compilation', downloadPdf: 'Télécharger le PDF',
     compileServer: 'Compiler sur le serveur', compileLocal: 'Compiler sur cet ordinateur', local: 'sur cet ordinateur',
-    downloadZip: 'Télécharger le projet (zip)', renameProject: 'Renommer le projet', deleteProject: 'Supprimer le projet',
+    downloadZip: 'Télécharger le projet (zip)', zipParts: 'Gros projet : téléchargement de {count} fichiers zip (200 Mo max chacun)', renameProject: 'Renommer le projet', deleteProject: 'Supprimer le projet',
     deleteProjectTitle: 'Supprimer « {name} » ?', deleteProjectHint: 'Tous les fichiers sont supprimés et le site éventuel est retiré du web. Cette action est irréversible.',
   },
   drive: {

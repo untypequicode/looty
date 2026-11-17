@@ -190,6 +190,19 @@ async function setPublished(published: boolean) {
   } catch { /* toast */ } finally { publishing.value = false }
 }
 function copy(text: string) { navigator.clipboard.writeText(text); toast.success(t('common.linkCopied')) }
+/** Télécharge le projet en zip ; au-delà de 200 Mo il est découpé en plusieurs archives, téléchargées l'une après l'autre. */
+async function downloadZip() {
+  try {
+    const { parts } = await api<{ parts: number }>(`/api/projects/${id.value}/download?check=1`)
+    for (let k = 1; k <= parts; k++) {
+      const a = document.createElement('a')
+      a.href = `/api/projects/${id.value}/download?part=${k}`
+      document.body.appendChild(a); a.click(); a.remove()
+      if (k < parts) await new Promise((r) => setTimeout(r, 1500))
+    }
+    if (parts > 1) toast.success(t('projects.zipParts', { count: parts }))
+  } catch { /* toast par api() */ }
+}
 
 // --- LaTeX ---
 const compiling = ref(false)
@@ -270,7 +283,7 @@ const moreOpen = ref(false)
 const moreItems = computed<MenuItem[]>(() => [
   ...(props.embedded ? [] : openInAppItems(`/w/${wsId.value}/projects/${id.value}`)),
   ...(isIpynb.value && current.value ? [{ label: t('notebook.download'), icon: Download, onSelect: () => window.open(`/api/projects/${id.value}/files/${current.value!.id}/raw`, '_blank') }] : []),
-  { label: t('projects.downloadZip'), icon: Download, onSelect: () => (window.location.href = `/api/projects/${id.value}/download`) },
+  { label: t('projects.downloadZip'), icon: Download, onSelect: downloadZip },
   ...(canWrite.value ? [{ label: t('projects.renameProject'), icon: Pencil, onSelect: renameProject }] : []),
   ...(data.value?.can_manage && !props.embedded ? [{ divider: true }, { label: t('projects.deleteProject'), icon: Trash2, danger: true, onSelect: deleteProject }] : []),
 ])

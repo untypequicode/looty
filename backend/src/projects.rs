@@ -12,7 +12,7 @@
 
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -861,30 +861,96 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uu
     Ok(Json(json!({ "files": saved })))
 }
 
-/// Archive zip du projet.
-async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Response> {
-    let (p, _) = project_for(&state, &user, id, Need::Read).await?;
-    let files = all_files(&state, id).await?;
-    let mut entries = Vec::new();
-    for f in files.iter().filter(|f| !f.is_dir) {
-        entries.push((f.path.clone(), file_bytes(f).await.unwrap_or_default()));
+/// Plafond (octets non compressés) des exports du projet (zip, bundle).
+const MAX_EXPORT_BYTES: usize = 200 * 1024 * 1024;
+#[derive(Deserialize)]
+struct DownloadQuery {
+    /// `?check=1` : ne construit pas l'archive, renvoie `{ "parts": n }` (nombre d'archives nécessaires).
+    check: Option<u8>,
+    /// `?part=k` (à partir de 1) : k-ième archive quand le projet dépasse le plafond d'une archive.
+    part: Option<usize>,
+}
+
+/// Répartit les chemins des fichiers en lots d'au plus `MAX_EXPORT_BYTES` octets non compressés (au moins un lot).
+async fn export_parts(state: &AppState, id: Uuid) -> ApiResult<Vec<Vec<String>>> {
+    let rows: Vec<(String, i64)> = sqlx::query_as("SELECT path, size FROM project_files WHERE project_id = $1 AND NOT is_dir ORDER BY path").bind(id).fetch_all(&state.pool).await?;
+    Ok(pack_parts(rows, MAX_EXPORT_BYTES))
+}
+
+/// Rangement glouton dans l'ordre : un lot est fermé dès que le fichier suivant le ferait dépasser `cap` (un fichier plus gros que `cap` a son propre lot).
+fn pack_parts(rows: Vec<(String, i64)>, cap: usize) -> Vec<Vec<String>> {
+    let mut parts: Vec<Vec<String>> = vec![Vec::new()];
+    let mut used = 0usize;
+    for (path, size) in rows {
+        let size = size.max(0) as usize;
+        if used > 0 && used + size > cap {
+            parts.push(Vec::new());
+            used = 0;
+        }
+        used += size;
+        if let Some(last) = parts.last_mut() {
+            last.push(path);
+        }
     }
-    let zip = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
-        use std::io::Write;
-        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-        for (path, data) in entries {
+    parts
+}
+
+#[cfg(test)]
+mod pack_tests {
+    use super::pack_parts;
+
+    #[test]
+    fn splits_in_order_without_exceeding_cap() {
+        let rows = vec![("a".to_string(), 60), ("b".to_string(), 60), ("c".to_string(), 30), ("d".to_string(), 250)];
+        let parts = pack_parts(rows, 100);
+        assert_eq!(parts, vec![vec!["a"], vec!["b", "c"], vec!["d"]]);
+    }
+
+    #[test]
+    fn empty_project_has_one_empty_part() {
+        assert_eq!(pack_parts(vec![], 100), vec![Vec::<String>::new()]);
+    }
+}
+
+/// Archive zip du projet ; au-delà du plafond, plusieurs archives (`?part=k`).
+async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<DownloadQuery>) -> ApiResult<Response> {
+    let (p, _) = project_for(&state, &user, id, Need::Read).await?;
+    let parts = export_parts(&state, id).await?;
+    if q.check.is_some() {
+        return Ok(Json(json!({ "parts": parts.len() })).into_response());
+    }
+    let part = q.part.unwrap_or(1);
+    if part == 0 || part > parts.len() {
+        return Err(ApiError::bad_request("invalid_part"));
+    }
+    let wanted: std::collections::HashSet<&str> = parts[part - 1].iter().map(|s| s.as_str()).collect();
+    let files = all_files(&state, id).await?;
+    // Chaque fichier est lu puis écrit dans l'archive aussitôt, sans garder tous les contenus en mémoire.
+    let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let mut total = 0usize;
+    for f in files.iter().filter(|f| !f.is_dir && wanted.contains(f.path.as_str())) {
+        let data = file_bytes(f).await.unwrap_or_default();
+        total += data.len();
+        if total > MAX_EXPORT_BYTES {
+            return Err(ApiError::bad_request("project_too_large_to_export"));
+        }
+        let path = f.path.clone();
+        w = tokio::task::spawn_blocking(move || -> std::io::Result<_> {
+            use std::io::Write;
+            let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
             w.start_file(path, opts).map_err(std::io::Error::other)?;
             w.write_all(&data)?;
-        }
-        Ok(w.finish().map_err(std::io::Error::other)?.into_inner())
-    })
-    .await
-    .map_err(|e| ApiError::Internal(e.to_string()))?
-    .map_err(|e| ApiError::Internal(e.to_string()))?;
+            Ok(w)
+        })
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
+    let zip = w.finish().map_err(|e| ApiError::Internal(e.to_string()))?.into_inner();
     let name: String = p.name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    let file = if parts.len() > 1 { format!("{name}-part{part}-of-{}.zip", parts.len()) } else { format!("{name}.zip") };
     Ok((
-        [(header::CONTENT_TYPE, "application/zip".to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}.zip\""))],
+        [(header::CONTENT_TYPE, "application/zip".to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{file}\""))],
         Body::from(zip),
     )
         .into_response())
@@ -895,8 +961,18 @@ async fn bundle(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uu
     use base64::Engine;
     let (p, _) = project_for(&state, &user, id, Need::Read).await?;
     let mut out = Vec::new();
+    let mut total = 0usize;
     for f in all_files(&state, id).await? {
-        let data = if f.is_dir { String::new() } else { base64::engine::general_purpose::STANDARD.encode(file_bytes(&f).await.unwrap_or_default()) };
+        let data = if f.is_dir {
+            String::new()
+        } else {
+            let raw = file_bytes(&f).await.unwrap_or_default();
+            total += raw.len();
+            if total > MAX_EXPORT_BYTES {
+                return Err(ApiError::bad_request("project_too_large_to_export"));
+            }
+            base64::engine::general_purpose::STANDARD.encode(raw)
+        };
         out.push(json!({ "id": f.id, "path": f.path, "is_dir": f.is_dir, "text": f.blob_path.is_none(), "data": data }));
     }
     Ok(Json(json!({ "main": p.settings["main"].as_str().unwrap_or("main.tex"), "engine": p.settings["engine"].as_str().unwrap_or("pdflatex"), "files": out })))

@@ -220,13 +220,14 @@ pub async fn image(
 /// Dernier PDF compilé d'un projet LaTeX publié (jamais de compilation ici).
 pub async fn pdf(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResult<Response> {
     let project = shared_project_of(&pool, token, "latex").await?;
-    let Ok(bytes) = tokio::fs::read(crate::latex::output_path(project)).await else {
+    let Ok(file) = tokio::fs::File::open(crate::latex::output_path(project)).await else {
         return Ok((
             StatusCode::NOT_FOUND,
             Json(json!({ "error": "latex_no_pdf" })),
         )
             .into_response());
     };
+    let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
     Ok((
         [
             (header::CONTENT_TYPE, "application/pdf".to_string()),
@@ -234,10 +235,11 @@ pub async fn pdf(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResu
                 header::CONTENT_DISPOSITION,
                 "inline; filename=\"document.pdf\"".into(),
             ),
+            (header::CONTENT_LENGTH, len.to_string()),
             (header::CACHE_CONTROL, "no-store".into()),
             (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
         ],
-        Body::from(bytes),
+        Body::from_stream(tokio_util::io::ReaderStream::new(file)),
     )
         .into_response())
 }
