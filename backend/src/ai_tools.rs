@@ -359,6 +359,68 @@ pub async fn write_page(pool: &PgPool, user: &AuthUser, conv_id: Uuid, page_id: 
     Ok(WriteOutcome::Applied { revision })
 }
 
+/// Titre d'une page tirée d'une réponse : premier titre Markdown, sinon première ligne de texte.
+pub fn title_from_markdown(md: &str) -> String {
+    let line = md
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with('#') && l.trim_start_matches('#').starts_with(' '))
+        .or_else(|| md.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with("```") && !l.starts_with(":::") && !l.starts_with("$$")))
+        .unwrap_or("");
+    let plain: String = line.trim_start_matches('#').chars().filter(|c| !matches!(c, '*' | '_' | '`' | '>' | '$')).collect();
+    let t: String = plain.trim().chars().take(80).collect();
+    if t.is_empty() { "Réponse de l'IA".into() } else { t }
+}
+
+/// « Créer une page avec cette réponse » : la personne (pas l'IA) crée une page à partir d'un
+/// message de l'assistant de l'une de ses conversations. Il faut le droit d'éditer les documents de
+/// l'espace cible (aucune autorisation d'écriture IA : c'est la personne qui agit). Le Markdown passe
+/// par le convertisseur des pages ; ce qu'il ne sait pas écrire reste en blocs de code ou en texte.
+/// `workspace` par défaut : celui de la page de contexte de la conversation. Renvoie (page, espace).
+pub async fn page_from_message(pool: &PgPool, user: &AuthUser, message_id: Uuid, workspace: Option<Uuid>, personal: bool) -> ApiResult<(Uuid, Uuid)> {
+    let row: Option<(String, String, String, Option<Uuid>)> = sqlx::query_as(
+        "SELECT m.role, m.content, c.context_kind, c.context_id FROM ai_messages m JOIN ai_conversations c ON c.id = m.conversation_id WHERE m.id = $1 AND c.user_id = $2",
+    )
+    .bind(message_id)
+    .bind(user.id)
+    .fetch_optional(pool)
+    .await?;
+    let (role, content, ctx_kind, ctx_id) = row.ok_or(ApiError::NotFound)?;
+    if role != "assistant" || content.trim().is_empty() {
+        return Err(ApiError::NotFound);
+    }
+    let ws = match (workspace, ctx_kind.as_str(), ctx_id) {
+        (Some(w), _, _) => w,
+        (None, "page", Some(p)) => sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(p).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?,
+        _ => return Err(ApiError::bad_request("workspace_required")),
+    };
+    let can_edit = crate::access::member_perms(pool, user.id, ws).await?.is_some_and(|(_, p)| p.docs >= level::EDIT);
+    if !can_edit {
+        return Err(ApiError::Forbidden);
+    }
+    let state = ai_pages::apply_markdown(&[], Op::Replace, &content).map_err(|e| ApiError::Internal(format!("yjs write: {e}")))?;
+    let html = ai_pages::state_to_html(&state).ok();
+    let title = title_from_markdown(&content);
+    let position: f64 = sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 65536 FROM pages WHERE workspace_id = $1 AND parent_id IS NULL").bind(ws).fetch_one(pool).await?;
+    let mut tx = pool.begin().await?;
+    let page: Uuid = sqlx::query_scalar(
+        "INSERT INTO pages (workspace_id, parent_id, title, content, yjs_state, created_by, updated_by, position) VALUES ($1, NULL, $2, $3, $4, $5, $5, $6) RETURNING id",
+    )
+    .bind(ws)
+    .bind(&title)
+    .bind(&html)
+    .bind(&state)
+    .bind(user.id)
+    .bind(position)
+    .fetch_one(&mut *tx)
+    .await?;
+    if personal {
+        sqlx::query("UPDATE pages_all SET private_to = $2 WHERE id = $1").bind(page).bind(user.id).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    Ok((page, ws))
+}
+
 /// Écrit réellement : l'instantané de l'état lu et le remplacement conditionnel (seulement si
 /// personne n'a écrit entre-temps) forment une seule transaction : pas de version orpheline si
 /// l'échange échoue. `expect_before` : Markdown que la page doit encore avoir (suggestion périmée).
@@ -509,17 +571,17 @@ fn study_specs() -> Vec<ToolSpec> {
         "properties": {
             "id": { "type": "string", "description": "Only when updating an existing item (keeps its history)" },
             "type": { "type": "string", "enum": ["single", "multi", "text", "flashcard"] },
-            "prompt": { "type": "string" },
+            "prompt": { "type": "string", "description": "Markdown: LaTeX with $...$, code, tables, mermaid and looty-graph blocks" },
             "choices": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "text": { "type": "string" } }, "required": ["id", "text"] } },
             "answer": { "type": "object" },
-            "explanation": { "type": "string" }
+            "explanation": { "type": "string", "description": "Markdown, same syntax as the prompt" }
         },
         "required": ["type", "prompt", "answer"]
     });
     vec![
         ToolSpec {
             name: "create_study_set",
-            description: "Create a PERSONAL entrainement (study set: qcm, questionnaire, flashcards or summary) visible to the user only. Only works in a workspace (or the personal space) for which the user granted 'create study sets' in this conversation. Items are validated strictly; fix and retry on error.",
+            description: "Create a PERSONAL entrainement (study set: qcm, questionnaire, flashcards or summary) visible to the user only. Only works in a workspace (or the personal space) for which the user granted 'create study sets' in this conversation. Items are validated strictly; fix and retry on error. Item text (prompt, choices, explanation, flashcard back) supports Markdown: LaTeX ($x^2$), tables, code, callouts, ```mermaid and ```looty-graph blocks.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -1508,5 +1570,59 @@ mod tests {
         assert!(matches!(read_item(&pool, &w.owner, "task", task).await, Err(ApiError::NotFound)));
         let o = execute(&pool, &w.owner, w.conv, "read_item", &json!({ "kind": "task", "id": task })).await;
         assert!(o.text.starts_with("error"), "{}", o.text);
+    }
+
+    async fn assistant_message(pool: &PgPool, conv: Uuid, role: &str, content: &str) -> Uuid {
+        sqlx::query_scalar("INSERT INTO ai_messages (conversation_id, role, content) VALUES ($1, $2, $3) RETURNING id").bind(conv).bind(role).bind(content).fetch_one(pool).await.unwrap()
+    }
+
+    #[test]
+    fn page_titles_come_from_the_answer() {
+        assert_eq!(title_from_markdown("Intro\n\n## Complexité **amortie**\ntexte"), "Complexité amortie");
+        assert_eq!(title_from_markdown("\n  Une phrase `simple`.\nsuite"), "Une phrase simple.");
+        assert_eq!(title_from_markdown("  \n"), "Réponse de l'IA");
+        assert_eq!(title_from_markdown(&"x".repeat(300)).chars().count(), 80);
+    }
+
+    #[sqlx::test]
+    async fn an_answer_becomes_a_page_for_whoever_can_edit_documents(pool: PgPool) {
+        let w = world(&pool).await;
+        let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        let md = "# Résumé\n\nSoit $O(n^2)$.\n\n:::info\nAttention\n:::\n\n```mermaid\ngraph TD\nA-->B\n```\n\n- [x] fait\n";
+        let msg = assistant_message(&pool, w.conv, "assistant", md).await;
+        let (page, got_ws) = page_from_message(&pool, &w.owner, msg, Some(ws), true).await.unwrap();
+        assert_eq!(got_ws, ws);
+        let (title, private_to): (String, Option<Uuid>) = sqlx::query_as("SELECT title, private_to FROM pages_all WHERE id = $1").bind(page).fetch_one(&pool).await.unwrap();
+        assert_eq!(title, "Résumé");
+        assert_eq!(private_to, Some(w.owner.id), "personal by default");
+        let back = page_markdown(&pool, page).await.unwrap().1;
+        assert!(back.contains("$O(n^2)$") && back.contains(":::info") && back.contains("```mermaid") && back.contains("- [x] fait"), "{back}");
+        // Partagée sur demande.
+        let (shared, _) = page_from_message(&pool, &w.owner, msg, Some(ws), false).await.unwrap();
+        let pt: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages_all WHERE id = $1").bind(shared).fetch_one(&pool).await.unwrap();
+        assert!(pt.is_none());
+    }
+
+    #[sqlx::test]
+    async fn to_page_needs_ownership_an_assistant_message_and_edit_rights(pool: PgPool) {
+        let w = world(&pool).await;
+        let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        let msg = assistant_message(&pool, w.conv, "assistant", "Bonjour").await;
+        let user_msg = assistant_message(&pool, w.conv, "user", "Question").await;
+        // Conversation d'une autre personne : introuvable.
+        assert!(matches!(page_from_message(&pool, &w.outsider, msg, Some(ws), true).await, Err(ApiError::NotFound)));
+        // Message de la personne, pas de l'assistant.
+        assert!(matches!(page_from_message(&pool, &w.owner, user_msg, Some(ws), true).await, Err(ApiError::NotFound)));
+        // Lecteur de l'espace : pas le droit d'éditer les documents.
+        let viewer = user(&pool, "viewer").await;
+        sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'viewer')").bind(ws).bind(viewer.id.to_string()).execute(&pool).await.unwrap();
+        let conv: Uuid = sqlx::query_scalar("INSERT INTO ai_conversations (user_id) VALUES ($1) RETURNING id").bind(viewer.id).fetch_one(&pool).await.unwrap();
+        let vmsg = assistant_message(&pool, conv, "assistant", "Bonjour").await;
+        assert!(matches!(page_from_message(&pool, &viewer, vmsg, Some(ws), true).await, Err(ApiError::Forbidden)));
+        // Sans espace ni page de contexte : demande invalide.
+        assert!(page_from_message(&pool, &w.owner, msg, None, true).await.is_err());
+        // Page de contexte : son espace sert de défaut.
+        sqlx::query("UPDATE ai_conversations SET context_kind = 'page', context_id = $2 WHERE id = $1").bind(w.conv).bind(w.page).execute(&pool).await.unwrap();
+        assert_eq!(page_from_message(&pool, &w.owner, msg, None, true).await.unwrap().1, ws);
     }
 }

@@ -47,6 +47,7 @@ pub fn routes() -> Router<AppState> {
         .route("/conversations/{id}/study-grants/{grant_id}", delete(revoke_study_grant))
         .route("/study-revisions/{id}/restore", post(restore_study_revision))
         .route("/page-revisions/{id}/restore", post(restore_page_revision))
+        .route("/messages/{id}/to-page", post(message_to_page))
         .route("/suggestions/{id}/accept", post(accept_suggestion))
         .route("/suggestions/{id}/reject", post(reject_suggestion))
 }
@@ -700,6 +701,27 @@ async fn restore_page_revision(State(state): State<AppState>, user: AuthUser, Pa
     Ok(Json(json!({ "page_id": page_id, "undo_revision_id": undo })))
 }
 
+#[derive(Deserialize)]
+struct ToPageReq {
+    /// Espace courant de la personne ; par défaut, celui de la page de contexte de la conversation.
+    #[serde(default)]
+    workspace_id: Option<Uuid>,
+    /// Page personnelle par défaut.
+    #[serde(default = "yes")]
+    personal: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// « Créer une page avec cette réponse » : acte de la personne, sans autorisation d'écriture IA.
+async fn message_to_page(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, body: Option<Json<ToPageReq>>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let req = body.map(|b| b.0).unwrap_or(ToPageReq { workspace_id: None, personal: true });
+    let (page_id, workspace_id) = ai_tools::page_from_message(&state.pool, &user, id, req.workspace_id, req.personal).await?;
+    Ok((StatusCode::CREATED, Json(json!({ "page_id": page_id, "workspace_id": workspace_id }))))
+}
+
 // ---------------------------------------------------------------------------
 // Suggestions
 // ---------------------------------------------------------------------------
@@ -804,6 +826,7 @@ const STUDY_GUIDE: &str = "STUDY SETS (revision content): tools create_study_set
 - Writing needs a grant like pages: 'create study sets' in a workspace or the personal space, or 'update' on one set. Without it the server refuses and the chat shows the user an authorization card: tell them to approve it, then retry when they say so. Sets you create are PERSONAL (visible to the user only, at the root of the workspace or personal space); never promise sharing, the user decides. After creating, give the user the link /study/<set_id>.\n\
 - Set kinds and item types: qcm = single|multi; questionnaire = single|multi|text; flashcards and summary = flashcard. SUMMARY sets are read as a document, not played as cards: one item per section, prompt = the section heading (short, 3..80 chars, no Markdown), answer.back = the section body in Markdown (paragraphs, lists, **bold**, tables, code; no images or HTML; at most 4000 chars, split longer sections), in reading order, no explanation field. A good summary has 4..12 sections that follow the structure of the source (definition, key points, example, pitfalls), written in the user's language.\n\
 - Item JSON, no other field: {\"type\", \"prompt\" (1..2000 chars), \"choices\": [{\"id\": \"a\", \"text\"}] (single/multi only, 2..10, unique short ids), \"answer\", \"explanation\" (optional)}. answer: single {\"choice\": \"b\"}; multi {\"choices\": [\"a\",\"c\"]} (at least one); text {\"accepted\": [\"Paris\"]} (case, accents and punctuation are ignored; empty list = self-assessed); flashcard {\"back\": \"...\"}. At most 500 items. A validation error names what to fix: correct it and retry.\n\
+- Item text (prompt, choice text, explanation, flashcard back) is rendered as Markdown: use $...$ for LaTeX (e.g. $O(n^2)$), **bold**, `code` and fenced code with a language, tables, task lists, :::info/:::tip/:::warning/:::success callouts, ```mermaid diagrams and ```looty-graph graphs (same syntax as pages). Keep choices short and inline (no block content). Never put maths in code spans, and keep currency amounts free of a dollar sign.\n\
 - Good practice: one clear question per item with exactly one defensible answer; plausible distractors of similar length; no 'all/none of the above'; put the reasoning in the explanation; mix easy, medium and hard items and cover the whole topic; base items on the user's pages or on what they asked, and do not invent facts. Prefer a few well-made items over many weak ones. Match the user's language.\n\
 - To target weak points, call read_attempts: it only returns the user's OWN results. update_study_set replaces the whole item list: read the set first, send every item you keep with its id; the previous version is saved.\n\
 - Expected answers are only visible if the user can edit the set; do not guess them otherwise.";
