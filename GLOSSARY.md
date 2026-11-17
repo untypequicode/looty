@@ -195,22 +195,26 @@ _Avoid_: chat, session
 Droit donné par une personne à une conversation IA d'écrire sur une page précise, dans un mode (suggérer, ajouter ou remplacer) et pour une durée limitée ; révocable à tout moment. Sans elle, l'assistant est en lecture seule, et elle ne dépasse jamais les droits de la personne sur la page.
 _Avoid_: permission, accès, droit d'écriture (réservé aux rôles)
 
-**Autorisation pour les jeux**:
-Droit donné à une conversation IA, pour une durée limitée et révocable, soit de créer des jeux de révision dans un espace (ou l'espace personnel), soit de modifier un jeu précis. Les jeux créés par l'assistant sont privés ; une modification garde la version précédente pour pouvoir l'annuler.
+**Autorisation pour les entraînements**:
+Droit donné à une conversation IA, pour une durée limitée et révocable, soit de créer des entraînements dans un espace (ou l'espace personnel), soit de modifier un entraînement précis. Ceux créés par l'assistant sont personnels ; une modification garde la version précédente pour pouvoir l'annuler.
 _Avoid_: permission, droit d'écriture
 
 **Suggestion**:
 Modification proposée par l'assistant en mode « suggérer » : une différence que la personne accepte ou refuse, rien n'étant écrit avant.
 _Avoid_: brouillon, patch
 
-## Révisions
+## Entraînements
 
-**Jeu de révision**:
-Document de révision d'une personne ou d'un espace : QCM, questionnaire, fiches de révision ou synthèse (lue comme un document de sections titre + Markdown, avec sommaire), fait d'éléments au format strict (`docs/study-items.md`). Privé par défaut ; partageable à l'espace ou par lien (le lien ne dispense pas de se connecter : les tentatives sont personnelles). Deux modes : *édition* (propriétaire et éditeurs) et *utilisation* (toute personne qui peut le voir).
-_Avoid_: quiz, test, cours
+**Entraînement**:
+Élément de l'espace qui sert à s'exercer ou à réviser : QCM, questionnaire, fiches ou synthèse. Il se range dans l'arbre comme une page, se déplace, se renomme, se duplique, passe par la corbeille et peut être personnel. Ses droits suivent ceux des documents de l'espace : lecture pour s'entraîner, édition pour modifier et supprimer. Il peut être lié à tout autre élément de l'espace.
+_Avoid_: jeu de révision, révision (réservé à l'historique d'une page), quiz, test, cours
+
+**Lien d'entraînement**:
+Référence d'un entraînement vers un élément de l'espace (page, tâche, événement, tableau, projet…), affichée des deux côtés mais seulement à qui voit la cible.
+_Avoid_: pièce jointe, source
 
 **Tentative**:
-Passage d'un jeu de révision par une personne, avec sa note et ses réponses. Visible de cette personne seulement, jamais du propriétaire du jeu.
+Passage d'un entraînement par une personne, avec sa note et ses réponses. Visible de cette personne seulement, jamais de l'auteur de l'entraînement.
 _Avoid_: copie, résultat partagé
 
 **État de fiche**:
