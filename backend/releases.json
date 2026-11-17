@@ -4,6 +4,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.37.3",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Adding an AI agent is now guided",
+        "fr": "Ajouter un agent IA est maintenant guidé"
+      },
+      "notes": {
+        "en": [
+          "**Guided form**: pick OpenAI, Anthropic, Gemini, Perplexity or an Ollama-compatible server and the form shows only what that provider needs, with a link to the site where you get your API key, the expected key format and what it costs.",
+          "**Models**: once your key is entered, the list of models your key can really use is loaded from the provider; you can also type any other model.",
+          "**Test**: a “Test the connection” button checks the key, the model and the address, with a readable message when something is wrong (invalid key, quota, unknown model, unreachable server).",
+          "**Getting started**: the agents settings explain what an agent can and cannot do, with a three-step guide, and the Assistant page points there when no agent is connected.",
+          "**Existing connections**: the key stays hidden; use “Replace the key” to change it."
+        ],
+        "fr": [
+          "**Formulaire guidé** : choisissez OpenAI, Anthropic, Gemini, Perplexity ou un serveur compatible Ollama et le formulaire n’affiche que ce dont ce fournisseur a besoin, avec le lien du site où récupérer votre clé d’API, le format attendu de la clé et ce que cela coûte.",
+          "**Modèles** : une fois la clé saisie, la liste des modèles que votre clé peut vraiment utiliser est chargée depuis le fournisseur ; vous pouvez aussi saisir n’importe quel autre modèle.",
+          "**Test** : un bouton « Tester la connexion » vérifie la clé, le modèle et l’adresse, avec un message lisible en cas de problème (clé invalide, quota, modèle inconnu, serveur injoignable).",
+          "**Prise en main** : les réglages des agents expliquent ce qu’un agent peut ou non faire, avec un guide en trois étapes, et la page Assistant y renvoie quand aucun agent n’est connecté.",
+          "**Connexions existantes** : la clé reste masquée ; utilisez « Remplacer la clé » pour la changer."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.37.2",
       "date": "2026-11-17",
       "title": {
