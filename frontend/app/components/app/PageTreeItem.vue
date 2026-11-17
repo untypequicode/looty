@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput, LockKeyhole, BookCheck } from 'lucide-vue-next'
+import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput, LockKeyhole, BookCheck, Bot } from 'lucide-vue-next'
 import { openMovePage, draggingPage, useMovePage } from '~/composables/useMovePage'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
@@ -13,6 +13,7 @@ import { translate } from '~/composables/useI18n'
 import { useStudyActions } from '~/composables/useStudy'
 import { openStudyCreate } from '~/composables/useStudyCreate'
 import { useStudyMenu } from '~/composables/useStudyMenu'
+import { askAi } from '~/composables/useAi'
 
 const props = defineProps<{ node: PageNode }>()
 const { expandedPages } = useUi()
@@ -77,6 +78,7 @@ const menuItems = computed<MenuItem[]>(() => isStudy.value ? studyMenu.value : [
   ...(tabsEnabled.value && !isTablet.value ? [{ label: translate('tabs.openSide'), icon: Columns2, onSelect: () => tabsApi.openSidePath(to.value) }] : []),
   { label: props.node.is_favorite ? translate('docs.unfavorite') : translate('docs.favorite'), icon: props.node.is_favorite ? StarOff : Star, onSelect: () => toggleFavorite(props.node) },
   { label: translate('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + to.value); toast.success(translate('common.linkCopied')) } },
+  { label: translate('ai.ask'), icon: Bot, onSelect: () => { void askAi(wsId.value, { kind: 'page', id: props.node.id, title: props.node.title }) } },
   ...(canWrite.value && props.node.can_edit !== false
     ? [
         { label: translate('common.rename'), icon: Pencil, onSelect: startRename },

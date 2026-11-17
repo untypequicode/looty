@@ -1,0 +1,329 @@
+<script setup lang="ts">
+import { Bot, PanelLeft, Check, Ban, PenLine, Wrench, GraduationCap, Undo2, FileText, BookCheck, CheckSquare, Kanban, CalendarDays, FolderCode } from 'lucide-vue-next'
+import type { Component } from 'vue'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { refDebounced } from '@vueuse/core'
+import { api, errorMessage } from '~/composables/api'
+import { useI18n } from '~/composables/useI18n'
+import { useWorkspace, links } from '~/composables/useWorkspace'
+import { toast } from '~/composables/useToast'
+import { confirmDialog, promptDialog } from '~/composables/useConfirm'
+import { useStudyActions } from '~/composables/useStudy'
+import { renderChatMarkdown } from '~/editor/chatMarkdown'
+import { aiOpenItem } from '~/composables/useAiOpenItem'
+import {
+  aiApi, aiInbox, streamMessage, aiErrorMessage,
+  type AiAttachKind, type AiAttachment, type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiGrantNeed, type AiStreamEvent,
+} from '~/composables/useAi'
+
+/**
+ * Assistant : page de l'espace à deux colonnes (conversations à gauche, discussion à droite). Lecture seule
+ * tant qu'une autorisation n'est pas accordée dans la discussion ; le serveur vérifie tout (ADR 0010).
+ */
+definePageMeta({ layout: 'workspace' })
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const qc = useQueryClient()
+const { wsId, pages } = useWorkspace()
+useHead({ title: () => t('ai.page.title') })
+
+const ICONS: Record<AiAttachKind, Component> = { page: FileText, study: BookCheck, task: CheckSquare, board: Kanban, event: CalendarDays, project: FolderCode }
+
+// --- Connexions et liste ----------------------------------------------------------------------
+const { data: connections } = useQuery({ queryKey: ['ai', 'connections'], queryFn: aiApi.connections })
+const connectionId = ref('')
+watch(connections, (c) => { if (c?.length && !c.some((x) => x.id === connectionId.value)) connectionId.value = c[0]!.id }, { immediate: true })
+
+const search = ref('')
+const debouncedSearch = refDebounced(search, 250)
+const { data: history, isLoading: historyLoading } = useQuery({
+  queryKey: computed(() => ['ai', 'conversations', debouncedSearch.value.trim()]),
+  queryFn: () => aiApi.conversations(debouncedSearch.value.trim()),
+})
+const listOpen = ref(false)
+
+// --- Conversation courante ------------------------------------------------------------------------
+const conv = ref<AiConversation | null>(null)
+const messages = ref<AiMessage[]>([])
+const grants = ref<AiGrant[]>([])
+const studyGrants = ref<AiStudyGrant[]>([])
+const suggestions = ref<AiSuggestion[]>([])
+const draft = ref('')
+const attachments = ref<AiAttachment[]>([])
+const busy = ref(false)
+const streaming = ref('')
+const toolLog = ref<string[]>([])
+let abort: AbortController | null = null
+let retryAfter = false
+const scroller = ref<HTMLElement | null>(null)
+function scrollDown() { nextTick(() => { if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight }) }
+
+function defaultAttachments(): AiAttachment[] {
+  if (aiInbox.value.length) { const a = aiInbox.value; aiInbox.value = []; return a }
+  return aiOpenItem.value ? [aiOpenItem.value] : []
+}
+
+async function loadConversation(id: string) {
+  const r = await aiApi.conversation(id)
+  conv.value = r.conversation
+  messages.value = r.messages
+  grants.value = r.grants
+  studyGrants.value = r.study_grants ?? []
+  suggestions.value = r.suggestions
+  if (r.conversation.connection_id) connectionId.value = r.conversation.connection_id
+  scrollDown()
+}
+function reset() {
+  conv.value = null; messages.value = []; grants.value = []; studyGrants.value = []; suggestions.value = []
+  draft.value = ''; streaming.value = ''
+  attachments.value = defaultAttachments()
+}
+const routeConv = computed(() => (typeof route.query.c === 'string' ? route.query.c : ''))
+watch(routeConv, async (id) => {
+  if (id === conv.value?.id) return
+  if (!id) return reset()
+  attachments.value = []
+  try { await loadConversation(id) } catch { router.replace({ query: {} }); reset() }
+}, { immediate: true })
+// « Demander à l'IA » depuis un menu alors que la page est déjà ouverte : nouvelle conversation avec l'élément.
+watch(aiInbox, (a) => { if (a.length) { if (routeConv.value) router.push({ query: {} }); else reset() } })
+
+function openNew() { listOpen.value = false; if (routeConv.value) router.push({ query: {} }); else reset() }
+function select(id: string) { listOpen.value = false; router.push({ query: { c: id } }) }
+
+async function ensureConversation(): Promise<AiConversation> {
+  if (conv.value) {
+    if (conv.value.connection_id !== connectionId.value) {
+      await api(`/api/ai/conversations/${conv.value.id}`, { method: 'PATCH', body: { connection_id: connectionId.value } })
+      conv.value = { ...conv.value, connection_id: connectionId.value }
+    }
+    return conv.value
+  }
+  const c = await api<AiConversation>('/api/ai/conversations', { method: 'POST', body: { connection_id: connectionId.value, context_kind: 'none' } })
+  conv.value = c
+  router.replace({ query: { c: c.id } })
+  qc.invalidateQueries({ queryKey: ['ai', 'conversations'] })
+  return c
+}
+
+function pageChanged() { qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'ws' && q.queryKey[2] === 'pages' }) }
+function onEvent(e: AiStreamEvent) {
+  if (e.type === 'text') { streaming.value += e.delta; scrollDown() }
+  else if (e.type === 'tool') toolLog.value.push(`${e.name}${e.ok ? '' : ' ✕'}`)
+  else if (e.type === 'suggestion') { suggestions.value.push(e.suggestion); scrollDown() }
+  else if (e.type === 'page_changed') pageChanged()
+  else if (e.type === 'grant_needed') { messages.value.push({ id: `live-${Date.now()}`, role: 'tool', content: '', data: { grant_needed: e.grant } }); scrollDown() }
+  else if (e.type === 'title') { if (conv.value) conv.value = { ...conv.value, title: e.title }; qc.invalidateQueries({ queryKey: ['ai', 'conversations'] }) }
+  else if (e.type === 'error') toast.error(aiErrorMessage(e.message, t))
+}
+
+async function send(override?: string) {
+  const text = (override ?? draft.value).trim()
+  if (!text || busy.value || !connectionId.value) return
+  busy.value = true
+  try {
+    const c = await ensureConversation()
+    const atts = override ? [] : attachments.value
+    messages.value.push({ id: `tmp-${Date.now()}`, role: 'user', content: text, data: atts.length ? { attachments: atts.map(({ kind, id, title }) => ({ kind, id, title })) } : undefined })
+    if (!override) { draft.value = ''; attachments.value = [] }
+    streaming.value = ''
+    toolLog.value = []
+    scrollDown()
+    abort = new AbortController()
+    await streamMessage(c.id, text, atts, onEvent, abort.signal)
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') toast.error(errorMessage(e))
+  } finally {
+    busy.value = false
+    abort = null
+    if (conv.value) await loadConversation(conv.value.id).catch(() => {})
+    streaming.value = ''
+    qc.invalidateQueries({ queryKey: ['ai', 'conversations'] })
+    if (retryAfter) { retryAfter = false; void send(t('ai.page.retry')) }
+  }
+}
+function stop() { abort?.abort() }
+
+// --- Liste : renommer, supprimer ----------------------------------------------------------------
+async function rename(c: AiConversation) {
+  const title = await promptDialog({ title: t('ai.page.renameTitle'), initial: c.title, confirmLabel: t('common.rename') })
+  if (!title) return
+  try {
+    await api(`/api/ai/conversations/${c.id}`, { method: 'PATCH', body: { title } })
+    if (conv.value?.id === c.id) conv.value = { ...conv.value, title }
+    qc.invalidateQueries({ queryKey: ['ai', 'conversations'] })
+  } catch (e) { toast.error(errorMessage(e)) }
+}
+async function remove(c: AiConversation) {
+  if (!(await confirmDialog({ title: t('ai.page.deleteTitle', { title: c.title || t('ai.chat.untitled') }), message: t('ai.page.deleteMessage'), confirmLabel: t('common.delete'), danger: true }))) return
+  try {
+    await api(`/api/ai/conversations/${c.id}`, { method: 'DELETE' })
+    qc.invalidateQueries({ queryKey: ['ai', 'conversations'] })
+    if (conv.value?.id === c.id) openNew()
+  } catch (e) { toast.error(errorMessage(e)) }
+}
+
+// --- Autorisations, suggestions, annulations dans la discussion ---------------------------------
+async function refreshGrants() {
+  if (!conv.value) return
+  const r = await aiApi.conversation(conv.value.id)
+  grants.value = r.grants
+  studyGrants.value = r.study_grants ?? []
+}
+function onGranted() { if (busy.value) retryAfter = true; else void send(t('ai.page.retry')) }
+
+async function undoPage(revId: string, undo = false) {
+  try {
+    const r = await api<{ page_id: string; undo_revision_id: string | null }>(`/api/ai/page-revisions/${revId}/restore`, { method: 'POST' })
+    if (!undo) restored.value = new Set(restored.value).add(revId)
+    pageChanged()
+    toast.success(t(undo ? 'ai.page.undoUndone' : 'ai.page.pageChangedUndone'), undo || !r.undo_revision_id ? {} : { duration: 10000, action: { label: t('ai.page.undo'), run: () => { void undoPage(r.undo_revision_id!, true) } } })
+  } catch (e) { toast.error(errorMessage(e)) }
+}
+async function decide(s: AiSuggestion, accept: boolean) {
+  try {
+    const r = await api<{ page_id: string; revision_id: string | null } | undefined>(`/api/ai/suggestions/${s.id}/${accept ? 'accept' : 'reject'}`, { method: 'POST' })
+    suggestions.value = suggestions.value.filter((x) => x.id !== s.id)
+    if (accept) {
+      pageChanged()
+      toast.success(t('ai.chat.applied'), r?.revision_id ? { duration: 10000, action: { label: t('ai.chat.studyRestore'), run: () => { void undoPage(r.revision_id!) } } } : {})
+    }
+  } catch (e) { toast.error(errorMessage(e)) }
+}
+const studyActions = useStudyActions()
+const restored = ref(new Set<string>())
+async function restoreStudy(setId: string, revId: string, undo = false) {
+  try {
+    const undoId = await studyActions.restore(setId, revId)
+    if (!undo) restored.value = new Set(restored.value).add(revId)
+    toast.success(t(undo ? 'study.restoreUndone' : 'study.restored'), undo ? {} : { duration: 10000, action: { label: t('study.undo'), run: () => { void restoreStudy(setId, undoId, true) } } })
+  } catch (e: any) { toast.error(errorMessage(e)) }
+}
+
+// --- Affichage -------------------------------------------------------------------------------------
+const needKey = (n: AiGrantNeed) => (n.kind === 'page' ? `p:${n.page_id}` : n.kind === 'study_update' ? `u:${n.set_id}` : `c:${n.personal ? 'personal' : n.workspace_id}`)
+const visible = computed(() => messages.value.filter((m) => (m.role !== 'tool' && (m.content || m.role === 'user')) || (m.role === 'tool' && (m.data?.study_set_id || m.data?.page_revision_id || m.data?.grant_needed))))
+/** Une seule carte par cible : la plus récente. */
+const lastNeed = computed(() => {
+  const last = new Map<string, string>()
+  for (const m of messages.value) if (m.role === 'tool' && m.data?.grant_needed) last.set(needKey(m.data.grant_needed), m.id)
+  return last
+})
+const showNeed = (m: AiMessage) => lastNeed.value.get(needKey(m.data.grant_needed)) === m.id
+const pageLink = (id: string) => (pages.data.value?.some((p) => p.id === id) ? links.doc(wsId.value, id) : null)
+const empty = computed(() => !visible.value.length && !streaming.value)
+</script>
+
+<template>
+  <div class="page">
+    <AppPageHeader :crumbs="[{ label: t('ai.page.title'), icon: Bot }]">
+      <UiButton class="as-toggle" size="sm" variant="ghost" :icon="PanelLeft" :aria-label="t('ai.page.conversations')" @click="listOpen = !listOpen" />
+    </AppPageHeader>
+    <div v-if="connections && !connections.length" class="as-solo">
+      <UiEmpty :icon="Bot" :title="t('ai.chat.noConnection')">
+        <UiButton variant="primary" :to="`/w/${wsId}/settings/ai`">{{ t('ai.chat.setUp') }}</UiButton>
+      </UiEmpty>
+    </div>
+    <div v-else class="as" :class="{ 'list-open': listOpen }">
+      <aside class="as-side">
+        <AiConversationList v-model:query="search" :conversations="history ?? []" :active-id="conv?.id ?? null" :loading="historyLoading" @select="select" @new="openNew" @rename="rename" @remove="remove" />
+      </aside>
+      <section class="as-main" :aria-label="conv?.title || t('ai.page.title')">
+        <div ref="scroller" class="as-thread">
+          <div class="as-col">
+            <div v-if="empty" class="as-intro">
+              <Bot :size="28" :stroke-width="1.5" />
+              <h2>{{ t('ai.page.title') }}</h2>
+              <p>{{ t('ai.page.intro') }}</p>
+              <p class="as-sub">{{ t('ai.page.subtitle') }}</p>
+            </div>
+            <template v-for="m in visible" :key="m.id">
+              <template v-if="m.role === 'tool'">
+                <AiGrantCard v-if="m.data?.grant_needed && showNeed(m) && conv" :need="m.data.grant_needed" :conversation-id="conv.id" :grants="grants" :study-grants="studyGrants" @changed="refreshGrants" @granted="onGranted" />
+                <div v-if="m.data?.study_set_id" class="as-row">
+                  <NuxtLink :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg as-link"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
+                  <UiButton v-if="m.data.study_revision_id" size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.study_revision_id)" @click="restoreStudy(m.data.study_set_id, m.data.study_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
+                </div>
+                <div v-if="m.data?.page_revision_id" class="as-row">
+                  <component :is="pageLink(m.data.page_id) ? 'NuxtLink' : 'span'" :to="pageLink(m.data.page_id) ?? undefined" class="msg as-link"><PenLine :size="13" /> {{ t('ai.page.pageChanged') }}</component>
+                  <UiButton size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.page_revision_id)" @click="undoPage(m.data.page_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
+                </div>
+              </template>
+              <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
+              <div v-else-if="m.role === 'assistant'" class="msg assistant md" v-html="renderChatMarkdown(m.content)" />
+              <div v-else class="msg user">
+                <div v-if="m.data?.attachments?.length" class="as-att">
+                  <span v-for="a in m.data.attachments" :key="a.id" class="as-chip"><component :is="ICONS[a.kind as AiAttachKind] ?? FileText" :size="11" /><span class="truncate">{{ a.title }}</span></span>
+                </div>
+                {{ m.content }}
+              </div>
+            </template>
+            <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
+            <div v-if="streaming" class="msg assistant md" v-html="renderChatMarkdown(streaming)" />
+            <div v-if="busy && toolLog.length" class="as-tools"><Wrench :size="11" /> {{ toolLog.join(' · ') }}</div>
+            <div v-for="s in suggestions" :key="s.id" class="sugg">
+              <div class="sugg-head"><PenLine :size="13" /> {{ t('ai.chat.suggestion') }}</div>
+              <pre class="diff"><span v-for="(l, i) in s.diff" :key="i" :class="{ add: l.op === '+', del: l.op === '-' }">{{ l.op === ' ' ? '  ' : `${l.op} ` }}{{ l.text }}
+</span></pre>
+              <div class="sugg-actions">
+                <UiButton size="sm" variant="primary" :icon="Check" @click="decide(s, true)">{{ t('ai.chat.accept') }}</UiButton>
+                <UiButton size="sm" variant="ghost" :icon="Ban" @click="decide(s, false)">{{ t('ai.chat.reject') }}</UiButton>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="as-compose">
+          <div class="as-col">
+            <AiComposer v-model:draft="draft" v-model:attachments="attachments" v-model:connection-id="connectionId" :busy="busy" :connections="connections ?? []" @send="send()" @stop="stop" />
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.as-solo { flex: 1; display: grid; place-items: center; }
+.as { flex: 1; min-height: 0; display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+.as-side { min-height: 0; background: var(--bg-sidebar, transparent); }
+.as-main { min-height: 0; display: flex; flex-direction: column; }
+.as-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; }
+.as-col { max-width: 760px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.as-compose { padding: 0 20px 16px; }
+.as-intro { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; color: var(--text-3); padding: 48px 16px 16px; }
+.as-intro h2 { margin: 4px 0 0; color: var(--text); font-size: var(--fs-lg); }
+.as-intro p { margin: 0; max-width: 460px; line-height: 1.5; }
+.as-sub { font-size: var(--fs-sm); color: var(--text-4); }
+.msg { white-space: pre-wrap; word-break: break-word; padding: 8px 12px; border-radius: var(--r-md); line-height: 1.55; max-width: 92%; }
+.msg.md { white-space: normal; }
+.msg.md :deep(p) { margin: 0 0 6px; }
+.msg.md :deep(p:last-child), .msg.md :deep(ul:last-child), .msg.md :deep(ol:last-child) { margin-bottom: 0; }
+.msg.md :deep(ul), .msg.md :deep(ol) { margin: 0 0 6px; padding-left: 20px; }
+.msg.md :deep(pre) { overflow-x: auto; padding: 6px 8px; border-radius: var(--r-sm); background: var(--bg-elevated); font-size: var(--fs-xs); }
+.msg.md :deep(code) { font-family: var(--font-mono, monospace); font-size: 0.92em; }
+.msg.md :deep(table) { border-collapse: collapse; font-size: var(--fs-sm); }
+.msg.md :deep(th), .msg.md :deep(td) { border: 1px solid var(--border); padding: 2px 6px; }
+.msg.md :deep(h1), .msg.md :deep(h2), .msg.md :deep(h3), .msg.md :deep(h4) { font-size: 1em; margin: 6px 0 4px; }
+.msg.user { align-self: flex-end; background: var(--accent-soft); }
+.msg.assistant { align-self: flex-start; background: var(--bg-hover); }
+.as-att { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.as-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 200px; padding: 1px 6px; border-radius: var(--r-sm); background: var(--bg-elevated); font-size: var(--fs-xs); color: var(--text-2); }
+.as-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.as-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); text-decoration: none; }
+.as-tools { display: flex; align-items: center; gap: 6px; color: var(--text-4); font-size: var(--fs-xs); }
+.sugg { border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px; max-width: 92%; }
+.sugg-head { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-sm); margin-bottom: 6px; }
+.diff { margin: 0; max-height: 240px; overflow: auto; font-size: var(--fs-xs); font-family: var(--font-mono, monospace); white-space: pre-wrap; }
+.diff .add { background: color-mix(in srgb, var(--green, #3a3) 22%, transparent); display: block; }
+.diff .del { background: color-mix(in srgb, var(--red, #d33) 22%, transparent); display: block; }
+.sugg-actions { display: flex; gap: 6px; margin-top: 8px; }
+.as-toggle { display: none; }
+@media (max-width: 800px) {
+  .as { grid-template-columns: minmax(0, 1fr); }
+  .as-side { display: none; }
+  .as.list-open .as-side { display: block; }
+  .as.list-open .as-main { display: none; }
+  .as-toggle { display: inline-flex; }
+}
+</style>

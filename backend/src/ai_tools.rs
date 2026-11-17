@@ -58,18 +58,22 @@ pub struct ToolOutput {
     pub study_set: Option<Uuid>,
     /// Version du jeu enregistrée avant une modification : l'interface propose de la restaurer.
     pub study_revision: Option<Uuid>,
+    /// Écriture refusée faute d'autorisation : l'interface montre une carte « Autoriser » dans la discussion.
+    pub grant_needed: Option<Value>,
+    /// Version de la page gardée avant une écriture directe : l'interface propose de l'annuler.
+    pub page_revision: Option<Uuid>,
 }
 
 impl ToolOutput {
     fn text(t: impl Into<String>) -> Self {
-        ToolOutput { text: t.into(), suggestion: None, changed_page: None, study_set: None, study_revision: None }
+        ToolOutput { text: t.into(), suggestion: None, changed_page: None, study_set: None, study_revision: None, grant_needed: None, page_revision: None }
     }
 }
 
 /// Message d'erreur renvoyé au modèle (sans détail interne).
 fn error_text(e: &ApiError) -> String {
     match e {
-        ApiError::Forbidden => "error: forbidden. Either no write grant is active for this page in this conversation (ask the user to grant it in the chat), the grant mode does not allow this operation, or the user has no edit right on the page or study set. For study sets: ask the user to grant 'create study sets' in that workspace (or personal space), or an update grant on that set.".into(),
+        ApiError::Forbidden => "error: forbidden. Either no write grant is active for this page in this conversation (an authorization card was shown to the user in the chat: tell them to approve it, then retry only when they say so), the grant mode does not allow this operation, or the user has no edit right on the page or study set. For study sets: ask the user to grant 'create study sets' in that workspace (or personal space), or an update grant on that set.".into(),
         ApiError::NotFound => "error: not found, or not accessible to the user.".into(),
         ApiError::BadRequest(m) | ApiError::Conflict(m) => format!("error: {m}"),
         _ => "error: internal error".into(),
@@ -88,7 +92,63 @@ pub async fn execute(pool: &PgPool, user: &AuthUser, conv_id: Uuid, name: &str, 
         "read_attempts" => read_attempts(pool, user, args).await,
         other => Ok(ToolOutput::text(format!("error: unknown tool {other}"))),
     };
-    r.unwrap_or_else(|e| ToolOutput::text(error_text(&e)))
+    match r {
+        Ok(o) => o,
+        Err(e) => {
+            let mut o = ToolOutput::text(error_text(&e));
+            if matches!(e, ApiError::Forbidden) {
+                o.grant_needed = grant_card(pool, user, name, args).await;
+            }
+            o
+        }
+    }
+}
+
+/// Carte d'autorisation à proposer après un refus : seulement si la personne a elle-même le droit
+/// d'écrire là (sinon l'autorisation serait refusée aussi). Ne contient que des titres et des identifiants.
+async fn grant_card(pool: &PgPool, user: &AuthUser, name: &str, args: &Value) -> Option<Value> {
+    match name {
+        "write_page" => {
+            let page_id = uuid_arg(args, "page_id").ok()?;
+            let (ws, _, access) = require_page_read(pool, user, page_id).await.ok()?;
+            if access != PageAccess::Write {
+                return None;
+            }
+            let title: String = sqlx::query_scalar("SELECT title FROM pages WHERE id = $1").bind(page_id).fetch_optional(pool).await.ok()??;
+            Some(json!({ "kind": "page", "page_id": page_id, "workspace_id": ws, "title": title, "operation": args["operation"].as_str().unwrap_or("append") }))
+        }
+        "create_study_set" => {
+            let ws = args["workspace_id"].as_str().filter(|s| !s.is_empty()).and_then(|s| Uuid::parse_str(s).ok());
+            if let Some(ws) = ws {
+                require_perm(pool, user, ws, |p| p.docs >= level::EDIT).await.ok()?;
+            }
+            Some(json!({ "kind": "study_create", "workspace_id": ws, "personal": ws.is_none(), "title": args["title"].as_str().unwrap_or("") }))
+        }
+        "update_study_set" => {
+            let set_id = uuid_arg(args, "set_id").ok()?;
+            let (set, _) = study::load(pool, user, set_id, study::SetAccess::Edit).await.ok()?;
+            Some(json!({ "kind": "study_update", "set_id": set_id, "title": set.title }))
+        }
+        _ => None,
+    }
+}
+
+/// Annule une écriture directe de l'IA sur une page : remet l'état gardé avant. L'état remplacé est
+/// lui-même gardé (l'annulation s'annule aussi). Réservé à qui peut écrire sur la page.
+pub async fn restore_page_revision(pool: &PgPool, user: &AuthUser, rev_id: Uuid) -> ApiResult<(Uuid, Option<Uuid>)> {
+    let (page_id, state): (Uuid, Vec<u8>) = sqlx::query_as("SELECT page_id, yjs_state FROM page_revisions WHERE id = $1").bind(rev_id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
+    require_page_write(pool, user, page_id).await?;
+    let mut tx = pool.begin().await?;
+    let row: (Option<Vec<u8>>, Option<String>) = sqlx::query_as("SELECT yjs_state, content FROM pages WHERE id = $1 FOR UPDATE").bind(page_id).fetch_optional(&mut *tx).await?.ok_or(ApiError::NotFound)?;
+    let undo = match row.0.as_deref().filter(|s| !s.is_empty()) {
+        Some(cur) => Some(crate::revisions::snapshot_before_write(&mut tx, page_id, user.id, "Avant annulation d'une modification de l'IA", cur).await?),
+        None => None,
+    };
+    let html = ai_pages::state_to_html(&state).ok().or(row.1);
+    sqlx::query("UPDATE pages_all SET yjs_state = $1, content = $2, updated_at = NOW(), updated_by = $3 WHERE id = $4").bind(&state).bind(&html).bind(user.id).bind(page_id).execute(&mut *tx).await?;
+    tx.commit().await?;
+    let _ = sqlx::query("SELECT pg_notify('looty_page_reset', $1)").bind(page_id.to_string()).execute(pool).await;
+    Ok((page_id, undo))
 }
 
 fn uuid_arg(args: &Value, key: &str) -> ApiResult<Uuid> {
@@ -335,13 +395,15 @@ async fn write_page_tool(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &V
         _ => return Err(ApiError::bad_request("operation must be append or replace")),
     };
     Ok(match write_page(pool, user, conv_id, page_id, op, md).await? {
-        WriteOutcome::Applied { .. } => ToolOutput { text: "ok: the page was updated (a restorable version was saved before).".into(), suggestion: None, changed_page: Some(page_id), study_set: None, study_revision: None },
+        WriteOutcome::Applied { revision } => ToolOutput { text: "ok: the page was updated (a restorable version was saved before).".into(), suggestion: None, changed_page: Some(page_id), study_set: None, study_revision: None, grant_needed: None, page_revision: revision },
         WriteOutcome::Suggested { suggestion_id, diff } => ToolOutput {
             text: "ok: the change was NOT applied; it was proposed to the user, who must accept it in the chat. Do not claim the page changed.".into(),
             suggestion: Some(json!({ "id": suggestion_id, "page_id": page_id, "diff": diff.iter().map(|(o, l)| json!({ "op": o.to_string(), "text": l })).collect::<Vec<_>>() })),
             changed_page: None,
             study_set: None,
             study_revision: None,
+            grant_needed: None,
+            page_revision: None,
         },
     })
 }
@@ -556,7 +618,7 @@ async fn list_study_sets(pool: &PgPool, user: &AuthUser) -> ApiResult<ToolOutput
     Ok(ToolOutput::text(json!({ "study_sets": sets }).to_string()))
 }
 
-async fn read_study_set(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResult<ToolOutput> {
+pub async fn read_study_set(pool: &PgPool, user: &AuthUser, args: &Value) -> ApiResult<ToolOutput> {
     let id = uuid_arg(args, "set_id")?;
     let (set, acc) = study::load(pool, user, id, study::SetAccess::View).await?;
     let can_edit = acc == study::SetAccess::Edit;
@@ -683,6 +745,40 @@ mod tests {
         let r = write_page(&pool, &w.owner, w.conv, w.page, Op::Append, "x").await;
         assert!(matches!(r, Err(ApiError::Forbidden)));
         assert_eq!(md(&pool, w.page).await, "Départ");
+    }
+
+    #[sqlx::test]
+    async fn a_refused_write_offers_an_authorization_card_only_to_someone_who_may_write(pool: PgPool) {
+        let w = world(&pool).await;
+        let args = json!({ "page_id": w.page, "markdown": "x" });
+        let o = execute(&pool, &w.owner, w.conv, "write_page", &args).await;
+        assert!(o.text.starts_with("error: forbidden"));
+        let card = o.grant_needed.expect("card");
+        assert_eq!(card["kind"], "page");
+        assert_eq!(card["page_id"], json!(w.page));
+        assert_eq!(card["title"], "P");
+        // Quelqu'un qui ne peut pas écrire (ni lire) la page n'obtient aucune carte.
+        let conv2: Uuid = sqlx::query_scalar("INSERT INTO ai_conversations (user_id) VALUES ($1) RETURNING id").bind(w.outsider.id).fetch_one(&pool).await.unwrap();
+        assert!(execute(&pool, &w.outsider, conv2, "write_page", &args).await.grant_needed.is_none());
+        // Une écriture autorisée n'en produit pas.
+        grant(&pool, &w, "replace", 30).await;
+        let ok = execute(&pool, &w.owner, w.conv, "write_page", &args).await;
+        assert!(ok.grant_needed.is_none() && ok.page_revision.is_some());
+    }
+
+    #[sqlx::test]
+    async fn undoing_a_direct_write_restores_the_page_and_stays_undoable(pool: PgPool) {
+        let w = world(&pool).await;
+        grant(&pool, &w, "replace", 30).await;
+        let o = execute(&pool, &w.owner, w.conv, "write_page", &json!({ "page_id": w.page, "markdown": "Nouveau", "operation": "replace" })).await;
+        let rev = o.page_revision.expect("revision");
+        assert_eq!(md(&pool, w.page).await, "Nouveau");
+        assert!(matches!(restore_page_revision(&pool, &w.outsider, rev).await, Err(ApiError::NotFound) | Err(ApiError::Forbidden)));
+        let (page, undo) = restore_page_revision(&pool, &w.owner, rev).await.unwrap();
+        assert_eq!(page, w.page);
+        assert_eq!(md(&pool, w.page).await, "Départ");
+        restore_page_revision(&pool, &w.owner, undo.unwrap()).await.unwrap();
+        assert_eq!(md(&pool, w.page).await, "Nouveau");
     }
 
     #[sqlx::test]

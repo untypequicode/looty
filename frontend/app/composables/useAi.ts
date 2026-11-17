@@ -1,8 +1,6 @@
 import { ref } from 'vue'
 import { api, errorMessage } from './api'
-
-/** Panneau de l'agent IA (reste ouvert d'une page à l'autre). */
-export const aiOpen = ref(false)
+import { links } from './useWorkspace'
 
 export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'perplexity' | 'openai_compatible'
 export type AiMode = 'suggest' | 'append' | 'replace'
@@ -26,12 +24,30 @@ export interface AiConversation {
   updated_at: string
 }
 
+/** Type d'élément joignable à un message (la même liste que les résultats de recherche utiles). */
+export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'event'
+/** Élément joint : le serveur relit pages et entraînements avec vos droits ; le reste part comme extrait. */
+export interface AiAttachment { kind: AiAttachKind; id: string; title: string; snippet?: string | null; ws?: string }
+
 export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
 export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
-export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
 export interface AiDiffLine { op: ' ' | '+' | '-'; text: string }
 export interface AiSuggestion { id: string; page_id: string; diff: AiDiffLine[] }
+/** Autorisation que l'assistant a demandée sans l'avoir (carte dans la discussion). */
+export type AiGrantNeed =
+  | { kind: 'page'; page_id: string; workspace_id: string; title: string; operation: 'append' | 'replace' }
+  | { kind: 'study_create'; workspace_id: string | null; personal: boolean; title: string }
+  | { kind: 'study_update'; set_id: string; title: string }
+
+/** Éléments à joindre au prochain message de la page Assistant (« Demander à l'IA » dans un menu). */
+export const aiInbox = ref<AiAttachment[]>([])
+
+/** Ouvre l'Assistant avec cet élément joint. */
+export function askAi(ws: string, item: AiAttachment) {
+  aiInbox.value = [{ ...item, ws }]
+  return navigateTo(links.assistant(ws))
+}
 
 /** Valeurs proposées à la création d'une connexion. */
 export const AI_PROVIDERS: { value: AiProvider; label: string; model: string; baseUrl?: string }[] = [
@@ -65,16 +81,18 @@ export type AiStreamEvent =
   | { type: 'tool'; name: string; ok: boolean; page_id?: string; study_set_id?: string | null }
   | { type: 'suggestion'; suggestion: AiSuggestion }
   | { type: 'page_changed'; page_id: string }
+  | { type: 'grant_needed'; grant: AiGrantNeed }
+  | { type: 'title'; title: string }
   | { type: 'error'; message: string }
   | { type: 'done' }
 
 /** Envoie un message et lit la réponse en flux (SSE par POST : pas d'`EventSource`). */
-export async function streamMessage(conversationId: string, content: string, onEvent: (e: AiStreamEvent) => void, signal?: AbortSignal) {
+export async function streamMessage(conversationId: string, content: string, attachments: AiAttachment[], onEvent: (e: AiStreamEvent) => void, signal?: AbortSignal) {
   const res = await fetch(`/api/ai/conversations/${conversationId}/messages`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title, snippet: a.snippet ?? undefined })) }),
     signal,
   })
   if (!res.ok || !res.body) {
@@ -102,7 +120,7 @@ export async function streamMessage(conversationId: string, content: string, onE
 
 export const aiApi = {
   connections: () => api<AiConnection[]>('/api/ai/connections'),
-  conversations: (kind?: string, id?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { context_kind: kind, context_id: id }, silent: true }),
+  conversations: (q?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { q: q || undefined }, silent: true }),
   conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
 }
 
