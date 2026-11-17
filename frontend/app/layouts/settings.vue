@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive } from 'lucide-vue-next'
+import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -22,6 +22,7 @@ const groups = computed(() => [
       { key: 'security', label: t('settings.nav.security'), icon: KeyRound },
       { key: 'notifications', label: t('settings.nav.notifications'), icon: Bell },
       { key: 'calendars', label: t('settings.nav.calendars'), icon: CalendarSync },
+      { key: 'ai', label: t('ai.settings.title'), icon: Bot },
     ],
   },
   {

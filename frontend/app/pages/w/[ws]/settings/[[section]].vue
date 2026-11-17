@@ -8,6 +8,7 @@ import Profile from '~/components/settings/Profile.vue'
 import Preferences from '~/components/settings/Preferences.vue'
 import Security from '~/components/settings/Security.vue'
 import Calendars from '~/components/settings/Calendars.vue'
+import AiConnections from '~/components/settings/AiConnections.vue'
 import Notifications from '~/components/settings/Notifications.vue'
 import AdminEmail from '~/components/settings/AdminEmail.vue'
 import AdminStorage from '~/components/settings/AdminStorage.vue'
@@ -37,6 +38,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   security: { comp: Security, title: 'settings.nav.security' },
   notifications: { comp: Notifications, title: 'settings.nav.notifications' },
   calendars: { comp: Calendars, title: 'settings.nav.calendars' },
+  ai: { comp: AiConnections, title: 'ai.settings.title' },
   workspace: { comp: Workspace, title: 'settings.nav.general' },
   members: { comp: Members, title: 'settings.nav.members' },
   groups: { comp: Groups, title: 'memberGroups.title' },
@@ -55,7 +57,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   'admin-instance': { comp: AdminInstance, title: 'settings.nav.instance', admin: true },
 }
 // Sections qui chargent le serveur ou sortent vers l'extérieur : indisponibles dans la démo.
-const DEMO_LOCKED = new Set(['notifications', 'calendars'])
+const DEMO_LOCKED = new Set(['notifications', 'calendars', 'ai'])
 const key = computed(() => ((route.params.section as string) in SECTIONS ? (route.params.section as string) : 'profile'))
 const section = computed(() => SECTIONS[key.value]!)
 const allowed = computed(() => !section.value.admin || !!user.value?.is_super_admin)

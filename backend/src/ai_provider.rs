@@ -1,0 +1,459 @@
+//! Fournisseurs de modèles : un trait, une implémentation par famille d'API, réponses en flux.
+//!
+//! OpenAI, Perplexity et les serveurs compatibles (Ollama, vLLM, LM Studio…) parlent la même
+//! API « chat/completions » ; Anthropic et Gemini ont la leur. Chaque adaptateur traduit
+//! l'historique commun (`Msg`) vers son format et renvoie des `StreamEvent`.
+
+use async_trait::async_trait;
+use serde_json::{json, Value};
+use tokio::sync::mpsc::Sender;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub args: Value,
+}
+
+/// Historique commun à tous les fournisseurs.
+#[derive(Clone, Debug)]
+pub enum Msg {
+    User(String),
+    Assistant { text: String, calls: Vec<ToolCall> },
+    ToolResult { call_id: String, name: String, content: String },
+}
+
+#[derive(Clone, Debug)]
+pub struct ToolSpec {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub parameters: Value,
+}
+
+pub struct ChatRequest<'a> {
+    pub system: &'a str,
+    pub messages: &'a [Msg],
+    pub tools: &'a [ToolSpec],
+}
+
+#[derive(Debug)]
+pub enum StreamEvent {
+    Text(String),
+    Call(ToolCall),
+}
+
+#[async_trait]
+pub trait Provider: Send + Sync {
+    /// Envoie la requête et pousse les morceaux de réponse dans `tx` au fil de l'eau.
+    async fn stream(&self, req: &ChatRequest<'_>, tx: &Sender<StreamEvent>) -> Result<(), String>;
+}
+
+pub struct Conn {
+    pub provider: String,
+    pub model: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    /// Cible interne (réseau privé) : le corps des erreurs du fournisseur n'est jamais renvoyé.
+    pub quiet: bool,
+}
+
+pub fn default_base_url(provider: &str) -> Option<&'static str> {
+    match provider {
+        "openai" => Some("https://api.openai.com/v1"),
+        "anthropic" => Some("https://api.anthropic.com/v1"),
+        "gemini" => Some("https://generativelanguage.googleapis.com/v1beta"),
+        "perplexity" => Some("https://api.perplexity.ai"),
+        _ => None,
+    }
+}
+
+/// Les modèles Perplexity (Sonar) cherchent sur le web mais n'appellent pas d'outils.
+pub fn supports_tools(provider: &str) -> bool {
+    provider != "perplexity"
+}
+
+pub fn build(conn: &Conn) -> Result<Box<dyn Provider>, String> {
+    let base = conn
+        .base_url
+        .clone()
+        .filter(|b| !b.trim().is_empty())
+        .or_else(|| default_base_url(&conn.provider).map(String::from))
+        .ok_or("missing_base_url")?
+        .trim_end_matches('/')
+        .to_string();
+    let c = Common { base, model: conn.model.clone(), key: conn.api_key.clone().unwrap_or_default(), quiet: conn.quiet };
+    Ok(match conn.provider.as_str() {
+        "openai" | "perplexity" | "openai_compatible" => Box::new(OpenAiLike(c)),
+        "anthropic" => Box::new(Anthropic(c)),
+        "gemini" => Box::new(Gemini(c)),
+        other => return Err(format!("unknown_provider:{other}")),
+    })
+}
+
+struct Common {
+    base: String,
+    model: String,
+    key: String,
+    quiet: bool,
+}
+
+fn client() -> Result<reqwest::Client, String> {
+    // Pas de redirection : une redirection pourrait mener vers une adresse interne.
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Lit une réponse « server-sent events » ; `on_data` reçoit le contenu de chaque ligne `data:`.
+async fn read_sse(mut resp: reqwest::Response, tx: &Sender<StreamEvent>, mut on_data: impl FnMut(&str, &mut Vec<StreamEvent>) -> Result<(), String>) -> Result<(), String> {
+    // Octets : un caractère UTF-8 peut être coupé entre deux morceaux réseau.
+    let mut buf: Vec<u8> = vec![];
+    let mut out: Vec<StreamEvent> = vec![];
+    loop {
+        let chunk = resp.chunk().await.map_err(|e| e.without_url().to_string())?;
+        let last = chunk.is_none();
+        if let Some(c) = chunk {
+            buf.extend_from_slice(&c);
+        } else if !buf.is_empty() {
+            buf.push(b'\n');
+        }
+        while let Some(pos) = buf.iter().position(|b| *b == b'\n') {
+            let line: Vec<u8> = buf.drain(..=pos).collect();
+            if let Some(d) = String::from_utf8_lossy(&line).trim().strip_prefix("data:") {
+                on_data(d.trim(), &mut out)?;
+            }
+        }
+        for e in out.drain(..) {
+            tx.send(e).await.map_err(|_| "client_gone".to_string())?;
+        }
+        if last {
+            return Ok(());
+        }
+    }
+}
+
+fn transport_error(e: reqwest::Error, quiet: bool) -> String {
+    if quiet {
+        "provider_unreachable".into()
+    } else {
+        e.without_url().to_string()
+    }
+}
+
+/// Erreur HTTP lisible, sans jamais répéter la clé.
+async fn http_error(resp: reqwest::Response, key: &str, quiet: bool) -> String {
+    let status = resp.status();
+    if quiet {
+        return format!("provider_http_{}", status.as_u16());
+    }
+    let mut body = resp.text().await.unwrap_or_default();
+    if !key.is_empty() {
+        body = body.replace(key, "***");
+    }
+    body.truncate(400);
+    format!("provider_http_{}: {}", status.as_u16(), body)
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI et compatibles
+// ---------------------------------------------------------------------------
+
+struct OpenAiLike(Common);
+
+fn openai_messages(req: &ChatRequest<'_>) -> Vec<Value> {
+    let mut v = vec![json!({ "role": "system", "content": req.system })];
+    for m in req.messages {
+        v.push(match m {
+            Msg::User(t) => json!({ "role": "user", "content": t }),
+            Msg::Assistant { text, calls } if calls.is_empty() => json!({ "role": "assistant", "content": text }),
+            Msg::Assistant { text, calls } => json!({
+                "role": "assistant",
+                "content": if text.is_empty() { Value::Null } else { json!(text) },
+                "tool_calls": calls.iter().map(|c| json!({
+                    "id": c.id, "type": "function",
+                    "function": { "name": c.name, "arguments": c.args.to_string() }
+                })).collect::<Vec<_>>(),
+            }),
+            Msg::ToolResult { call_id, content, .. } => json!({ "role": "tool", "tool_call_id": call_id, "content": content }),
+        });
+    }
+    v
+}
+
+/// Assemble les appels d'outils d'OpenAI, envoyés en morceaux d'arguments indexés.
+#[derive(Default)]
+struct OpenAiCalls(Vec<(String, String, String)>);
+
+impl OpenAiCalls {
+    fn feed(&mut self, delta: &Value) {
+        for tc in delta["tool_calls"].as_array().into_iter().flatten() {
+            let idx = tc["index"].as_u64().unwrap_or(0) as usize;
+            while self.0.len() <= idx {
+                self.0.push(Default::default());
+            }
+            let slot = &mut self.0[idx];
+            if let Some(id) = tc["id"].as_str() {
+                slot.0 = id.to_string();
+            }
+            if let Some(n) = tc["function"]["name"].as_str() {
+                slot.1.push_str(n);
+            }
+            if let Some(a) = tc["function"]["arguments"].as_str() {
+                slot.2.push_str(a);
+            }
+        }
+    }
+    fn finish(self) -> Vec<ToolCall> {
+        self.0
+            .into_iter()
+            .filter(|(_, n, _)| !n.is_empty())
+            .enumerate()
+            .map(|(i, (id, name, args))| ToolCall {
+                id: if id.is_empty() { format!("call_{i}") } else { id },
+                name,
+                args: serde_json::from_str(&args).unwrap_or(json!({})),
+            })
+            .collect()
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiLike {
+    async fn stream(&self, req: &ChatRequest<'_>, tx: &Sender<StreamEvent>) -> Result<(), String> {
+        let mut body = json!({ "model": self.0.model, "messages": openai_messages(req), "stream": true });
+        if !req.tools.is_empty() {
+            body["tools"] = json!(req
+                .tools
+                .iter()
+                .map(|t| json!({ "type": "function", "function": { "name": t.name, "description": t.description, "parameters": t.parameters } }))
+                .collect::<Vec<_>>());
+        }
+        let mut rb = client()?.post(format!("{}/chat/completions", self.0.base)).json(&body);
+        if !self.0.key.is_empty() {
+            rb = rb.bearer_auth(&self.0.key);
+        }
+        let resp = rb.send().await.map_err(|e| transport_error(e, self.0.quiet))?;
+        if !resp.status().is_success() {
+            return Err(http_error(resp, &self.0.key, self.0.quiet).await);
+        }
+        let mut calls = OpenAiCalls::default();
+        read_sse(resp, tx, |d, out| {
+            if d == "[DONE]" {
+                return Ok(());
+            }
+            let v: Value = serde_json::from_str(d).map_err(|e| e.to_string())?;
+            let delta = &v["choices"][0]["delta"];
+            if let Some(t) = delta["content"].as_str().filter(|t| !t.is_empty()) {
+                out.push(StreamEvent::Text(t.to_string()));
+            }
+            calls.feed(delta);
+            Ok(())
+        })
+        .await?;
+        for c in calls.finish() {
+            tx.send(StreamEvent::Call(c)).await.map_err(|_| "client_gone".to_string())?;
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic
+// ---------------------------------------------------------------------------
+
+struct Anthropic(Common);
+
+fn anthropic_messages(req: &ChatRequest<'_>) -> Vec<Value> {
+    let mut v: Vec<Value> = vec![];
+    for m in req.messages {
+        match m {
+            Msg::User(t) => v.push(json!({ "role": "user", "content": t })),
+            Msg::Assistant { text, calls } => {
+                let mut blocks = vec![];
+                if !text.is_empty() {
+                    blocks.push(json!({ "type": "text", "text": text }));
+                }
+                for c in calls {
+                    blocks.push(json!({ "type": "tool_use", "id": c.id, "name": c.name, "input": c.args }));
+                }
+                if !blocks.is_empty() {
+                    v.push(json!({ "role": "assistant", "content": blocks }));
+                }
+            }
+            Msg::ToolResult { call_id, content, .. } => {
+                let block = json!({ "type": "tool_result", "tool_use_id": call_id, "content": content });
+                // Les résultats d'un même tour vont dans un seul message utilisateur.
+                match v.last_mut() {
+                    Some(last) if last["role"] == "user" && last["content"].is_array() => last["content"].as_array_mut().unwrap().push(block),
+                    _ => v.push(json!({ "role": "user", "content": [block] })),
+                }
+            }
+        }
+    }
+    v
+}
+
+#[async_trait]
+impl Provider for Anthropic {
+    async fn stream(&self, req: &ChatRequest<'_>, tx: &Sender<StreamEvent>) -> Result<(), String> {
+        let mut body = json!({
+            "model": self.0.model, "max_tokens": 8192, "stream": true,
+            "system": req.system, "messages": anthropic_messages(req),
+        });
+        if !req.tools.is_empty() {
+            body["tools"] = json!(req.tools.iter().map(|t| json!({ "name": t.name, "description": t.description, "input_schema": t.parameters })).collect::<Vec<_>>());
+        }
+        let resp = client()?
+            .post(format!("{}/messages", self.0.base))
+            .header("x-api-key", &self.0.key)
+            .header("anthropic-version", "2023-06-01")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| transport_error(e, self.0.quiet))?;
+        if !resp.status().is_success() {
+            return Err(http_error(resp, &self.0.key, self.0.quiet).await);
+        }
+        // Bloc d'outil en cours : (id, nom, JSON partiel des arguments).
+        let mut tool: Option<(String, String, String)> = None;
+        read_sse(resp, tx, |d, events| {
+            let v: Value = serde_json::from_str(d).map_err(|e| e.to_string())?;
+            match v["type"].as_str() {
+                Some("content_block_start") if v["content_block"]["type"] == "tool_use" => {
+                    tool = Some((v["content_block"]["id"].as_str().unwrap_or("").into(), v["content_block"]["name"].as_str().unwrap_or("").into(), String::new()));
+                }
+                Some("content_block_delta") => match v["delta"]["type"].as_str() {
+                    Some("text_delta") => events.push(StreamEvent::Text(v["delta"]["text"].as_str().unwrap_or("").into())),
+                    Some("input_json_delta") => {
+                        if let Some(t) = tool.as_mut() {
+                            t.2.push_str(v["delta"]["partial_json"].as_str().unwrap_or(""));
+                        }
+                    }
+                    _ => {}
+                },
+                Some("content_block_stop") => {
+                    if let Some((id, name, args)) = tool.take() {
+                        events.push(StreamEvent::Call(ToolCall { id, name, args: serde_json::from_str(&args).unwrap_or(json!({})) }));
+                    }
+                }
+                Some("error") => return Err(format!("provider_error: {}", v["error"]["message"].as_str().unwrap_or("unknown"))),
+                _ => {}
+            }
+            Ok(())
+        })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Gemini
+// ---------------------------------------------------------------------------
+
+struct Gemini(Common);
+
+fn gemini_contents(req: &ChatRequest<'_>) -> Vec<Value> {
+    let mut v: Vec<Value> = vec![];
+    for m in req.messages {
+        match m {
+            Msg::User(t) => v.push(json!({ "role": "user", "parts": [{ "text": t }] })),
+            Msg::Assistant { text, calls } => {
+                let mut parts = vec![];
+                if !text.is_empty() {
+                    parts.push(json!({ "text": text }));
+                }
+                for c in calls {
+                    parts.push(json!({ "functionCall": { "name": c.name, "args": c.args } }));
+                }
+                if !parts.is_empty() {
+                    v.push(json!({ "role": "model", "parts": parts }));
+                }
+            }
+            Msg::ToolResult { name, content, .. } => {
+                let part = json!({ "functionResponse": { "name": name, "response": { "result": content } } });
+                match v.last_mut() {
+                    Some(last) if last["role"] == "user" && last["parts"][0]["functionResponse"].is_object() => last["parts"].as_array_mut().unwrap().push(part),
+                    _ => v.push(json!({ "role": "user", "parts": [part] })),
+                }
+            }
+        }
+    }
+    v
+}
+
+#[async_trait]
+impl Provider for Gemini {
+    async fn stream(&self, req: &ChatRequest<'_>, tx: &Sender<StreamEvent>) -> Result<(), String> {
+        let mut body = json!({
+            "systemInstruction": { "parts": [{ "text": req.system }] },
+            "contents": gemini_contents(req),
+        });
+        if !req.tools.is_empty() {
+            body["tools"] = json!([{ "functionDeclarations": req.tools.iter().map(|t| json!({ "name": t.name, "description": t.description, "parameters": t.parameters })).collect::<Vec<_>>() }]);
+        }
+        let resp = client()?
+            .post(format!("{}/models/{}:streamGenerateContent?alt=sse", self.0.base, self.0.model))
+            .header("x-goog-api-key", &self.0.key)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| transport_error(e, self.0.quiet))?;
+        if !resp.status().is_success() {
+            return Err(http_error(resp, &self.0.key, self.0.quiet).await);
+        }
+        read_sse(resp, tx, |d, events| {
+            let v: Value = serde_json::from_str(d).map_err(|e| e.to_string())?;
+            for p in v["candidates"][0]["content"]["parts"].as_array().into_iter().flatten() {
+                if let Some(t) = p["text"].as_str() {
+                    events.push(StreamEvent::Text(t.to_string()));
+                }
+                if p["functionCall"].is_object() {
+                    events.push(StreamEvent::Call(ToolCall {
+                        id: format!("call_{}", uuid::Uuid::new_v4().simple()),
+                        name: p["functionCall"]["name"].as_str().unwrap_or("").to_string(),
+                        args: p["functionCall"]["args"].clone(),
+                    }));
+                }
+            }
+            Ok(())
+        })
+        .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn openai_tool_call_arguments_are_assembled_across_chunks() {
+        let mut c = OpenAiCalls::default();
+        c.feed(&json!({ "tool_calls": [{ "index": 0, "id": "c1", "function": { "name": "read_page", "arguments": "{\"page" } }] }));
+        c.feed(&json!({ "tool_calls": [{ "index": 0, "function": { "arguments": "_id\":\"x\"}" } }] }));
+        let calls = c.finish();
+        assert_eq!(calls, vec![ToolCall { id: "c1".into(), name: "read_page".into(), args: json!({ "page_id": "x" }) }]);
+    }
+
+    #[test]
+    fn anthropic_groups_tool_results_in_one_user_message() {
+        let msgs = vec![
+            Msg::User("hi".into()),
+            Msg::Assistant { text: String::new(), calls: vec![ToolCall { id: "a".into(), name: "n".into(), args: json!({}) }, ToolCall { id: "b".into(), name: "n".into(), args: json!({}) }] },
+            Msg::ToolResult { call_id: "a".into(), name: "n".into(), content: "1".into() },
+            Msg::ToolResult { call_id: "b".into(), name: "n".into(), content: "2".into() },
+        ];
+        let req = ChatRequest { system: "s", messages: &msgs, tools: &[] };
+        let out = anthropic_messages(&req);
+        assert_eq!(out.len(), 3);
+        assert_eq!(out[2]["content"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn defaults_and_tool_support() {
+        assert!(default_base_url("openai_compatible").is_none());
+        assert!(!supports_tools("perplexity"));
+        assert!(build(&Conn { provider: "openai_compatible".into(), model: "m".into(), base_url: None, api_key: None, quiet: false }).is_err());
+    }
+}

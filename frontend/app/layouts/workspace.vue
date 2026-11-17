@@ -342,6 +342,7 @@ function onEdgeStart(e: TouchEvent) {
     <AppShellScope :ws="wsId">
       <AppCommandPalette />
       <AppNotepad v-if="!isPane" />
+      <AppAiChat v-if="!isPane" />
       <AppWorkOnDialog v-if="!isPane" />
       <AppCreateBoardDialog />
     </AppShellScope>

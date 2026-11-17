@@ -181,6 +181,24 @@ _Avoid_: thème de l'espace, style global
 Bloc d'une page où l'on dessine à main levée, formes et flèches libres, sans description écrite derrière.
 _Avoid_: diagramme, croquis, Excalidraw (nom de l'outil)
 
+## Assistant IA
+
+**Connexion IA**:
+Compte d'un fournisseur de modèles (OpenAI, Anthropic, Gemini, Perplexity ou serveur compatible comme Ollama) relié par une personne, avec son modèle et sa clé d'API. La clé est chiffrée sur l'instance et n'est jamais renvoyée.
+_Avoid_: clé d'API (seule), intégration, compte IA
+
+**Conversation IA**:
+Discussion d'une personne avec un modèle, liée à une page, un projet, un espace ou à rien (globale). Elle lit seulement ce que cette personne peut consulter.
+_Avoid_: chat, session
+
+**Autorisation d'écriture**:
+Droit donné par une personne à une conversation IA d'écrire sur une page précise, dans un mode (suggérer, ajouter ou remplacer) et pour une durée limitée ; révocable à tout moment. Sans elle, l'assistant est en lecture seule, et elle ne dépasse jamais les droits de la personne sur la page.
+_Avoid_: permission, accès, droit d'écriture (réservé aux rôles)
+
+**Suggestion**:
+Modification proposée par l'assistant en mode « suggérer » : une différence que la personne accepte ou refuse, rien n'étant écrit avant.
+_Avoid_: brouillon, patch
+
 ## Révisions
 
 **Jeu de révision**:

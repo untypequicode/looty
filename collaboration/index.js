@@ -425,6 +425,19 @@ function onNotification(msg) {
     scheduleRevalidate()
     return
   }
+  if (msg.channel === 'looty_page_reset') {
+    // Texte d'une page réécrit par le backend (agent IA) à partir de l'état enregistré : on le FUSIONNE
+    // dans le document ouvert (CRDT) au lieu de l'abandonner, donc aucune frappe non enregistrée n'est
+    // perdue ; les clients connectés reçoivent le changement en direct et le stockage normal suit.
+    const name = msg.payload
+    const doc = hp.documents.get(name)
+    if (!doc) return
+    pool.query('SELECT yjs_state FROM pages WHERE id = $1', [name]).then((res) => {
+      const state = res.rows[0]?.yjs_state
+      if (state && state.length > 0 && hp.documents.get(name) === doc) Y.applyUpdate(doc, state, 'backend')
+    }).catch((e) => console.error('Page merge failed', name, e.message))
+    return
+  }
   if (msg.channel === 'looty_file_reset') {
     const name = FILE_PREFIX + msg.payload
     resetAt.set(name, Date.now())
@@ -460,6 +473,7 @@ async function listen() {
     await client.query('LISTEN looty_restore')
     await client.query('LISTEN looty_file_reset')
     await client.query('LISTEN looty_access')
+    await client.query('LISTEN looty_page_reset')
   } catch (e) {
     console.error('LISTEN failed, retrying in 5 s', e.message)
     client?.release(true)

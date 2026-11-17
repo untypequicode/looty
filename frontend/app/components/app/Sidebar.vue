@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
+  Bot, NotebookPen, Home, Inbox, CircleUserRound, FileText, CalendarDays, Mail, Waypoints, Search, SquarePen, Plus, ChevronRight, Star, Kanban,
   MoreHorizontal, Pencil, Trash2, Link2, PanelLeftClose, Settings, Keyboard, BookOpen, PencilLine, SquareArrowOutUpRight, History, PanelLeftDashed, Users,
   GraduationCap, FolderCode, HardDrive, Eye, PenTool, Megaphone, LockKeyhole, UsersRound, BookCheck,
 } from 'lucide-vue-next'
@@ -21,6 +21,7 @@ import { useReadingMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useMoodle } from '~/composables/useMoodle'
 import { useUi, notepadOpen } from '~/composables/useUi'
+import { aiOpen } from '~/composables/useAi'
 import { presence } from '~/composables/useRealtime'
 import { following } from '~/composables/useRealtime'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
@@ -333,6 +334,9 @@ async function onRootDrop(e: DragEvent) {
       <div class="spacer" />
       <UiTooltip v-if="canToggle" :text="reading ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
         <UiButton variant="ghost" size="sm" :icon="reading ? PencilLine : BookOpen" :class="{ 'rm-on': reading }" :aria-pressed="reading" :aria-label="reading ? t('readMode.toEdit') : t('readMode.toRead')" @click="toggleReading" />
+      </UiTooltip>
+      <UiTooltip :text="t('nav.aiAssistant')" placement="top">
+        <UiButton variant="ghost" size="sm" :icon="Bot" :class="{ 'rm-on': aiOpen }" :aria-pressed="aiOpen" :aria-label="t('nav.aiAssistant')" @click="aiOpen = !aiOpen" />
       </UiTooltip>
       <UiTooltip :text="t('notepad.open')" :shortcut="['mod', 'alt', 'N']" placement="top">
         <UiButton variant="ghost" size="sm" :icon="NotebookPen" :class="{ 'rm-on': notepadOpen }" :aria-pressed="notepadOpen" :aria-label="t('notepad.open')" @click="notepadOpen = !notepadOpen" />
