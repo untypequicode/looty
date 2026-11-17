@@ -22,7 +22,9 @@ function toggle(id: string) {
   try { localStorage.setItem(key.value, JSON.stringify([...next])) } catch { /* stockage indisponible : repère non gardé */ }
 }
 
-const sections = computed(() => props.set.items.map((it, i) => ({ id: it.id ?? String(i), anchor: `sum-${i + 1}`, title: it.prompt, body: it.answer?.back ?? '' })))
+/** Titre du sommaire en texte brut : liens et mise en forme retirés (pas de lien dans un lien). */
+const plain = (md: string) => md.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[*_`~$\\]/g, "").trim()
+const sections = computed(() => props.set.items.map((it, i) => ({ id: it.id ?? String(i), anchor: `sum-${i + 1}`, title: it.prompt, toc: plain(it.prompt), body: it.answer?.back ?? '' })))
 const done = computed(() => sections.value.filter((s) => read.value.has(s.id)).length)
 </script>
 
@@ -33,7 +35,7 @@ const done = computed(() => sections.value.filter((s) => read.value.has(s.id)).l
       <nav class="sm-toc" :aria-label="t('study.summaryToc')">
         <b>{{ t('study.summaryToc') }}</b>
         <ol>
-          <li v-for="s in sections" :key="s.id"><a :href="`#${s.anchor}`" :class="{ done: read.has(s.id) }"><RichMarkdown :src="s.title" mode="inline" /></a></li>
+          <li v-for="s in sections" :key="s.id"><a :href="`#${s.anchor}`" :class="{ done: read.has(s.id) }">{{ s.toc }}</a></li>
         </ol>
         <small class="faint">{{ t('study.summaryProgress', { done, total: sections.length }) }}</small>
       </nav>

@@ -4,6 +4,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.39.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Formulas, diagrams and graphs everywhere: in the chat and in trainings",
+        "fr": "Formules, schémas et graphes partout : dans le chat et dans les entraînements"
+      },
+      "notes": {
+        "en": [
+          "**Trainings**: questions, choices, explanations, flashcards and summaries now render LaTeX, Mermaid diagrams, graphs, callouts, tables and highlighted code.",
+          "**Assistant replies**: the chat uses the same rendering, so formulas and diagrams show up as they should.",
+          "**Preview in the training editor**: check the Markdown of each item as you write it.",
+          "**Create a page from this answer**: a button on each assistant message makes a personal page in your current workspace and opens it.",
+          "**Agents**: they now know they can write Markdown, LaTeX, Mermaid and graphs in training items."
+        ],
+        "fr": [
+          "**Entraînements** : questions, choix, explications, fiches et synthèses affichent maintenant le LaTeX, les schémas Mermaid, les graphes, les encadrés, les tableaux et le code coloré.",
+          "**Réponses de l’assistant** : le chat utilise le même rendu, les formules et les schémas s’affichent donc comme il faut.",
+          "**Aperçu dans l’éditeur d’entraînement** : vérifiez le Markdown de chaque élément en l’écrivant.",
+          "**Créer une page avec cette réponse** : un bouton sur chaque message de l’assistant crée une page personnelle dans votre espace courant et l’ouvre.",
+          "**Agents** : ils savent maintenant qu’ils peuvent écrire du Markdown, du LaTeX, du Mermaid et des graphes dans les éléments d’entraînement."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.38.0",
       "date": "2026-11-17",
       "title": {

@@ -372,6 +372,21 @@ pub fn title_from_markdown(md: &str) -> String {
     if t.is_empty() { "Réponse de l'IA".into() } else { t }
 }
 
+/// Markdown → (état Yjs, copie HTML). Le texte vient d'un modèle : la conversion tourne hors de la
+/// tâche de la requête, et une panique du convertisseur devient une erreur propre, jamais un plantage.
+pub async fn markdown_to_state(md: String) -> ApiResult<(Vec<u8>, Option<String>)> {
+    let job = tokio::task::spawn_blocking(move || {
+        let state = ai_pages::apply_markdown(&[], Op::Replace, &md)?;
+        let html = ai_pages::state_to_html(&state).ok();
+        Ok::<_, String>((state, html))
+    });
+    match job.await {
+        Ok(Ok(v)) => Ok(v),
+        Ok(Err(e)) => Err(ApiError::Internal(format!("yjs write: {e}"))),
+        Err(_) => Err(ApiError::Internal("markdown_conversion_failed".into())),
+    }
+}
+
 /// « Créer une page avec cette réponse » : la personne (pas l'IA) crée une page à partir d'un
 /// message de l'assistant de l'une de ses conversations. Il faut le droit d'éditer les documents de
 /// l'espace cible (aucune autorisation d'écriture IA : c'est la personne qui agit). Le Markdown passe
@@ -1574,6 +1589,34 @@ mod tests {
 
     async fn assistant_message(pool: &PgPool, conv: Uuid, role: &str, content: &str) -> Uuid {
         sqlx::query_scalar("INSERT INTO ai_messages (conversation_id, role, content) VALUES ($1, $2, $3) RETURNING id").bind(conv).bind(role).bind(content).fetch_one(pool).await.unwrap()
+    }
+
+    #[sqlx::test]
+    async fn odd_markdown_converts_without_crashing(pool: PgPool) {
+        let w = world(&pool).await;
+        let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(w.page).fetch_one(&pool).await.unwrap();
+        let big_table = format!("| a | b |\n| - | - |\n{}", "| 1 | 2 |\n".repeat(5_000));
+        let wide_table = format!("|{}\n|{}\n|{}\n", " h |".repeat(300), " - |".repeat(300), " c |".repeat(300));
+        let nested = format!("{}x", "> ".repeat(300));
+        let nested_lists = (0..60).map(|i| format!("{}- n{i}\n", "  ".repeat(i))).collect::<String>();
+        let cases = [
+            "```mermaid\ngraph TD\nA-->B".to_string(),
+            "~~~\n```\n~~~~\n```looty-graph\n".to_string(),
+            ":::info\n:::warning\n:::\n:::".to_string(),
+            "$$ unclosed $ \\( \\[".to_string(),
+            "**a *b ~~c `d".to_string(),
+            "|\n|-|\n||||".to_string(),
+            "\u{202e}\u{1f600}\r\n\r\n\t- [ ]\n- [x".to_string(),
+            big_table,
+            wide_table,
+            nested,
+            nested_lists,
+        ];
+        for md in cases {
+            let msg = assistant_message(&pool, w.conv, "assistant", &md).await;
+            let r = page_from_message(&pool, &w.owner, msg, Some(ws), true).await;
+            assert!(r.is_ok(), "{:?} for {:.40}", r.err(), md);
+        }
     }
 
     #[test]

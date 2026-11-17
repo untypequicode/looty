@@ -3,6 +3,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseChatMarkdown, renderChatMarkdown, renderKatex, safeHref } from '../app/editor/chatMarkdown.ts'
 import { injectMath } from '../app/editor/chatMathParse.ts'
+import { stripCssUrls } from '../app/editor/svgCss.ts'
 
 const html = (s: string, inline = false) => parseChatMarkdown(s, { inline }).html
 const full = (s: string, inline = false) => {
@@ -89,6 +90,18 @@ test('safeHref allows web, mail, anchors and relative paths only', () => {
 test('formula source is escaped, never executed', () => {
   const r = full('$\\href{javascript:alert(1)}{x}$')
   assert.equal(/<script|onerror=|javascript:alert/.test(r) && /<a /.test(r), false)
+})
+
+test('SVG css loses external urls and imports but keeps local references', () => {
+  const out = stripCssUrls
+  assert.equal(out('@import url(https://evil/x.css); .a{fill:red}'), ' .a{fill:red}')
+  assert.equal(out('.a{background:url(https://evil/x.png)}'), '.a{background:none}')
+  assert.equal(out(".a{background:URL( 'http://evil/x' )}"), '.a{background:none}')
+  assert.equal(out('.a{background:u\\72l(http://evil/x)}'), '.a{background:none}')
+  assert.equal(out('.a{background:ur/**/l(http://evil/x)}'), '.a{background:none}')
+  assert.doesNotMatch(out('.a{background:image-set("http://evil/x" 1x)}'), /image-set\(/)
+  assert.equal(out('.a{fill:url(#grad);marker-end:url("#arrow")}'), '.a{fill:url(#grad);marker-end:url("#arrow")}')
+  assert.equal(out('.node rect{fill:#ececff;stroke:#9370db}'), '.node rect{fill:#ececff;stroke:#9370db}')
 })
 
 test('without a DOM the output is escaped text', () => {
