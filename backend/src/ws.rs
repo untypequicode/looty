@@ -333,6 +333,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
         // Vérification régulière : compte suspendu, accès à l'espace perdu (invité dont les partages
         // ont été retirés) : la connexion est fermée.
         let mut check = tokio::time::interval(std::time::Duration::from_secs(120));
+        check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         check.tick().await;
         loop {
             let received = tokio::select! {

@@ -76,7 +76,7 @@ async fn open(a: &Account) -> ApiResult<Imap> {
     REAPER.get_or_init(|| {
         tokio::spawn(async {
             loop {
-                tokio::time::sleep(Duration::from_secs(20)).await;
+                tokio::time::sleep(Duration::from_secs(60)).await;
                 let mut p = POOL.lock().unwrap();
                 p.values_mut().for_each(|v| v.retain(|(_, at)| at.elapsed() < IDLE));
                 p.retain(|_, v| !v.is_empty());

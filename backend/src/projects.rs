@@ -12,7 +12,7 @@
 
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -863,9 +863,22 @@ async fn upload(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uu
 
 /// Plafond (octets non compressés) des exports du projet (zip, bundle).
 const MAX_EXPORT_BYTES: usize = 200 * 1024 * 1024;
+#[derive(Deserialize)]
+struct DownloadQuery {
+    /// `?check=1` : ne construit pas l'archive, vérifie seulement que le projet n'est pas trop gros (le navigateur affiche alors une erreur lisible).
+    check: Option<u8>,
+}
+
 /// Archive zip du projet.
-async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Response> {
+async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<DownloadQuery>) -> ApiResult<Response> {
     let (p, _) = project_for(&state, &user, id, Need::Read).await?;
+    if q.check.is_some() {
+        let total: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(size), 0)::BIGINT FROM project_files WHERE project_id = $1 AND NOT is_dir").bind(id).fetch_one(&state.pool).await?;
+        if total as usize > MAX_EXPORT_BYTES {
+            return Err(ApiError::bad_request("project_too_large_to_export"));
+        }
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
     let files = all_files(&state, id).await?;
     // Chaque fichier est lu puis écrit dans l'archive aussitôt, sans garder tous les contenus en mémoire.
     let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
