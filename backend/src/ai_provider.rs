@@ -158,7 +158,7 @@ async fn http_error(resp: reqwest::Response, key: &str, quiet: bool) -> String {
     if !key.is_empty() {
         body = body.replace(key, "***");
     }
-    body.truncate(400);
+    let body: String = body.chars().take(400).collect();
     format!("provider_http_{}: {}", status.as_u16(), body)
 }
 
