@@ -110,6 +110,7 @@ fn bad(code: &str) -> ApiError {
 }
 
 /// Vérifie un élément pour un jeu de type `set_kind`.
+/// Les textes (énoncé, choix, explication, verso) sont du Markdown : seule la longueur est contrôlée.
 pub fn validate_item(set_kind: &str, it: &ItemIn) -> ApiResult<()> {
     if !allowed_types(set_kind).contains(&it.kind.as_str()) {
         return Err(bad("study_item_type"));

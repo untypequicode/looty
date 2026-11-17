@@ -6,8 +6,10 @@ export default {
     study_nothing_to_score: 'Cet entraînement ne contient rien à noter.', study_invalid_rating: 'Évaluation inconnue.',
   },
   nav: { study: 'Entraînements' },
+  rich: { diagramError: 'Diagramme invalide, source affichée' },
   presence: { screens: { study: 'Entraînements' } },
   study: {
+    preview: 'Aperçu', markdownHint: 'Markdown : $x^2$ pour les formules, blocs mermaid et looty-graph, encadrés :::info, tableaux, code.',
     title: 'Entraînements', new: 'Nouvel entraînement', empty: 'Aucun entraînement.', emptyHint: 'Créez un QCM, un questionnaire, des fiches ou une synthèse pour réviser.', noMatch: 'Aucun entraînement ne correspond.', filter: 'Rechercher un entraînement', allKinds: 'Tous', personalHint: 'Visible de vous seul, même pas des administrateurs.',
     titleLabel: 'Titre', titlePlaceholder: 'Chapitre 3 — réseaux…', kind: 'Type', create: 'Créer',
     kinds: { qcm: 'QCM', questionnaire: 'Questionnaire', flashcards: 'Fiches', summary: 'Synthèse' },

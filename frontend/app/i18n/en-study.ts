@@ -6,8 +6,10 @@ export default {
     study_nothing_to_score: 'This training has nothing to score.', study_invalid_rating: 'Unknown rating.',
   },
   nav: { study: 'Trainings' },
+  rich: { diagramError: 'Invalid diagram, showing its source' },
   presence: { screens: { study: 'Trainings' } },
   study: {
+    preview: 'Preview', markdownHint: 'Markdown: $x^2$ for formulas, mermaid and looty-graph blocks, :::info callouts, tables, code.',
     title: 'Trainings', new: 'New training', empty: 'No trainings.', emptyHint: 'Create a quiz, questionnaire, flashcards or summary to revise.', noMatch: 'No training matches.', filter: 'Search a training', allKinds: 'All', personalHint: 'Visible to you only, not even to administrators.',
     titleLabel: 'Title', titlePlaceholder: 'Chapter 3 — networks…', kind: 'Type', create: 'Create',
     kinds: { qcm: 'MCQ', questionnaire: 'Questionnaire', flashcards: 'Flashcards', summary: 'Summary' },

@@ -39,8 +39,17 @@ No `choices`. `"answer": { "accepted": ["Paris", "la ville de Paris"] }`. Compar
 No `choices`. `"answer": { "back": "string, 1..4000 chars" }`. Not scored; reviewed with spaced repetition (again / hard / good / easy).
 
 ### `summary` sets: sections
-A summary is read, not played. Each `flashcard` item is one section, in order: `prompt` = the section heading (plain text, keep it short), `answer.back` = the body in Markdown (paragraphs, lists, emphasis, tables, code; rendered by the safe chat renderer: raw HTML and images are dropped, links open externally), no `explanation`. The reader shows a table of contents and lets each person mark sections as read (kept in the browser only). No new item type: sets created before this convention stay valid.
+A summary is read, not played. Each `flashcard` item is one section, in order: `prompt` = the section heading (plain text, keep it short), `answer.back` = the body in Markdown (paragraphs, lists, emphasis, tables, code, LaTeX, diagrams; see "Markdown in item text"), no `explanation`. The reader shows a table of contents and lets each person mark sections as read (kept in the browser only). No new item type: sets created before this convention stay valid.
 
+
+## Markdown in item text
+`prompt`, choice `text`, `explanation` and `answer.back` are Markdown, rendered by the shared rich renderer (the same everywhere: player, flashcards, summaries, editor preview, assistant chat). Stored as plain strings; the only limits are the lengths above. Supported:
+
+- inline `$O(n^2)$` and block `$$...$$` LaTeX (KaTeX); an unclosed formula stays text;
+- **bold**, *italic*, `code`, fenced code with a language (highlighted), tables, task lists (read-only), quotes, links (http, https, mailto);
+- callouts: `:::info`, `:::success`, `:::warning`, `:::tip` on their own line, content, then `:::`;
+- a fenced ```` ```mermaid ```` block (diagram) or ```` ```looty-graph ```` block (one line per node or edge, see ADR 0007), drawn lazily with the workspace diagram style; an invalid block shows its source with an error note;
+- raw HTML and images are dropped. Choices and one-line prompts render inline (no paragraph): keep them short.
 ## Limits
 At most 500 items per set; set title 1..200 chars.
 
