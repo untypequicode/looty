@@ -10,6 +10,7 @@ export default {
   },
   ai: {
     title: 'Assistant IA',
+    ask: 'Demander à l’IA',
     settings: {
       title: 'Connexions IA',
       description: 'Reliez vos propres comptes d’IA. Les clés sont chiffrées sur ce serveur et ne servent qu’à vos conversations.',
@@ -29,21 +30,36 @@ export default {
         request: 'Le fournisseur a refusé la requête. Vérifiez la connexion dans les réglages.',
         unreachable: 'Le fournisseur est injoignable.',
       },
-      new: 'Nouvelle conversation', untitled: 'Sans titre', connection: 'Connexion', context: 'Contexte', history: 'Historique',
-      ctx: { page: 'Cette page', project: 'Ce projet', workspace: 'Cet espace', none: 'Global' },
+      new: 'Nouvelle conversation', untitled: 'Sans titre', connection: 'Connexion',
       noConnection: 'Ajoutez une connexion IA dans les réglages pour commencer.', setUp: 'Ouvrir les réglages',
-      readOnlyHint: 'Lecture seule : l’assistant lit les pages auxquelles vous avez accès. Pour qu’il écrive, choisissez une page ci-dessous.',
-      placeholder: 'Posez une question… (Entrée pour envoyer)', send: 'Envoyer', stop: 'Arrêter',
-      writeTarget: 'Page modifiable', readOnly: 'lecture seule', workspace: 'Espace', page: 'Page', modeLabel: 'Mode', expiry: 'Durée', allow: 'Autoriser',
-      studyGrants: 'Entraînements', studyCreate: 'Créer des entraînements dans…', studyUpdate: 'Modifier un entraînement', personal: 'Espace personnel', studySet: 'Entraînement', studyLink: 'Ouvrir l’entraînement', studyRestore: 'Restaurer la version précédente', studyGrantCreate: 'créer des entraînements dans {where}', studyGrantUpdate: 'modifier {title}',
+      placeholder: 'Posez une question…', send: 'Envoyer', stop: 'Arrêter',
+      allow: 'Autoriser', expiry: 'Durée', personal: 'Espace personnel',
+      studyLink: 'Ouvrir l’entraînement', studyRestore: 'Annuler la modification',
       mode: { suggest: 'Suggérer', append: 'Ajouter', replace: 'Remplacer' },
-      modeHint: {
-        suggest: 'Suggérer : l’assistant propose une modification que vous acceptez ou refusez.',
-        append: 'Ajouter : l’assistant peut ajouter du contenu à la fin de la page. Une version précédente est conservée.',
-        replace: 'Remplacer : l’assistant peut réécrire toute la page. Une version précédente est conservée.',
-      },
       suggestion: 'Modification proposée', accept: 'Accepter', reject: 'Refuser', applied: 'Modification appliquée (version précédente gardée dans l’historique)',
+    },
+    page: {
+      title: 'Assistant', subtitle: 'Vos conversations sont privées : vous seul les voyez.',
+      intro: 'Posez une question ou joignez des éléments avec « + » ou « @ ». L’assistant lit ce que vous pouvez consulter et n’écrit qu’avec votre autorisation.',
+      conversations: 'Conversations', renameTitle: 'Renommer la conversation', deleteTitle: 'Supprimer « {title} » ?', deleteMessage: 'La conversation et ses messages seront supprimés définitivement.',
+      pageChanged: 'Page modifiée', pageChangedUndone: 'Modification annulée', undoUndone: 'Annulation défaite', undo: 'Rétablir', openPage: 'Ouvrir la page', retry: 'Autorisation accordée : réessaie, s’il te plaît.',
+    },
+    list: {
+      title: 'Conversations', search: 'Rechercher une conversation', today: 'Aujourd’hui', week: '7 derniers jours', older: 'Plus ancien',
+      empty: 'Aucune conversation pour le moment.', noMatch: 'Aucune conversation trouvée.',
+    },
+    picker: {
+      search: 'Rechercher un élément à joindre…', hint: 'Tapez pour chercher dans tous vos espaces.', none: 'Aucun résultat.', all: 'Tout',
+      kind: { page: 'Page', study: 'Entraînement', task: 'Tâche', board: 'Tableau', event: 'Événement', project: 'Projet' },
+    },
+    composer: {
+      placeholder: 'Posez une question…', attach: 'Joindre un élément', atHint: '@ pour joindre', detach: 'Retirer « {title} »',
+    },
+    card: {
+      title: 'Autorisation d’écriture', page: 'L’assistant veut modifier « {title} ».', studyCreate: 'L’assistant veut créer un entraînement dans « {where} ».', studyUpdate: 'L’assistant veut modifier l’entraînement « {title} ».',
+      for: 'pour', allowed: 'Autorisé : {what}', hint: 'Suggérer : vous validez la modification. Ajouter ou Remplacer : appliquée tout de suite, la version précédente est gardée.',
     },
   },
   nav: { aiAssistant: 'Assistant IA' },
+  presence: { screens: { assistant: 'Assistant IA' } },
 }

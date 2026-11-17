@@ -1,6 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap, FolderCode, HardDrive, PenTool, Megaphone, BookCheck } from 'lucide-vue-next'
+import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap, FolderCode, HardDrive, PenTool, Megaphone, BookCheck, Bot } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { api } from './api'
 import { links, useWorkspace } from './useWorkspace'
@@ -24,6 +24,7 @@ const SCREENS: Record<string, { icon: any; path: (ws: string) => string }> = {
   graph: { icon: Waypoints, path: (ws) => `/w/${ws}/graph` },
   canvas: { icon: PenTool, path: (ws) => `/w/${ws}/canvas` },
   study: { icon: BookCheck, path: (ws) => links.study(ws) },
+  assistant: { icon: Bot, path: (ws) => links.assistant(ws) },
 }
 
 /** Libellé, icône et lien d'un emplacement de présence. */
@@ -81,7 +82,7 @@ export function locationPath(ws: string, location: string | undefined): string |
 
 /** Emplacement correspondant à une route (même règle que la présence envoyée). */
 export function locationOfRoute(route: { path: string; params: Record<string, any>; query: Record<string, any> }): string {
-  const screens = ['calendar', 'mail', 'moodle', 'projects', 'drive', 'inbox', 'announcements', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph', 'canvas', 'study']
+  const screens = ['calendar', 'mail', 'moodle', 'projects', 'drive', 'inbox', 'announcements', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph', 'canvas', 'study', 'assistant']
   const screen = route.path.split('/')[3] ?? ''
   if (screen === 'study' && route.params.id) return `study:${route.params.id}`
   const task = (route.query.task as string) || (route.params.task as string)

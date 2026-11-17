@@ -21,7 +21,6 @@ import { useReadingMode } from '~/composables/useReadMode'
 import { useMailAccounts, mailUnread } from '~/composables/useMail'
 import { useMoodle } from '~/composables/useMoodle'
 import { useUi, notepadOpen } from '~/composables/useUi'
-import { aiOpen } from '~/composables/useAi'
 import { presence } from '~/composables/useRealtime'
 import { following } from '~/composables/useRealtime'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
@@ -49,6 +48,7 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined, when: () => !isGuest.value },
   moodle: { icon: GraduationCap, label: () => t('nav.moodle'), to: () => links.moodle(wsId.value), when: () => !isGuest.value && !!moodleInfo.value?.url },
   study: { icon: BookCheck, label: () => t('nav.study'), to: () => links.study(wsId.value), when: () => !isGuest.value },
+  assistant: { icon: Bot, label: () => t('nav.aiAssistant'), to: () => links.assistant(wsId.value), when: () => !isGuest.value },
   projects: { icon: FolderCode, label: () => t('projects.title'), to: () => `/w/${wsId.value}/projects`, when: () => !isGuest.value && can.value.seeDocs },
   drive: { icon: HardDrive, label: () => t('drive.title'), to: () => `/w/${wsId.value}/drive`, when: () => !isGuest.value && can.value.seeDocs },
   docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => seesSomeDocs.value },
@@ -334,9 +334,6 @@ async function onRootDrop(e: DragEvent) {
       <div class="spacer" />
       <UiTooltip v-if="canToggle" :text="reading ? t('readMode.toEdit') : t('readMode.toRead')" :shortcut="['mod', 'shift', 'E']" placement="top">
         <UiButton variant="ghost" size="sm" :icon="reading ? PencilLine : BookOpen" :class="{ 'rm-on': reading }" :aria-pressed="reading" :aria-label="reading ? t('readMode.toEdit') : t('readMode.toRead')" @click="toggleReading" />
-      </UiTooltip>
-      <UiTooltip :text="t('nav.aiAssistant')" placement="top">
-        <UiButton variant="ghost" size="sm" :icon="Bot" :class="{ 'rm-on': aiOpen }" :aria-pressed="aiOpen" :aria-label="t('nav.aiAssistant')" @click="aiOpen = !aiOpen" />
       </UiTooltip>
       <UiTooltip :text="t('notepad.open')" :shortcut="['mod', 'alt', 'N']" placement="top">
         <UiButton variant="ghost" size="sm" :icon="NotebookPen" :class="{ 'rm-on': notepadOpen }" :aria-pressed="notepadOpen" :aria-label="t('notepad.open')" @click="notepadOpen = !notepadOpen" />

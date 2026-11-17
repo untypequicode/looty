@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { Columns2, Copy, FolderInput, Link2, LockKeyhole, Pencil, SquareArrowOutUpRight, Trash2, UsersRound } from 'lucide-vue-next'
+import { Bot, Columns2, Copy, FolderInput, Link2, LockKeyhole, Pencil, SquareArrowOutUpRight, Trash2, UsersRound } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { links } from './useWorkspace'
 import { openMovePage } from './useMovePage'
@@ -11,6 +11,7 @@ import { useStudyActions } from './useStudy'
 import { promptDialog } from './useConfirm'
 import { toast } from './useToast'
 import { translate as t } from './useI18n'
+import { askAi } from './useAi'
 
 /** Ce qu'il faut savoir d'un entraînement pour son menu (liste, arbre ou page de l'entraînement). */
 export interface StudyMenuTarget { id: string; title: string; can_edit?: boolean; private_to?: string | null; owner_id?: string | null; created_by?: string | null }
@@ -46,6 +47,7 @@ export function useStudyMenu(ws: Ref<string>) {
       ...(tabsEnabled.value ? [{ label: t('tabs.openInNew'), icon: SquareArrowOutUpRight, onSelect: () => tabsApi.open(to) }] : []),
       ...(tabsEnabled.value && !isTablet.value ? [{ label: t('tabs.openSide'), icon: Columns2, onSelect: () => tabsApi.openSidePath(to) }] : []),
       { label: t('common.copyLink'), icon: Link2, onSelect: () => { navigator.clipboard.writeText(location.origin + to); toast.success(t('common.linkCopied')) } },
+      { label: t('ai.ask'), icon: Bot, onSelect: () => { void askAi(ws.value, { kind: 'study', id: s.id, title: s.title }) } },
       ...(s.can_edit !== false
         ? [
             { label: t('common.rename'), icon: Pencil, onSelect: opts.rename ?? (() => renameDialog(s)) },

@@ -10,6 +10,7 @@ export default {
   },
   ai: {
     title: 'AI assistant',
+    ask: 'Ask AI',
     settings: {
       title: 'AI connections',
       description: 'Connect your own AI accounts. Keys are stored encrypted on this server and are only used for your conversations.',
@@ -29,21 +30,36 @@ export default {
         request: 'The provider rejected the request. Check the connection settings.',
         unreachable: 'The provider cannot be reached.',
       },
-      new: 'New conversation', untitled: 'Untitled', connection: 'Connection', context: 'Context', history: 'History',
-      ctx: { page: 'This page', project: 'This project', workspace: 'This workspace', none: 'Global' },
+      new: 'New conversation', untitled: 'Untitled', connection: 'Connection',
       noConnection: 'Add an AI connection in the settings to start.', setUp: 'Open settings',
-      readOnlyHint: 'Read-only: the assistant can read the pages you can access. To let it write, choose a page below.',
-      placeholder: 'Ask something… (Enter to send)', send: 'Send', stop: 'Stop',
-      writeTarget: 'Write target', readOnly: 'read-only', workspace: 'Workspace', page: 'Page', modeLabel: 'Mode', expiry: 'Duration', allow: 'Allow',
-      studyGrants: 'Trainings', studyCreate: 'Create trainings in…', studyUpdate: 'Edit a training', personal: 'Personal space', studySet: 'Training', studyLink: 'Open the training', studyRestore: 'Restore the previous version', studyGrantCreate: 'create trainings in {where}', studyGrantUpdate: 'edit {title}',
+      placeholder: 'Ask something…', send: 'Send', stop: 'Stop',
+      allow: 'Allow', expiry: 'Duration', personal: 'Personal space',
+      studyLink: 'Open the training', studyRestore: 'Undo the change',
       mode: { suggest: 'Suggest', append: 'Append', replace: 'Replace' },
-      modeHint: {
-        suggest: 'Suggest: the assistant proposes a change and you accept or reject it.',
-        append: 'Append: the assistant may add content at the end of the page. A previous version is saved.',
-        replace: 'Replace: the assistant may rewrite the whole page. A previous version is saved.',
-      },
       suggestion: 'Proposed change', accept: 'Accept', reject: 'Reject', applied: 'Change applied (previous version saved in history)',
+    },
+    page: {
+      title: 'Assistant', subtitle: 'Your conversations are private: only you can see them.',
+      intro: 'Ask something or attach items with “+” or “@”. The assistant reads what you can access and only writes with your permission.',
+      conversations: 'Conversations', renameTitle: 'Rename the conversation', deleteTitle: 'Delete “{title}”?', deleteMessage: 'The conversation and its messages will be permanently deleted.',
+      pageChanged: 'Page changed', pageChangedUndone: 'Change undone', undoUndone: 'Undo reverted', undo: 'Redo', openPage: 'Open the page', retry: 'Permission granted: please try again.',
+    },
+    list: {
+      title: 'Conversations', search: 'Search conversations', today: 'Today', week: 'Last 7 days', older: 'Older',
+      empty: 'No conversations yet.', noMatch: 'No conversation found.',
+    },
+    picker: {
+      search: 'Search for an item to attach…', hint: 'Type to search all your workspaces.', none: 'No results.', all: 'All',
+      kind: { page: 'Page', study: 'Training', task: 'Task', board: 'Board', event: 'Event', project: 'Project' },
+    },
+    composer: {
+      placeholder: 'Ask something…', attach: 'Attach an item', atHint: '@ to attach', detach: 'Remove “{title}”',
+    },
+    card: {
+      title: 'Write permission', page: 'The assistant wants to edit “{title}”.', studyCreate: 'The assistant wants to create a training in “{where}”.', studyUpdate: 'The assistant wants to edit the training “{title}”.',
+      for: 'for', allowed: 'Allowed: {what}', hint: 'Suggest: you approve the change. Append or Replace: applied right away, the previous version is kept.',
     },
   },
   nav: { aiAssistant: 'AI assistant' },
+  presence: { screens: { assistant: 'AI assistant' } },
 }
