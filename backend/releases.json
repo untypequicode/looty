@@ -4,6 +4,31 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.36.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Summaries get a reading view, and agents can edit older pages",
+        "fr": "Les synthèses ont une vue de lecture, et les agents peuvent modifier les anciennes pages"
+      },
+      "notes": {
+        "en": [
+          "**Summaries**: a summary set now opens in a reading view with a table of contents and a “mark as read” option, and is edited section by section (heading + Markdown). Agents create summaries in that shape.",
+          "**Agents and older pages**: an agent can now edit a page that was never opened in the editor, when its content only uses supported formatting (text, headings, lists, quotes, callouts, code, formulas, diagrams). Otherwise it refuses without touching anything, and a version is saved first.",
+          "After an agent edits a page, the page's text copy used by search and export follows the change; if the page contains blocks that copy cannot represent, it is left as it was.",
+          "**Chat**: when an agent edits a revision set, a “Restore previous version” button appears in the conversation.",
+          "**Share links**: opening a shared revision set while logged out now explains that you need to log in to take it, and brings you back to it afterwards."
+        ],
+        "fr": [
+          "**Synthèses** : un set de type synthèse s’ouvre maintenant dans une vue de lecture avec sommaire et « marquer comme lu », et se modifie section par section (titre + Markdown). Les agents créent les synthèses dans cette forme.",
+          "**Agents et anciennes pages** : un agent peut maintenant modifier une page jamais ouverte dans l’éditeur, quand son contenu n’utilise que des mises en forme prises en charge (texte, titres, listes, citations, encadrés, code, formules, diagrammes). Sinon il refuse sans rien toucher, et une version est enregistrée avant.",
+          "Après une modification par un agent, la copie texte de la page utilisée par la recherche et l’export suit le changement ; si la page contient des blocs que cette copie ne peut pas représenter, elle reste comme avant.",
+          "**Chat** : quand un agent modifie un set de révision, un bouton « Restaurer la version précédente » apparaît dans la conversation.",
+          "**Liens de partage** : ouvrir un set de révision partagé sans être connecté explique maintenant qu’il faut se connecter pour le passer, et vous y ramène ensuite."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.35.2",
       "date": "2026-11-17",
       "title": {

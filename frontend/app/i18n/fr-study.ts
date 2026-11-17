@@ -18,6 +18,7 @@ export default {
     deleteSet: 'Supprimer le jeu', deleteConfirm: 'Supprimer « {title} » ? Les tentatives de chacun sont supprimées aussi.',
     saved: 'Jeu enregistré', save: 'Enregistrer', space: 'Espace', personalSpace: 'Espace perso',
     addItem: 'Ajouter', types: { single: 'Choix unique', multi: 'Choix multiples', text: 'Réponse courte', flashcard: 'Fiche' },
+    summaryToc: 'Sommaire', summaryProgress: '{done} / {total} sections lues', summaryRead: 'Lu', summaryMarkRead: 'Marquer comme lu', section: 'Section', sectionTitle: 'Titre de la section', sectionBody: 'Contenu (Markdown : listes, gras, tableaux, code…)', addSection: 'Ajouter une section',
     prompt: 'Question', front: 'Recto', back: 'Verso', choice: 'Choix {n}', addChoice: 'Ajouter un choix', correct: 'Bonne réponse',
     accepted: 'Réponses acceptées (une par ligne)', acceptedHint: 'Sans accents ni majuscules. Vide : question non notée.', explanation: 'Explication (facultatif)',
     moveUp: 'Monter', moveDown: 'Descendre', removeItem: 'Supprimer l’élément', noItems: 'Ajoutez un premier élément.',

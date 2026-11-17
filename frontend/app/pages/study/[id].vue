@@ -84,7 +84,8 @@ useHead({ title: () => set.value?.title || t('study.title') })
       <p class="faint sd-note"><Lock :size="12" /> {{ t('study.privacyNote') }}</p>
 
       <template v-if="mode === 'use'">
-        <StudyCards v-if="isCardKind(set.kind)" :set="set" :token="token" />
+        <StudySummary v-if="set.kind === 'summary'" :set="set" />
+        <StudyCards v-else-if="isCardKind(set.kind)" :set="set" :token="token" />
         <StudyPlayer v-else :key="set.id" :set="set" :token="token" />
       </template>
 

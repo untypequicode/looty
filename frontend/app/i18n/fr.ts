@@ -41,7 +41,7 @@ export default {
   },
   auth: {
     title: 'Bienvenue sur Looty', subtitle: 'Connectez-vous pour accéder à vos espaces de travail.', login: 'Connexion',
-    logout: 'Se déconnecter', continueWith: 'Continuer avec {provider}', noProvider: 'Aucun fournisseur de connexion configuré.',
+    studyShareTitle: 'Connectez-vous pour passer ce set de révision', studyShareHint: 'Vos résultats sont personnels : une connexion est nécessaire. Le lien sera rouvert juste après.', logout: 'Se déconnecter', continueWith: 'Continuer avec {provider}', noProvider: 'Aucun fournisseur de connexion configuré.',
     errors: {
       generic: 'Une erreur est survenue pendant la connexion.', signups_disabled: 'Les inscriptions sont fermées sur ce serveur.',
       suspended: 'Votre compte a été suspendu.', csrf_mismatch: 'La session de connexion a expiré, réessayez.',

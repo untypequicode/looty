@@ -9,7 +9,7 @@ A set has a `kind`; each kind accepts only some item types:
 | `qcm` | `single`, `multi` |
 | `questionnaire` | `single`, `multi`, `text` |
 | `flashcards` | `flashcard` |
-| `summary` | `flashcard` (front = section title, back = its content) |
+| `summary` | `flashcard`, used as a section (see below) |
 
 ## Item
 
@@ -37,6 +37,9 @@ No `choices`. `"answer": { "accepted": ["Paris", "la ville de Paris"] }`. Compar
 
 ### `flashcard`
 No `choices`. `"answer": { "back": "string, 1..4000 chars" }`. Not scored; reviewed with spaced repetition (again / hard / good / easy).
+
+### `summary` sets: sections
+A summary is read, not played. Each `flashcard` item is one section, in order: `prompt` = the section heading (plain text, keep it short), `answer.back` = the body in Markdown (paragraphs, lists, emphasis, tables, code; rendered by the safe chat renderer: raw HTML and images are dropped, links open externally), no `explanation`. The reader shows a table of contents and lets each person mark sections as read (kept in the browser only). No new item type: sets created before this convention stay valid.
 
 ## Limits
 At most 500 items per set; set title 1..200 chars.

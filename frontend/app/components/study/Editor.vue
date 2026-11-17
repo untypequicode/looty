@@ -59,6 +59,8 @@ const valid = computed(() => !!title.value.trim() && drafts.value.every((d) => d
   && (d.type === 'flashcard' ? d.back.trim() : d.type === 'text' ? true : d.choices.every((c) => c.text.trim()) && (d.type === 'single' ? !!d.correct : d.multi.length > 0))))
 const allowed = computed(() => ITEM_TYPES[kind.value])
 const isCards = (d: Draft) => d.type === 'flashcard'
+// Synthèse : chaque « fiche » est une section (titre + contenu Markdown), même format d'élément.
+const isSummary = computed(() => kind.value === 'summary')
 function submit() { emit('save', { title: title.value.trim(), kind: kind.value, items: drafts.value.map(toItem) }) }
 </script>
 
@@ -68,14 +70,15 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
     <p v-if="!drafts.length" class="faint">{{ t('study.noItems') }}</p>
     <article v-for="(d, i) in drafts" :key="d.id ?? i" class="ed-item">
       <header class="ed-head">
-        <b>{{ i + 1 }}. {{ t(`study.types.${d.type}`) }}</b>
+        <b>{{ i + 1 }}. {{ isSummary ? t('study.section') : t(`study.types.${d.type}`) }}</b>
         <span class="ed-tools">
           <UiButton size="xs" variant="ghost" :icon="ArrowUp" :disabled="i === 0" :aria-label="t('study.moveUp')" @click="move(i, -1)" />
           <UiButton size="xs" variant="ghost" :icon="ArrowDown" :disabled="i === drafts.length - 1" :aria-label="t('study.moveDown')" @click="move(i, 1)" />
           <UiButton size="xs" variant="ghost" :icon="Trash2" :aria-label="t('study.removeItem')" @click="remove(i)" />
         </span>
       </header>
-      <UiInput v-model="d.prompt" multiline :rows="2" :placeholder="isCards(d) ? t('study.front') : t('study.prompt')" :aria-label="isCards(d) ? t('study.front') : t('study.prompt')" />
+      <UiInput v-if="isSummary" v-model="d.prompt" :placeholder="t('study.sectionTitle')" maxlength="200" :aria-label="t('study.sectionTitle')" />
+      <UiInput v-else v-model="d.prompt" multiline :rows="2" :placeholder="isCards(d) ? t('study.front') : t('study.prompt')" :aria-label="isCards(d) ? t('study.front') : t('study.prompt')" />
       <template v-if="d.type === 'single' || d.type === 'multi'">
         <div v-for="(c, ci) in d.choices" :key="c.id" class="ed-choice">
           <input v-if="d.type === 'single'" v-model="d.correct" type="radio" :value="c.id" :name="`c-${i}`" :aria-label="t('study.correct')">
@@ -89,11 +92,12 @@ function submit() { emit('save', { title: title.value.trim(), kind: kind.value, 
         <UiInput v-model="d.accepted" multiline :rows="2" :placeholder="t('study.accepted')" :aria-label="t('study.accepted')" />
         <small class="faint">{{ t('study.acceptedHint') }}</small>
       </template>
+      <UiInput v-else-if="isSummary" v-model="d.back" multiline :rows="8" maxlength="4000" :placeholder="t('study.sectionBody')" :aria-label="t('study.sectionBody')" />
       <UiInput v-else v-model="d.back" multiline :rows="3" :placeholder="t('study.back')" :aria-label="t('study.back')" />
       <UiInput v-if="!isCards(d)" v-model="d.explanation" size="sm" :placeholder="t('study.explanation')" :aria-label="t('study.explanation')" />
     </article>
     <div class="ed-add">
-      <UiButton v-for="ty in allowed" :key="ty" size="sm" :icon="Plus" @click="add(ty)">{{ t('study.addItem') }} · {{ t(`study.types.${ty}`) }}</UiButton>
+      <UiButton v-for="ty in allowed" :key="ty" size="sm" :icon="Plus" @click="add(ty)">{{ isSummary ? t('study.addSection') : `${t('study.addItem')} · ${t(`study.types.${ty}`)}` }}</UiButton>
     </div>
     <div class="ed-save"><UiButton variant="primary" :disabled="!valid" :loading="saving" @click="submit">{{ t('study.save') }}</UiButton></div>
     <section v-if="revisions?.length" class="ed-rev">

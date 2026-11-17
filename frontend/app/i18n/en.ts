@@ -41,7 +41,7 @@ export default {
   },
   auth: {
     title: 'Welcome to Looty', subtitle: 'Sign in to access your workspaces.', login: 'Sign in',
-    logout: 'Log out', continueWith: 'Continue with {provider}', noProvider: 'No sign-in provider is configured.',
+    studyShareTitle: 'Sign in to take this study set', studyShareHint: 'Your results are personal, so signing in is required. The link reopens right after.', logout: 'Log out', continueWith: 'Continue with {provider}', noProvider: 'No sign-in provider is configured.',
     errors: {
       generic: 'Something went wrong while signing in.', signups_disabled: 'Sign-ups are closed on this server.',
       suspended: 'Your account has been suspended.', csrf_mismatch: 'Your sign-in session expired, please try again.',

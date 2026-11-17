@@ -16,6 +16,9 @@ use yrs::types::xml::{XmlElementPrelim, XmlFragment, XmlOut, XmlTextPrelim};
 use yrs::updates::decoder::Decode;
 use yrs::{Any, Doc, Options, OffsetKind, ReadTxn, StateVector, Text, Transact, Update, Xml};
 
+mod html;
+pub use html::{blocks_to_state, html_to_blocks, state_to_html};
+
 const FRAGMENT: &str = "default";
 
 /// Texte maximal renvoyé à un modèle pour une page (le reste est signalé comme coupé).
@@ -814,9 +817,13 @@ pub enum Op {
 
 /// Applique du Markdown à un état Yjs ; renvoie le nouvel état complet.
 pub fn apply_markdown(state: &[u8], op: Op, md: &str) -> Result<Vec<u8>, String> {
+    apply_blocks(state, op, &parse_markdown(md))
+}
+
+/// Applique des blocs à un état Yjs ; renvoie le nouvel état complet.
+pub fn apply_blocks(state: &[u8], op: Op, blocks: &[Block]) -> Result<Vec<u8>, String> {
     let doc = load(state)?;
     let frag = doc.get_or_insert_xml_fragment(FRAGMENT);
-    let blocks = parse_markdown(md);
     {
         let mut txn = doc.transact_mut();
         match op {
@@ -838,7 +845,7 @@ pub fn apply_markdown(state: &[u8], op: Op, md: &str) -> Result<Vec<u8>, String>
                 }
             }
         }
-        write_blocks(&mut txn, &frag, &blocks);
+        write_blocks(&mut txn, &frag, blocks);
         if frag.len(&txn) == 0 {
             frag.push_back(&mut txn, XmlElementPrelim::empty("paragraph"));
         }
@@ -895,7 +902,7 @@ Page content is Markdown. Supported syntax (anything else is plain text):
 - Not supported from here: images, embeds, boards, comments. Existing ones appear as `[bloc non textuel : ...]` when reading: never rewrite them, prefer `append`.";
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn roundtrip(md: &str) -> String {
@@ -934,6 +941,50 @@ mod tests {
         assert_eq!(state_to_markdown(&s2).unwrap(), "premier\n\nsecond");
         let s3 = apply_markdown(&s2, Op::Replace, "seul").unwrap();
         assert_eq!(state_to_markdown(&s3).unwrap(), "seul");
+    }
+
+    #[test]
+    fn generated_html_converts_back_to_the_same_markdown() {
+        let md = "# Titre\n\nUn **gras**, *italique*, `code`, ~~barré~~ et $x^2$ avec [lien](https://e.org).\n\n- a\n- b\n\n1. un\n2. deux\n\n> cité\n\n:::warning\nattention\n:::\n\n```python\nprint(1 < 2)\n```\n\n$$\n\\int x\n$$\n\n```mermaid\ngraph TD\nA-->B\n```\n\n---";
+        let html = state_to_html(&apply_markdown(&[], Op::Replace, md).unwrap()).unwrap();
+        let back = blocks_to_state(&html_to_blocks(&html).unwrap_or_else(|e| panic!("{e}: {html}")));
+        assert_eq!(state_to_markdown(&back).unwrap(), md, "{html}");
+    }
+
+    /// Document avec un bloc que le module ne sait pas écrire en HTML (ici un dessin Excalidraw).
+    pub fn state_with_unknown_block() -> Vec<u8> {
+        let doc = new_doc();
+        let frag = doc.get_or_insert_xml_fragment(FRAGMENT);
+        {
+            let mut txn = doc.transact_mut();
+            frag.push_back(&mut txn, XmlElementPrelim::empty("excalidraw"));
+        }
+        let txn = doc.transact();
+        txn.encode_state_as_update_v1(&StateVector::default())
+    }
+
+    #[test]
+    fn html_copy_refuses_documents_with_unknown_blocks() {
+        let s = state_with_unknown_block();
+        assert!(state_to_html(&s).is_err());
+        let s = apply_markdown(&s, Op::Append, "texte").unwrap();
+        assert!(state_to_html(&s).is_err());
+    }
+
+    #[test]
+    fn quoted_attribute_values_may_contain_a_closing_angle_bracket() {
+        let b = html_to_blocks("<p>voir <a href=\"/x?a>b\">lien</a></p>").unwrap();
+        assert_eq!(state_to_markdown(&blocks_to_state(&b)).unwrap(), "voir [lien](/x?a>b)");
+    }
+
+    #[test]
+    fn legacy_html_with_entities_and_unsupported_tags() {
+        let b = html_to_blocks("<p>a &amp; b &lt;c&gt; &#233;</p>").unwrap();
+        assert_eq!(state_to_markdown(&blocks_to_state(&b)).unwrap(), "a & b <c> é");
+        for bad in ["<p><img src=x></p>", "<details><p>x</p></details>", "<p style=\"text-align: center\">x</p>", "<p><span data-comment-id=\"1\">x</span></p>", "<p>x</div>"] {
+            assert!(html_to_blocks(bad).is_err(), "{bad}");
+        }
+        assert!(html_to_blocks("  ").unwrap().is_empty());
     }
 
     #[test]
