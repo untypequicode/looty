@@ -20,6 +20,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    mem_limit: 768m
     restart: unless-stopped
 
   backend:
@@ -62,6 +63,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/pages`) || PathPrefix(`/dav`) || Path(`/.well-known/caldav`))"
       - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
+    mem_limit: 1024m
     restart: unless-stopped
 
   collaboration:
@@ -78,6 +80,7 @@ services:
       - "traefik.http.middlewares.${APP_NAME}-collab-strip.stripprefix.prefixes=/collab"
       - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
+    mem_limit: 512m
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -87,4 +90,5 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
+    mem_limit: 384m
     restart: unless-stopped

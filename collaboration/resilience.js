@@ -36,7 +36,8 @@ module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus }
 
 /**
  * Relance l'enregistrement des documents dont l'enregistrement a échoué et qui sont encore
- * chargés ; oublie ceux qui ne le sont plus. `failed` : Map nom -> contexte ; `loaded` : Map nom -> document.
+ * chargés ; oublie ceux qui ne le sont plus .
+ * `failed` : Map nom -> contexte ; `loaded` : Map nom -> document.
  * Renvoie les noms relancés.
  */
 function retryFailedStores(failed, loaded, trigger) {

@@ -166,7 +166,8 @@ pub async fn create_backup(pool: &sqlx::PgPool, kind: &str) -> ApiResult<String>
     tokio::fs::create_dir_all(&dir).await.map_err(|e| ApiError::Internal(format!("backup dir: {e}")))?;
     let now = Utc::now();
     let name = format!("looty-{}-{kind}.tar.gz", now.format("%Y%m%d-%H%M%S"));
-    let work = std::env::temp_dir().join(format!("looty-backup-{}", uuid::Uuid::new_v4()));
+    // Travail sur le disque persistant des sauvegardes plutôt que dans /tmp (souvent en RAM tmpfs)
+    let work = dir.join(format!(".tmp-backup-{}", uuid::Uuid::new_v4()));
     tokio::fs::create_dir_all(work.join("db")).await.map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let all = tables(pool).await?;
@@ -338,7 +339,7 @@ async fn restore_route(State(state): State<AppState>, user: AuthUser, Path(name)
 
 /// Restaure une archive : données, puis fichiers envoyés.
 async fn restore(state: &AppState, path: &FsPath) -> ApiResult<serde_json::Value> {
-    let work = std::env::temp_dir().join(format!("looty-restore-{}", uuid::Uuid::new_v4()));
+    let work = backup_dir().join(format!(".tmp-restore-{}", uuid::Uuid::new_v4()));
     let p = path.to_path_buf();
     let w = work.clone();
     let manifest = tokio::task::spawn_blocking(move || -> std::io::Result<Manifest> {
