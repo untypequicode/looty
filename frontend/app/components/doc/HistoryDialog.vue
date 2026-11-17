@@ -106,15 +106,17 @@ async function rename(r: Revision) {
       <aside class="hd-list">
         <UiButton v-if="canEdit" size="sm" :icon="Save" class="hd-save" @click="saveVersion">{{ t('history.saveVersion') }}</UiButton>
         <div v-if="isLoading" class="hd-empty"><UiSpinner /></div>
-        <button v-for="(r, i) in revisions ?? []" :key="r.id" class="hd-item" :class="{ on: r.id === selected }" @click="selected = r.id">
+        <div v-for="(r, i) in revisions ?? []" :key="r.id" class="hd-row">
+        <button class="hd-item" :class="{ on: r.id === selected }" :aria-pressed="r.id === selected" @click="selected = r.id">
           <span class="hd-when" :title="formatDateTime(r.updated_at)">{{ i === 0 ? t('history.latest') : relativeTime(r.updated_at) }}</span>
           <span class="hd-meta">
             <UiAvatar :name="author(r)" :size="16" />
             <span class="truncate">{{ author(r) }}</span>
           </span>
           <span v-if="kindLabel(r)" class="hd-badge" :class="r.kind"><Bookmark :size="11" /> {{ kindLabel(r) }}</span>
-          <span v-if="canEdit" class="hd-rename" role="button" :title="t('history.rename')" @click.stop="rename(r)"><Pencil :size="12" /></span>
         </button>
+        <UiButton v-if="canEdit" class="hd-rename" size="xs" variant="ghost" :icon="Pencil" :aria-label="t('history.rename')" @click="rename(r)" />
+        </div>
       </aside>
     </div>
     <template #footer>
@@ -131,16 +133,18 @@ async function rename(r: Revision) {
 .hd-title { font-family: var(--font-display); font-size: 30px; letter-spacing: -0.02em; margin: 16px 0 12px; }
 .hd-list { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .hd-save { margin-bottom: 8px; }
-.hd-item { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 10px; border-radius: var(--r-sm); text-align: left; }
+.hd-row { position: relative; }
+.hd-item { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 10px; border-radius: var(--r-sm); text-align: left; }
 .hd-item:hover { background: var(--bg-hover); }
 .hd-item.on { background: var(--accent-soft); }
 .hd-when { font-weight: 600; font-size: var(--fs-sm); }
 .hd-meta { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); max-width: 100%; }
 .hd-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: var(--r-full); background: var(--bg-active); color: var(--text-2); }
 .hd-badge.manual { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text, var(--accent)); }
-.hd-rename { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--r-xs); color: var(--text-3); opacity: 0; }
-.hd-item:hover .hd-rename { opacity: 1; }
-.hd-rename:hover { background: var(--bg-active); color: var(--text); }
+/* Renommer : visible au survol ou au focus, toujours sur écran tactile (atteignable au clavier). */
+.hd-rename { position: absolute; top: 6px; right: 6px; opacity: 0; }
+.hd-row:hover .hd-rename, .hd-row:focus-within .hd-rename { opacity: 1; }
+@media (pointer: coarse) { .hd-rename { opacity: 1; } }
 .hd-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 100%; color: var(--text-3); padding: 24px; }
 .hd-hint { margin-right: auto; font-size: var(--fs-sm); color: var(--text-3); }
 @media (max-width: 760px) { .hd { grid-template-columns: 1fr; grid-template-rows: 1fr 200px; } }

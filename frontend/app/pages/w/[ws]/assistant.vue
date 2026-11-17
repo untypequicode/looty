@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bot, PanelLeft, Check, Ban, PenLine, Wrench, GraduationCap, Undo2, FileText, BookCheck, CheckSquare, Kanban, CalendarDays, FolderCode } from 'lucide-vue-next'
+import { Bot, PanelLeft, PenLine, Wrench, GraduationCap, Undo2, FileText, BookCheck, CheckSquare, Kanban, CalendarDays, FolderCode } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
@@ -186,7 +186,10 @@ async function undoPage(revId: string, undo = false) {
     toast.success(t(undo ? 'ai.page.undoUndone' : 'ai.page.pageChangedUndone'), undo || !r.undo_revision_id ? {} : { duration: 10000, action: { label: t('ai.page.undo'), run: () => { void undoPage(r.undo_revision_id!, true) } } })
   } catch (e) { toast.error(errorMessage(e)) }
 }
+const deciding = ref(new Set<string>())
 async function decide(s: AiSuggestion, accept: boolean) {
+  if (deciding.value.has(s.id)) return
+  deciding.value = new Set(deciding.value).add(s.id)
   try {
     const r = await api<{ page_id: string; revision_id: string | null } | undefined>(`/api/ai/suggestions/${s.id}/${accept ? 'accept' : 'reject'}`, { method: 'POST' })
     suggestions.value = suggestions.value.filter((x) => x.id !== s.id)
@@ -194,7 +197,11 @@ async function decide(s: AiSuggestion, accept: boolean) {
       pageChanged()
       toast.success(t('ai.chat.applied'), r?.revision_id ? { duration: 10000, action: { label: t('ai.chat.studyRestore'), run: () => { void undoPage(r.revision_id!) } } } : {})
     }
-  } catch (e) { toast.error(errorMessage(e)) }
+  } catch (e) { toast.error(errorMessage(e)) } finally {
+    const next = new Set(deciding.value)
+    next.delete(s.id)
+    deciding.value = next
+  }
 }
 const studyActions = useStudyActions()
 const restored = ref(new Set<string>())
@@ -215,6 +222,7 @@ const lastNeed = computed(() => {
   return last
 })
 const showNeed = (m: AiMessage) => lastNeed.value.get(needKey(m.data.grant_needed)) === m.id
+const pageTitle = (id: string) => pages.data.value?.find((p) => p.id === id)?.title
 const pageLink = (id: string) => (pages.data.value?.some((p) => p.id === id) ? links.doc(wsId.value, id) : null)
 const empty = computed(() => !visible.value.length && !streaming.value)
 </script>
@@ -266,15 +274,10 @@ const empty = computed(() => !visible.value.length && !streaming.value)
             <!-- eslint-disable-next-line vue/no-v-html : Markdown nettoyé par DOMPurify -->
             <div v-if="streaming" class="msg assistant md" v-html="renderChatMarkdown(streaming)" />
             <div v-if="busy && toolLog.length" class="as-tools"><Wrench :size="11" /> {{ toolLog.join(' · ') }}</div>
-            <div v-for="s in suggestions" :key="s.id" class="sugg">
-              <div class="sugg-head"><PenLine :size="13" /> {{ t('ai.chat.suggestion') }}</div>
-              <pre class="diff"><span v-for="(l, i) in s.diff" :key="i" :class="{ add: l.op === '+', del: l.op === '-' }">{{ l.op === ' ' ? '  ' : `${l.op} ` }}{{ l.text }}
-</span></pre>
-              <div class="sugg-actions">
-                <UiButton size="sm" variant="primary" :icon="Check" @click="decide(s, true)">{{ t('ai.chat.accept') }}</UiButton>
-                <UiButton size="sm" variant="ghost" :icon="Ban" @click="decide(s, false)">{{ t('ai.chat.reject') }}</UiButton>
-              </div>
-            </div>
+            <AiSuggestionCard
+              v-for="s in suggestions" :key="s.id" :suggestion="s" :page-title="pageTitle(s.page_id)" :page-href="pageLink(s.page_id)" :busy="deciding.has(s.id)"
+              @accept="decide(s, true)" @reject="decide(s, false)"
+            />
           </div>
         </div>
         <div class="as-compose">
@@ -316,12 +319,6 @@ const empty = computed(() => !visible.value.length && !streaming.value)
 .as-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .as-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); text-decoration: none; }
 .as-tools { display: flex; align-items: center; gap: 6px; color: var(--text-4); font-size: var(--fs-xs); }
-.sugg { border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px; max-width: 92%; }
-.sugg-head { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-sm); margin-bottom: 6px; }
-.diff { margin: 0; max-height: 240px; overflow: auto; font-size: var(--fs-xs); font-family: var(--font-mono, monospace); white-space: pre-wrap; }
-.diff .add { background: color-mix(in srgb, var(--green, #3a3) 22%, transparent); display: block; }
-.diff .del { background: color-mix(in srgb, var(--red, #d33) 22%, transparent); display: block; }
-.sugg-actions { display: flex; gap: 6px; margin-top: 8px; }
 .as-toggle { display: none; }
 @media (max-width: 800px) {
   .as { grid-template-columns: minmax(0, 1fr); }
