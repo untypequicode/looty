@@ -50,14 +50,6 @@ export function askAi(ws: string, item: AiAttachment) {
   return navigateTo(links.assistant(ws))
 }
 
-/** Valeurs proposées à la création d'une connexion. */
-export const AI_PROVIDERS: { value: AiProvider; label: string; model: string; baseUrl?: string }[] = [
-  { value: 'openai', label: 'OpenAI', model: 'gpt-4.1' },
-  { value: 'anthropic', label: 'Anthropic (Claude)', model: 'claude-sonnet-4-5' },
-  { value: 'gemini', label: 'Google Gemini', model: 'gemini-3.5-flash-lite' },
-  { value: 'perplexity', label: 'Perplexity', model: 'sonar' },
-  { value: 'openai_compatible', label: 'OpenAI-compatible (Ollama…)', model: 'llama3.1', baseUrl: 'http://localhost:11434/v1' },
-]
 
 /**
  * Erreur du fournisseur (« provider_http_503: {...} » dans le flux) → phrase courte et lisible.
