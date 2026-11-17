@@ -18,6 +18,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::access::{level, member_perms, AuthUser, Perms, Role};
@@ -25,7 +26,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 pub const KINDS: [&str; 4] = ["qcm", "questionnaire", "flashcards", "summary"];
-const MAX_ITEMS: usize = 500;
+pub const MAX_ITEMS: usize = 500;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -157,7 +158,7 @@ pub fn validate_item(set_kind: &str, it: &ItemIn) -> ApiResult<()> {
     Ok(())
 }
 
-fn validate_title(title: &str) -> ApiResult<String> {
+pub fn validate_title(title: &str) -> ApiResult<String> {
     let t = title.trim();
     if t.is_empty() || t.chars().count() > 200 {
         return Err(bad("study_invalid_title"));
@@ -165,7 +166,7 @@ fn validate_title(title: &str) -> ApiResult<String> {
     Ok(t.to_string())
 }
 
-fn validate_items(kind: &str, items: &[ItemIn]) -> ApiResult<()> {
+pub fn validate_items(kind: &str, items: &[ItemIn]) -> ApiResult<()> {
     if items.len() > MAX_ITEMS {
         return Err(bad("study_too_many_items"));
     }
@@ -286,18 +287,18 @@ struct TokenQ {
     token: Option<Uuid>,
 }
 
-async fn access_for(state: &AppState, user: &AuthUser, set: &SetRow, token: Option<Uuid>) -> ApiResult<SetAccess> {
+pub async fn access_for(pool: &PgPool, user: &AuthUser, set: &SetRow, token: Option<Uuid>) -> ApiResult<SetAccess> {
     let member = match (set.workspace_id, set.visibility.as_str()) {
-        (Some(ws), "workspace") => member_perms(&state.pool, user.id, ws).await?,
+        (Some(ws), "workspace") => member_perms(pool, user.id, ws).await?,
         _ => None,
     };
     Ok(resolve_access(set.owner_id, user.id, &set.visibility, set.share_token, token, member))
 }
 
 /// Charge le jeu et exige au moins `need` ; NotFound sinon (n'en révèle pas l'existence).
-async fn load(state: &AppState, user: &AuthUser, id: Uuid, token: Option<Uuid>, need: SetAccess) -> ApiResult<(SetRow, SetAccess)> {
-    let set: SetRow = sqlx::query_as("SELECT * FROM study_sets WHERE id = $1").bind(id).fetch_optional(&state.pool).await?.ok_or(ApiError::NotFound)?;
-    let acc = access_for(state, user, &set, token).await?;
+pub async fn load(pool: &PgPool, user: &AuthUser, id: Uuid, token: Option<Uuid>, need: SetAccess) -> ApiResult<(SetRow, SetAccess)> {
+    let set: SetRow = sqlx::query_as("SELECT * FROM study_sets WHERE id = $1").bind(id).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
+    let acc = access_for(pool, user, &set, token).await?;
     if acc < need || acc == SetAccess::None {
         return Err(ApiError::NotFound);
     }
@@ -321,10 +322,10 @@ pub struct ItemRow {
     pub explanation: String,
 }
 
-async fn items_of(state: &AppState, set_id: Uuid) -> ApiResult<Vec<ItemRow>> {
+pub async fn items_of(pool: &PgPool, set_id: Uuid) -> ApiResult<Vec<ItemRow>> {
     Ok(sqlx::query_as("SELECT id, position, type, prompt, choices, answer, explanation FROM study_items WHERE set_id = $1 ORDER BY position, id")
         .bind(set_id)
-        .fetch_all(&state.pool)
+        .fetch_all(pool)
         .await?)
 }
 
@@ -345,6 +346,11 @@ struct SetSummary {
 
 /// Mes jeux, puis ceux que mon espace partage. Jamais de liste publique.
 async fn list_sets(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<Value>> {
+    Ok(Json(json!(list_for(&state.pool, &user).await?)))
+}
+
+/// Les jeux que la personne peut ouvrir, avec `can_edit` (aussi utilisé par les outils IA).
+pub async fn list_for(pool: &PgPool, user: &AuthUser) -> ApiResult<Vec<Value>> {
     let rows: Vec<SetSummary> = sqlx::query_as(
         "SELECT s.id, s.owner_id, s.workspace_id, s.title, s.kind, s.visibility, s.updated_at,
                 (SELECT COUNT(*) FROM study_items i WHERE i.set_id = s.id) AS item_count,
@@ -357,7 +363,7 @@ async fn list_sets(State(state): State<AppState>, user: AuthUser) -> ApiResult<J
     )
     .bind(user.id)
     .bind(user.id.to_string())
-    .fetch_all(&state.pool)
+    .fetch_all(pool)
     .await?;
     let mut perms: HashMap<Uuid, Option<(Role, Perms)>> = HashMap::new();
     let mut out = Vec::new();
@@ -367,7 +373,7 @@ async fn list_sets(State(state): State<AppState>, user: AuthUser) -> ApiResult<J
         } else {
             let ws = r.workspace_id.ok_or(ApiError::NotFound)?;
             if !perms.contains_key(&ws) {
-                perms.insert(ws, member_perms(&state.pool, user.id, ws).await?);
+                perms.insert(ws, member_perms(pool, user.id, ws).await?);
             }
             resolve_access(r.owner_id, user.id, &r.visibility, None, None, perms[&ws])
         };
@@ -378,7 +384,7 @@ async fn list_sets(State(state): State<AppState>, user: AuthUser) -> ApiResult<J
         v["can_edit"] = json!(access == SetAccess::Edit);
         out.push(v);
     }
-    Ok(Json(json!(out)))
+    Ok(out)
 }
 
 #[derive(Deserialize)]
@@ -414,7 +420,7 @@ async fn create_set(State(state): State<AppState>, user: AuthUser, Json(req): Js
 
 /// Remplace la liste d'éléments en gardant les identifiants connus (les fiches mémorisées
 /// et les tentatives s'y rattachent) ; les éléments absents de la liste sont supprimés.
-async fn write_items(tx: &mut sqlx::PgConnection, set_id: Uuid, items: &[ItemIn]) -> ApiResult<()> {
+pub async fn write_items(tx: &mut sqlx::PgConnection, set_id: Uuid, items: &[ItemIn]) -> ApiResult<()> {
     let existing: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM study_items WHERE set_id = $1").bind(set_id).fetch_all(&mut *tx).await?;
     let existing: HashSet<Uuid> = existing.into_iter().collect();
     let mut keep: Vec<Uuid> = Vec::new();
@@ -457,8 +463,8 @@ async fn write_items(tx: &mut sqlx::PgConnection, set_id: Uuid, items: &[ItemIn]
 /// les explications des questions sont retirées (elles arrivent avec la correction) ; le
 /// verso des fiches reste, il fait partie de l'étude.
 async fn get_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>) -> ApiResult<Json<Value>> {
-    let (set, acc) = load(&state, &user, id, q.token, SetAccess::View).await?;
-    let mut items = items_of(&state, id).await?;
+    let (set, acc) = load(&state.pool, &user, id, q.token, SetAccess::View).await?;
+    let mut items = items_of(&state.pool, id).await?;
     if acc != SetAccess::Edit {
         for it in items.iter_mut() {
             if it.kind != "flashcard" {
@@ -487,7 +493,7 @@ struct UpdateReq {
 }
 
 async fn update_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<UpdateReq>) -> ApiResult<Json<Value>> {
-    let (set, _) = load(&state, &user, id, None, SetAccess::Edit).await?;
+    let (set, _) = load(&state.pool, &user, id, None, SetAccess::Edit).await?;
     let title = validate_title(&req.title)?;
     let kind = req.kind.unwrap_or_else(|| set.kind.clone());
     if !KINDS.contains(&kind.as_str()) {
@@ -502,7 +508,7 @@ async fn update_set(State(state): State<AppState>, user: AuthUser, Path(id): Pat
 }
 
 async fn delete_set(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
-    let (set, _) = load(&state, &user, id, None, SetAccess::Edit).await?;
+    let (set, _) = load(&state.pool, &user, id, None, SetAccess::Edit).await?;
     if set.owner_id != user.id {
         return Err(ApiError::Forbidden);
     }
@@ -518,7 +524,7 @@ struct VisibilityReq {
 /// Change la visibilité (propriétaire seulement). « lien » crée le jeton (conservé tant que
 /// le lien reste actif) ; quitter « lien » le révoque.
 async fn set_visibility(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(req): Json<VisibilityReq>) -> ApiResult<Json<SetRow>> {
-    let (set, _) = load(&state, &user, id, None, SetAccess::Edit).await?;
+    let (set, _) = load(&state.pool, &user, id, None, SetAccess::Edit).await?;
     if set.owner_id != user.id {
         return Err(ApiError::Forbidden);
     }
@@ -563,11 +569,11 @@ struct AttemptRow {
 /// Corrige et enregistre une tentative ; renvoie la correction (réponses attendues,
 /// explications) seulement maintenant.
 async fn submit_attempt(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>, Json(req): Json<AttemptReq>) -> ApiResult<(StatusCode, Json<Value>)> {
-    let (_, _) = load(&state, &user, id, q.token, SetAccess::View).await?;
+    let (_, _) = load(&state.pool, &user, id, q.token, SetAccess::View).await?;
     if req.answers.len() > MAX_ITEMS {
         return Err(bad("too_many_answers"));
     }
-    let items = items_of(&state, id).await?;
+    let items = items_of(&state.pool, id).await?;
     let (mut score, mut max) = (0, 0);
     let mut stored = serde_json::Map::new();
     let mut correction = Vec::new();
@@ -606,7 +612,7 @@ async fn submit_attempt(State(state): State<AppState>, user: AuthUser, Path(id):
 
 /// Mes tentatives sur ce jeu (celles des autres n'existent pas pour moi).
 async fn list_attempts(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>) -> ApiResult<Json<Vec<AttemptRow>>> {
-    load(&state, &user, id, q.token, SetAccess::View).await?;
+    load(&state.pool, &user, id, q.token, SetAccess::View).await?;
     Ok(Json(
         sqlx::query_as("SELECT id, set_id, started_at, finished_at, score, max_score, answers FROM study_attempts WHERE set_id = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 200")
             .bind(id)
@@ -627,7 +633,7 @@ struct CardState {
 }
 
 async fn list_cards(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<TokenQ>) -> ApiResult<Json<Vec<CardState>>> {
-    load(&state, &user, id, q.token, SetAccess::View).await?;
+    load(&state.pool, &user, id, q.token, SetAccess::View).await?;
     Ok(Json(
         sqlx::query_as(
             "SELECT c.item_id, c.ease, c.interval_days, c.due_at FROM study_card_state c
@@ -648,7 +654,7 @@ struct ReviewReq {
 
 async fn review_card(State(state): State<AppState>, user: AuthUser, Path(item_id): Path<Uuid>, Query(q): Query<TokenQ>, Json(req): Json<ReviewReq>) -> ApiResult<Json<CardState>> {
     let set_id: Uuid = sqlx::query_scalar("SELECT set_id FROM study_items WHERE id = $1 AND type = 'flashcard'").bind(item_id).fetch_optional(&state.pool).await?.ok_or(ApiError::NotFound)?;
-    load(&state, &user, set_id, q.token, SetAccess::View).await?;
+    load(&state.pool, &user, set_id, q.token, SetAccess::View).await?;
     let cur: Option<(f32, i32)> = sqlx::query_as("SELECT ease, interval_days FROM study_card_state WHERE user_id = $1 AND item_id = $2").bind(user.id).bind(item_id).fetch_optional(&state.pool).await?;
     let (ease, interval) = cur.unwrap_or((2.5, 0));
     let (ease, interval, delay) = next_review(ease, interval, &req.rating).ok_or_else(|| bad("study_invalid_rating"))?;

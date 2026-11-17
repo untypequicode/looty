@@ -4,7 +4,7 @@ export default {
     base_url_required: 'L’adresse du serveur est obligatoire', invalid_base_url: 'Adresse invalide (https:// et adresse publique, sauf si un administrateur autorise les réseaux privés avec AI_ALLOW_PRIVATE)',
     too_many_connections: 'Limite de 20 connexions atteinte', no_connection: 'Choisissez d’abord une connexion IA',
     api_key_unreadable: 'La clé enregistrée est illisible : saisissez-la à nouveau', invalid_mode: 'Mode d’écriture invalide',
-    invalid_expiry: 'Durée invalide', invalid_message: 'Message invalide', invalid_context: 'Contexte invalide',
+    study_grant_target: 'Choisissez où l’assistant peut créer des jeux, ou quel jeu il peut modifier', invalid_expiry: 'Durée invalide', invalid_message: 'Message invalide', invalid_context: 'Contexte invalide',
     too_many_tool_rounds: 'L’assistant a tourné en rond avec ses outils, réessayez',
   },
   ai: {
@@ -25,6 +25,7 @@ export default {
       readOnlyHint: 'Lecture seule : l’assistant lit les pages auxquelles vous avez accès. Pour qu’il écrive, choisissez une page ci-dessous.',
       placeholder: 'Posez une question… (Entrée pour envoyer)', send: 'Envoyer', stop: 'Arrêter',
       writeTarget: 'Page modifiable', readOnly: 'lecture seule', workspace: 'Espace', page: 'Page', modeLabel: 'Mode', expiry: 'Durée', allow: 'Autoriser',
+      studyGrants: 'Jeux de révision', studyCreate: 'Créer des jeux dans…', studyUpdate: 'Modifier un jeu', personal: 'Espace personnel', studySet: 'Jeu de révision', studyLink: 'Ouvrir le jeu de révision', studyGrantCreate: 'créer des jeux dans {where}', studyGrantUpdate: 'modifier {title}',
       mode: { suggest: 'Suggérer', append: 'Ajouter', replace: 'Remplacer' },
       modeHint: {
         suggest: 'Suggérer : l’assistant propose une modification que vous acceptez ou refusez.',
