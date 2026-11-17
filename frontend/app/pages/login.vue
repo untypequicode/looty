@@ -5,6 +5,7 @@ import { api, errorMessage } from '~/composables/api'
 import { useI18n, currentLocale } from '~/composables/useI18n'
 import { useDemo } from '~/composables/useDemo'
 import { useQuery } from '@tanstack/vue-query'
+import { isStudyShareRedirect } from '~/utils/studyShare'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -14,6 +15,8 @@ const { data: cast } = useQuery({
   queryFn: () => api<{ key: string; name: string; role: string; color: [string, string] }[]>('/api/auth/demo/characters', { silent: true }),
   enabled: isDemo,
 })
+// Lien de partage d'un jeu de révision : la connexion reste requise (les tentatives sont personnelles).
+const studyShare = computed(() => isStudyShareRedirect(route.query.redirect))
 const initials = (name: string) => name.split(' ').map((p) => p[0]).join('')
 const providers = ref<{ id: string; name: string }[]>([])
 const loading = ref(true)
@@ -73,7 +76,8 @@ useHead({ title: () => t('auth.login') })
     <div ref="card" class="card">
       <div class="logo"><Sparkles :size="22" /></div>
       <h1>{{ t('auth.title') }}</h1>
-      <p class="muted">{{ t('auth.subtitle') }}</p>
+      <p v-if="studyShare" class="muted share"><b>{{ t('auth.studyShareTitle') }}</b><br>{{ t('auth.studyShareHint') }}</p>
+      <p v-else class="muted">{{ t('auth.subtitle') }}</p>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="isDemo" class="providers">
         <h2 class="demo-title">{{ t('demo.enter') }}</h2>
@@ -124,6 +128,7 @@ useHead({ title: () => t('auth.login') })
 }
 h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-family: var(--font-display); }
 .muted { margin: 8px 0 28px; }
+.share { padding: 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--accent-soft); color: var(--text); }
 .providers { display: flex; flex-direction: column; gap: 8px; }
 .error {
   margin-bottom: 16px; padding: 10px 12px; border-radius: var(--r-md);
