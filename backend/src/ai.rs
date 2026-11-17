@@ -32,6 +32,7 @@ const MAX_TOOL_ROUNDS: usize = 8;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/connections", get(list_connections).post(create_connection))
+        .route("/connections/test", post(test_connection))
         .route("/connections/{id}", axum::routing::patch(update_connection).delete(delete_connection))
         .route("/conversations", get(list_conversations).post(create_conversation))
         .route("/conversations/{id}", get(get_conversation).patch(update_conversation).delete(delete_conversation))
@@ -222,6 +223,96 @@ async fn update_connection(State(state): State<AppState>, user: AuthUser, Path(i
     .fetch_one(&state.pool)
     .await?;
     Ok(Json(dto(row)))
+}
+
+#[derive(Deserialize)]
+struct TestReq {
+    /// Connexion existante : sa clé enregistrée sert quand `api_key` est vide.
+    id: Option<Uuid>,
+    provider: Option<String>,
+    model: String,
+    base_url: Option<String>,
+    api_key: Option<String>,
+}
+
+/// Classe l'erreur d'un fournisseur en code stable (traduit côté interface) : le texte brut ne sort jamais.
+fn classify_provider_error(err: &str) -> &'static str {
+    let lower = err.to_lowercase();
+    let status: Option<u16> = lower.strip_prefix("provider_http_").and_then(|r| r.get(..3)).and_then(|s| s.parse().ok());
+    let Some(status) = status else { return "unreachable" };
+    if status == 401 || status == 403 || lower.contains("api key not valid") || lower.contains("invalid api key") || lower.contains("unauthenticated") {
+        "invalid_key"
+    } else if status == 429 || lower.contains("quota") || lower.contains("resource_exhausted") {
+        "quota"
+    } else if status == 404 || lower.contains("model") && status == 400 {
+        "model_not_found"
+    } else if status >= 500 {
+        "server"
+    } else {
+        "request"
+    }
+}
+
+/// Essai à blanc : un appel minimal au fournisseur, sans rien enregistrer. Répond 200 avec
+/// `{ ok, code }` ; la clé n'est jamais renvoyée.
+async fn test_connection(State(state): State<AppState>, user: AuthUser, Json(p): Json<TestReq>) -> ApiResult<Json<Value>> {
+    no_demo(&state)?;
+    let stored: Option<(String, Option<String>, Option<String>)> = match p.id {
+        Some(id) => Some(
+            sqlx::query_as("SELECT provider, base_url, api_key_enc FROM ai_connections WHERE id = $1 AND user_id = $2")
+                .bind(id)
+                .bind(user.id)
+                .fetch_optional(&state.pool)
+                .await?
+                .ok_or(ApiError::NotFound)?,
+        ),
+        None => None,
+    };
+    let provider = match (&stored, p.provider.as_deref()) {
+        (Some(s), _) => s.0.clone(),
+        (None, Some(x)) if PROVIDERS.contains(&x) => x.to_string(),
+        _ => return Err(ApiError::bad_request("invalid_provider")),
+    };
+    let model = clean(&p.model, 120, "invalid_model")?;
+    let key = match p.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+        Some(k) => Some(k.to_string()),
+        None => stored.as_ref().and_then(|s| s.2.as_deref()).and_then(crate::crypto::decrypt),
+    };
+    if key.is_none() && provider != "openai_compatible" {
+        return Ok(Json(json!({ "ok": false, "code": "no_key" })));
+    }
+    let raw_base = p.base_url.as_deref().map(str::trim).filter(|b| !b.is_empty()).map(String::from).or_else(|| stored.as_ref().and_then(|s| s.1.clone()));
+    let mut quiet = false;
+    let base_url = match raw_base {
+        Some(b) => match check_base_url(&b).await {
+            Ok(checked) => {
+                quiet = is_internal(&checked).await;
+                Some(checked)
+            }
+            Err(_) => return Ok(Json(json!({ "ok": false, "code": "bad_url" }))),
+        },
+        None if provider == "openai_compatible" => return Ok(Json(json!({ "ok": false, "code": "bad_url" }))),
+        None => None,
+    };
+    let prov = ai_provider::build(&Conn { provider, model, base_url, api_key: key, quiet }).map_err(ApiError::bad_request)?;
+    let msgs = [Msg::User("ping".into())];
+    let req = ChatRequest { system: "Reply with the single word: ok", messages: &msgs, tools: &[] };
+    let (tx, mut rx) = mpsc::channel::<StreamEvent>(16);
+    let call = async {
+        let run = async {
+            let r = prov.stream(&req, &tx).await;
+            drop(tx);
+            r
+        };
+        let drain = async { while rx.recv().await.is_some() {} };
+        tokio::join!(run, drain).0
+    };
+    let out = match tokio::time::timeout(std::time::Duration::from_secs(30), call).await {
+        Ok(Ok(())) => json!({ "ok": true }),
+        Ok(Err(e)) => json!({ "ok": false, "code": classify_provider_error(&e) }),
+        Err(_) => json!({ "ok": false, "code": "unreachable" }),
+    };
+    Ok(Json(out))
 }
 
 async fn delete_connection(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
@@ -919,6 +1010,18 @@ async fn run_agent(pool: &PgPool, user: &AuthUser, conv_id: Uuid, provider: &dyn
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_errors_map_to_stable_codes() {
+        assert_eq!(classify_provider_error("provider_http_401: {\"error\":\"x\"}"), "invalid_key");
+        assert_eq!(classify_provider_error("provider_http_400: API key not valid. Please pass a valid API key."), "invalid_key");
+        assert_eq!(classify_provider_error("provider_http_404: model not found"), "model_not_found");
+        assert_eq!(classify_provider_error("provider_http_429"), "quota");
+        assert_eq!(classify_provider_error("provider_http_503: overloaded"), "server");
+        assert_eq!(classify_provider_error("provider_http_422: nope"), "request");
+        assert_eq!(classify_provider_error("provider_unreachable"), "unreachable");
+        assert_eq!(classify_provider_error("error sending request"), "unreachable");
+    }
 
     #[test]
     fn masking_never_reveals_more_than_the_last_four_characters() {
