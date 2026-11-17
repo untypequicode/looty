@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { Plus, Trash2, Pencil, Bot, ShieldCheck, ExternalLink, KeyRound, FlaskConical, Check, AlertTriangle } from 'lucide-vue-next'
+import { Plus, Trash2, Pencil, Bot, ShieldCheck, ExternalLink, KeyRound, FlaskConical, Check, AlertTriangle, Download } from 'lucide-vue-next'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { aiApi, type AiConnection, type AiProvider } from '~/composables/useAi'
-import { AI_PROVIDER_CATALOG, OTHER_MODEL, connectionErrors, keyIssue, modelChoice, providerInfo, testResultKey } from '~/utils/aiProviders'
+import { AI_PROVIDER_CATALOG, OTHER_MODEL, canLoadModels, connectionErrors, keyIssue, modelChoice, modelOptions, normalizeModels, providerInfo, testResultKey, type ModelOption } from '~/utils/aiProviders'
 
 const { t } = useI18n()
 const qc = useQueryClient()
@@ -24,7 +24,47 @@ const info = computed(() => providerInfo(form.provider))
 const errors = computed(() => connectionErrors(form.provider, form, !!editing.value && !replacingKey.value))
 const showKeyField = computed(() => !editing.value || replacingKey.value || !editing.value.has_key)
 const prefixWarn = computed(() => keyIssue(form.provider, form.api_key) === 'prefix')
-const modelSelect = computed(() => (otherModel.value ? OTHER_MODEL : modelChoice(form.provider, form.model)))
+const loadedModels = ref<ModelOption[] | null>(null)
+const loadingModels = ref(false)
+const modelsError = ref('')
+const modelOpts = computed(() => modelOptions(form.provider, loadedModels.value))
+const modelSelect = computed(() => (otherModel.value ? OTHER_MODEL : modelChoice(form.provider, form.model, loadedModels.value)))
+const canLoad = computed(() => canLoadModels(form.provider, form, !!editing.value?.has_key && !replacingKey.value))
+const modelsHelp = computed(() => {
+  if (loadedModels.value?.length) return t('ai.settings.modelsLoaded', { n: loadedModels.value.length })
+  if (!modelOpts.value.length) return t(info.value.baseUrlEditable ? 'ai.settings.modelsNeedUrl' : 'ai.settings.modelsNeedKey')
+  return info.value.value === 'perplexity' ? t('ai.settings.modelHint') : t('ai.settings.modelsFallback')
+})
+let autoTimer: ReturnType<typeof setTimeout> | undefined
+// Charge la liste toute seule dès que la clé (ou l'adresse) semble valide.
+watch(() => [form.provider, form.api_key, form.base_url, replacingKey.value], () => {
+  clearTimeout(autoTimer)
+  if (!open.value || loadedModels.value || !canLoad.value) return
+  autoTimer = setTimeout(() => loadModels(true), 700)
+})
+async function loadModels(auto = false) {
+  if (loadingModels.value) return
+  loadingModels.value = true
+  modelsError.value = ''
+  const provider = form.provider
+  try {
+    const body: Record<string, unknown> = { base_url: form.base_url, api_key: form.api_key }
+    if (editing.value) body.id = editing.value.id
+    else body.provider = provider
+    const r = await api<{ ok: boolean; code?: string; models?: unknown }>('/api/ai/connections/models', { method: 'POST', body, silent: true })
+    if (provider !== form.provider) return
+    const list = r.ok ? normalizeModels(r.models) : []
+    if (list.length) {
+      loadedModels.value = list
+      if (list.some((m) => m.id === form.model)) otherModel.value = false
+      if (!otherModel.value && !list.some((m) => m.id === form.model) && (!editing.value || !form.model)) form.model = list[0]!.id
+    } else if (!auto || !r.ok) {
+      modelsError.value = t(r.ok ? 'ai.settings.test.request' : testResultKey(r.code))
+    }
+  } catch (e) {
+    if (!auto) modelsError.value = errorMessage(e)
+  } finally { loadingModels.value = false }
+}
 const errText = (k: string) => (touched.value && errors.value.includes(k) ? t(`ai.settings.err.${k}`) : '')
 const providerName = (p: AiProvider) => providerInfo(p).name
 
@@ -36,9 +76,12 @@ function start(c?: AiConnection) {
     ? { provider: c.provider, label: c.label, model: c.model, base_url: c.base_url ?? '', api_key: '' }
     : { provider: def.value, label: '', model: def.defaultModel, base_url: '', api_key: '' })
   replacingKey.value = false
+  loadedModels.value = null
+  modelsError.value = ''
   otherModel.value = !!c && modelChoice(c.provider, c.model) === OTHER_MODEL
   resetFeedback()
   open.value = true
+  if (c && canLoad.value) loadModels(true)
 }
 function pickProvider(p: AiProvider) {
   const def = providerInfo(p)
@@ -47,6 +90,8 @@ function pickProvider(p: AiProvider) {
   form.base_url = def.baseUrl ?? ''
   form.api_key = ''
   otherModel.value = false
+  loadedModels.value = null
+  modelsError.value = ''
   resetFeedback()
 }
 function pickModel(m: string) {
@@ -134,13 +179,17 @@ async function remove(c: AiConnection) {
       <p v-if="errText('label')" class="err">{{ errText('label') }}</p>
 
       <label class="field-label">{{ t('ai.settings.model') }}</label>
-      <div class="chips" role="radiogroup" :aria-label="t('ai.settings.model')">
-        <button v-for="m in info.models" :key="m" type="button" role="radio" class="chip" :class="{ on: modelSelect === m }" :aria-checked="modelSelect === m" @click="pickModel(m)">{{ m }}</button>
-        <button type="button" role="radio" class="chip" :class="{ on: modelSelect === OTHER_MODEL }" :aria-checked="modelSelect === OTHER_MODEL" @click="pickModel(OTHER_MODEL)">{{ t('ai.settings.modelOther') }}</button>
+      <div class="modelrow">
+        <select v-if="modelOpts.length" class="select" :value="modelSelect" :aria-label="t('ai.settings.model')" @change="pickModel(($event.target as HTMLSelectElement).value)">
+          <option v-for="m in modelOpts" :key="m.id" :value="m.id">{{ m.label ? `${m.label} (${m.id})` : m.id }}</option>
+          <option :value="OTHER_MODEL">{{ t('ai.settings.modelOther') }}</option>
+        </select>
+        <UiButton v-if="canLoad" size="sm" variant="secondary" :icon="Download" :disabled="loadingModels" @click="loadModels()">{{ loadingModels ? t('ai.settings.loadingModels') : t('ai.settings.loadModels') }}</UiButton>
       </div>
-      <UiInput v-if="modelSelect === OTHER_MODEL" v-model="form.model" maxlength="120" :invalid="!!errText('model')" :placeholder="t('ai.settings.modelOtherPlaceholder')" autofocus />
+      <UiInput v-if="!modelOpts.length || modelSelect === OTHER_MODEL" v-model="form.model" maxlength="120" :invalid="!!errText('model')" :placeholder="t('ai.settings.modelOtherPlaceholder')" />
       <p v-if="errText('model')" class="err">{{ errText('model') }}</p>
-      <p v-else class="help">{{ t('ai.settings.modelHint') }}</p>
+      <p v-else-if="modelsError" class="err">{{ modelsError }}</p>
+      <p v-else class="help">{{ modelsHelp }}</p>
 
       <template v-if="info.baseUrlEditable">
         <label class="field-label">{{ t('ai.settings.baseUrl') }}</label>
@@ -205,10 +254,9 @@ async function remove(c: AiConnection) {
 .pcard:hover { border-color: var(--border-strong); }
 .pcard.on { border-color: var(--accent); background: var(--accent-soft); }
 .pname { font-size: var(--fs-sm); font-weight: 500; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--bg-input); color: var(--text-2); font-size: var(--fs-sm); font-family: var(--font-mono); }
-.chip:hover { color: var(--text); border-color: var(--border-strong); }
-.chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.modelrow { display: flex; align-items: center; gap: 8px; }
+.select { flex: 1; min-width: 0; height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-input); color: var(--text); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.select:focus-visible { outline: none; border-color: var(--accent); }
 .keyrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-sm); }
 .faint { color: var(--text-3); }
 .testrow { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }

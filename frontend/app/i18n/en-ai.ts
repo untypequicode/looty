@@ -32,9 +32,13 @@ export default {
       modelHint: 'Suggested model; pick “Other model” to type an exact identifier.',
       modelOther: 'Other model…', modelOtherPlaceholder: 'Exact model identifier',
       currentKey: 'Stored key: {hint}', replaceKey: 'Replace key', keepCurrentKey: 'Keep current key', noStoredKey: 'No key stored.',
+      loadModels: 'Load models', loadingModels: 'Loading…', modelsLoaded: '{n} models available with this key.',
+      modelsNeedKey: 'Load the list with your key to see the available models.', modelsNeedUrl: 'Enter the server address, then load its model list.',
+      modelsFallback: 'Suggestions: load the list to see the models actually available with your key.',
       testBtn: 'Test connection', testing: 'Testing…',
       test: {
         ok: 'Connection works: the model replied.',
+        models_unsupported: 'This provider has no model list: type the identifier.',
         no_key: 'Enter an API key to test.',
         bad_url: 'Server address refused (private network not allowed or invalid address).',
         invalid_key: 'The provider rejected the API key. Check it or create a new one.',

@@ -453,9 +453,121 @@ impl Provider for Gemini {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Liste des modèles (« Charger les modèles »)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, PartialEq, serde::Serialize)]
+pub struct ModelInfo {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+/// Modèles qui ne font pas de discussion (embeddings, voix, images…) : écartés de la liste.
+fn not_chat(id: &str) -> bool {
+    const SKIP: [&str; 16] = [
+        "embed", "whisper", "tts", "dall-e", "moderation", "image", "audio", "realtime", "transcribe", "davinci", "babbage", "sora", "imagen", "veo", "aqa", "rerank",
+    ];
+    let id = id.to_lowercase();
+    SKIP.iter().any(|s| id.contains(s))
+}
+
+/// Extrait de la réponse « liste des modèles » d'un fournisseur les modèles de discussion, sans doublon.
+/// Anthropic renvoie déjà le plus récent en premier : son ordre est gardé ; les autres sont triés par
+/// identifiant décroissant (les versions les plus récentes d'abord).
+pub fn parse_models(provider: &str, v: &Value) -> Vec<ModelInfo> {
+    let mut out: Vec<ModelInfo> = vec![];
+    let mut push = |id: &str, label: Option<&str>| {
+        if !id.is_empty() && !not_chat(id) && !out.iter().any(|m| m.id == id) {
+            out.push(ModelInfo { id: id.to_string(), label: label.filter(|l| !l.is_empty() && *l != id).map(String::from) });
+        }
+    };
+    match provider {
+        "gemini" => {
+            for m in v["models"].as_array().into_iter().flatten() {
+                let can_chat = m["supportedGenerationMethods"].as_array().is_none_or(|a| a.iter().any(|x| x == "generateContent"));
+                if let (true, Some(name)) = (can_chat, m["name"].as_str()) {
+                    push(name.trim_start_matches("models/"), m["displayName"].as_str());
+                }
+            }
+        }
+        "anthropic" => {
+            for m in v["data"].as_array().into_iter().flatten() {
+                if let Some(id) = m["id"].as_str() {
+                    push(id, m["display_name"].as_str());
+                }
+            }
+        }
+        _ => {
+            for m in v["data"].as_array().into_iter().flatten() {
+                if let Some(id) = m["id"].as_str() {
+                    push(id, None);
+                }
+            }
+        }
+    }
+    if provider != "anthropic" {
+        out.sort_by(|a, b| b.id.cmp(&a.id));
+    }
+    out
+}
+
+/// Interroge le point d'entrée « liste des modèles » du fournisseur. Erreurs au format de `stream`.
+pub async fn list_models(conn: &Conn) -> Result<Vec<ModelInfo>, String> {
+    let base = conn
+        .base_url
+        .clone()
+        .filter(|b| !b.trim().is_empty())
+        .or_else(|| default_base_url(&conn.provider).map(String::from))
+        .ok_or("missing_base_url")?
+        .trim_end_matches('/')
+        .to_string();
+    let key = conn.api_key.clone().unwrap_or_default();
+    let c = client()?;
+    let rb = match conn.provider.as_str() {
+        "openai" | "openai_compatible" => {
+            let rb = c.get(format!("{base}/models"));
+            if key.is_empty() { rb } else { rb.bearer_auth(&key) }
+        }
+        "anthropic" => c.get(format!("{base}/models?limit=100")).header("x-api-key", &key).header("anthropic-version", "2023-06-01"),
+        "gemini" => c.get(format!("{base}/models?pageSize=200")).header("x-goog-api-key", &key),
+        _ => return Err("models_unsupported".into()),
+    };
+    let resp = rb.send().await.map_err(|e| transport_error(e, conn.quiet))?;
+    if !resp.status().is_success() {
+        return Err(http_error(resp, &key, conn.quiet).await);
+    }
+    let v: Value = resp.json().await.map_err(|_| "provider_bad_response".to_string())?;
+    Ok(parse_models(&conn.provider, &v))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn model_lists_are_filtered_and_sorted() {
+        let openai = json!({ "data": [
+            { "id": "gpt-5.1" }, { "id": "text-embedding-3-small" }, { "id": "gpt-6" }, { "id": "whisper-1" }, { "id": "gpt-5.1" }, { "id": "gpt-image-1" }
+        ] });
+        let ids: Vec<_> = parse_models("openai", &openai).into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["gpt-6", "gpt-5.1"]);
+        let anth = json!({ "data": [{ "id": "claude-b", "display_name": "B" }, { "id": "claude-a", "display_name": "claude-a" }] });
+        let m = parse_models("anthropic", &anth);
+        assert_eq!(m.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["claude-b", "claude-a"]);
+        assert_eq!(m[0].label.as_deref(), Some("B"));
+        assert_eq!(m[1].label, None);
+        let gem = json!({ "models": [
+            { "name": "models/gemini-3-flash-preview", "displayName": "Gemini 3 Flash", "supportedGenerationMethods": ["generateContent"] },
+            { "name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"] },
+            { "name": "models/aqa", "supportedGenerationMethods": ["generateAnswer"] },
+            { "name": "models/gemini-3.1-pro-preview", "supportedGenerationMethods": ["generateContent", "countTokens"] }
+        ] });
+        let ids: Vec<_> = parse_models("gemini", &gem).into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["gemini-3.1-pro-preview", "gemini-3-flash-preview"]);
+        assert!(parse_models("openai", &json!({ "oops": 1 })).is_empty());
+    }
 
     #[test]
     fn openai_tool_call_arguments_are_assembled_across_chunks() {

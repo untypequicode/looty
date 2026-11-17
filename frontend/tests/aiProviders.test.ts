@@ -1,16 +1,24 @@
 // node --test frontend/tests/aiProviders.test.ts
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { AI_PROVIDER_CATALOG, OTHER_MODEL, connectionErrors, keyIssue, modelChoice, providerInfo, testResultKey } from '../app/utils/aiProviders.ts'
+import {
+  AI_PROVIDER_CATALOG, OTHER_MODEL, canLoadModels, connectionErrors, keyIssue, modelChoice, modelOptions, normalizeModels, providerInfo, testResultKey,
+} from '../app/utils/aiProviders.ts'
 
-test('every provider has a default model among its suggestions and a key page when a key is needed', () => {
+test('every provider has a consistent default model and a key page when a key is needed', () => {
   assert.equal(AI_PROVIDER_CATALOG.length, 5)
   for (const p of AI_PROVIDER_CATALOG) {
-    assert.ok(p.models.includes(p.defaultModel), p.value)
+    assert.ok(p.defaultModel === '' ? p.models.length === 0 : p.models.includes(p.defaultModel), p.value)
     if (p.keyRequired) assert.ok(p.keyUrl?.startsWith('https://') && p.keyPrefix, p.value)
     assert.equal(p.baseUrlEditable, p.value === 'openai_compatible')
   }
   assert.equal(providerInfo('anthropic').keyUrl, 'https://console.anthropic.com/settings/keys')
+})
+
+test('no hardcoded OpenAI ids; Anthropic and Gemini fallbacks are the agreed ids only', () => {
+  assert.deepEqual(providerInfo('openai').models, [])
+  assert.deepEqual(providerInfo('anthropic').models, ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5', 'claude-fable-5-2'])
+  assert.deepEqual(providerInfo('gemini').models, ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'])
 })
 
 test('key prefix and whitespace checks are indicative', () => {
@@ -23,13 +31,38 @@ test('key prefix and whitespace checks are indicative', () => {
   assert.equal(keyIssue('openai_compatible', 'whatever'), 'ok')
 })
 
-test('model choice falls back to free text', () => {
-  assert.equal(modelChoice('openai', 'gpt-4.1'), 'gpt-4.1')
-  assert.equal(modelChoice('openai', 'my-ft-model'), OTHER_MODEL)
+test('loaded models replace the fallback; empty or failed loads keep it', () => {
+  const loaded = [{ id: 'gemini-9-pro' }, { id: 'gemini-9-flash', label: 'Flash 9' }]
+  assert.deepEqual(modelOptions('gemini', loaded), loaded)
+  assert.deepEqual(modelOptions('gemini', null).map((m) => m.id), ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'])
+  assert.deepEqual(modelOptions('gemini', []).map((m) => m.id), ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'])
+  assert.deepEqual(modelOptions('openai', null), [])
+  assert.equal(modelChoice('openai', 'gpt-live', [{ id: 'gpt-live' }]), 'gpt-live')
+  assert.equal(modelChoice('openai', 'gpt-live'), OTHER_MODEL)
+  assert.equal(modelChoice('anthropic', 'claude-sonnet-5-5'), 'claude-sonnet-5-5')
+})
+
+test('server model list is normalised', () => {
+  assert.deepEqual(
+    normalizeModels([{ id: ' a ', label: 'A' }, { id: 'a' }, { id: '' }, null, { id: 'b', label: 'b' }, { label: 'x' }]),
+    [{ id: 'a', label: 'A' }, { id: 'b' }],
+  )
+  assert.deepEqual(normalizeModels(undefined), [])
+})
+
+test('when the model list can be loaded', () => {
+  const long = 'sk-' + 'x'.repeat(30)
+  assert.equal(canLoadModels('openai', { api_key: long, base_url: '' }, false), true)
+  assert.equal(canLoadModels('openai', { api_key: 'sk-short', base_url: '' }, false), false)
+  assert.equal(canLoadModels('anthropic', { api_key: long, base_url: '' }, false), false)
+  assert.equal(canLoadModels('openai', { api_key: '', base_url: '' }, true), true)
+  assert.equal(canLoadModels('perplexity', { api_key: 'pplx-' + 'x'.repeat(30), base_url: '' }, true), false)
+  assert.equal(canLoadModels('openai_compatible', { api_key: '', base_url: 'http://localhost:11434/v1' }, false), true)
+  assert.equal(canLoadModels('openai_compatible', { api_key: '', base_url: 'localhost' }, false), false)
 })
 
 test('form validation per provider', () => {
-  const f = { label: 'Perso', model: 'gpt-4.1', base_url: '', api_key: '' }
+  const f = { label: 'Perso', model: 'gpt-x', base_url: '', api_key: '' }
   assert.deepEqual(connectionErrors('openai', f, false), ['apiKey'])
   assert.deepEqual(connectionErrors('openai', f, true), [])
   assert.deepEqual(connectionErrors('openai', { ...f, label: ' ', api_key: 'sk-x' }, false), ['label'])
@@ -40,6 +73,7 @@ test('form validation per provider', () => {
 
 test('test result codes map to translation keys', () => {
   assert.equal(testResultKey('invalid_key'), 'ai.settings.test.invalid_key')
+  assert.equal(testResultKey('models_unsupported'), 'ai.settings.test.models_unsupported')
   assert.equal(testResultKey('weird'), 'ai.settings.test.request')
   assert.equal(testResultKey(null), 'ai.settings.test.request')
 })

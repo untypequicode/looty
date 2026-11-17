@@ -32,9 +32,13 @@ export default {
       modelHint: 'Modèle suggéré ; choisissez « Autre modèle » pour saisir un identifiant exact.',
       modelOther: 'Autre modèle…', modelOtherPlaceholder: 'Identifiant exact du modèle',
       currentKey: 'Clé enregistrée : {hint}', replaceKey: 'Remplacer la clé', keepCurrentKey: 'Garder la clé actuelle', noStoredKey: 'Aucune clé enregistrée.',
+      loadModels: 'Charger les modèles', loadingModels: 'Chargement…', modelsLoaded: '{n} modèles disponibles avec cette clé.',
+      modelsNeedKey: 'Chargez la liste avec votre clé pour voir les modèles disponibles.', modelsNeedUrl: 'Indiquez l’adresse du serveur, puis chargez la liste de ses modèles.',
+      modelsFallback: 'Suggestions : chargez la liste pour voir les modèles réellement disponibles avec votre clé.',
       testBtn: 'Tester la connexion', testing: 'Test en cours…',
       test: {
         ok: 'Connexion réussie : le modèle a répondu.',
+        models_unsupported: 'Ce fournisseur ne propose pas de liste de modèles : saisissez l’identifiant.',
         no_key: 'Saisissez une clé d’API pour tester.',
         bad_url: 'Adresse du serveur refusée (réseau privé non autorisé ou adresse invalide).',
         invalid_key: 'Clé d’API refusée par le fournisseur. Vérifiez-la ou créez-en une nouvelle.',

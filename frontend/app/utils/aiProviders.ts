@@ -30,17 +30,17 @@ export const AI_PROVIDER_CATALOG: AiProviderInfo[] = [
   {
     value: 'openai', name: 'OpenAI (GPT)', badge: 'G', color: 'var(--green)',
     keyUrl: 'https://platform.openai.com/api-keys', keyHost: 'platform.openai.com', keyPrefix: 'sk-', keyRequired: true,
-    baseUrl: null, baseUrlEditable: false, models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o'], defaultModel: 'gpt-4.1',
+    baseUrl: null, baseUrlEditable: false, models: [], defaultModel: '',
   },
   {
     value: 'anthropic', name: 'Anthropic (Claude)', badge: 'C', color: 'var(--orange)',
     keyUrl: 'https://console.anthropic.com/settings/keys', keyHost: 'console.anthropic.com', keyPrefix: 'sk-ant-', keyRequired: true,
-    baseUrl: null, baseUrlEditable: false, models: ['claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-1'], defaultModel: 'claude-sonnet-4-5',
+    baseUrl: null, baseUrlEditable: false, models: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5', 'claude-fable-5-2'], defaultModel: 'claude-sonnet-5-5',
   },
   {
     value: 'gemini', name: 'Google Gemini', badge: 'Ge', color: 'var(--blue)',
     keyUrl: 'https://aistudio.google.com/apikey', keyHost: 'aistudio.google.com', keyPrefix: 'AIza', keyRequired: true,
-    baseUrl: null, baseUrlEditable: false, models: ['gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'], defaultModel: 'gemini-3.5-flash-lite',
+    baseUrl: null, baseUrlEditable: false, models: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'], defaultModel: 'gemini-3-flash-preview',
   },
   {
     value: 'perplexity', name: 'Perplexity', badge: 'P', color: 'var(--purple)',
@@ -50,7 +50,7 @@ export const AI_PROVIDER_CATALOG: AiProviderInfo[] = [
   {
     value: 'openai_compatible', name: 'Ollama / compatible OpenAI', badge: 'O', color: 'var(--text-3)',
     keyUrl: null, keyHost: null, keyPrefix: null, keyRequired: false,
-    baseUrl: 'http://localhost:11434/v1', baseUrlEditable: true, models: ['llama3.1', 'qwen2.5', 'mistral'], defaultModel: 'llama3.1',
+    baseUrl: 'http://localhost:11434/v1', baseUrlEditable: true, models: [], defaultModel: '',
   },
 ]
 
@@ -60,8 +60,39 @@ export function providerInfo(p: string): AiProviderInfo {
 
 /** Valeur du sélecteur de modèle : le modèle suggéré, ou `OTHER_MODEL` pour une saisie libre. */
 export const OTHER_MODEL = '__other'
-export function modelChoice(provider: string, model: string): string {
-  return providerInfo(provider).models.includes(model) ? model : OTHER_MODEL
+export interface ModelOption { id: string; label?: string }
+
+/** Réponse de POST /api/ai/connections/models → liste propre (ids uniques et non vides ; ordre du serveur). */
+export function normalizeModels(raw: unknown): ModelOption[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: ModelOption[] = []
+  for (const m of raw) {
+    const id = typeof m?.id === 'string' ? m.id.trim() : ''
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(typeof m.label === 'string' && m.label && m.label !== id ? { id, label: m.label } : { id })
+  }
+  return out
+}
+
+/** Modèles proposés : la liste chargée avec la clé, sinon (avant chargement ou en cas d'échec) les suggestions du catalogue. */
+export function modelOptions(provider: string, loaded: ModelOption[] | null | undefined): ModelOption[] {
+  return loaded?.length ? loaded : providerInfo(provider).models.map((id) => ({ id }))
+}
+
+export function modelChoice(provider: string, model: string, loaded?: ModelOption[] | null): string {
+  return modelOptions(provider, loaded).some((m) => m.id === model) ? model : OTHER_MODEL
+}
+
+/** Peut-on charger la liste ? Pas de point d'entrée chez Perplexity ; sinon clé plausible (ou clé déjà enregistrée), ou adresse pour un serveur local. */
+export function canLoadModels(provider: string, f: { api_key: string; base_url: string }, hasStoredKey: boolean): boolean {
+  if (provider === 'perplexity') return false
+  const info = providerInfo(provider)
+  if (info.baseUrlEditable) return /^https?:\/\/[^\s/]+/i.test(f.base_url.trim())
+  const k = f.api_key.trim()
+  if (k) return keyIssue(provider, k) === 'ok' && k.length >= 20
+  return hasStoredKey
 }
 
 /** Contrôle indicatif de la clé : 'ok' (ou vide), 'spaces' (espaces/retours dedans), 'prefix' (mauvais début). */
@@ -94,6 +125,6 @@ export function connectionErrors(
 
 /** Code renvoyé par POST /api/ai/connections/test → clé de traduction. */
 export function testResultKey(code: string | null | undefined): string {
-  const known = ['no_key', 'bad_url', 'invalid_key', 'quota', 'model_not_found', 'server', 'request', 'unreachable']
+  const known = ['models_unsupported', 'no_key', 'bad_url', 'invalid_key', 'quota', 'model_not_found', 'server', 'request', 'unreachable']
   return `ai.settings.test.${known.includes(code ?? '') ? code : 'request'}`
 }

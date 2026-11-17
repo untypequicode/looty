@@ -33,6 +33,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/connections", get(list_connections).post(create_connection))
         .route("/connections/test", post(test_connection))
+        .route("/connections/models", post(list_models))
         .route("/connections/{id}", axum::routing::patch(update_connection).delete(delete_connection))
         .route("/conversations", get(list_conversations).post(create_conversation))
         .route("/conversations/{id}", get(get_conversation).patch(update_conversation).delete(delete_conversation))
@@ -230,7 +231,7 @@ struct TestReq {
     /// Connexion existante : sa clé enregistrée sert quand `api_key` est vide.
     id: Option<Uuid>,
     provider: Option<String>,
-    model: String,
+    model: Option<String>,
     base_url: Option<String>,
     api_key: Option<String>,
 }
@@ -253,10 +254,9 @@ fn classify_provider_error(err: &str) -> &'static str {
     }
 }
 
-/// Essai à blanc : un appel minimal au fournisseur, sans rien enregistrer. Répond 200 avec
-/// `{ ok, code }` ; la clé n'est jamais renvoyée.
-async fn test_connection(State(state): State<AppState>, user: AuthUser, Json(p): Json<TestReq>) -> ApiResult<Json<Value>> {
-    no_demo(&state)?;
+/// Connexion d'essai (formulaire, avec ou sans connexion existante) : mêmes règles d'adresse que l'enregistrement.
+/// `Err(code)` : cas à renvoyer tel quel à l'interface.
+async fn resolve_test_conn(state: &AppState, user: &AuthUser, p: &TestReq, need_model: bool) -> ApiResult<Result<Conn, &'static str>> {
     let stored: Option<(String, Option<String>, Option<String>)> = match p.id {
         Some(id) => Some(
             sqlx::query_as("SELECT provider, base_url, api_key_enc FROM ai_connections WHERE id = $1 AND user_id = $2")
@@ -273,13 +273,13 @@ async fn test_connection(State(state): State<AppState>, user: AuthUser, Json(p):
         (None, Some(x)) if PROVIDERS.contains(&x) => x.to_string(),
         _ => return Err(ApiError::bad_request("invalid_provider")),
     };
-    let model = clean(&p.model, 120, "invalid_model")?;
+    let model = if need_model { clean(p.model.as_deref().unwrap_or(""), 120, "invalid_model")? } else { String::new() };
     let key = match p.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
         Some(k) => Some(k.to_string()),
         None => stored.as_ref().and_then(|s| s.2.as_deref()).and_then(crate::crypto::decrypt),
     };
     if key.is_none() && provider != "openai_compatible" {
-        return Ok(Json(json!({ "ok": false, "code": "no_key" })));
+        return Ok(Err("no_key"));
     }
     let raw_base = p.base_url.as_deref().map(str::trim).filter(|b| !b.is_empty()).map(String::from).or_else(|| stored.as_ref().and_then(|s| s.1.clone()));
     let mut quiet = false;
@@ -289,12 +289,23 @@ async fn test_connection(State(state): State<AppState>, user: AuthUser, Json(p):
                 quiet = is_internal(&checked).await;
                 Some(checked)
             }
-            Err(_) => return Ok(Json(json!({ "ok": false, "code": "bad_url" }))),
+            Err(_) => return Ok(Err("bad_url")),
         },
-        None if provider == "openai_compatible" => return Ok(Json(json!({ "ok": false, "code": "bad_url" }))),
+        None if provider == "openai_compatible" => return Ok(Err("bad_url")),
         None => None,
     };
-    let prov = ai_provider::build(&Conn { provider, model, base_url, api_key: key, quiet }).map_err(ApiError::bad_request)?;
+    Ok(Ok(Conn { provider, model, base_url, api_key: key, quiet }))
+}
+
+/// Essai à blanc : un appel minimal au fournisseur, sans rien enregistrer. Répond 200 avec
+/// `{ ok, code }` ; la clé n'est jamais renvoyée.
+async fn test_connection(State(state): State<AppState>, user: AuthUser, Json(p): Json<TestReq>) -> ApiResult<Json<Value>> {
+    no_demo(&state)?;
+    let conn = match resolve_test_conn(&state, &user, &p, true).await? {
+        Ok(c) => c,
+        Err(code) => return Ok(Json(json!({ "ok": false, "code": code }))),
+    };
+    let prov = ai_provider::build(&conn).map_err(ApiError::bad_request)?;
     let msgs = [Msg::User("ping".into())];
     let req = ChatRequest { system: "Reply with the single word: ok", messages: &msgs, tools: &[] };
     let (tx, mut rx) = mpsc::channel::<StreamEvent>(16);
@@ -309,6 +320,23 @@ async fn test_connection(State(state): State<AppState>, user: AuthUser, Json(p):
     };
     let out = match tokio::time::timeout(std::time::Duration::from_secs(30), call).await {
         Ok(Ok(())) => json!({ "ok": true }),
+        Ok(Err(e)) => json!({ "ok": false, "code": classify_provider_error(&e) }),
+        Err(_) => json!({ "ok": false, "code": "unreachable" }),
+    };
+    Ok(Json(out))
+}
+
+/// « Charger les modèles » : la liste des modèles de discussion du fournisseur, avec la clé de la connexion.
+/// Répond 200 avec `{ ok, models }` ou `{ ok: false, code }` ; la clé n'est jamais renvoyée.
+async fn list_models(State(state): State<AppState>, user: AuthUser, Json(p): Json<TestReq>) -> ApiResult<Json<Value>> {
+    no_demo(&state)?;
+    let conn = match resolve_test_conn(&state, &user, &p, false).await? {
+        Ok(c) => c,
+        Err(code) => return Ok(Json(json!({ "ok": false, "code": code }))),
+    };
+    let out = match tokio::time::timeout(std::time::Duration::from_secs(20), ai_provider::list_models(&conn)).await {
+        Ok(Ok(models)) => json!({ "ok": true, "models": models }),
+        Ok(Err(e)) if e == "models_unsupported" => json!({ "ok": false, "code": "models_unsupported" }),
         Ok(Err(e)) => json!({ "ok": false, "code": classify_provider_error(&e) }),
         Err(_) => json!({ "ok": false, "code": "unreachable" }),
     };
