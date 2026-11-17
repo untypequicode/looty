@@ -244,6 +244,13 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.setQueryData<Page[]>(wsKeys.pages(wsId), (old) => old?.filter((p) => p.id !== ev.page_id))
       break
 
+    case 'STUDY_CREATED':
+    case 'STUDY_UPDATED':
+    case 'STUDY_DELETED':
+      // Entraînements : arbre, listes, entraînement ouvert et « entraînements liés » rechargés.
+      qc.invalidateQueries({ queryKey: ['ws', wsId, 'study'] })
+      qc.invalidateQueries({ queryKey: ['study'] })
+      break
     case 'ANNOUNCEMENTS_UPDATED':
       qc.invalidateQueries({ queryKey: ['ws', wsId, 'announcements'] })
       break

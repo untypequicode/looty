@@ -6,7 +6,7 @@ import { translate as t } from './useI18n'
 import { useAuth } from './useAuth'
 
 /** Élément qui peut être personnel (GLOSSARY) dans un espace partagé. */
-export type PersonalKind = 'page' | 'board' | 'task' | 'project' | 'file'
+export type PersonalKind = 'page' | 'board' | 'task' | 'project' | 'file' | 'study'
 
 /**
  * Éléments personnels : visibles de leur seul propriétaire, même dans un espace partagé.

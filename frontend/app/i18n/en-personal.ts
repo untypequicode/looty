@@ -11,7 +11,7 @@ export default {
     to: 'To', where: 'Location', root: 'At the root of the documents', searchPage: 'Search a page', submit: 'Move',
     note: 'Individual shares are removed, and links to items of the old workspace (boards, events) don’t follow.',
     noSpace: 'No other workspace where you can create documents.', open: 'Open',
-    done: { one: 'Page moved to {name}', other: '{count} pages moved to {name}' }, dropHere: 'Drop to move here',
+    done: { one: 'Page moved to {name}', other: '{count} pages moved to {name}' }, doneStudy: 'Training moved to {name}', dropHere: 'Drop to move here',
   },
   personal: {
     title: 'Personal space', new: 'Create in my personal space', all: 'See all', createFirst: 'Create a personal document',
@@ -29,6 +29,7 @@ export default {
       board: 'Other members will no longer see this board or its tasks; you stay the only assignee.',
       task: 'Other members will no longer see this task or its sub-tasks; you stay the only assignee.',
       project: 'Other members will no longer see this project.',
+      study: 'Other members will no longer see this training; your results stay yours.',
       file: 'Other members will no longer see this Drive item (nor its content, for a folder).',
     },
     nowPersonal: 'Now personal', nowShared: 'Now shared with the workspace',

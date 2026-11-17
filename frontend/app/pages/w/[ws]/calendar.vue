@@ -460,6 +460,7 @@ useHead({ title: () => t('calendar.title') })
         <template v-if="detail.looty && detail.event_id">
           <CalendarEventPlanning :event="detail" :can-write="canWrite" />
           <GraphRelatedPanel kind="event" :id="detail.event_id" compact class="ev-related" />
+          <StudyLinked kind="event" :target-id="detail.event_id" />
           <button class="ev-cm-toggle" @click="evComments = !evComments">
             <MessageSquare :size="13" /> {{ t('itemComments.title') }}<span v-if="eventCommentCounts?.[detail.event_id]" class="ev-cm-n">{{ eventCommentCounts[detail.event_id] }}</span>
           </button>

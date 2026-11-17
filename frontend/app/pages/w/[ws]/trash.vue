@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { Trash2, RotateCcw, FileText, Kanban, X } from 'lucide-vue-next'
+import { Trash2, RotateCcw, FileText, Kanban, X, BookCheck } from 'lucide-vue-next'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
 import { api } from '~/composables/api'
 import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { useAuth } from '~/composables/useAuth'
-import { useTrash, useTrashInvalidate, restoreFromTrash, type TrashedTask, type TrashedPage } from '~/composables/useTrash'
+import { useTrash, useTrashInvalidate, restoreFromTrash, type TrashedTask, type TrashedPage, type TrashedStudy } from '~/composables/useTrash'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -14,20 +14,24 @@ const { wsId, canWrite, isAdmin } = useWorkspace()
 const { t, relativeTime, formatDate } = useI18n()
 const { data, isLoading } = useTrash(wsId)
 const invalidate = useTrashInvalidate()
-const tab = ref<'tasks' | 'pages'>('tasks')
-watch(data, (d) => { if (d && !d.tasks.length && d.pages.length) tab.value = 'pages' }, { once: true })
+const tab = ref<'tasks' | 'pages' | 'study'>('tasks')
+watch(data, (d) => {
+  if (!d || d.tasks.length) return
+  if (d.pages.length) tab.value = 'pages'
+  else if (d.studies?.length) tab.value = 'study'
+}, { once: true })
 
 
 const daysLeft = (iso: string) => Math.max(0, Math.ceil((+new Date(iso) - Date.now()) / 86400000))
 const { user } = useAuth()
 const canPurge = (deletedBy?: string | null) => isAdmin.value || (!!deletedBy && deletedBy === user.value?.id)
 
-async function restore(kind: 'tasks' | 'pages', item: TrashedTask | TrashedPage) {
+async function restore(kind: 'tasks' | 'pages' | 'study', item: TrashedTask | TrashedPage | TrashedStudy) {
   await restoreFromTrash(kind, item.id)
   toast.success(t('trash.restored'))
   invalidate(wsId.value)
 }
-async function purge(kind: 'tasks' | 'pages', item: TrashedTask | TrashedPage) {
+async function purge(kind: 'tasks' | 'pages' | 'study', item: TrashedTask | TrashedPage | TrashedStudy) {
   if (!(await confirmDialog({ title: t('trash.deleteTitle', { title: item.title || t('docs.untitled') }), message: t('trash.deleteMessage'), danger: true, confirmLabel: t('trash.deleteForever') }))) return
   await api(`/api/trash/${kind}/${item.id}`, { method: 'DELETE' })
   invalidate(wsId.value)
@@ -37,14 +41,14 @@ async function emptyTrash() {
   await api(`/api/workspaces/${wsId.value}/trash`, { method: 'DELETE' })
   invalidate(wsId.value)
 }
-const count = computed(() => (data.value?.tasks.length ?? 0) + (data.value?.pages.length ?? 0))
+const count = computed(() => (data.value?.tasks.length ?? 0) + (data.value?.pages.length ?? 0) + (data.value?.studies?.length ?? 0))
 useHead({ title: () => t('trash.title') })
 </script>
 
 <template>
   <div class="page">
     <AppPageHeader :crumbs="[{ label: t('trash.title'), icon: Trash2 }]">
-      <UiSegmented v-model="tab" :options="[{ value: 'tasks', label: `${t('trash.tasks')}${data?.tasks.length ? ` · ${data.tasks.length}` : ''}` }, { value: 'pages', label: `${t('trash.pages')}${data?.pages.length ? ` · ${data.pages.length}` : ''}` }]" />
+      <UiSegmented v-model="tab" :options="[{ value: 'tasks', label: `${t('trash.tasks')}${data?.tasks.length ? ` · ${data.tasks.length}` : ''}` }, { value: 'pages', label: `${t('trash.pages')}${data?.pages.length ? ` · ${data.pages.length}` : ''}` }, { value: 'study', label: `${t('trash.study')}${data?.studies?.length ? ` · ${data.studies.length}` : ''}` }]" />
       <UiButton v-if="isAdmin && count" size="sm" variant="ghost" :icon="X" @click="emptyTrash">{{ t('trash.empty') }}</UiButton>
     </AppPageHeader>
     <div class="tr">
@@ -65,6 +69,19 @@ useHead({ title: () => t('trash.title') })
             <UiTooltip :text="formatDate(tk.expires_at)"><span class="tr-left">{{ t('trash.daysLeft', { count: daysLeft(tk.expires_at) }) }}</span></UiTooltip>
             <UiButton v-if="canWrite" size="sm" :icon="RotateCcw" @click="restore('tasks', tk)">{{ t('trash.restore') }}</UiButton>
             <UiTooltip v-if="canPurge(tk.deleted_by)" :text="t('trash.deleteForever')"><UiButton size="sm" variant="ghost" :icon="Trash2" @click="purge('tasks', tk)" /></UiTooltip>
+          </div>
+        </template>
+        <template v-else-if="tab === 'study'">
+          <UiEmpty v-if="!data?.studies?.length" :icon="Trash2" :title="t('trash.emptyStudy')" :description="isAdmin ? '' : t('trash.pagesOwnOnly')" />
+          <div v-for="s in data?.studies" :key="s.id" class="tr-row">
+            <BookCheck :size="15" class="tr-icon" />
+            <div class="tr-main">
+              <div class="tr-title truncate">{{ s.title || t('study.untitled') }}</div>
+              <div class="tr-meta truncate">{{ t(`study.kinds.${s.kind}`) }} · {{ t('trash.deletedBy', { name: s.deleted_by_name || t('trash.someone'), when: relativeTime(s.deleted_at) }) }}</div>
+            </div>
+            <UiTooltip :text="formatDate(s.expires_at)"><span class="tr-left">{{ t('trash.daysLeft', { count: daysLeft(s.expires_at) }) }}</span></UiTooltip>
+            <UiButton v-if="canWrite" size="sm" :icon="RotateCcw" @click="restore('study', s)">{{ t('trash.restore') }}</UiButton>
+            <UiTooltip :text="t('trash.deleteForever')"><UiButton size="sm" variant="ghost" :icon="Trash2" @click="purge('study', s)" /></UiTooltip>
           </div>
         </template>
         <template v-else>

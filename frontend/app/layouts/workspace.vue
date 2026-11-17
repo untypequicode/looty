@@ -350,6 +350,7 @@ function onEdgeStart(e: TouchEvent) {
     <AppShortcutsDialog />
     <TaskCreateDialog />
     <DocMoveDialog v-if="!isPane" />
+    <StudyCreateDialog v-if="!isPane" />
   </div>
 </template>
 

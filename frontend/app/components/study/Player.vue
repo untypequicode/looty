@@ -4,7 +4,7 @@ import { useStudyActions, type StudyAttempt, type StudyCorrection, type StudySet
 import { useI18n } from '~/composables/useI18n'
 
 /** Mode utilisation d'un QCM ou d'un questionnaire : réponses, correction, score. */
-const props = defineProps<{ set: StudySet; token: string | null }>()
+const props = defineProps<{ set: StudySet }>()
 const { t } = useI18n()
 const actions = useStudyActions()
 
@@ -27,7 +27,7 @@ function expectedText(it: StudySet['items'][number], c?: StudyCorrection) {
 async function submit() {
   busy.value = true
   try {
-    result.value = await actions.submitAttempt(props.set.id, props.token, { ...answers }, started.value)
+    result.value = await actions.submitAttempt(props.set.id, { ...answers }, started.value)
   } finally { busy.value = false }
 }
 function restart() {

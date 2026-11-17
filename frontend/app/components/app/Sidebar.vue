@@ -48,7 +48,7 @@ const { items: navItems, sections, customizeOpen } = useSidebarLayout(wsId, {
   calendar: { icon: CalendarDays, label: () => t('calendar.title'), to: () => links.calendar(wsId.value), when: () => !isGuest.value },
   mail: { icon: Mail, label: () => t('nav.mail'), to: () => links.mail(wsId.value), badge: () => mailUnread(mailAccounts.value) || undefined, when: () => !isGuest.value },
   moodle: { icon: GraduationCap, label: () => t('nav.moodle'), to: () => links.moodle(wsId.value), when: () => !isGuest.value && !!moodleInfo.value?.url },
-  study: { icon: BookCheck, label: () => t('nav.study'), to: () => '/study', when: () => !isGuest.value },
+  study: { icon: BookCheck, label: () => t('nav.study'), to: () => links.study(wsId.value), when: () => !isGuest.value },
   projects: { icon: FolderCode, label: () => t('projects.title'), to: () => `/w/${wsId.value}/projects`, when: () => !isGuest.value && can.value.seeDocs },
   drive: { icon: HardDrive, label: () => t('drive.title'), to: () => `/w/${wsId.value}/drive`, when: () => !isGuest.value && can.value.seeDocs },
   docs: { icon: FileText, label: () => t('nav.allDocs'), to: () => links.docs(wsId.value), exact: true, when: () => seesSomeDocs.value },

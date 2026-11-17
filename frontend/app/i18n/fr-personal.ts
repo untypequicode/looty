@@ -11,7 +11,7 @@ export default {
     to: 'Vers', where: 'Emplacement', root: 'À la racine des documents', searchPage: 'Rechercher une page', submit: 'Déplacer',
     note: 'Les partages individuels sont retirés, et les liens vers des éléments de l’ancien espace (tableaux, événements) ne suivent pas.',
     noSpace: 'Aucun autre espace où vous pouvez créer des documents.', open: 'Ouvrir',
-    done: { one: 'Page déplacée vers {name}', other: '{count} pages déplacées vers {name}' }, dropHere: 'Déposer pour déplacer ici',
+    done: { one: 'Page déplacée vers {name}', other: '{count} pages déplacées vers {name}' }, doneStudy: 'Entraînement déplacé vers {name}', dropHere: 'Déposer pour déplacer ici',
   },
   personal: {
     title: 'Espace perso', new: 'Créer dans mon espace perso', all: 'Tout voir', createFirst: 'Créer un document perso',
@@ -30,6 +30,7 @@ export default {
       task: 'Les autres membres ne verront plus cette tâche ni ses sous-tâches ; vous restez seul assigné.',
       project: 'Les autres membres ne verront plus ce projet.',
       file: 'Les autres membres ne verront plus cet élément du Drive (ni son contenu, pour un dossier).',
+      study: 'Les autres membres ne verront plus cet entraînement ; vos résultats restent les vôtres.',
     },
     nowPersonal: 'Désormais personnel', nowShared: 'Désormais partagé avec l’espace',
     filter: 'Personnels', filterHint: 'Seulement mes éléments personnels',

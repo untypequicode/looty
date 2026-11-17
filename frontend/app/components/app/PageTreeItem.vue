@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput, LockKeyhole } from 'lucide-vue-next'
+import { ChevronRight, Plus, MoreHorizontal, Star, StarOff, Copy, Trash2, Link2, Pencil, SquareArrowOutUpRight, UsersRound, Globe, Columns2, FolderInput, LockKeyhole, BookCheck } from 'lucide-vue-next'
 import { openMovePage, draggingPage, useMovePage } from '~/composables/useMovePage'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
@@ -10,6 +10,9 @@ import { useUi } from '~/composables/useUi'
 import { links, useWorkspace } from '~/composables/useWorkspace'
 import { toast } from '~/composables/useToast'
 import { translate } from '~/composables/useI18n'
+import { useStudyActions } from '~/composables/useStudy'
+import { openStudyCreate } from '~/composables/useStudyCreate'
+import { useStudyMenu } from '~/composables/useStudyMenu'
 
 const props = defineProps<{ node: PageNode }>()
 const { expandedPages } = useUi()
@@ -21,13 +24,16 @@ const canAddChild = computed(() => (canWrite.value && props.node.can_edit !== fa
 const { createPage, movePage, deletePage, toggleFavorite, duplicatePage, updatePage } = usePages()
 const route = useRoute()
 const { move: crossMove } = useMovePage()
+// Entraînement (ADR 0011) : même arbre, mêmes gestes, sans sous-éléments.
+const isStudy = computed(() => !!props.node.study)
+const studyActions = useStudyActions()
 
 const expanded = computed({
   get: () => !!expandedPages.value[props.node.id],
   set: (v) => (expandedPages.value = { ...expandedPages.value, [props.node.id]: v }),
 })
-const active = computed(() => route.params.page === props.node.id)
-const to = computed(() => links.doc(wsId.value, props.node.id))
+const active = computed(() => (isStudy.value ? route.params.id === props.node.id && route.path.includes('/study/') : route.params.page === props.node.id))
+const to = computed(() => (isStudy.value ? links.studySet(wsId.value, props.node.id) : links.doc(wsId.value, props.node.id)))
 
 // Ouvre automatiquement les ancêtres de la page active.
 watch(() => route.params.page, (id) => {
@@ -49,7 +55,10 @@ function startRename() {
 async function commitRename() {
   if (!renaming.value) return
   renaming.value = false
-  if (draft.value.trim() !== props.node.title) await updatePage(props.node.id, { title: draft.value.trim() })
+  if (draft.value.trim() === props.node.title) return
+  if (isStudy.value) {
+    if (draft.value.trim()) await studyActions.patch(props.node.id, { title: draft.value.trim() })
+  } else await updatePage(props.node.id, { title: draft.value.trim() })
 }
 
 async function addChild() {
@@ -61,7 +70,9 @@ async function addChild() {
 const { isTablet } = useBreakpoint()
 const menuOpen = ref(false)
 const tabsApi = useTabs(useWorkspace().wsId)
-const menuItems = computed<MenuItem[]>(() => [
+const { items: studyMenuItems } = useStudyMenu(wsId)
+const studyMenu = computed<MenuItem[]>(() => studyMenuItems(props.node, { rename: startRename }))
+const menuItems = computed<MenuItem[]>(() => isStudy.value ? studyMenu.value : [
   ...(tabsEnabled.value ? [{ label: translate('tabs.openInNew'), icon: SquareArrowOutUpRight, onSelect: () => tabsApi.open(to.value) }] : []),
   ...(tabsEnabled.value && !isTablet.value ? [{ label: translate('tabs.openSide'), icon: Columns2, onSelect: () => tabsApi.openSidePath(to.value) }] : []),
   { label: props.node.is_favorite ? translate('docs.unfavorite') : translate('docs.favorite'), icon: props.node.is_favorite ? StarOff : Star, onSelect: () => toggleFavorite(props.node) },
@@ -70,6 +81,7 @@ const menuItems = computed<MenuItem[]>(() => [
     ? [
         { label: translate('common.rename'), icon: Pencil, onSelect: startRename },
         { label: translate('docs.newChild'), icon: Plus, onSelect: addChild },
+        { label: translate('study.new'), icon: BookCheck, onSelect: () => openStudyCreate(wsId.value, { parentId: props.node.id }) },
         { label: translate('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(props.node.id) },
         { label: translate('move.action'), icon: FolderInput, onSelect: () => openMovePage(wsId.value, props.node) },
         { divider: true },
@@ -81,12 +93,13 @@ const menuItems = computed<MenuItem[]>(() => [
 // --- Glisser-déposer (avant / dedans / après) ---
 const dropZone = ref<'before' | 'inside' | 'after' | null>(null)
 function onDragStart(e: DragEvent) {
+  if (isStudy.value) return e.preventDefault()
   e.dataTransfer!.setData('application/x-looty-page', props.node.id)
   e.dataTransfer!.effectAllowed = 'move'
   draggingPage.value = { ws: wsId.value, id: props.node.id }
 }
 function onDragOver(e: DragEvent) {
-  if (!e.dataTransfer?.types.includes('application/x-looty-page')) return
+  if (isStudy.value || !e.dataTransfer?.types.includes('application/x-looty-page')) return
   e.preventDefault()
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const y = (e.clientY - rect.top) / rect.height
@@ -117,19 +130,21 @@ async function onDrop(e: DragEvent) {
       class="tree-row"
       :class="{ active, [`drop-${dropZone}`]: dropZone }"
       :style="{ paddingLeft: `${4 + node.depth * 14}px` }"
-      :draggable="canWrite && !renaming"
+      :draggable="canWrite && !renaming && !isStudy"
       @dragstart="onDragStart"
       @dragend="draggingPage = null"
       @dragover="onDragOver"
       @dragleave="dropZone = null"
       @drop.prevent="onDrop"
-      @dblclick.prevent="canWrite && startRename()"
+      @dblclick.prevent="(isStudy ? node.can_edit !== false : canWrite) && startRename()"
       @contextmenu.prevent="menuOpen = true"
     >
-      <button class="tree-toggle" :class="{ open: expanded, empty: !node.children.length }" @click.prevent.stop="expanded = !expanded">
+      <span v-if="isStudy" class="tree-toggle" />
+      <button v-else class="tree-toggle" :class="{ open: expanded, empty: !node.children.length }" @click.prevent.stop="expanded = !expanded">
         <ChevronRight :size="13" />
       </button>
-      <span v-if="node.icon" class="tree-emoji">{{ node.icon }}</span>
+      <BookCheck v-if="isStudy" :size="15" :stroke-width="1.8" class="tree-icon" />
+      <span v-else-if="node.icon" class="tree-emoji">{{ node.icon }}</span>
       <component :is="pageKindIcon(node)" v-else :size="15" :stroke-width="1.8" class="tree-icon" />
       <input
         v-if="renaming"
@@ -141,7 +156,7 @@ async function onDrop(e: DragEvent) {
         @keydown.esc.prevent="renaming = false"
         @blur="commitRename"
       />
-      <span v-else class="tree-label truncate">{{ node.title || $t('docs.untitled') }}</span>
+      <span v-else class="tree-label truncate">{{ node.title || (isStudy ? $t('study.untitled') : $t('docs.untitled')) }}</span>
       <LockKeyhole v-if="node.private_to" :size="12" class="tree-perm" :aria-label="$t('personalItem.title')"><title>{{ $t('personalItem.title') }}</title></LockKeyhole>
       <UsersRound v-if="node.has_permissions" :size="12" class="tree-perm" :aria-label="$t('pagePerms.badge')"><title>{{ $t('pagePerms.badge') }}</title></UsersRound>
       <Globe v-if="node.is_public" :size="12" class="tree-perm" :aria-label="$t('share.public')"><title>{{ $t('share.public') }}</title></Globe>
@@ -149,7 +164,7 @@ async function onDrop(e: DragEvent) {
         <UiMenu v-model:open="menuOpen" :items="menuItems">
           <button class="tree-act" :aria-label="$t('common.more')"><MoreHorizontal :size="14" /></button>
         </UiMenu>
-        <button v-if="canAddChild" class="tree-act" :aria-label="$t('docs.newChild')" @click="addChild"><Plus :size="14" /></button>
+        <button v-if="canAddChild && !isStudy" class="tree-act" :aria-label="$t('docs.newChild')" @click="addChild"><Plus :size="14" /></button>
       </span>
     </NuxtLink>
     <div v-if="expanded && node.children.length" class="tree-children">

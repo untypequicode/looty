@@ -58,7 +58,7 @@ export default {
     moved: 'Déplacé dans la corbeille', deleteForever: 'Supprimer définitivement', empty: 'Vider la corbeille', emptyTitle: 'Vider la corbeille ?',
     deleteTitle: 'Supprimer « {title} » définitivement ?', deleteMessage: 'Cette action est irréversible.',
     hint: 'Les éléments supprimés sont conservés {days} jours, puis effacés définitivement.', disabled: 'La corbeille est désactivée : les éléments supprimés sont effacés aussitôt.',
-    change: 'Modifier', emptyTasks: 'Aucune tâche supprimée', emptyPages: 'Aucun document supprimé', pagesOwnOnly: 'Vous ne voyez que les documents que vous avez supprimés.',
+    change: 'Modifier', emptyTasks: 'Aucune tâche supprimée', emptyPages: 'Aucun document supprimé', study: 'Entraînements', emptyStudy: 'Aucun entraînement supprimé', pagesOwnOnly: 'Vous ne voyez que les documents que vous avez supprimés.',
     deletedBy: 'supprimé par {name} {when}', someone: 'quelqu’un',
     daysLeft: { zero: 'Effacé aujourd’hui', one: 'Encore 1 jour', other: 'Encore {count} jours' },
     subtasks: { one: '1 sous-tâche', other: '{count} sous-tâches' }, subpages: { one: '1 sous-document', other: '{count} sous-documents' },
