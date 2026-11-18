@@ -247,3 +247,7 @@ _Avoid_: copie, résultat partagé
 
 **État de fiche**:
 Facilité et prochaine échéance d'une fiche pour une personne (répétition espacée simplifiée).
+
+**Formule**:
+Expression mathématique écrite en LaTeX dans une page (dans le texte ou en bloc), rendue comme sur le web quel que soit l'appareil, hors-ligne compris.
+_Avoid_: équation, maths

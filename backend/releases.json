@@ -3,6 +3,23 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "android",
+      "version": "0.27.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "LaTeX formulas are rendered in the reader",
+        "fr": "Les formules LaTeX s’affichent dans le lecteur"
+      },
+      "notes": {
+        "en": [
+          "**Formulas**: block and inline math in the page reader are now typeset like on the web (KaTeX), fully offline, instead of showing raw LaTeX source."
+        ],
+        "fr": [
+          "**Formules** : les formules (en bloc et en ligne) du lecteur de pages sont maintenant mises en forme comme sur le web (KaTeX), entièrement hors ligne, au lieu d’afficher le code LaTeX brut."
+        ]
+      }
+    },
+    {
       "platform": "web",
       "version": "0.40.1",
       "date": "2026-11-18",
