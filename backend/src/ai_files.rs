@@ -108,7 +108,8 @@ const EXTRACT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 pub(crate) async fn run_extract(name: String, mime: String, bytes: Arc<Vec<u8>>) -> ApiResult<Extracted> {
     let work = tokio::task::spawn_blocking(move || extract::extract(&name, &mime, &bytes));
     match tokio::time::timeout(EXTRACT_TIMEOUT, work).await {
-        Err(_) => Err(ApiError::bad_request("file_unreadable")),
+        // Délai dépassé : échec passager (machine chargée), distinct d'un fichier illisible.
+        Err(_) => Err(ApiError::bad_request("file_extract_timeout")),
         Ok(r) => r.map_err(|e| ApiError::Internal(e.to_string()))?.map_err(|e| ApiError::bad_request(e.code())),
     }
 }

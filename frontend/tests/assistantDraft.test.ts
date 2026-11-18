@@ -3,7 +3,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createDraftStore, parseDraft, withAttachment, emptyDraft, attachmentKey, attachmentPayload, isMoodleKind,
-  moodleCourseAttachment, moodleFileAttachment, MAX_ATTACHMENTS, DRAFT_KEY, type DraftStorage,
+  moodleCourseAttachment, moodleFileAttachment, MAX_ATTACHMENTS, DRAFT_KEY, draftKeyFor, type DraftStorage,
 } from '../app/utils/assistantDraft.ts'
 
 const memory = (): DraftStorage & { data: Map<string, string> } => {
@@ -103,4 +103,23 @@ test('cours et fichiers Moodle : identité, espace et corps envoyé au serveur',
   assert.deepEqual(attachmentPayload(file), { kind: 'moodle_file', title: 'poly.pdf', workspace_id: 'w1', course_id: 7, url: 'https://m.test/pluginfile.php/1/poly.pdf', course_title: 'Algèbre' })
   assert.deepEqual(attachmentPayload(page('9')), { kind: 'page', id: '9', title: 'Page 9' })
   assert.ok(isMoodleKind('moodle_file') && isMoodleKind('moodle_course') && !isMoodleKind('file'))
+})
+
+test("chaque personne a son brouillon dans un navigateur partagé", () => {
+  const storage = memory()
+  const alice = createDraftStore(storage, draftKeyFor("alice"))
+  alice.setText("secret d'Alice")
+  alice.add(page("1"))
+  const bob = createDraftStore(storage, draftKeyFor("bob"))
+  assert.deepEqual(bob.get(), emptyDraft())
+  bob.setText("texte de Bob")
+  assert.equal(createDraftStore(storage, draftKeyFor("alice")).get().text, "secret d'Alice")
+  assert.notEqual(draftKeyFor("alice"), draftKeyFor("bob"))
+  // L'ancienne clé commune n'est jamais relue.
+  storage.setItem("looty.ai.draft", JSON.stringify({ text: "ancien", attachments: [] }))
+  assert.equal(createDraftStore(storage, draftKeyFor("carol")).get().text, "")
+  // Sans personne connectée (stockage nul) : rien n'est gardé.
+  const anon = createDraftStore(null)
+  anon.setText("x")
+  assert.equal(createDraftStore(null).get().text, "")
 })
