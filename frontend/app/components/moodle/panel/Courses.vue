@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  Search, LayoutGrid, List, Rows3, SlidersHorizontal, FolderPlus, Folder, FolderInput, ChevronRight, Star, StarOff, Eye, EyeOff, Palette, Pencil, Trash2, X,
+  Search, LayoutGrid, List, Rows3, SlidersHorizontal, FolderPlus, Folder, FolderInput, ChevronRight, Star, StarOff, Eye, EyeOff, Palette, Pencil, Trash2, X, Bot,
 } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { errorMessage } from '~/composables/api'
@@ -8,6 +8,8 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { useMoodleData, type MoodleCourse, type MoodleDeadline } from '~/composables/useMoodle'
 import { useMoodleCourses, type CourseFolder } from '~/composables/useMoodleCourses'
+import { useSendToAssistant } from '~/composables/useAssistantDraft'
+import { moodleCourseAttachment } from '~/utils/assistantDraft'
 import { DEFAULT_COURSES, type PanelOpts, type CoursesView, type CoursesSort, type CoursesFilter, type CoursesGroup } from '~/composables/useMoodleBoard'
 
 /**
@@ -144,6 +146,7 @@ async function removeFolder(f: CourseFolder) {
   if (!(await confirmDialog({ title: t('moodle.crs.deleteFolder', { name: f.name }), message: t('moodle.crs.deleteFolderHint'), danger: true, confirmLabel: t('common.delete') }))) return
   await mc.removeFolder(f.id)
 }
+const assistant = useSendToAssistant(toRef(props, 'ws'))
 const custom = ref<MoodleCourse | null>(null)
 const customOpen = ref(false)
 const folderMenu = (f: CourseFolder): MenuItem[] => [
@@ -159,6 +162,7 @@ function menuFor(c: MoodleCourse): MenuItem[] {
     { label: c.favourite ? t('moodle.crs.unstar') : t('moodle.crs.star'), icon: c.favourite ? StarOff : Star, onSelect: () => mc.setFavourite(c.id, !c.favourite) },
     { label: c.hidden ? t('moodle.crs.show') : t('moodle.crs.hide'), icon: c.hidden ? Eye : EyeOff, onSelect: () => mc.setHidden(c.id, !c.hidden) },
     { label: t('moodle.crs.customize'), icon: Palette, onSelect: () => { custom.value = c; customOpen.value = true } },
+    { label: t('ai.send.label'), icon: Bot, onSelect: () => { assistant.send(moodleCourseAttachment(props.ws, { id: c.id, name: mc.nameOf(c) })) } },
     { divider: true },
     { heading: t('moodle.crs.moveTo') },
     ...(current ? [{ label: t('moodle.crs.noFolder'), icon: X, onSelect: () => mc.moveToFolder(c.id, null) }] : []),

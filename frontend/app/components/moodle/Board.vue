@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { Maximize2, Replace, EyeOff, Eye } from 'lucide-vue-next'
+import { Maximize2, Replace, EyeOff, Eye, Bot } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useI18n } from '~/composables/useI18n'
 import { type MoodleDeadline } from '~/composables/useMoodle'
 import { useMoodleCourses } from '~/composables/useMoodleCourses'
 import { useMoodleBoard, PANEL_ICONS, type BoardPanel } from '~/composables/useMoodleBoard'
+import { useSendToAssistant } from '~/composables/useAssistantDraft'
+import { moodleCourseAttachment } from '~/utils/assistantDraft'
 
 /**
  * Tableau de bord Moodle (GLOSSARY) : les panneaux du membre sur une grille qu'il dispose
@@ -21,6 +23,7 @@ const { t } = useI18n()
 const ws = toRef(props, 'ws')
 const { panels, move, patch, remove } = useMoodleBoard(ws)
 const mc = useMoodleCourses(ws)
+const assistant = useSendToAssistant(ws)
 const courseOf = (id?: number) => mc.byId(id)
 const folderOf = (id?: string) => mc.folders.value.find((f) => f.id === id)
 
@@ -31,7 +34,13 @@ function titleOf(p: BoardPanel) {
   return t(`moodle.board.kinds.${p.kind}`)
 }
 function menuOf(p: BoardPanel): MenuItem[] {
-  if (p.kind === 'course' && p.course) return [{ label: t('moodle.board.changeCourse'), icon: Replace, onSelect: () => patch(p.i, { course: undefined }) }]
+  if (p.kind === 'course' && p.course) {
+    const c = courseOf(p.course)
+    return [
+      { label: t('ai.send.label'), icon: Bot, onSelect: () => { assistant.send(moodleCourseAttachment(props.ws, { id: p.course!, name: c ? mc.nameOf(c) : String(p.course) })) } },
+      { label: t('moodle.board.changeCourse'), icon: Replace, onSelect: () => patch(p.i, { course: undefined }) },
+    ]
+  }
   if (p.kind === 'folder' && p.folder) return [{ label: t('moodle.board.changeFolder'), icon: Replace, onSelect: () => patch(p.i, { folder: undefined }) }]
   if (p.kind === 'deadlines') {
     const on = !!p.opts?.includeHidden

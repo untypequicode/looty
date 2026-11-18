@@ -416,6 +416,7 @@ pub async fn purge_unused(pool: &PgPool) -> ApiResult<u64> {
 /// Pièce jointe `moodle_course` ou `moodle_file` à l'envoi d'un message : (texte pour le modèle, méta pour
 /// l'affichage, caractères donnés en entier). Refus (pas de connexion, jeton expiré, cours ou fichier
 /// inaccessible) : `Err`, l'appelant l'ignore comme les autres éléments illisibles.
+#[allow(clippy::too_many_arguments)]
 pub async fn attachment(pool: &PgPool, user: &AuthUser, kind: &str, ws: Uuid, course_id: i64, url: Option<&str>, title: &str, inline_left: usize) -> Result<(String, Value, usize), Refusal> {
     let course = load_course(pool, user, ws, course_id).await?;
     let title = ai_files::one_line(title);
@@ -505,7 +506,7 @@ type Loaded = HashMap<(Uuid, i64), Result<Course, Refusal>>;
 async fn course_in<'a>(pool: &PgPool, user: &AuthUser, cache: &'a mut Loaded, ws: Uuid, course: i64) -> &'a Result<Course, Refusal> {
     if !cache.contains_key(&(ws, course)) {
         let r = load_course(pool, user, ws, course).await;
-        cache.insert((ws, course), r);
+        cache.entry((ws, course)).or_insert(r);
     }
     &cache[&(ws, course)]
 }
@@ -807,10 +808,11 @@ mod tests {
     }
 
     async fn connect_to(pool: &PgPool, u: &AuthUser, ws: Uuid, m: &Mock) {
+        let base = m.base.lock().unwrap().clone();
         sqlx::query("INSERT INTO moodle_connections (workspace_id, user_id, base_url, token_enc, moodle_user_id) VALUES ($1, $2, $3, $4, 5)")
             .bind(ws)
             .bind(u.id)
-            .bind(m.base.lock().unwrap().clone())
+            .bind(base)
             .bind(crate::crypto::encrypt(TOKEN))
             .execute(pool)
             .await

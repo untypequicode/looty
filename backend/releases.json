@@ -4,6 +4,29 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.40.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Ask the assistant about your Moodle courses",
+        "fr": "Interrogez l’assistant sur vos cours Moodle"
+      },
+      "notes": {
+        "en": [
+          "**Moodle in the assistant**: attach a Moodle course or one of its files to a message with @, then ask your question. The assistant gets the course outline and reads the files it needs, using your own Moodle account.",
+          "**Send to AI**: a new button on Moodle courses and on each file adds it to your message in the assistant, without losing what you already typed, and opens the assistant if needed.",
+          "**Search in a course**: the assistant can search the PDF, Word, PowerPoint and text files of a whole course. Scanned files, files over 25 MB and expired Moodle connections are reported clearly.",
+          "**Privacy**: the text of Moodle files is sent to the AI provider you chose, with a notice the first time. Your Moodle access never leaves the server, and the extracted text is kept for you only for 30 days without use."
+        ],
+        "fr": [
+          "**Moodle dans l’assistant** : joignez un cours Moodle ou l’un de ses fichiers à un message avec @, puis posez votre question. L’assistant reçoit le plan du cours et lit les fichiers dont il a besoin, avec votre propre compte Moodle.",
+          "**Envoyer à l’IA** : un nouveau bouton sur les cours Moodle et sur chaque fichier l’ajoute à votre message dans l’assistant, sans perdre ce que vous aviez déjà tapé, et ouvre l’assistant si besoin.",
+          "**Recherche dans un cours** : l’assistant peut chercher dans les fichiers PDF, Word, PowerPoint et texte de tout un cours. Les fichiers scannés, ceux de plus de 25 Mo et les connexions Moodle expirées sont signalés clairement.",
+          "**Confidentialité** : le texte des fichiers Moodle est envoyé au fournisseur d’IA que vous avez choisi, avec un avis la première fois. Votre accès Moodle ne quitte jamais le serveur, et le texte extrait n’est gardé que pour vous, 30 jours sans utilisation."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.39.1",
       "date": "2026-11-18",
       "title": {

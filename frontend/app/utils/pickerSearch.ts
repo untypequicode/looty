@@ -7,9 +7,12 @@ export interface PickerHit {
   r: { type: string; title: string; date?: string | null; path?: string[] | null }
 }
 
+/** Le filtre « Moodle » couvre les cours et les fichiers de cours. */
+export const matchesFilter = (kind: string, filter: string) => filter === 'all' || kind === filter || (filter === 'moodle' && kind.startsWith('moodle_'))
+
 /** Résultats du type choisi (tous si `all`), limités en nombre. */
 export function filterHits<T extends { kind: string }>(hits: readonly T[], filter: string, limit = 40): T[] {
-  return hits.filter((h) => filter === 'all' || h.kind === filter).slice(0, limit)
+  return hits.filter((h) => matchesFilter(h.kind, filter)).slice(0, limit)
 }
 
 /**
@@ -29,8 +32,8 @@ export function hitPlace(h: PickerHit, opts: { multiWorkspace?: boolean; formatD
 
 // --- Regroupement par type, récents et favoris (palette « @ » de l'Assistant) ----------------------------
 
-/** Ordre des groupes dans la liste : pages, entraînements, tâches, fichiers, puis le reste. */
-export const GROUP_ORDER = ['page', 'study', 'task', 'file', 'board', 'event', 'project'] as const
+/** Ordre des groupes dans la liste : pages, entraînements, tâches, fichiers, le reste, puis Moodle (cours, fichiers de cours). */
+export const GROUP_ORDER = ['page', 'study', 'task', 'file', 'board', 'event', 'project', 'moodle_course', 'moodle_file'] as const
 
 /** Un élément de la liste, qu'il vienne de la recherche, des récents ou des favoris. */
 export interface PickerEntry {
@@ -43,6 +46,14 @@ export interface PickerEntry {
   place: string
   /** Extrait pour le volet d'aperçu. */
   excerpt: string
+  /** Moodle : cours (identifiant et nom), et pour un fichier son adresse d'origine et sa taille. */
+  courseId?: number
+  courseName?: string
+  url?: string
+  size?: number
+  /** Moodle : section et type d'un fichier, pour l'aperçu. */
+  section?: string
+  type?: string
 }
 
 export interface PickerSection<T> { id: string; items: T[] }

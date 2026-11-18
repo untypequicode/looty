@@ -824,6 +824,9 @@ struct Attachment {
     course_id: Option<i64>,
     #[serde(default)]
     url: Option<String>,
+    /// Moodle, fichier : nom du cours (affiché sur la puce).
+    #[serde(default)]
+    course_title: Option<String>,
     /// Ancien extrait fourni par l'interface : ignoré, tout est relu côté serveur.
     #[allow(dead_code)]
     snippet: Option<String>,
@@ -854,7 +857,10 @@ async fn resolve_attachments(pool: &PgPool, user: &AuthUser, items: &[Attachment
             // Cours ou fichier Moodle : lu avec le jeton de la personne dans l'espace indiqué ; refusé (ignoré) si son
             // compte ne peut pas l'ouvrir. Un cours n'arrive que sous forme de table des matières.
             let (Some(ws), Some(course)) = (a.workspace_id, a.course_id) else { continue };
-            let Ok((summary, info, inlined)) = ai_moodle::attachment(pool, user, &a.kind, ws, course, a.url.as_deref(), &title, inline_left).await else { continue };
+            let Ok((summary, mut info, inlined)) = ai_moodle::attachment(pool, user, &a.kind, ws, course, a.url.as_deref(), &title, inline_left).await else { continue };
+            if let Some(ct) = a.course_title.as_deref().filter(|c| !c.trim().is_empty()) {
+                info["course_title"] = json!(ct.chars().take(200).collect::<String>());
+            }
             inline_left = inline_left.saturating_sub(inlined);
             text.push_str(&format!("\n[{} {}]\n{}\n", a.kind, info["id"].as_str().unwrap_or(""), summary));
             meta.push(info);

@@ -9,6 +9,7 @@ import { toast } from '~/composables/useToast'
 import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { useStudyActions } from '~/composables/useStudy'
 import { aiOpenItem } from '~/composables/useAiOpenItem'
+import { useAssistantDraft } from '~/composables/useAssistantDraft'
 import {
   aiApi, aiInbox, streamMessage, aiErrorMessage,
   type AiAttachment, type AiConversation, type AiMessage, type AiGrant, type AiStudyGrant, type AiSuggestion, type AiGrantNeed, type AiStreamEvent,
@@ -51,7 +52,8 @@ const grants = ref<AiGrant[]>([])
 const studyGrants = ref<AiStudyGrant[]>([])
 const endedGrants = ref<EndedGrant[]>([])
 const suggestions = ref<AiSuggestion[]>([])
-const draft = ref('')
+/** Texte et pièces jointes du message en cours : partagés avec les boutons « Envoyer à l'IA » (cours Moodle…). */
+const { draft, attachments, add: addToDraft } = useAssistantDraft()
 /** Espace cible des créations de l'IA : celui de la conversation, sinon l'espace courant. Modifiable dans la zone de saisie. */
 const targetWs = ref(wsId.value)
 /** Versions déjà rétablies depuis cette discussion (gardées par le serveur) : leur bouton « Annuler » est grisé. */
@@ -61,7 +63,6 @@ async function setTarget(id: string) {
   if (!conv.value) return
   try { await api(`/api/ai/conversations/${conv.value.id}`, { method: 'PATCH', body: { default_workspace_id: id } }) } catch (e) { toast.error(errorMessage(e)) }
 }
-const attachments = ref<AiAttachment[]>([])
 const busy = ref(false)
 const streaming = ref('')
 const toolLog = ref<string[]>([])
@@ -70,8 +71,14 @@ let retryAfter = false
 const scroller = ref<HTMLElement | null>(null)
 function scrollDown() { nextTick(() => { if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight }) }
 
+function takeInbox(): AiAttachment[] {
+  const a = aiInbox.value
+  if (a.length) aiInbox.value = []
+  return a
+}
 function defaultAttachments(): AiAttachment[] {
-  if (aiInbox.value.length) { const a = aiInbox.value; aiInbox.value = []; return a }
+  const inbox = takeInbox()
+  if (inbox.length) return inbox
   return aiOpenItem.value ? [aiOpenItem.value] : []
 }
 
@@ -88,16 +95,26 @@ async function loadConversation(id: string) {
   if (r.conversation.connection_id) connectionId.value = r.conversation.connection_id
   scrollDown()
 }
-function reset() {
+/** Nouvelle conversation. À l'ouverture de la page (`keepDraft`), le brouillon en cours (texte et puces, dont ce qu'un bouton « Envoyer à l'IA » y a mis) est conservé. */
+function reset(keepDraft = false) {
   conv.value = null; messages.value = []; grants.value = []; studyGrants.value = []; endedGrants.value = []; suggestions.value = []
-  draft.value = ''; streaming.value = ''; restored.value = new Set(); targetWs.value = wsId.value
+  streaming.value = ''; restored.value = new Set(); targetWs.value = wsId.value
+  if (keepDraft) {
+    for (const a of takeInbox()) addToDraft(a)
+    if (!attachments.value.length) attachments.value = defaultAttachments()
+    return
+  }
+  draft.value = ''
   attachments.value = defaultAttachments()
 }
 const routeConv = computed(() => (typeof route.query.c === 'string' ? route.query.c : ''))
+let firstRoute = true
 watch(routeConv, async (id) => {
+  const opening = firstRoute
+  firstRoute = false
   if (id === conv.value?.id) return
-  if (!id) return reset()
-  attachments.value = []
+  if (!id) return reset(opening)
+  if (!opening) attachments.value = []
   try { await loadConversation(id) } catch { router.replace({ query: {} }); reset() }
 }, { immediate: true })
 // « Demander à l'IA » depuis un menu alors que la page est déjà ouverte : nouvelle conversation avec l'élément.
@@ -139,7 +156,7 @@ async function send(override?: string) {
   try {
     const c = await ensureConversation()
     const atts = override ? [] : attachments.value
-    messages.value.push({ id: `tmp-${Date.now()}`, role: 'user', content: text, data: atts.length ? { attachments: atts.map(({ kind, id, title }) => ({ kind, id, title })) } : undefined })
+    messages.value.push({ id: `tmp-${Date.now()}`, role: 'user', content: text, data: atts.length ? { attachments: atts.map(({ kind, id, title, courseName }) => ({ kind, id, title, course_title: courseName })) } : undefined })
     if (!override) { draft.value = ''; attachments.value = [] }
     streaming.value = ''
     toolLog.value = []
@@ -329,7 +346,7 @@ const empty = computed(() => !visible.value.length && !streaming.value)
               </div>
               <div v-else class="msg user">
                 <div v-if="m.data?.attachments?.length" class="as-att">
-                  <AiChip v-for="a in m.data.attachments" :key="a.id" class="as-chip" :kind="a.kind" :title="a.title" :expires-at="a.expires_at" :provider="providerName" />
+                  <AiChip v-for="a in m.data.attachments" :key="a.id" class="as-chip" :kind="a.kind" :title="a.title" :expires-at="a.expires_at" :provider="providerName" :source="a.course_title" :problem="a.error" />
                 </div>
                 {{ m.content }}
               </div>

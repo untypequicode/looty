@@ -95,10 +95,12 @@ export default {
     },
     picker: {
       search: 'Rechercher un élément à joindre…', hint: 'Tapez pour chercher dans tous vos espaces.', none: 'Aucun résultat.', all: 'Tout',
-      kind: { page: 'Page', study: 'Entraînement', task: 'Tâche', file: 'Fichier', board: 'Tableau', event: 'Événement', project: 'Projet' },
-      group: { page: 'Pages', study: 'Entraînements', task: 'Tâches', file: 'Fichiers', board: 'Tableaux', event: 'Événements', project: 'Projets' },
+      kind: { page: 'Page', study: 'Entraînement', task: 'Tâche', file: 'Fichier', board: 'Tableau', event: 'Événement', project: 'Projet', moodle: 'Moodle', moodle_course: 'Cours Moodle', moodle_file: 'Fichier Moodle' },
+      group: { page: 'Pages', study: 'Entraînements', task: 'Tâches', file: 'Fichiers', board: 'Tableaux', event: 'Événements', project: 'Projets', moodle_course: 'Cours Moodle', moodle_file: 'Fichiers Moodle' },
       recent: 'Récents', favorites: 'Favoris', results: 'Résultats', preview: 'Aperçu', noExcerpt: 'Aucun aperçu disponible.',
       count: { one: '1 résultat', other: '{count} résultats' }, navigate: 'naviguer', attachAction: 'joindre',
+      wholeCourse: 'Tout le cours (table des matières)', browse: 'Parcourir les fichiers de ce cours', courseHint: 'L’assistant reçoit la table des matières et lit les fichiers à la demande. → pour parcourir ses fichiers.', courseError: 'Ce cours ne peut pas être ouvert avec votre compte Moodle.',
+      fact: { course: 'Cours', section: 'Section', type: 'Type', size: 'Taille' },
     },
     files: {
       dropFiles: 'Déposez les fichiers pour les joindre', dropPage: 'Déposez pour joindre cet élément', attachFile: 'Joindre un fichier (PDF, Word, PowerPoint, texte, code)',
@@ -109,6 +111,14 @@ export default {
         file_no_text: 'Ce fichier ne contient pas de texte lisible (un document scanné, par exemple). La reconnaissance de texte n’est pas encore disponible.', file_unreadable: 'Ce fichier est illisible : il est peut-être abîmé ou protégé par un mot de passe.',
         drive_quota_exceeded: 'Votre Drive est plein.', too_many_uploads: 'Trop de fichiers d’un coup : attendez une minute et réessayez.', demo_unavailable: 'Indisponible dans la démo.', other: 'L’envoi a échoué. Réessayez.',
       },
+    },
+    send: {
+      label: 'Envoyer à l’IA', fileLabel: 'Envoyer « {name} » à l’IA', added: '« {title} » ajouté à votre message pour l’assistant.', already: '« {title} » est déjà dans votre message pour l’assistant.',
+      open: 'Ouvrir l’assistant', full: 'Un message porte au plus 10 éléments joints.',
+    },
+    moodle: {
+      notice: 'La table des matières des cours Moodle et le texte des fichiers Moodle que vous joignez sont envoyés à {provider}, le fournisseur choisi pour cette connexion. Ils sont lus avec votre propre compte Moodle et ne sont pas rangés dans votre Drive.',
+      unreadable: 'illisible', unreadableTip: '« {title} » n’a pas pu être lu (sans texte, trop gros ou format non pris en charge) : l’assistant vous le dira.',
     },
     composer: {
       placeholder: 'Posez une question…', attach: 'Joindre un élément', atHint: '@ pour joindre', workspace: 'Espace : {name}', workspaceHint: 'Où l’assistant crée ce que vous demandez', workspaceSearch: 'Chercher un espace…', detach: 'Retirer « {title} »',
