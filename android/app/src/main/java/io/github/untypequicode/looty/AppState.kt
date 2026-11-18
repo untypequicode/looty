@@ -134,10 +134,15 @@ class AppState(app: Application) : AndroidViewModel(app) {
             try { api.send(method, path, body); markOnline(); return false }
             catch (e: Exception) { if (!e.isOffline()) throw e; markOffline() }
         }
+        enqueue(method, path, body, label)
+        return true
+    }
+
+    /** Met l'écriture en file d'attente (rejouée dans l'ordre par l'application ou la tâche de fond). */
+    private fun enqueue(method: String, path: String, body: JsonElement?, label: String) {
         outbox.add(Pending(java.util.UUID.randomUUID().toString(), method, path, body?.toString(), label))
         pendingChanges = outbox.size()
         OutboxWorker.schedule(getApplication())
-        return true
     }
 
     /** Lecture avec copie locale : affiche la copie tout de suite, la remplace par la réponse du serveur. */
@@ -420,6 +425,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
                 }
             }
             persistTaskBoard()
+            // Entraînements (petits textes) : jouables hors ligne sans les avoir ouverts avant.
+            runCatching { prefetchStudy() }
             // Interface web complète (éditeur, Moodle…) puis documents : pas sur une connexion limitée.
             val cm = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
             if (cm.isActiveNetworkMetered) return@launch
@@ -1412,7 +1419,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
             runCatching { api.send("POST", "/api/auth/logout") }
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
             withContext(Dispatchers.IO) { cache.clear() }
-            prefs.edit().remove("assetVersion").apply()
+            prefs.edit().remove("assetVersion").also { e -> prefs.all.keys.filter { it.startsWith("studyRead-") }.forEach { e.remove(it) } }.apply()
             outbox.clear(); pendingChanges = 0; offline = false
             session = Session.NeedLogin
             onDone()
@@ -1476,5 +1483,122 @@ class AppState(app: Application) : AndroidViewModel(app) {
         runCatching { api.send("PUT", "/api/personal/$kind/$id", buildJsonObject { put("personal", personal) }) }.onFailure(::fail).isSuccess.also {
             if (it) { loadPages(); loadBoards(); loadTasks() }
         }
+
+    // -----------------------------------------------------------------------
+    // Entraînements : copie locale (liste, éléments, état des fiches, tentatives), évaluations et
+    // tentatives mises en file d'attente hors ligne. Le serveur fait foi dès qu'il répond.
+    // -----------------------------------------------------------------------
+
+    var studySets by mutableStateOf(Loadable<List<StudySummary>>()); private set
+
+    private inline fun <reified T> cached(key: String): T? =
+        runCatching { cache.get(key)?.let { api.json.decodeFromString<T>(it) } }.getOrNull()
+
+    private fun putCached(key: String, v: String) { viewModelScope.launch(Dispatchers.IO) { cache.put(key, v) } }
+
+    fun loadStudySets() {
+        studySets = studySets.copy(loading = true, error = null)
+        viewModelScope.launch {
+            if (studySets.data == null) withContext(Dispatchers.IO) { cached<List<StudySummary>>("study-sets") }?.let { studySets = Loadable(it, loading = true) }
+            try {
+                val v = api.get<List<StudySummary>>("/api/study/sets")
+                studySets = Loadable(v); markOnline()
+                withContext(Dispatchers.IO) { cache.put("study-sets", api.json.encodeToString(v)) }
+            } catch (e: Exception) {
+                val off = e.isOffline()
+                if (off) markOffline()
+                studySets = studySets.copy(loading = false, error = if (studySets.data != null && off) null else (e as? ApiException)?.code ?: "offline")
+            }
+        }
+    }
+
+    /** Éléments et état des fiches de chaque entraînement gardés sur l'appareil (jouables hors ligne). */
+    private suspend fun prefetchStudy() {
+        if (offline || session !is Session.Ready) return
+        val list = runCatching { api.get<List<StudySummary>>("/api/study/sets") }.getOrNull() ?: return
+        withContext(Dispatchers.IO) { cache.put("study-sets", api.json.encodeToString(list)) }
+        for (s in list.take(60)) {
+            runCatching { studySet(s.id) }
+            if (StudyKind.isCards(s.kind)) runCatching { studyCards(s.id) }
+        }
+    }
+
+    /** Entraînement complet : serveur d'abord, copie gardée hors ligne ; null si introuvable. */
+    suspend fun studySet(id: String): StudySet? =
+        runCatching { api.get<StudySet>("/api/study/sets/$id").also { markOnline(); putCached("study-set-$id", api.json.encodeToString(it)) } }
+            .onFailure { if (it.isOffline()) markOffline() }.getOrNull()
+            ?: withContext(Dispatchers.IO) { cached<StudySet>("study-set-$id") }
+
+    /** État de mes fiches. Évaluations en attente : la copie locale (déjà mise à jour) prime sur le serveur. */
+    suspend fun studyCards(setId: String): List<CardState> {
+        // Seules les évaluations en attente de CET entraînement priment sur le serveur.
+        val ids = withContext(Dispatchers.IO) { cached<StudySet>("study-set-$setId") }?.items.orEmpty().map { it.id }.toSet()
+        val pending = outbox.all().any { p -> p.path.startsWith("/api/study/items/") && p.path.removePrefix("/api/study/items/").substringBefore("/") in ids }
+        if (!pending) {
+            val remote = runCatching { api.get<List<CardState>>("/api/study/sets/$setId/cards") }.onFailure { if (it.isOffline()) markOffline() }.getOrNull()
+            if (remote != null) { markOnline(); putCached("study-cards-$setId", api.json.encodeToString(remote)); return remote }
+        }
+        return withContext(Dispatchers.IO) { cached<List<CardState>>("study-cards-$setId") }.orEmpty()
+    }
+
+    /** Évalue une fiche : l'état local est mis à jour tout de suite, l'évaluation part (ou attend le réseau) dans la file. */
+    suspend fun reviewCard(setId: String, itemId: String, rating: String, current: List<CardState>): List<CardState> {
+        val next = StudyLogic.review(current.firstOrNull { it.item_id == itemId }, itemId, rating) ?: return current
+        val updated = current.filter { it.item_id != itemId } + next
+        withContext(Dispatchers.IO) { cache.put("study-cards-$setId", api.json.encodeToString(updated)) }
+        runCatching { write("POST", "/api/study/items/$itemId/review", StudyLogic.reviewBody(rating), "review") }.onFailure(::fail)
+        return updated
+    }
+
+    /** Mes tentatives (copie gardée hors ligne ; celles en attente d'envoi restent en tête). */
+    suspend fun studyAttempts(setId: String): List<StudyAttempt> {
+        val waiting = outbox.all().any { it.path == "/api/study/sets/$setId/attempts" }
+        val local = withContext(Dispatchers.IO) { cached<List<StudyAttempt>>("study-attempts-$setId") }.orEmpty()
+        val remote = runCatching { api.get<List<StudyAttempt>>("/api/study/sets/$setId/attempts") }.onFailure { if (it.isOffline()) markOffline() }.getOrNull() ?: return local
+        markOnline()
+        val out = if (waiting) local.filter { it.pending } + remote else remote
+        putCached("study-attempts-$setId", api.json.encodeToString(out))
+        return out
+    }
+
+    /**
+     * Envoie une tentative et renvoie la correction du serveur. Hors ligne : la tentative part avec la file ;
+     * la correction est faite ici si les réponses attendues sont gardées sur l'appareil, sinon elle attend le serveur.
+     */
+    suspend fun submitStudyAttempt(set: StudySet, answers: Map<String, JsonElement>, startedAt: String): Result<AttemptResult> = runCatching {
+        val path = "/api/study/sets/${set.id}/attempts"
+        val body = StudyLogic.attemptBody(answers, startedAt)
+        if (outbox.size() > 0) drain()
+        if (outbox.size() == 0) {
+            try {
+                val r = api.post<AttemptResult>(path, body)
+                markOnline(); loadStudySets()
+                return@runCatching r
+            } catch (e: Exception) { if (!e.isOffline()) throw e; markOffline() }
+        }
+        val local = StudyLogic.correctLocally(set, answers)
+        // Réponses attendues connues et rien à noter : le serveur refuserait, inutile de laisser une tentative 0/0 en attente.
+        if (local == null && StudyLogic.canCorrectLocally(set)) throw ApiException(400, "study_nothing_to_score")
+        enqueue("POST", path, body, set.title)
+        val attempt = StudyAttempt("local-" + java.util.UUID.randomUUID(), startedAt, Instant.now().toString(), local?.first?.first ?: 0, local?.first?.second ?: 0, pending = true)
+        val all = listOf(attempt) + withContext(Dispatchers.IO) { cached<List<StudyAttempt>>("study-attempts-${set.id}") }.orEmpty()
+        putCached("study-attempts-${set.id}", api.json.encodeToString(all))
+        AttemptResult(attempt, local?.second.orEmpty())
+    }
+
+    /** Liens de l'entraînement vers les éléments de l'espace (lecture seule ici). */
+    suspend fun studyLinks(setId: String): List<StudyLink> =
+        runCatching { api.get<List<StudyLink>>("/api/study/sets/$setId/links").also { putCached("study-links-$setId", api.json.encodeToString(it)) } }
+            .onFailure { if (it.isOffline()) markOffline() }.getOrNull()
+            ?: withContext(Dispatchers.IO) { cached<List<StudyLink>>("study-links-$setId") }.orEmpty()
+
+    /** Sections lues d'une synthèse : repère personnel gardé sur l'appareil, rien n'est envoyé au serveur. */
+    fun studyRead(setId: String): Set<String> = prefs.getStringSet("studyRead-$setId", emptySet()).orEmpty()
+    fun toggleStudyRead(setId: String, itemId: String): Set<String> {
+        val cur = studyRead(setId).toMutableSet()
+        if (!cur.remove(itemId)) cur.add(itemId)
+        prefs.edit().putStringSet("studyRead-$setId", cur).apply()
+        return cur
+    }
 
 }

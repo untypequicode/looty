@@ -1025,4 +1025,53 @@
     <string name="ai_err_busy">The provider is busy, try again shortly.</string>
     <string name="ai_err_server">The provider had an error.</string>
     <string name="ai_err_unreachable">The provider is unreachable.</string>
+
+    <!-- Entraînements -->
+    <string name="study_title">Training</string>
+    <string name="study_empty">No training yet. Create one on the web or with the AI assistant.</string>
+    <string name="study_kind_qcm">MCQ</string>
+    <string name="study_kind_questionnaire">Questionnaire</string>
+    <string name="study_kind_flashcards">Flashcards</string>
+    <string name="study_kind_summary">Summary</string>
+    <plurals name="study_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <string name="study_last_score">Last score: %1$d/%2$d</string>
+    <string name="study_personal">Personal</string>
+    <string name="study_not_found">This training could not be found or is not available to you.</string>
+    <string name="study_privacy_note">Your results are visible to you only.</string>
+    <string name="study_tab_practice">Practice</string>
+    <string name="study_tab_history">History</string>
+    <string name="study_submit">Check answers</string>
+    <string name="study_restart">Start over</string>
+    <string name="study_your_answer">Your answer</string>
+    <string name="study_expected">Expected</string>
+    <string name="study_right">Correct</string>
+    <string name="study_wrong">Wrong</string>
+    <string name="study_unscored">Not scored</string>
+    <string name="study_score">Score: %1$d/%2$d</string>
+    <string name="study_saved_offline">Saved offline. The correction and score will be available once you are back online.</string>
+    <string name="study_flip">Flip</string>
+    <string name="study_front">Front</string>
+    <string name="study_back">Back</string>
+    <string name="study_again">Again</string>
+    <string name="study_hard">Hard</string>
+    <string name="study_good">Good</string>
+    <string name="study_easy">Easy</string>
+    <string name="study_due_cards">%d due</string>
+    <string name="study_none_due">Nothing to review right now.</string>
+    <string name="study_review_all">Review all</string>
+    <string name="study_toc">Contents</string>
+    <string name="study_progress">%1$d / %2$d sections read</string>
+    <string name="study_mark_read">Mark as read</string>
+    <string name="study_read">Read</string>
+    <string name="study_attempts">Attempts</string>
+    <string name="study_average">Average</string>
+    <string name="study_best">Best score</string>
+    <string name="study_no_attempts">No attempt yet.</string>
+    <string name="study_pending">Waiting to be sent</string>
+    <string name="study_links">Links</string>
+    <string name="study_no_items">This training has no items yet.</string>
+    <string name="err_study_nothing_to_score">This training has nothing to score.</string>
 </resources>

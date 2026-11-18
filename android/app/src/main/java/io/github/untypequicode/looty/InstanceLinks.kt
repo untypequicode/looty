@@ -15,7 +15,7 @@ object InstanceLinks {
     }
 
     /** Pages /w/<espace>/<page> qui ont un écran natif du même nom. */
-    private val SCREENS = setOf("docs", "inbox", "calendar", "announcements", "drive", "moodle", "activity", "trash", "graph", "projects", "mail")
+    private val SCREENS = setOf("docs", "inbox", "calendar", "announcements", "drive", "moodle", "activity", "trash", "graph", "projects", "mail", "study")
 
     /** Sections des réglages qui ont un écran natif. */
     private val SETTINGS = setOf("profile", "preferences", "security", "calendars", "workspace", "members")
@@ -56,6 +56,7 @@ object InstanceLinks {
             page == null -> "home"
             page == "my-tasks" -> "tasks"
             page == "projects" && id != null -> "project/$id"
+            page == "study" && id != null -> "study/$id"
             page == "settings" && id == null -> "settings"
             page == "settings" && id == "notifications" -> "notifications"
             page == "settings" && id in SETTINGS -> "settings/$id"

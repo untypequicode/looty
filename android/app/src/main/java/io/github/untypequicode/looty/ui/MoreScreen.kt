@@ -84,6 +84,7 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
         item { ListItem(headlineContent = { Text("Moodle") }, leadingContent = { Icon(Icons.Outlined.School, null) }, modifier = Modifier.clickable { opener.route("moodle") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.activity)) }, leadingContent = { Icon(Icons.Outlined.History, null) }, modifier = Modifier.clickable { opener.route("activity") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.ai_title)) }, leadingContent = { Icon(Icons.Outlined.AutoAwesome, null) }, modifier = Modifier.clickable { opener.route("ai") }) }
+        if (state.wsRole != "guest") item { ListItem(headlineContent = { Text(stringResource(R.string.study_title)) }, leadingContent = { Icon(Icons.Outlined.Checklist, null) }, modifier = Modifier.clickable { opener.route("study") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.graph)) }, leadingContent = { Icon(Icons.Outlined.Hub, null) }, modifier = Modifier.clickable { opener.route("graph") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.trash)) }, leadingContent = { Icon(Icons.Outlined.Delete, null) }, modifier = Modifier.clickable { opener.route("trash") }) }
         item { ListItem(headlineContent = { Text(stringResource(R.string.drive)) }, leadingContent = { Icon(Icons.Outlined.Cloud, null) }, modifier = Modifier.clickable { opener.route("drive") }) }

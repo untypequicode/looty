@@ -1027,4 +1027,53 @@
     <string name="ai_err_busy">Le fournisseur est surchargé, réessayez dans un instant.</string>
     <string name="ai_err_server">Le fournisseur a rencontré une erreur.</string>
     <string name="ai_err_unreachable">Le fournisseur est injoignable.</string>
+
+    <!-- Entraînements -->
+    <string name="study_title">Entraînements</string>
+    <string name="study_empty">Aucun entraînement. Créez-en un sur le web ou avec l’assistant IA.</string>
+    <string name="study_kind_qcm">QCM</string>
+    <string name="study_kind_questionnaire">Questionnaire</string>
+    <string name="study_kind_flashcards">Fiches</string>
+    <string name="study_kind_summary">Synthèse</string>
+    <plurals name="study_items">
+        <item quantity="one">%d élément</item>
+        <item quantity="other">%d éléments</item>
+    </plurals>
+    <string name="study_last_score">Dernier score : %1$d/%2$d</string>
+    <string name="study_personal">Personnel</string>
+    <string name="study_not_found">Cet entraînement est introuvable ou ne vous est pas accessible.</string>
+    <string name="study_privacy_note">Vos résultats ne sont visibles que de vous.</string>
+    <string name="study_tab_practice">Réviser</string>
+    <string name="study_tab_history">Historique</string>
+    <string name="study_submit">Corriger</string>
+    <string name="study_restart">Recommencer</string>
+    <string name="study_your_answer">Votre réponse</string>
+    <string name="study_expected">Attendu</string>
+    <string name="study_right">Juste</string>
+    <string name="study_wrong">Faux</string>
+    <string name="study_unscored">Non noté</string>
+    <string name="study_score">Score : %1$d/%2$d</string>
+    <string name="study_saved_offline">Enregistré hors ligne. La correction et le score seront disponibles au retour du réseau.</string>
+    <string name="study_flip">Retourner</string>
+    <string name="study_front">Recto</string>
+    <string name="study_back">Verso</string>
+    <string name="study_again">À revoir</string>
+    <string name="study_hard">Difficile</string>
+    <string name="study_good">Bien</string>
+    <string name="study_easy">Facile</string>
+    <string name="study_due_cards">%d à réviser</string>
+    <string name="study_none_due">Rien à réviser pour le moment.</string>
+    <string name="study_review_all">Tout réviser</string>
+    <string name="study_toc">Sommaire</string>
+    <string name="study_progress">%1$d / %2$d sections lues</string>
+    <string name="study_mark_read">Marquer comme lu</string>
+    <string name="study_read">Lu</string>
+    <string name="study_attempts">Tentatives</string>
+    <string name="study_average">Moyenne</string>
+    <string name="study_best">Meilleur score</string>
+    <string name="study_no_attempts">Aucune tentative pour l’instant.</string>
+    <string name="study_pending">En attente d’envoi</string>
+    <string name="study_links">Liens</string>
+    <string name="study_no_items">Cet entraînement ne contient encore aucun élément.</string>
+    <string name="err_study_nothing_to_score">Cet entraînement ne contient rien à noter.</string>
 </resources>

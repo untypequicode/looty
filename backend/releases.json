@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.29.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Practice and revise in the app, even offline",
+        "fr": "Entraînez-vous et révisez dans l’application, même hors ligne"
+      },
+      "notes": {
+        "en": [
+          "**Training**: open your multiple-choice quizzes, questionnaires, flashcards and summaries from More, with typeset formulas, correction and your attempt history.",
+          "**Flashcards**: review with spaced repetition. Your ratings are kept on the device and sent as soon as the network is back.",
+          "**Offline**: your training is kept on the device, so you can play it without a connection. Creating and editing still happens on the web or with the assistant."
+        ],
+        "fr": [
+          "**Entraînements** : ouvrez vos QCM, questionnaires, fiches et synthèses depuis Plus, avec les formules mises en forme, la correction et l’historique de vos tentatives.",
+          "**Fiches** : révisez avec la répétition espacée. Vos évaluations sont gardées sur l’appareil et envoyées dès le retour du réseau.",
+          "**Hors ligne** : vos entraînements sont gardés sur l’appareil et se jouent sans connexion. La création et la modification restent sur le web ou avec l’assistant."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.28.0",
       "date": "2026-11-18",
       "title": {
