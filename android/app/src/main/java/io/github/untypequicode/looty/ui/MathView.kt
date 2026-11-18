@@ -19,6 +19,13 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView as AWebView
+import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
+import java.io.ByteArrayInputStream
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
@@ -58,7 +65,7 @@ internal object MathHtml {
         "rgba(${AColor.red(argb)},${AColor.green(argb)},${AColor.blue(argb)},${AColor.alpha(argb) / 255f})"
 
 
-    fun page(latex: String, display: Boolean, color: String): String = """<!doctype html><html><head>
+    fun page(latex: String, display: Boolean, color: String, gen: Int = 0): String = """<!doctype html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="katex.min.css"><script src="katex.min.js"></script>
 <style>html,body{margin:0;padding:0;background:transparent;color:$color;overflow-y:hidden}
@@ -69,7 +76,7 @@ body{display:${if (display) "block" else "inline-block"};font-size:${if (display
 var el=document.getElementById('m');
 try{katex.render(${jsString(latex)},el,{displayMode:$display,throwOnError:false,output:'html',trust:false,strict:'ignore'})}
 catch(e){el.className='err';el.textContent=${jsString(latex)}}
-function rep(){var r=el.getBoundingClientRect();Looty.size(Math.ceil(r.width),Math.ceil(r.height)+4)}
+function rep(){var r=el.getBoundingClientRect();Looty.size($gen,Math.ceil(r.width),Math.ceil(r.height)+4)}
 (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){requestAnimationFrame(rep)});
 </script></body></html>"""
 }
@@ -88,6 +95,8 @@ internal fun measuredMathSize(latex: String): MathSize? = sizes.get(sizeKey(late
 
 private class Slot(val web: WebView) {
     var onSize: ((Int, Int) -> Unit)? = null
+    /** Identifie la page chargée : une mesure d'une formule précédente (slot réutilisé) est ignorée. */
+    var gen = 0
 }
 
 /** Petit réservoir de WebView réutilisées : en créer une coûte cher, une liste de formules en aurait des dizaines. */
@@ -102,17 +111,25 @@ private object MathPool {
         web.setBackgroundColor(AColor.TRANSPARENT)
         web.isVerticalScrollBarEnabled = false
         web.settings.javaScriptEnabled = true // KaTeX embarqué uniquement ; aucune URL distante n'est chargée.
-        web.settings.allowFileAccess = true // file:///android_asset
+        web.settings.allowFileAccess = false
         web.settings.allowContentAccess = false
         web.settings.blockNetworkLoads = true
+        val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(ctx.applicationContext)).build()
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: AWebView, request: WebResourceRequest): WebResourceResponse? {
+                if (request.url.scheme != "https" && request.url.scheme != "http") return null
+                return loader.shouldInterceptRequest(request.url) ?: WebResourceResponse("text/plain", "utf-8", 404, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+            }
+        }
         web.addJavascriptInterface(object {
-            @JavascriptInterface fun size(w: Int, h: Int) { web.post { slot.onSize?.invoke(w, h) } }
+            @JavascriptInterface fun size(g: Int, w: Int, h: Int) { web.post { if (g == slot.gen) slot.onSize?.invoke(w, h) } }
         }, "Looty")
         return slot
     }
 
     fun release(slot: Slot) {
         slot.onSize = null
+        slot.gen++
         (slot.web.parent as? ViewGroup)?.removeView(slot.web)
         slot.web.loadUrl("about:blank")
         if (free.size < 4) free.addLast(slot) else slot.web.destroy()
@@ -131,7 +148,7 @@ fun MathView(latex: String, display: Boolean, modifier: Modifier = Modifier, col
     val key = "${if (display) "d" else "i"}|${color.toArgb()}|$latex"
     var measured by remember(key) { mutableStateOf(sizes.get(sizeKey(latex, display))) }
     val css = remember(color) { MathHtml.cssColor(color.toArgb()) }
-    val dp = { px: Int -> with(density) { px.toDp() } }
+    val dp = { px: Int -> px.dp }
     val sized = measured?.let {
         if (display) modifier.fillMaxWidth().height(dp(it.h)) else modifier.size(dp(it.w), dp(it.h))
     } ?: if (display) modifier.fillMaxWidth().height(Dp(40f)) else modifier.size(Dp(24f), Dp(24f))
@@ -143,6 +160,7 @@ fun MathView(latex: String, display: Boolean, modifier: Modifier = Modifier, col
             holder.key = key
             holder.slot?.let { MathPool.release(it) }
             val slot = MathPool.obtain(ctx)
+            val gen = ++slot.gen
             holder.slot = slot
             slot.onSize = { w, h ->
                 val s = MathSize(w, h)
@@ -151,7 +169,7 @@ fun MathView(latex: String, display: Boolean, modifier: Modifier = Modifier, col
             }
             (slot.web.parent as? ViewGroup)?.removeView(slot.web)
             holder.addView(slot.web, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            slot.web.loadDataWithBaseURL("file:///android_asset/katex/", MathHtml.page(latex, display, css), "text/html", "utf-8", null)
+            slot.web.loadDataWithBaseURL("https://appassets.androidplatform.net/assets/katex/", MathHtml.page(latex, display, css, gen), "text/html", "utf-8", null)
         },
         onRelease = { holder -> holder.slot?.let { MathPool.release(it) }; holder.slot = null; holder.key = null },
     )
@@ -185,7 +203,7 @@ fun MathText(text: AnnotatedString, modifier: Modifier = Modifier, style: TextSt
     val formulas = text.getStringAnnotations(MATH_TAG, 0, text.length).map { it.item }.distinct()
     val content = if (formulas.isEmpty()) emptyMap() else formulas.associateWith { latex ->
         val m = measuredMathSize(latex)
-        val (w, h) = if (m == null) 24.sp to 24.sp else with(density) { m.w.toDp().toSp() to m.h.toDp().toSp() }
+        val (w, h) = if (m == null) 24.sp to 24.sp else with(density) { m.w.dp.toSp() to m.h.dp.toSp() }
         InlineTextContent(Placeholder(w, h, PlaceholderVerticalAlign.TextCenter)) { MathView(latex, display = false, color = color) }
     }
     Text(text, modifier = modifier, style = style, fontWeight = fontWeight, inlineContent = content)
