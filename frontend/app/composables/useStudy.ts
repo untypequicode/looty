@@ -123,8 +123,8 @@ export function useStudyActions() {
   }
   return {
     /** Remet une version ; renvoie la version qui annule cette restauration. */
-    async restore(setId: string, revisionId: string) {
-      const r = await api<{ set_id: string; undo_revision_id: string }>(`/api/ai/study-revisions/${revisionId}/restore`, { method: 'POST' })
+    async restore(setId: string, revisionId: string, undo = false) {
+      const r = await api<{ set_id: string; undo_revision_id: string }>(`/api/ai/study-revisions/${revisionId}/restore`, { method: 'POST', query: undo ? { undo: 1 } : undefined })
       await qc.invalidateQueries({ queryKey: studyKeys.set(setId) })
       await qc.invalidateQueries({ queryKey: ['study', 'revisions', setId] })
       await refreshList()

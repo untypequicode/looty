@@ -997,6 +997,32 @@ async fn search_workspace(
         .fetch_all(&pool)
         .await?;
         results.extend(files);
+
+        // Contenu des fichiers dont le texte a été extrait (mots entiers ou débuts de mot) : mêmes règles d'accès
+        // que ci-dessus (fichier non expiré, non privé à un autre) ; l'extrait est tiré du texte lui-même.
+        let words: Vec<String> = crate::classes::fold(q).split(|c: char| !(c.is_alphabetic() || c.is_ascii_digit())).filter(|w| !w.is_empty()).take(6).map(String::from).collect();
+        if !kw_only && !words.is_empty() {
+            let tsquery = words.iter().map(|w| format!("'{w}':*")).collect::<Vec<_>>().join(" & ");
+            let hits: Vec<SearchResult> = sqlx::query_as(
+                "SELECT f.id, f.name AS title, 'file' AS type, NULL::varchar AS icon,
+                        '… ' || substring(t.search_text from greatest(position($3 in t.search_text) - 50, 1) for 160) || ' …' AS snippet,
+                        NULL::uuid AS parent_id, NULL::timestamptz AS date, f.folder::text AS folder, NULL::text AS keyword
+                 FROM drive_file_text t JOIN drive_files f ON f.id = t.file_id
+                 WHERE f.workspace_id = $1 AND NOT f.is_dir AND t.search_tsv @@ to_tsquery('simple', $2)
+                   AND (f.expires_at IS NULL OR f.expires_at > NOW()) AND (f.private_to IS NULL OR f.private_to = $4)
+                   AND NOT (f.id = ANY($5))
+                 ORDER BY f.created_at DESC
+                 LIMIT 10",
+            )
+            .bind(workspace_id)
+            .bind(&tsquery)
+            .bind(&words[0])
+            .bind(user.id)
+            .bind(results.iter().map(|r| r.id).collect::<Vec<_>>())
+            .fetch_all(&pool)
+            .await?;
+            results.extend(hits);
+        }
     }
     fill_paths(&pool, workspace_id, &visible, &mut results).await?;
     Ok(Json(serde_json::json!({ "results": results })))
@@ -1167,6 +1193,47 @@ mod tests {
         let mut results = vec![hit(ids[2], "page", Some(ids[1]))];
         fill_paths(&pool, ws, &visible, &mut results).await.unwrap();
         assert!(results[0].path.is_empty());
+    }
+
+    #[sqlx::test]
+    async fn search_finds_words_inside_extracted_file_text_within_drive_access(pool: PgPool) {
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        let mut users = vec![];
+        for name in ["a", "b"] {
+            let id: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id").bind(format!("{name}@example.org")).bind(name).fetch_one(&pool).await.unwrap();
+            sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')").bind(ws).bind(id.to_string()).execute(&pool).await.unwrap();
+            users.push(AuthUser { id, is_super_admin: false });
+        }
+        for (name, private, text) in [("cours.pdf", None, "Le théorème de Pythagore"), ("secret.pdf", Some(users[0].id), "pythagore en cachette")] {
+            let id: Uuid = sqlx::query_scalar("INSERT INTO drive_files (workspace_id, folder, name, mime, size, uploaded_by, private_to) VALUES ($1, '', $2, 'application/pdf', 10, $3, $4) RETURNING id")
+                .bind(ws)
+                .bind(name)
+                .bind(users[0].id)
+                .bind(private)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, '[]', 10, $3, looty_safe_tsv($3))").bind(id).bind(serde_json::json!([text])).bind(crate::classes::fold(text)).execute(&pool).await.unwrap();
+        }
+        let find = |user: &AuthUser, q: &str| {
+            let (pool, user, q) = (pool.clone(), AuthUser { id: user.id, is_super_admin: false }, q.to_string());
+            async move {
+                let Json(v) = search_workspace(State(pool), user, Path(ws), Query(SearchQuery { q: Some(q) })).await.unwrap();
+                v["results"].as_array().unwrap().clone()
+            }
+        };
+        let mine = find(&users[0], "pythagor").await;
+        assert_eq!(mine.len(), 2);
+        let theirs = find(&users[1], "THEOREME pyth").await;
+        assert_eq!(theirs.len(), 1, "{theirs:?}");
+        assert_eq!(theirs[0]["title"], "cours.pdf");
+        assert!(theirs[0]["snippet"].as_str().unwrap().contains("pythagore"));
+        assert_eq!(find(&users[1], "cachette").await.len(), 0);
+        // Jetons étranges : jamais une erreur ; sans mot exploitable la branche contenu est sautée.
+        for q in ["½", "²", "&", "|", "!", "'", "\"", "½ pyth & | ! '", "pyth:*", "(pyth)", "a<->b", "\\"] {
+            let _ = find(&users[0], q).await;
+        }
+        assert_eq!(find(&users[0], "½ pythagor ! &").await.len(), 2);
     }
 
     #[test]

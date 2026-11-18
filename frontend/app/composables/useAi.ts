@@ -117,6 +117,6 @@ export const aiApi = {
   connections: () => api<AiConnection[]>('/api/ai/connections'),
   ackFilesNotice: (id: string) => api(`/api/ai/connections/${id}/files-notice`, { method: 'POST', silent: true }),
   conversations: (q?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { q: q || undefined }, silent: true }),
-  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; ended_grants?: EndedGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
+  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; ended_grants?: EndedGrant[]; suggestions: AiSuggestion[]; restored_revisions?: string[]; default_workspace_id?: string | null }>(`/api/ai/conversations/${id}`),
 }
 

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { Send, Square, Plus, ChevronDown, Paperclip, Info } from 'lucide-vue-next'
+import { Send, Square, Plus, ChevronDown, Paperclip, Info, FolderOpen } from 'lucide-vue-next'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useI18n } from '~/composables/useI18n'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { aiApi, type AiAttachment, type AiConnection } from '~/composables/useAi'
 import { useChatUploads } from '~/composables/useChatFiles'
+import { useWorkspaces } from '~/composables/useWorkspace'
+import type { ComboItem } from '~/components/ui/Combobox.vue'
 import { AI_PROVIDER_CATALOG } from '~/utils/aiProviders'
 import { pastedFiles, pageAttachment, type DraggedPage, type DropIntent } from '~/utils/chatFiles'
 
@@ -16,6 +18,8 @@ const props = defineProps<{ busy: boolean; connections: AiConnection[]; disabled
 const draft = defineModel<string>('draft', { default: '' })
 const attachments = defineModel<AiAttachment[]>('attachments', { default: () => [] })
 const connectionId = defineModel<string>('connectionId', { default: '' })
+/** Espace où l'IA crée ce qu'on lui demande (entraînements, pages) : visible et modifiable. */
+const workspaceId = defineModel<string>('workspaceId', { default: '' })
 const emit = defineEmits<{ send: []; stop: [] }>()
 const { t } = useI18n()
 const qc = useQueryClient()
@@ -68,6 +72,11 @@ function onKey(e: KeyboardEvent) {
 }
 const canSend = computed(() => !!draft.value.trim() && !props.busy && !props.disabled && !uploads.value.length)
 
+const { data: workspaces } = useWorkspaces()
+const wsOpen = ref(false)
+const wsItems = computed<ComboItem<string>[]>(() => (workspaces.value ?? []).map((w) => ({ value: w.id, label: w.personal ? t('ai.chat.personal') : w.name })))
+const wsLabel = computed(() => wsItems.value.find((i) => i.value === workspaceId.value)?.label ?? '')
+
 const connOpen = ref(false)
 const current = computed(() => props.connections.find((c) => c.id === connectionId.value))
 const connItems = computed<MenuItem[]>(() => props.connections.map((c) => ({ label: `${c.label} · ${c.model}`, checked: c.id === connectionId.value, onSelect: () => { connectionId.value = c.id } })))
@@ -88,6 +97,13 @@ async function ackNotice() {
 
 <template>
   <form class="cp" :class="{ 'cp-drop': dropping && dropping !== 'none' }" @submit.prevent="canSend && emit('send')">
+    <div v-if="wsItems.length > 1 && wsLabel" class="cp-ws">
+      <UiCombobox v-model:open="wsOpen" :model-value="workspaceId" :items="wsItems" :width="260" :placeholder="t('ai.composer.workspaceSearch')" @update:model-value="(v) => { workspaceId = v as string }">
+        <UiTooltip :text="t('ai.composer.workspaceHint')" placement="top">
+          <UiButton variant="ghost" size="xs" :icon="FolderOpen" :icon-right="ChevronDown" :aria-label="t('ai.composer.workspaceHint')">{{ t('ai.composer.workspace', { name: wsLabel }) }}</UiButton>
+        </UiTooltip>
+      </UiCombobox>
+    </div>
     <div v-if="attachments.length || uploads.length" class="cp-chips">
       <AiChip v-for="u in uploads" :key="u.key" kind="file" :title="u.name" :progress="u.progress" />
       <AiChip v-for="a in attachments" :key="`${a.kind}:${a.id}`" :kind="a.kind" :title="a.title" :expires-at="a.expiresAt" :provider="providerName" removable @remove="remove(a)" />
@@ -124,6 +140,7 @@ async function ackNotice() {
 .cp-drop { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-soft); }
 .cp :deep(.input) { border: 0; background: transparent; padding: 0; box-shadow: none; }
 .cp :deep(textarea) { resize: none; }
+.cp-ws { display: flex; margin: -4px 0 0 -6px; }
 .cp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cp-notice { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); background: var(--accent-soft); font-size: var(--fs-xs); color: var(--text-2); }
 .cp-notice span { flex: 1; line-height: 1.4; }

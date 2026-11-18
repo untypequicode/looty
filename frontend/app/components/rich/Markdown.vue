@@ -5,12 +5,14 @@ import { enhanceRich } from '~/editor/richMarkdown'
 import { diagramStyleSettings, resolveStyle } from '~/editor/diagramStyles'
 import { useTheme } from '~/composables/useTheme'
 import { useI18n } from '~/composables/useI18n'
+import { toast } from '~/composables/useToast'
 
 /**
  * Markdown riche en lecture : formules LaTeX, diagrammes Mermaid, graphes `looty-graph`,
  * encadrés `:::info`, tâches, tableaux, code coloré. `inline` : sans bloc englobant (choix de
  * réponse) ; `auto` : en ligne tant que le texte tient sur une ligne (énoncé court).
  */
+defineOptions({ inheritAttrs: false })
 const props = withDefaults(defineProps<{ src: string; mode?: 'block' | 'inline' | 'auto' }>(), { mode: 'block' })
 const { t } = useI18n()
 const { mode: theme } = useTheme()
@@ -24,17 +26,38 @@ const isDark = () => document.documentElement.classList.contains('dark') || !doc
 
 function run() {
   if (!root.value) return
-  enhanceRich(root.value, { dark: isDark(), style: resolveStyle(null, diagramStyleSettings.value), errorLabel: t('rich.diagramError') })
+  enhanceRich(root.value, { dark: isDark(), style: resolveStyle(null, diagramStyleSettings.value), errorLabel: t('rich.diagramError'), tooLargeLabel: t('rich.graphTooLarge') })
 }
 onMounted(run)
 watch(html, () => nextTick(run), { flush: 'post' })
 watch([theme, diagramStyleSettings], () => { epoch.value++; nextTick(run) })
+
+// Un graphe est une image : un clic (ou Entrée) l'agrandit dans une fenêtre, avec sa source à copier.
+const zoom = ref<{ src: string; source: string } | null>(null)
+const zoomOpen = computed({ get: () => !!zoom.value, set: (v) => { if (!v) zoom.value = null } })
+function onZoom(e: Event) {
+  const img = (e.target as HTMLElement | null)?.closest?.('img.rich-zoom') as HTMLImageElement | null
+  if (!img) return
+  if (e instanceof KeyboardEvent && e.key !== 'Enter' && e.key !== ' ') return
+  e.preventDefault()
+  zoom.value = { src: img.src, source: (img.closest('.rich-render') as HTMLElement | null)?.dataset.graphSource ?? '' }
+}
+async function copySource() {
+  try { await navigator.clipboard.writeText(zoom.value?.source ?? ''); toast.success(t('rich.sourceCopied')) } catch { /* presse-papiers refusé */ }
+}
 </script>
 
 <template>
   <!-- eslint-disable vue/no-v-html : Markdown nettoyé par DOMPurify -->
-  <span v-if="inline" :key="epoch" ref="root" class="rich rich-inline" v-html="html" />
-  <div v-else :key="epoch" ref="root" class="rich" v-html="html" />
+  <span v-if="inline" v-bind="$attrs" :key="epoch" ref="root" class="rich rich-inline" @click="onZoom" @keydown="onZoom" v-html="html" />
+  <div v-else v-bind="$attrs" :key="epoch" ref="root" class="rich" @click="onZoom" @keydown="onZoom" v-html="html" />
+  <UiDialog v-model:open="zoomOpen" :title="t('rich.graphTitle')" :width="960">
+    <div v-if="zoom" class="rich-zoomed"><img :src="zoom.src" :alt="t('rich.graphTitle')"></div>
+    <template #footer>
+      <UiButton variant="ghost" @click="copySource">{{ t('rich.copySource') }}</UiButton>
+      <UiButton variant="primary" @click="zoomOpen = false">{{ t('common.close') }}</UiButton>
+    </template>
+  </UiDialog>
 </template>
 
 <style scoped>
@@ -67,5 +90,8 @@ watch([theme, diagramStyleSettings], () => { epoch.value++; nextTick(run) })
 .rich :deep(.rich-render) { display: flex; justify-content: center; overflow-x: auto; padding: 10px; border-radius: var(--r-md); }
 .rich :deep(.rich-render svg) { max-width: 100%; height: auto; }
 .rich :deep(.rich-render img) { max-width: 100%; max-height: 420px; }
+.rich :deep(img.rich-zoom) { cursor: zoom-in; }
 .rich :deep(.rich-err) { display: block; margin-top: 4px; color: var(--red); font-size: var(--fs-xs); }
+.rich-zoomed { display: flex; justify-content: center; overflow: auto; max-height: 70vh; }
+.rich-zoomed img { max-width: 100%; height: auto; }
 </style>

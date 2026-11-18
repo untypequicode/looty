@@ -61,12 +61,18 @@ impl From<Extracted> for FileText {
     }
 }
 
+/// Texte plié (sans casse ni accents) et plafonné, gardé pour la recherche dans le Drive.
+fn search_text(t: &FileText) -> String {
+    crate::classes::fold(&t.pages.join(" ").chars().take(150_000).collect::<String>())
+}
+
 async fn store_text(pool: &PgPool, file_id: Uuid, t: &FileText) -> ApiResult<()> {
-    sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars) VALUES ($1, $2, $3, $4) ON CONFLICT (file_id) DO NOTHING")
+    sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, $3, $4, $5, COALESCE(looty_safe_tsv($5), ''::tsvector)) ON CONFLICT (file_id) DO NOTHING")
         .bind(file_id)
         .bind(json!(t.pages))
         .bind(json!(t.outline))
         .bind(t.chars as i32)
+        .bind(search_text(t))
         .execute(pool)
         .await?;
     Ok(())
@@ -161,6 +167,13 @@ pub async fn save_file(pool: &PgPool, user: &AuthUser, name: &str, bytes: &[u8],
         let mime = mime_guess::from_path(&final_name).first_or_octet_stream().essence_str().to_string();
         let text: FileText = extracted.into();
         let mut tx = pool.begin().await?;
+        // Quota vérifié et insertion dans la même transaction, sous un verrou par espace : sans lui, deux
+        // dépôts simultanés passent tous deux le contrôle et dépassent le quota.
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('drive-quota:' || $1::text, 0))").bind(ws).execute(&mut *tx).await?;
+        let used: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(size), 0)::bigint FROM drive_files WHERE workspace_id = $1 AND NOT is_dir").bind(ws).fetch_one(&mut *tx).await?;
+        if used + bytes.len() as i64 > quota {
+            return Err(ApiError::bad_request("drive_quota_exceeded"));
+        }
         let id: Uuid = sqlx::query_scalar(
             "INSERT INTO drive_files (workspace_id, folder, name, blob_path, mime, size, uploaded_by, expires_at, private_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7) RETURNING id",
         )
@@ -174,7 +187,14 @@ pub async fn save_file(pool: &PgPool, user: &AuthUser, name: &str, bytes: &[u8],
         .bind(expires)
         .fetch_one(&mut *tx)
         .await?;
-        sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars) VALUES ($1, $2, $3, $4)").bind(id).bind(json!(text.pages)).bind(json!(text.outline)).bind(text.chars as i32).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, $3, $4, $5, COALESCE(looty_safe_tsv($5), ''::tsvector))")
+            .bind(id)
+            .bind(json!(text.pages))
+            .bind(json!(text.outline))
+            .bind(text.chars as i32)
+            .bind(search_text(&text))
+            .execute(&mut *tx)
+            .await?;
         tx.commit().await?;
         Ok::<_, ApiError>((id, ws, final_name, expires, text))
     }
@@ -656,7 +676,14 @@ mod tests {
         .await
         .unwrap();
         let chars: usize = pages.iter().map(|p| p.chars().count()).sum();
-        sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars) VALUES ($1, $2, '[{\"title\":\"Intro\",\"page\":1}]', $3)").bind(id).bind(json!(pages)).bind(chars as i32).execute(pool).await.unwrap();
+        sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text) VALUES ($1, $2, '[{\"title\":\"Intro\",\"page\":1}]', $3, $4)")
+            .bind(id)
+            .bind(json!(pages))
+            .bind(chars as i32)
+            .bind(crate::classes::fold(&pages.join(" ")))
+            .execute(pool)
+            .await
+            .unwrap();
         id
     }
 
@@ -854,6 +881,27 @@ mod tests {
         assert!(!allow(&mut log, a, t0, 3));
         assert!(allow(&mut log, b, t0, 3), "une autre personne n'est pas touchée");
         assert!(allow(&mut log, a, t0 + std::time::Duration::from_secs(61), 3), "la fenêtre glisse");
+    }
+
+    #[sqlx::test]
+    async fn concurrent_saves_cannot_both_slip_under_the_quota(pool: PgPool) {
+        let user = user(&pool, "dave").await;
+        let ws = personal_ws(&pool, &user).await;
+        sqlx::query("UPDATE workspaces SET drive_quota_mb = 1 WHERE id = $1").bind(ws).execute(&pool).await.unwrap();
+        let big = vec![b'x'; 600 * 1024];
+        let go = |n: &str| {
+            let (pool, user, big) = (pool.clone(), AuthUser { id: user.id, is_super_admin: false }, big.clone());
+            let name = format!("{n}.txt");
+            async move {
+                let extracted = extract::extract(&name, "text/plain", b"du texte").unwrap();
+                save_file(&pool, &user, &name, &big, extracted).await
+            }
+        };
+        let (a, b) = tokio::join!(go("a"), go("b"));
+        assert_eq!([a.is_ok(), b.is_ok()].iter().filter(|ok| **ok).count(), 1, "{:?} {:?}", a.as_ref().err(), b.as_ref().err());
+        let used = drive::used_bytes(&pool, ws).await.unwrap();
+        assert!(used <= 1024 * 1024);
+        let _ = tokio::fs::remove_dir_all(PathBuf::from(crate::upload::UPLOAD_DIR).join(format!("drive/{ws}"))).await;
     }
 
     #[sqlx::test]

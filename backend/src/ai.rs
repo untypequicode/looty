@@ -455,10 +455,22 @@ struct ConvPatch {
     connection_id: Option<Uuid>,
     /// Renommer : le titre devient définitif (plus de titre automatique).
     title: Option<String>,
+    /// Espace cible des créations de l'IA (la personne doit en être membre).
+    default_workspace_id: Option<Uuid>,
+}
+
+async fn default_workspace(pool: &PgPool, conv_id: Uuid) -> ApiResult<Option<Uuid>> {
+    Ok(sqlx::query_scalar::<_, Option<Uuid>>("SELECT default_workspace_id FROM ai_conversations WHERE id = $1").bind(conv_id).fetch_optional(pool).await?.flatten())
 }
 
 async fn update_conversation(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(p): Json<ConvPatch>) -> ApiResult<StatusCode> {
     own_conversation(&state.pool, &user, id).await?;
+    if let Some(ws) = p.default_workspace_id {
+        if !crate::access::is_member(&state.pool, ws, &user.id.to_string()).await? {
+            return Err(ApiError::Forbidden);
+        }
+        sqlx::query("UPDATE ai_conversations SET default_workspace_id = $2 WHERE id = $1").bind(id).bind(ws).execute(&state.pool).await?;
+    }
     if let Some(c) = p.connection_id {
         own_connection(&state.pool, &user, c).await?;
         sqlx::query("UPDATE ai_conversations SET connection_id = $2 WHERE id = $1").bind(id).bind(c).execute(&state.pool).await?;
@@ -546,6 +558,8 @@ async fn get_conversation(State(state): State<AppState>, user: AuthUser, Path(id
         "study_grants": active_study_grants(&state.pool, id).await?,
         "ended_grants": ended_grants(&state.pool, id).await?,
         "suggestions": pending_suggestions(&state.pool, id).await?,
+        "restored_revisions": restored_revisions(&state.pool, &user, id).await?,
+        "default_workspace_id": default_workspace(&state.pool, id).await?,
     })))
 }
 
@@ -689,15 +703,44 @@ async fn revoke_study_grant(State(state): State<AppState>, user: AuthUser, Path(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Deserialize)]
+struct RestoreQuery {
+    /// Annulation d'une annulation : ne compte pas comme « modification annulée » dans la conversation.
+    #[serde(default)]
+    undo: bool,
+}
+
+/// Garde que cette version a été rétablie, pour que le fil de conversation l'affiche après un rechargement.
+async fn mark_restored(pool: &PgPool, user: &AuthUser, rev: Uuid, undo: bool) -> ApiResult<()> {
+    if !undo {
+        sqlx::query("INSERT INTO ai_restored_revisions (revision_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(rev).bind(user.id).execute(pool).await?;
+    }
+    Ok(())
+}
+
+/// Versions de cette conversation déjà rétablies par la personne.
+async fn restored_revisions(pool: &PgPool, user: &AuthUser, conv_id: Uuid) -> ApiResult<Vec<Uuid>> {
+    Ok(sqlx::query_scalar(
+        "SELECT r.revision_id FROM ai_restored_revisions r WHERE r.user_id = $1 AND EXISTS (
+            SELECT 1 FROM ai_messages m WHERE m.conversation_id = $2 AND r.revision_id::text IN (m.data->>'study_revision_id', m.data->>'page_revision_id'))",
+    )
+    .bind(user.id)
+    .bind(conv_id)
+    .fetch_all(pool)
+    .await?)
+}
+
 /// Annule une modification de jeu faite par l'IA (la version d'avant revient).
-async fn restore_study_revision(State(state): State<AppState>, user: AuthUser, Path(rev): Path<Uuid>) -> ApiResult<Json<Value>> {
+async fn restore_study_revision(State(state): State<AppState>, user: AuthUser, Path(rev): Path<Uuid>, Query(q): Query<RestoreQuery>) -> ApiResult<Json<Value>> {
     let (set_id, undo) = ai_tools::restore_study_revision(&state.pool, &user, rev).await?;
+    mark_restored(&state.pool, &user, rev, q.undo).await?;
     Ok(Json(json!({ "set_id": set_id, "undo_revision_id": undo })))
 }
 
 /// Annule une écriture directe de l'IA sur une page (la version d'avant revient).
-async fn restore_page_revision(State(state): State<AppState>, user: AuthUser, Path(rev): Path<Uuid>) -> ApiResult<Json<Value>> {
+async fn restore_page_revision(State(state): State<AppState>, user: AuthUser, Path(rev): Path<Uuid>, Query(q): Query<RestoreQuery>) -> ApiResult<Json<Value>> {
     let (page_id, undo) = ai_tools::restore_page_revision(&state.pool, &user, rev).await?;
+    mark_restored(&state.pool, &user, rev, q.undo).await?;
     Ok(Json(json!({ "page_id": page_id, "undo_revision_id": undo })))
 }
 
@@ -954,7 +997,9 @@ async fn send_message(State(state): State<AppState>, user: AuthUser, Path(id): P
     if let Some(ws) = p.workspace_id {
         // Ignoré sans erreur si la personne n'en est pas membre : jamais une cible qu'elle ne pourrait pas écrire.
         if crate::access::is_member(&state.pool, ws, &user.id.to_string()).await? {
-            sqlx::query("UPDATE ai_conversations SET default_workspace_id = $2 WHERE id = $1").bind(id).bind(ws).execute(&state.pool).await?;
+            // L'espace d'origine est gardé : un message envoyé depuis un autre espace ne change pas la cible
+            // des créations (seul le sélecteur de l'Assistant le fait), sauf si la conversation n'en a pas encore.
+            sqlx::query("UPDATE ai_conversations SET default_workspace_id = COALESCE(default_workspace_id, $2) WHERE id = $1").bind(id).bind(ws).execute(&state.pool).await?;
         }
     }
 
@@ -1123,6 +1168,20 @@ mod tests {
         assert!(keys.contains(&"c:personal") && keys.contains(&format!("c:{ws}").as_str()));
     }
 
+    #[sqlx::test]
+    async fn restored_versions_are_remembered_with_the_conversation(pool: PgPool) {
+        let (user, conv) = setup(&pool).await;
+        let (rev, other) = (Uuid::new_v4(), Uuid::new_v4());
+        store(&pool, conv, "tool", "ok", Some(json!({ "page_revision_id": rev }))).await.unwrap();
+        assert!(restored_revisions(&pool, &user, conv).await.unwrap().is_empty());
+        mark_restored(&pool, &user, other, false).await.unwrap();
+        mark_restored(&pool, &user, rev, true).await.unwrap();
+        assert!(restored_revisions(&pool, &user, conv).await.unwrap().is_empty(), "an undo of an undo is not a restore");
+        mark_restored(&pool, &user, rev, false).await.unwrap();
+        mark_restored(&pool, &user, rev, false).await.unwrap();
+        assert_eq!(restored_revisions(&pool, &user, conv).await.unwrap(), vec![rev]);
+    }
+
     #[test]
     fn connection_json_has_no_key_field() {
         let row = ConnRow { id: Uuid::nil(), provider: "openai".into(), label: "l".into(), model: "m".into(), base_url: None, api_key_enc: Some(crate::crypto::encrypt("sk-secretsecretsecret")), created_at: Utc::now(), files_notice_seen: false };
@@ -1144,7 +1203,7 @@ mod tests {
             let n = self.round.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             self.seen.lock().unwrap().push(req.messages.to_vec());
             let ev = if n < self.rounds_with_calls {
-                let name = if n % 2 == 0 { "list_study_sets" } else { "list_pages" };
+                let name = if n.is_multiple_of(2) { "list_study_sets" } else { "list_pages" };
                 StreamEvent::Call(ToolCall { id: format!("c{n}"), name: name.into(), args: json!({}), signature: Some(format!("sig{n}")) })
             } else {
                 StreamEvent::Text("done".into())
@@ -1167,9 +1226,11 @@ mod tests {
         let (tx, _rx) = mpsc::channel::<Event>(256);
         run_agent(&pool, &user, conv, &p, "sys", &[], &tx).await.unwrap();
         assert_eq!(p.round.load(std::sync::atomic::Ordering::SeqCst), 4);
-        let seen = p.seen.lock().unwrap();
-        // Au dernier tour, l'historique rejoue les trois appels avec leur signature.
-        let sigs: Vec<_> = seen[3].iter().filter_map(|m| if let Msg::Assistant { calls, .. } = m { calls.first().and_then(|c| c.signature.clone()) } else { None }).collect();
+        // Au dernier tour, l'historique rejoue les trois appels avec leur signature (verrou relâché avant tout await).
+        let sigs: Vec<_> = {
+            let seen = p.seen.lock().unwrap();
+            seen[3].iter().filter_map(|m| if let Msg::Assistant { calls, .. } = m { calls.first().and_then(|c| c.signature.clone()) } else { None }).collect()
+        };
         assert_eq!(sigs, vec!["sig0", "sig1", "sig2"]);
         let tools: i64 = sqlx::query_scalar("SELECT count(*) FROM ai_messages WHERE conversation_id = $1 AND role = 'tool'").bind(conv).fetch_one(&pool).await.unwrap();
         assert_eq!(tools, 3);

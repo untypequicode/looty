@@ -1,6 +1,5 @@
-import DOMPurify from 'dompurify'
 import { renderMermaid } from './mermaid'
-import { stripCssUrls } from './svgCss'
+import { sanitizeSvg } from './sanitizeSvg'
 import { renderGraphImage, MAX_GRAPH_SOURCE } from './graphCore'
 import type { DiagramStyle } from './diagramStyles'
 
@@ -16,6 +15,8 @@ export interface EnhanceOptions {
   style: DiagramStyle
   /** Texte de la note quand un diagramme ne se dessine pas. */
   errorLabel: string
+  /** Note quand la source d'un graphe dépasse la limite (elle reste affichée). */
+  tooLargeLabel?: string
 }
 
 type Done = { kind: 'svg'; svg: string } | { kind: 'img'; src: string } | { kind: 'error'; message: string }
@@ -24,24 +25,6 @@ const MAX = 200
 function remember(key: string, v: Done) {
   if (done.size >= MAX) done.delete(done.keys().next().value!)
   done.set(key, v)
-}
-
-/** SVG de Mermaid (mode strict) nettoyé une seconde fois : ni script, ni objet ou cadre incorporé. */
-export function sanitizeSvg(svg: string): string {
-  const frag = DOMPurify.sanitize(svg, {
-    USE_PROFILES: { svg: true, svgFilters: true, html: true },
-    ADD_TAGS: ['foreignobject'],
-    ADD_ATTR: ['dominant-baseline'],
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'a'],
-    FORBID_ATTR: ['onload', 'onclick', 'onerror'],
-    RETURN_DOM_FRAGMENT: true,
-  }) as DocumentFragment
-  // Le CSS ne charge rien d'extérieur : ni `@import`, ni `url(http…)` (balises <style> et attributs style).
-  frag.querySelectorAll('style').forEach((s) => { s.textContent = stripCssUrls(s.textContent ?? '') })
-  frag.querySelectorAll('[style]').forEach((el) => el.setAttribute('style', stripCssUrls(el.getAttribute('style') ?? '')))
-  const box = document.createElement('div')
-  box.append(frag)
-  return box.innerHTML
 }
 
 function showError(box: HTMLElement, message: string, label: string) {
@@ -65,6 +48,11 @@ function show(box: HTMLElement, d: Done, o: EnhanceOptions) {
     img.src = d.src
     img.alt = ''
     out.append(img)
+    // Image agrandissable au clic (voir Markdown.vue) ; la source sert à « copier la source ».
+    out.dataset.graphSource = box.querySelector('code')?.textContent ?? ''
+    img.tabIndex = 0
+    img.setAttribute('role', 'button')
+    img.classList.add('rich-zoom')
   }
   box.replaceChildren(out)
 }
@@ -76,7 +64,7 @@ function diagram(box: HTMLElement, o: EnhanceOptions) {
   const key = `${kind}|${o.dark ? 'd' : 'l'}|${o.style.id}|${source}`
   const hit = done.get(key)
   if (hit) return show(box, hit, o)
-  if (source.length > MAX_GRAPH_SOURCE) return showError(box, '', o.errorLabel)
+  if (source.length > MAX_GRAPH_SOURCE) return showError(box, '', kind === 'graph' && o.tooLargeLabel ? o.tooLargeLabel : o.errorLabel)
   const job: Promise<Done> = kind === 'mermaid'
     ? renderMermaid(`rich-${Math.random().toString(36).slice(2)}`, source, o.dark, o.style).then((r) => ({ kind: 'svg' as const, svg: sanitizeSvg(r.svg) }))
     : renderGraphImage(source, o.dark, o.style).then((src) => ({ kind: 'img' as const, src }))
