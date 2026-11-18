@@ -105,7 +105,7 @@ pub async fn text_of(pool: &PgPool, f: &FileRef) -> ApiResult<FileText> {
 /// Durée maximale d'une extraction (le travail est fait hors du runtime ; au-delà, le fichier est refusé).
 const EXTRACT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
-async fn run_extract(name: String, mime: String, bytes: Arc<Vec<u8>>) -> ApiResult<Extracted> {
+pub(crate) async fn run_extract(name: String, mime: String, bytes: Arc<Vec<u8>>) -> ApiResult<Extracted> {
     let work = tokio::task::spawn_blocking(move || extract::extract(&name, &mime, &bytes));
     match tokio::time::timeout(EXTRACT_TIMEOUT, work).await {
         Err(_) => Err(ApiError::bad_request("file_unreadable")),
@@ -218,7 +218,7 @@ fn upload_allowed(user: Uuid, now: Instant) -> bool {
     allow(&mut upload_log().lock().unwrap_or_else(|e| e.into_inner()), user, now, UPLOADS_PER_MINUTE)
 }
 
-fn allow(log: &mut HashMap<Uuid, VecDeque<Instant>>, user: Uuid, now: Instant, max: usize) -> bool {
+pub(crate) fn allow(log: &mut HashMap<Uuid, VecDeque<Instant>>, user: Uuid, now: Instant, max: usize) -> bool {
     let q = log.entry(user).or_default();
     while q.front().is_some_and(|t| now.duration_since(*t) >= std::time::Duration::from_secs(60)) {
         q.pop_front();
@@ -291,7 +291,7 @@ pub async fn ack_notice(State(state): State<AppState>, user: AuthUser, Path(id):
 // Résumé donné au modèle avec le message
 // ---------------------------------------------------------------------------
 
-fn human_size(n: i64) -> String {
+pub(crate) fn human_size(n: i64) -> String {
     if n >= 1_048_576 {
         format!("{:.1} MB", n as f64 / 1_048_576.0)
     } else {
@@ -302,8 +302,13 @@ fn human_size(n: i64) -> String {
 /// Texte donné au modèle : titre, taille, pages, plan, puis le texte en entier s'il tient dans
 /// `inline_left` (sinon une consigne pour le lire avec les outils).
 pub fn summary(f: &FileRef, t: &FileText, inline_left: usize) -> String {
-    let ext = f.name.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
-    let mut s = format!("Type: {} · {} · {} page(s) · {} characters\n", if ext.is_empty() { "file" } else { &ext }, human_size(f.size), t.pages.len(), t.chars);
+    summary_of(f.id, &f.name, f.size, t, inline_left)
+}
+
+/// Même résumé pour un fichier qui ne vient pas du Drive (Moodle) : identifiant, nom et taille donnés.
+pub fn summary_of(id: Uuid, name: &str, size: i64, t: &FileText, inline_left: usize) -> String {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
+    let mut s = format!("Type: {} · {} · {} page(s) · {} characters\n", if ext.is_empty() { "file" } else { &ext }, human_size(size), t.pages.len(), t.chars);
     // Nom, plan et texte viennent du fichier : tout est enfermé dans un bloc non fiable.
     let mut inner = String::new();
     if !t.outline.is_empty() {
@@ -321,9 +326,9 @@ pub fn summary(f: &FileRef, t: &FileText, inline_left: usize) -> String {
         inner.push_str(&t.pages.join("\n\n"));
         inner.push('\n');
     }
-    s.push_str(&untrusted_block(&f.name, "", &inner));
+    s.push_str(&untrusted_block(name, "", &inner));
     if !inline {
-        s.push_str(&format!("Text not inlined (too long). Read it with read_attachment(id=\"{}\", page=N) or find passages with search_attachment(query, id=\"{}\").\n", f.id, f.id));
+        s.push_str(&format!("Text not inlined (too long). Read it with read_attachment(id=\"{id}\", page=N) or find passages with search_attachment(query, id=\"{id}\").\n"));
     }
     s
 }
@@ -353,12 +358,12 @@ fn defuse_text(text: &str) -> String {
 }
 
 /// Titre sur une ligne, sans chevrons ni guillemets (nom de fichier, titre du plan).
-fn one_line(s: &str) -> String {
+pub(crate) fn one_line(s: &str) -> String {
     s.chars().map(|c| if c.is_control() || matches!(c, '<' | '>' | '"') { ' ' } else { c }).take(160).collect::<String>().trim().to_string()
 }
 
 /// Contenu d'un fichier entre délimiteurs : tout ce qui est dedans est une donnée écrite par un tiers.
-fn untrusted_block(name: &str, extra: &str, text: &str) -> String {
+pub(crate) fn untrusted_block(name: &str, extra: &str, text: &str) -> String {
     format!("{OPEN_TAG} name=\"{}\"{extra} untrusted>\n{}\n</file_content>\n", one_line(name), defuse_text(text))
 }
 
@@ -404,7 +409,7 @@ async fn readable(pool: &PgPool, user: &AuthUser, conv_id: Uuid, id: Uuid) -> Re
 }
 
 /// Réserve `want` caractères sur le budget de lecture de la conversation : renvoie ce qui est accordé.
-async fn reserve(pool: &PgPool, conv_id: Uuid, want: usize) -> ApiResult<usize> {
+pub(crate) async fn reserve(pool: &PgPool, conv_id: Uuid, want: usize) -> ApiResult<usize> {
     let mut tx = pool.begin().await?;
     let used: i32 = sqlx::query_scalar("SELECT file_chars_read FROM ai_conversations WHERE id = $1 FOR UPDATE").bind(conv_id).fetch_one(&mut *tx).await?;
     let left = (READ_BUDGET_CHARS - used).max(0) as usize;
@@ -415,11 +420,11 @@ async fn reserve(pool: &PgPool, conv_id: Uuid, want: usize) -> ApiResult<usize> 
 }
 
 /// Coût fixe d'un appel de `search_attachment`, en caractères du budget de lecture.
-const SEARCH_CALL_COST: usize = 500;
+pub(crate) const SEARCH_CALL_COST: usize = 500;
 
-const BUDGET_SPENT: &str = "error: the reading budget for files in this conversation is spent. Answer with what you already read, or ask the user to start a new conversation.";
+pub(crate) const BUDGET_SPENT: &str = "error: the reading budget for files in this conversation is spent. Answer with what you already read, or ask the user to start a new conversation.";
 
-fn truncate_chars(s: &str, n: usize) -> String {
+pub(crate) fn truncate_chars(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
@@ -428,7 +433,7 @@ fn arg_page(args: &Value, key: &str) -> Option<usize> {
 }
 
 /// Pages demandées : `page`, ou `start` (et `end`, par défaut `start`) ; page 1 sans précision.
-fn requested_range(args: &Value, total: usize) -> Result<(usize, usize), String> {
+pub(crate) fn requested_range(args: &Value, total: usize) -> Result<(usize, usize), String> {
     let start = arg_page(args, "page").or_else(|| arg_page(args, "start")).unwrap_or(1);
     let end = if args.get("page").is_some_and(|v| !v.is_null()) { start } else { arg_page(args, "end").unwrap_or(start) };
     if start < 1 || start > total || end < start {
@@ -438,7 +443,7 @@ fn requested_range(args: &Value, total: usize) -> Result<(usize, usize), String>
 }
 
 /// Texte des pages `start..=end` en s'arrêtant à `READ_CALL_CHARS` ; renvoie (texte, dernière page lue, coupé ?).
-fn read_pages(pages: &[String], start: usize, end: usize) -> (String, usize, bool) {
+pub(crate) fn read_pages(pages: &[String], start: usize, end: usize) -> (String, usize, bool) {
     let mut out = String::new();
     let mut used = 0usize;
     let mut last = start;
@@ -465,6 +470,15 @@ fn read_pages(pages: &[String], start: usize, end: usize) -> (String, usize, boo
 
 pub async fn read_attachment(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<String> {
     let Some(id) = args["id"].as_str().and_then(|s| Uuid::parse_str(s.trim()).ok()) else { return Ok("error: id must be the UUID of an attached file".into()) };
+    // Fichier ou cours Moodle joint à la conversation (ou fichier d'un cours joint) : lu avec le jeton de la personne.
+    if !attached_ids(pool, conv_id).await?.contains(&id) {
+        if let Some((name, t)) = crate::ai_moodle::text_for_read(pool, user, conv_id, id).await? {
+            return match t {
+                Ok(t) => read_text(pool, conv_id, id, &name, &t, args).await,
+                Err(message) => Ok(message),
+            };
+        }
+    }
     let f = match readable(pool, user, conv_id, id).await {
         Ok(f) => f,
         Err(m) => return Ok(m),
@@ -474,6 +488,11 @@ pub async fn read_attachment(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args
         Err(ApiError::BadRequest(c)) => return Ok(format!("error: {c}: this file has no readable text")),
         Err(e) => return Err(e),
     };
+    read_text(pool, conv_id, id, &f.name, &t, args).await
+}
+
+/// Lecture des pages demandées d'un texte déjà extrait, dans le budget de la conversation.
+pub(crate) async fn read_text(pool: &PgPool, conv_id: Uuid, id: Uuid, name: &str, t: &FileText, args: &Value) -> ApiResult<String> {
     let (start, end) = match requested_range(args, t.pages.len()) {
         Ok(r) => r,
         Err(m) => return Ok(m),
@@ -488,7 +507,7 @@ pub async fn read_attachment(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args
         body = truncate_chars(&body, granted);
         truncated = true;
     }
-    let mut out = untrusted_block(&f.name, &format!(" id=\"{id}\" pages=\"{start}-{last} of {}\"", t.pages.len()), &body);
+    let mut out = untrusted_block(name, &format!(" id=\"{id}\" pages=\"{start}-{last} of {}\"", t.pages.len()), &body);
     if truncated {
         out.push_str("\n[reading budget reached: the text above is cut]");
     } else if cut && last < end {
@@ -498,7 +517,7 @@ pub async fn read_attachment(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args
 }
 
 /// Mots de la recherche, sans accents ni majuscules.
-fn terms(query: &str) -> Vec<String> {
+pub(crate) fn terms(query: &str) -> Vec<String> {
     let mut v: Vec<String> = crate::classes::fold(query).split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(String::from).collect();
     v.sort();
     v.dedup();
@@ -506,14 +525,14 @@ fn terms(query: &str) -> Vec<String> {
     v
 }
 
-struct Hit {
-    page: usize,
-    score: usize,
-    lines: Vec<String>,
+pub(crate) struct Hit {
+    pub(crate) page: usize,
+    pub(crate) score: usize,
+    pub(crate) lines: Vec<String>,
 }
 
 /// Pages qui contiennent les mots (plus il y en a, mieux), avec les lignes qui correspondent.
-fn search_pages(pages: &[String], terms: &[String]) -> Vec<Hit> {
+pub(crate) fn search_pages(pages: &[String], terms: &[String]) -> Vec<Hit> {
     let mut hits = vec![];
     for (i, p) in pages.iter().enumerate() {
         let folded = crate::classes::fold(p);
@@ -537,24 +556,53 @@ fn search_pages(pages: &[String], terms: &[String]) -> Vec<Hit> {
     hits
 }
 
+/// Résultat de la recherche dans un texte (pages et lignes qui correspondent) et meilleur score (0 : aucune page).
+pub(crate) fn search_report(t: &FileText, terms: &[String]) -> (String, usize) {
+    let hits = search_pages(&t.pages, terms);
+    let best = hits.first().map_or(0, |h| h.score);
+    let mut inner = format!("{} pages\n", t.pages.len());
+    if hits.is_empty() {
+        inner.push_str("no match\n");
+    }
+    for h in hits {
+        inner.push_str(&format!("- page {} (matches {}/{} words)\n", h.page, h.score, terms.len()));
+        for l in h.lines {
+            inner.push_str(&format!("    {l}\n"));
+        }
+    }
+    (inner, best)
+}
+
 pub async fn search_attachment(pool: &PgPool, user: &AuthUser, conv_id: Uuid, args: &Value) -> ApiResult<String> {
     let query = args["query"].as_str().unwrap_or("").trim();
     let terms = terms(query);
     if terms.is_empty() {
         return Ok("error: query must contain at least one word".into());
     }
-    let ids = match args["id"].as_str().filter(|s| !s.trim().is_empty()) {
+    let given = match args["id"].as_str().filter(|s| !s.trim().is_empty()) {
         Some(s) => match Uuid::parse_str(s.trim()) {
-            Ok(id) => vec![id],
+            Ok(id) => Some(id),
             Err(_) => return Ok("error: id must be the UUID of an attached file".into()),
         },
-        None => attached_ids(pool, conv_id).await?,
+        None => None,
     };
-    if ids.is_empty() {
+    let drive = attached_ids(pool, conv_id).await?;
+    // Cours et fichiers Moodle joints : un seul id (fichier ou cours), ou tous quand aucun id n'est donné.
+    let moodle = if given.is_some_and(|id| drive.contains(&id)) { None } else { crate::ai_moodle::search(pool, user, conv_id, given, &terms).await? };
+    let ids = match given {
+        Some(_) if moodle.is_some() => vec![],
+        Some(id) => vec![id],
+        None => drive,
+    };
+    if ids.is_empty() && moodle.is_none() {
         return Ok("error: no file is attached to this conversation".into());
     }
     let mut pieces: Vec<(String, Uuid, String)> = vec![];
     let mut notes = vec![];
+    if let Some(m) = moodle {
+        pieces.extend(m.pieces);
+        notes.extend(m.notes);
+    }
     for id in ids {
         let f = match readable(pool, user, conv_id, id).await {
             Ok(f) => f,
@@ -567,18 +615,7 @@ pub async fn search_attachment(pool: &PgPool, user: &AuthUser, conv_id: Uuid, ar
             notes.push(format!("{id}: no readable text"));
             continue;
         };
-        let hits = search_pages(&t.pages, &terms);
-        let mut inner = format!("{} pages\n", t.pages.len());
-        if hits.is_empty() {
-            inner.push_str("no match\n");
-        }
-        for h in hits {
-            inner.push_str(&format!("- page {} (matches {}/{} words)\n", h.page, h.score, terms.len()));
-            for l in h.lines {
-                inner.push_str(&format!("    {l}\n"));
-            }
-        }
-        pieces.push((f.name.clone(), id, inner));
+        pieces.push((f.name.clone(), id, search_report(&t, &terms).0));
     }
     // Chaque appel coûte un minimum, même sans résultat : une boucle de recherches finit par épuiser le budget.
     let want = pieces.iter().map(|p| p.2.chars().count()).sum::<usize>() + SEARCH_CALL_COST;
