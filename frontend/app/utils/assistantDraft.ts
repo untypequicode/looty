@@ -41,7 +41,13 @@ export function withAttachment(d: AssistantDraft, a: AiAttachment): { draft: Ass
 
 export interface DraftStorage { getItem(key: string): string | null; setItem(key: string, value: string): void }
 
-export const DRAFT_KEY = 'looty.ai.draft'
+/** Ancienne clé, commune à toutes les personnes du navigateur : effacée, jamais relue. */
+export const LEGACY_DRAFT_KEY = 'looty.ai.draft'
+export const DRAFT_PREFIX = 'looty.ai.draft:'
+/** Clé du brouillon d'une personne : chacune a le sien dans un navigateur partagé. */
+export const draftKeyFor = (userId: string) => `${DRAFT_PREFIX}${userId}`
+/** Clé par défaut (tests). */
+export const DRAFT_KEY = draftKeyFor('anonymous')
 
 /**
  * Le brouillon et son stockage. `storage` est celui du navigateur (partagé entre onglets) ; `reload()` relit

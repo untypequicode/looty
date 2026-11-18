@@ -1,29 +1,51 @@
-import { computed, ref, type Ref } from 'vue'
-import { createDraftStore, DRAFT_KEY, type AddResult } from '~/utils/assistantDraft'
+import { computed, ref, watch, type Ref } from 'vue'
+import { createDraftStore, draftKeyFor, LEGACY_DRAFT_KEY, type AddResult, type DraftStore } from '~/utils/assistantDraft'
 import type { AiAttachment } from './useAi'
 import { links } from './useWorkspace'
 import { translate } from './useI18n'
 import { toast } from './useToast'
 import { tabsEnabled, useTabs } from './useTabs'
+import { useAuth } from './useAuth'
 
-// Un seul brouillon pour toute l'application : la zone de saisie de l'Assistant le lit et l'écrit, et les
-// boutons « Envoyer à l'IA » (cours Moodle…) y ajoutent des puces sans toucher au texte déjà tapé.
-const store = createDraftStore(typeof localStorage !== 'undefined' ? localStorage : null)
-const text = ref(store.get().text)
-const attachments = ref<AiAttachment[]>(store.get().attachments)
-store.subscribe((d) => { text.value = d.text; attachments.value = d.attachments })
-// Un autre onglet du navigateur a changé le brouillon.
-if (typeof window !== 'undefined') window.addEventListener('storage', (e) => { if (e.key === DRAFT_KEY) store.reload() })
+// Un seul brouillon par personne pour toute l'application : la zone de saisie de l'Assistant le lit et l'écrit,
+// et les boutons « Envoyer à l'IA » (cours Moodle…) y ajoutent des puces sans toucher au texte déjà tapé.
+// Il est rangé sous une clé propre à la personne connectée ; sans personne connectée il reste vide, en mémoire.
+const storage = typeof localStorage !== 'undefined' ? localStorage : null
+let store: DraftStore = createDraftStore(null)
+let unsubscribe = () => {}
+let boundUser: string | null = null
+let bound = false
+const text = ref('')
+const attachments = ref<AiAttachment[]>([])
+
+function sync() { text.value = store.get().text; attachments.value = store.get().attachments }
+
+/** Rattache le brouillon à la personne connectée (ou à personne : brouillon vide, non gardé). Idempotent. */
+function bindUser(userId: string | null) {
+  if (bound && userId === boundUser) return
+  bound = true
+  boundUser = userId
+  unsubscribe()
+  try { storage?.removeItem(LEGACY_DRAFT_KEY) } catch { /* stockage indisponible */ }
+  store = createDraftStore(userId ? storage : null, userId ? draftKeyFor(userId) : undefined)
+  unsubscribe = store.subscribe(sync)
+  sync()
+}
+bindUser(null)
+
+// Un autre onglet du navigateur a changé le brouillon de cette personne.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => { if (boundUser && e.key === draftKeyFor(boundUser)) store.reload() })
+}
 
 /** Texte et pièces jointes du message en cours de rédaction dans l'Assistant. */
 export function useAssistantDraft() {
+  const { user } = useAuth()
+  watch(() => user.value?.id ?? null, bindUser, { immediate: true })
   const draft = computed({ get: () => text.value, set: (v: string) => store.setText(v) })
   const files = computed({ get: () => attachments.value, set: (v: AiAttachment[]) => store.setAttachments(v) })
   return { draft, attachments: files, add: (a: AiAttachment): AddResult => store.add(a), clear: () => store.clear() }
 }
-
-/** Ajoute une pièce jointe au brouillon, hors de toute page de l'Assistant (par exemple pour les tests). */
-export const addToAssistantDraft = (a: AiAttachment): AddResult => store.add(a)
 
 /**
  * « Envoyer à l'IA » : l'élément devient une puce du brouillon en cours de l'Assistant. Si l'Assistant n'est pas
@@ -31,6 +53,8 @@ export const addToAssistantDraft = (a: AiAttachment): AddResult => store.add(a)
  * avec une action pour ouvrir l'Assistant.
  */
 export function useSendToAssistant(ws: Ref<string>) {
+  const { user } = useAuth()
+  watch(() => user.value?.id ?? null, bindUser, { immediate: true })
   const route = useRoute()
   const tabs = useTabs(ws)
   const path = computed(() => links.assistant(ws.value))
@@ -57,3 +81,4 @@ export function useSendToAssistant(ws: Ref<string>) {
   }
   return { send, open }
 }
+

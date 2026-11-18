@@ -112,6 +112,8 @@ fn explain(e: &ApiError) -> String {
         ApiError::BadRequest(c) if c == "file_no_text" => "error: file_no_text: this file has no text (scanned document or image); it cannot be read.".into(),
         ApiError::BadRequest(c) if c == "file_unreadable" => "error: file_unreadable: this file is corrupt, encrypted or too complex to read.".into(),
         ApiError::BadRequest(c) if c == "file_too_large" => "error: file_too_large: files larger than 25 MB cannot be read.".into(),
+        ApiError::BadRequest(c) if c == "file_extract_timeout" => "error: file_extract_timeout: reading this file took too long right now. Try again later.".into(),
+        ApiError::BadRequest(c) if c == "too_many_concurrent" => "error: another Moodle file is already being read for this user. Try again in a few seconds.".into(),
         ApiError::BadRequest(c) if c == "too_many_downloads" => "error: too many Moodle files were fetched in the last minute. Wait a moment and try again.".into(),
         ApiError::Internal(_) => "error: internal error".into(),
         e => Refusal::of(e).message().into(),
@@ -331,7 +333,48 @@ async fn cached_text(pool: &PgPool, user: Uuid, ws: Uuid, f: &CourseFile) -> Api
 }
 
 /// Télécharge (avec le jeton, depuis la plateforme connectée seulement), extrait et garde le texte.
-async fn fetch_text(pool: &PgPool, user: Uuid, ws: Uuid, client: &Ws, f: &CourseFile) -> ApiResult<FileText> {
+/// Extractions simultanées permises par personne.
+const MAX_CONCURRENT_FETCHES: usize = 2;
+
+/// Seuls les échecs qui tiennent au fichier sont gardés ; un délai dépassé (machine chargée) peut réussir plus tard.
+fn cacheable_failure(code: &str) -> bool {
+    code == "file_no_text" || code == "file_unreadable"
+}
+
+fn in_flight() -> &'static Mutex<HashMap<Uuid, usize>> {
+    static M: OnceLock<Mutex<HashMap<Uuid, usize>>> = OnceLock::new();
+    M.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Place prise pendant un téléchargement et une extraction ; rendue à la fin (ou à l'annulation).
+struct FetchSlot(Uuid);
+
+impl FetchSlot {
+    fn take(user: Uuid) -> Option<FetchSlot> {
+        let mut m = in_flight().lock().unwrap_or_else(|e| e.into_inner());
+        let n = m.entry(user).or_insert(0);
+        if *n >= MAX_CONCURRENT_FETCHES {
+            return None;
+        }
+        *n += 1;
+        Some(FetchSlot(user))
+    }
+}
+
+impl Drop for FetchSlot {
+    fn drop(&mut self) {
+        let mut m = in_flight().lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(n) = m.get_mut(&self.0) {
+            *n -= 1;
+            if *n == 0 {
+                m.remove(&self.0);
+            }
+        }
+    }
+}
+
+/// `downloaded` reçoit le nombre d'octets réellement téléchargés.
+async fn fetch_text(pool: &PgPool, user: Uuid, ws: Uuid, client: &Ws, f: &CourseFile, downloaded: &mut i64) -> ApiResult<FileText> {
     if !f.readable() {
         return Err(ApiError::bad_request("file_unsupported"));
     }
@@ -341,7 +384,9 @@ async fn fetch_text(pool: &PgPool, user: Uuid, ws: Uuid, client: &Ws, f: &Course
     if !download_allowed(user) {
         return Err(ApiError::bad_request("too_many_downloads"));
     }
+    let _slot = FetchSlot::take(user).ok_or_else(|| ApiError::bad_request("too_many_concurrent"))?;
     let bytes = crate::moodle_content::download(client, &f.url, MAX_FILE_BYTES).await?;
+    *downloaded += bytes.len() as i64;
     // Page HTML de la plateforme : lue comme du texte, sans les balises.
     let lower = f.name.to_lowercase();
     let (name, mime, bytes) = if lower.ends_with(".html") || lower.ends_with(".htm") {
@@ -355,7 +400,7 @@ async fn fetch_text(pool: &PgPool, user: Uuid, ws: Uuid, client: &Ws, f: &Course
             store(pool, user, ws, f, Some(&t), None).await?;
             Ok(t)
         }
-        Err(ApiError::BadRequest(code)) if code == "file_no_text" || code == "file_unreadable" => {
+        Err(ApiError::BadRequest(code)) if cacheable_failure(&code) => {
             // Gardé aussi : le même fichier n'est pas retéléchargé à chaque recherche.
             store(pool, user, ws, f, None, Some(&code)).await?;
             Err(ApiError::BadRequest(code))
@@ -394,7 +439,7 @@ async fn store(pool: &PgPool, user: Uuid, ws: Uuid, f: &CourseFile, t: Option<&F
 async fn file_text(pool: &PgPool, user: Uuid, course: &Course, f: &CourseFile) -> ApiResult<FileText> {
     match cached_text(pool, user, course.ws, f).await? {
         Some(r) => r,
-        None => fetch_text(pool, user, course.ws, &course.client, f).await,
+        None => fetch_text(pool, user, course.ws, &course.client, f, &mut 0).await,
     }
 }
 
@@ -651,8 +696,18 @@ pub async fn search(pool: &PgPool, user: &AuthUser, conv_id: Uuid, given: Option
                 }
                 None => {
                     stats.fresh += 1;
-                    stats.bytes += f.size.max(0);
-                    fetch_text(pool, user.id, ws, &course.client, f).await
+                    let mut got = 0i64;
+                    let left = SEARCH_MAX_TIME.saturating_sub(started.elapsed()).max(Duration::from_secs(1));
+                    let r = tokio::time::timeout(left, fetch_text(pool, user.id, ws, &course.client, f, &mut got)).await;
+                    // Octets réellement reçus (et non la taille annoncée) ; le délai est revérifié après chaque fichier.
+                    stats.bytes += got;
+                    match r {
+                        Ok(r) => r,
+                        Err(_) => {
+                            stats.deferred += 1;
+                            continue;
+                        }
+                    }
                 }
             };
             match text {
@@ -840,6 +895,21 @@ mod tests {
 
     async fn download_count(m: &Mock) -> usize {
         m.downloads.load(Ordering::SeqCst)
+    }
+
+    #[test]
+    fn only_deterministic_failures_are_cached_and_slots_are_limited() {
+        assert!(cacheable_failure("file_no_text") && cacheable_failure("file_unreadable"));
+        assert!(!cacheable_failure("file_extract_timeout") && !cacheable_failure("too_many_concurrent") && !cacheable_failure("moodle_unreachable"));
+        let u = Uuid::new_v4();
+        let a = FetchSlot::take(u).unwrap();
+        let b = FetchSlot::take(u).unwrap();
+        assert!(FetchSlot::take(u).is_none(), "au plus {MAX_CONCURRENT_FETCHES} en même temps");
+        assert!(FetchSlot::take(Uuid::new_v4()).is_some(), "une autre personne n'est pas touchée");
+        drop(a);
+        let c = FetchSlot::take(u).unwrap();
+        drop((b, c));
+        assert!(in_flight().lock().unwrap().get(&u).is_none());
     }
 
     #[test]

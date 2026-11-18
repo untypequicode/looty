@@ -40,7 +40,10 @@ pub(crate) fn proxied(ws: Uuid, url: &str) -> String {
 fn plugin_url(base: &str, raw: &str) -> Option<reqwest::Url> {
     let rest = raw.strip_prefix(base)?;
     let rest = if let Some(r) = rest.strip_prefix("/pluginfile.php/") { format!("/webservice/pluginfile.php/{r}") } else if rest.starts_with("/webservice/pluginfile.php/") { rest.to_string() } else { return None };
-    reqwest::Url::parse(&format!("{base}{rest}")).ok()
+    let url = reqwest::Url::parse(&format!("{base}{rest}")).ok()?;
+    // Une adresse avec « .. » ou « %2e%2e » sortirait du dossier des fichiers une fois normalisée : refusée.
+    let prefix = format!("{}/webservice/pluginfile.php/", reqwest::Url::parse(base).ok()?.path().trim_end_matches('/'));
+    url.path().starts_with(&prefix).then_some(url)
 }
 
 /// Le fichier vient bien de la plateforme `base` (pluginfile).
@@ -355,4 +358,27 @@ async fn page_html(State(state): State<AppState>, user: AuthUser, Path(ws): Path
 async fn assignment(State(state): State<AppState>, user: AuthUser, Path((ws, course_id, cmid)): Path<(Uuid, i64, i64)>) -> ApiResult<Response> {
     let live = assignment_live(State(state.clone()), user, Path((ws, course_id, cmid))).await.map(|Json(v)| v);
     crate::moodle_cache::json_or_cached(&state, ws, user.id, &format!("assign:{course_id}:{cmid}"), live).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_urls_cannot_climb_out_of_the_files_folder() {
+        let base = "https://moodle.test";
+        assert!(plugin_url(base, "https://moodle.test/pluginfile.php/1/mod/a.pdf").is_some());
+        assert!(plugin_url(base, "https://moodle.test/webservice/pluginfile.php/1/mod/a.pdf").is_some());
+        for bad in [
+            "https://moodle.test/pluginfile.php/../admin/secret",
+            "https://moodle.test/webservice/pluginfile.php/../../user/index.php",
+            "https://moodle.test/pluginfile.php/%2e%2e/admin",
+            "https://moodle.test/pluginfile.php/a/%2E%2E/%2e%2e/x",
+        ] {
+            assert!(plugin_url(base, bad).is_none(), "{bad}");
+        }
+        // Plateforme installée dans un sous-dossier.
+        assert!(plugin_url("https://m.test/moodle", "https://m.test/moodle/pluginfile.php/1/a.pdf").is_some());
+        assert!(plugin_url("https://m.test/moodle", "https://m.test/moodle/pluginfile.php/../../x").is_none());
+    }
 }
