@@ -7,6 +7,8 @@ export default defineNuxtPlugin((nuxtApp) => {
         // Les mises à jour arrivent par WebSocket : pas besoin de refetch agressif.
         staleTime: 60_000,
         refetchOnWindowFocus: false,
+        // Rafraîchissements périodiques suspendus tant que l'onglet est masqué.
+        refetchIntervalInBackground: false,
         retry: (count, err: any) => {
           const s = err?.status ?? err?.statusCode
           if (s === 401 || s === 403 || s === 404) return false

@@ -68,6 +68,7 @@ class LootyPushService : PushService() {
     override fun onUnregistered(instance: String) {
         val ctx = applicationContext
         Push.removeSubscription(ctx)
-        if (PushStore.mode(ctx) == PushMode.UNIFIED_PUSH) PushStore.setMode(ctx, PushMode.OFF)
+        // Plus de push : retour à la vérification périodique pour ne pas perdre les notifications.
+        if (PushStore.mode(ctx) == PushMode.UNIFIED_PUSH) Push.enablePolling(ctx)
     }
 }
