@@ -155,8 +155,8 @@ fun MathView(latex: String, display: Boolean, modifier: Modifier = Modifier, col
     AndroidView(
         modifier = sized,
         factory = { c -> FrameHolder(c) },
-        update = { holder ->
-            if (holder.key == key) return@update
+        update = upd@{ holder ->
+            if (holder.key == key) return@upd
             holder.key = key
             holder.slot?.let { MathPool.release(it) }
             val slot = MathPool.obtain(ctx)
