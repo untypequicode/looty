@@ -13,6 +13,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use sqlx::PgPool;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::{Duration, Instant};
+use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 use crate::access::{require_member, require_writer, visible_pages, AuthUser, PageAccess};
@@ -73,22 +77,23 @@ struct Built {
     edges: Vec<Edge>,
 }
 
-async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> {
-    let role = require_member(&state.pool, user, ws).await?;
-    let perms = crate::access::member_perms(&state.pool, user.id, ws).await?.map(|(_, p)| p).ok_or(ApiError::NotFound)?;
-    let visible = visible_pages(&state.pool, user, ws, role).await?;
-    let pages: Vec<(Uuid, String, Option<String>, Option<Uuid>, Option<String>, Option<Vec<u8>>)> =
-        sqlx::query_as("SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, ''), yjs_state FROM pages WHERE workspace_id = $1 AND id = ANY($2)")
+async fn build_uncached(pool: &PgPool, user: &AuthUser, ws: Uuid) -> ApiResult<Built> {
+    let role = require_member(pool, user, ws).await?;
+    let perms = crate::access::member_perms(pool, user.id, ws).await?.map(|(_, p)| p).ok_or(ApiError::NotFound)?;
+    let visible = visible_pages(pool, user, ws, role).await?;
+    let pages: Vec<(Uuid, String, Option<String>, Option<Uuid>, String, String)> =
+        sqlx::query_as(r#"SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, ''),
+                COALESCE((SELECT string_agg(m[1], ' ') FROM regexp_matches(encode(yjs_state, 'escape'), '(?:/doc/|/task/|task=|event=|data-board="|/board/)[0-9a-fA-F-]{36}', 'g') AS m), '') FROM pages WHERE workspace_id = $1 AND id = ANY($2)"#)
             .bind(ws)
             .bind(visible.iter().filter(|(_, a)| matches!(a, PageAccess::Read | PageAccess::Write)).map(|(id, _)| *id).collect::<Vec<Uuid>>())
-            .fetch_all(&state.pool)
+            .fetch_all(pool)
             .await?;
     let pages: Vec<_> = pages.into_iter().filter(|p| matches!(visible.get(&p.0), Some(PageAccess::Read | PageAccess::Write))).collect();
     // Tableaux et tâches : seulement avec l'accès aux tableaux ; événements : avec le calendrier.
     let see_boards = perms.boards > crate::access::level::NONE;
     let see_events = perms.calendar > crate::access::level::NONE;
     let boards: Vec<(Uuid, String)> =
-        sqlx::query_as("SELECT id, name FROM boards WHERE workspace_id = $1 AND $2 AND (private_to IS NULL OR private_to = $3)").bind(ws).bind(see_boards).bind(user.id).fetch_all(&state.pool).await?;
+        sqlx::query_as("SELECT id, name FROM boards WHERE workspace_id = $1 AND $2 AND (private_to IS NULL OR private_to = $3)").bind(ws).bind(see_boards).bind(user.id).fetch_all(pool).await?;
     let tasks: Vec<(Uuid, String, bool, Option<Uuid>, Uuid, Option<String>)> = sqlx::query_as(
         "SELECT t.id, t.title, t.is_completed, t.parent_id, b.id, t.description FROM tasks t
          JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
@@ -97,7 +102,7 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     .bind(ws)
     .bind(see_boards)
     .bind(user.id)
-    .fetch_all(&state.pool)
+    .fetch_all(pool)
     .await?;
     let comments: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT cm.task_id, cm.content FROM task_comments cm JOIN tasks t ON t.id = cm.task_id
@@ -106,21 +111,21 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
     )
     .bind(ws)
     .bind(user.id)
-    .fetch_all(&state.pool)
+    .fetch_all(pool)
     .await?;
     let relations: Vec<(Uuid, Uuid, Uuid)> =
-        sqlx::query_as("SELECT id, source_id, target_id FROM item_links WHERE workspace_id = $1").bind(ws).fetch_all(&state.pool).await?;
+        sqlx::query_as("SELECT id, source_id, target_id FROM item_links WHERE workspace_id = $1").bind(ws).fetch_all(pool).await?;
     // Commentaires des pages et des événements (liens cités dans la discussion).
     let item_comments: Vec<(Uuid, String)> =
         sqlx::query_as("SELECT target_id, content FROM item_comments WHERE workspace_id = $1 AND (content LIKE '%/doc/%' OR content LIKE '%task%')")
             .bind(ws)
-            .fetch_all(&state.pool)
+            .fetch_all(pool)
             .await?;
     // Événements de l'espace : présents dans le graphe s'ils citent un élément (description,
     // commentaires) ou ont une relation manuelle.
     let linked_events: HashSet<Uuid> = relations.iter().flat_map(|(_, s, t)| [*s, *t]).chain(item_comments.iter().map(|(t, _)| *t)).collect();
     let event_rows: Vec<(Uuid, String)> =
-        sqlx::query_as("SELECT id, ics FROM workspace_events WHERE workspace_id = $1 AND $2 LIMIT 5000").bind(ws).bind(see_events).fetch_all(&state.pool).await?;
+        sqlx::query_as("SELECT id, ics FROM workspace_events WHERE workspace_id = $1 AND $2 LIMIT 5000").bind(ws).bind(see_events).fetch_all(pool).await?;
     let mut events: Vec<(Uuid, String, Vec<(&'static str, Uuid)>)> = Vec::new();
     for (id, ics) in &event_rows {
         let Some(m) = crate::calendar::master_event(ics) else { continue };
@@ -173,10 +178,8 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
         if let Some(p) = parent {
             push(&mut edges, *p, *id, "parent", None);
         }
-        let mut text = content.clone().unwrap_or_default();
-        if let Some(b) = yjs {
-            text.push_str(&String::from_utf8_lossy(b));
-        }
+        // Liens du document en direct (état Yjs) : extraits côté SQL, sans transférer l'état binaire.
+        let text = format!("{content} {yjs}");
         for (_, target) in referenced_ids(&text) {
             push(&mut edges, *id, target, "link", None);
         }
@@ -206,6 +209,39 @@ async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Built> 
         }
     }
     Ok(Built { nodes, edges })
+}
+
+/// Durée de vie d'un graphe en cache : borne la péremption (les écritures de pages ne l'invalident pas).
+const CACHE_TTL: Duration = Duration::from_secs(20);
+
+type Key = (Uuid, Uuid);
+type Cell = Arc<OnceCell<Arc<Built>>>;
+
+static CACHE: LazyLock<Mutex<HashMap<Key, (Instant, Cell)>>> = LazyLock::new(Default::default);
+
+/// Graphe de (espace, utilisateur) : les appels simultanés partagent un seul calcul (« single-flight »)
+/// et le résultat est réutilisé `ttl`. La clé inclut l'utilisateur : la visibilité dépend de lui.
+async fn cached<T, F, Fut>(cache: &Mutex<HashMap<Key, (Instant, Arc<OnceCell<Arc<T>>>)>>, key: Key, ttl: Duration, load: F) -> ApiResult<Arc<T>>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = ApiResult<T>>,
+{
+    let cell = {
+        let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        map.retain(|_, (at, _)| now.duration_since(*at) < ttl);
+        map.entry(key).or_insert_with(|| (now, Default::default())).1.clone()
+    };
+    // En cas d'erreur la cellule reste vide : l'appel suivant réessaie.
+    cell.get_or_try_init(|| async { load().await.map(Arc::new) }).await.cloned()
+}
+
+fn invalidate(ws: Uuid) {
+    CACHE.lock().unwrap_or_else(|e| e.into_inner()).retain(|k, _| k.0 != ws);
+}
+
+async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Arc<Built>> {
+    cached(&CACHE, (ws, user.id), CACHE_TTL, || build_uncached(&state.pool, user, ws)).await
 }
 
 async fn graph(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
@@ -284,6 +320,7 @@ async fn create_link(State(state): State<AppState>, user: AuthUser, Path(ws): Pa
         .fetch_one(&state.pool)
         .await?,
     };
+    invalidate(ws);
     state.emit(ws, serde_json::json!({ "type": "GRAPH_UPDATED" })).await;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -294,6 +331,7 @@ async fn delete_link(State(state): State<AppState>, user: AuthUser, Path((ws, id
     if n == 0 {
         return Err(ApiError::NotFound);
     }
+    invalidate(ws);
     state.emit(ws, serde_json::json!({ "type": "GRAPH_UPDATED" })).await;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -324,5 +362,78 @@ mod tests {
         let html = format!(r#"<a href="/w/x/doc/{p}">Doc</a> and <a href="https://looty.x/w/y/board/z?task={t}">T</a> /doc/not-a-uuid"#);
         let ids = referenced_ids(&html);
         assert_eq!(ids, vec![("page", Uuid::parse_str(p).unwrap()), ("task", Uuid::parse_str(t).unwrap())]);
+    }
+
+    fn edge_pairs(b: &Built) -> HashSet<(Uuid, Uuid)> {
+        b.edges.iter().map(|e| (e.source, e.target)).collect()
+    }
+
+    async fn user(pool: &PgPool, name: &str) -> AuthUser {
+        let id: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id").bind(format!("{name}@example.org")).bind(name).fetch_one(pool).await.unwrap();
+        AuthUser { id, is_super_admin: false }
+    }
+
+    async fn page(pool: &PgPool, ws: Uuid, by: Uuid, title: &str, content: Option<String>, yjs: Option<Vec<u8>>) -> Uuid {
+        sqlx::query_scalar("INSERT INTO pages (workspace_id, title, content, yjs_state, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id")
+            .bind(ws)
+            .bind(title)
+            .bind(content)
+            .bind(yjs)
+            .bind(by)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    /// Liens présents dans `content` et seulement dans l'état Yjs binaire : tous deux dans le graphe.
+    #[sqlx::test]
+    async fn links_in_content_and_in_yjs_state_become_edges(pool: PgPool) {
+        let owner = user(&pool, "owner").await;
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')").bind(ws).bind(owner.id.to_string()).execute(&pool).await.unwrap();
+        let b = page(&pool, ws, owner.id, "B", None, None).await;
+        let c = page(&pool, ws, owner.id, "C", None, None).await;
+        let d = page(&pool, ws, owner.id, "D", None, None).await;
+        // A cite B dans `content` et C seulement dans l'état Yjs (octets non UTF-8 autour, antislash compris).
+        let mut yjs = vec![0xff, 0xfe, 0x00, b'\\', 0x80];
+        yjs.extend_from_slice(format!("x/doc/{c}\u{e9}").as_bytes());
+        yjs.extend_from_slice(&[0xc3]);
+        let a = page(&pool, ws, owner.id, "A", Some(format!(r#"<a href="/w/x/doc/{b}">B</a>"#)), Some(yjs)).await;
+        // D : un état Yjs sans lien, un marqueur sans identifiant valide.
+        sqlx::query("UPDATE pages SET yjs_state = $2 WHERE id = $1").bind(d).bind(b"/doc/not-a-uuid-at-all-0000000000000000000".to_vec()).execute(&pool).await.unwrap();
+        let built = build_uncached(&pool, &owner, ws).await.unwrap();
+        assert_eq!(edge_pairs(&built), HashSet::from([(a, b), (a, c)]));
+        assert_eq!(built.nodes.len(), 4);
+    }
+
+    #[test]
+    fn single_flight_and_per_user_keys() {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let cache = Mutex::new(HashMap::new());
+            let calls = std::sync::atomic::AtomicUsize::new(0);
+            let (ws, u1, u2) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+            let load = |v: u32| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async move {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    Ok(v)
+                }
+            };
+            let ttl = Duration::from_secs(60);
+            // Cinq appels simultanés du même utilisateur : un seul calcul.
+            let same = futures::future::join_all((0..5).map(|_| cached(&cache, (ws, u1), ttl, || load(1)))).await;
+            assert!(same.iter().all(|r| *r.as_ref().unwrap().as_ref() == 1));
+            assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+            // Un autre utilisateur ne reçoit jamais le résultat du premier.
+            assert_eq!(*cached(&cache, (ws, u2), ttl, || load(2)).await.unwrap(), 2);
+            assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+            // Dans le TTL : servi depuis le cache ; passé le TTL : recalculé.
+            assert_eq!(*cached(&cache, (ws, u1), ttl, || load(3)).await.unwrap(), 1);
+            assert_eq!(*cached(&cache, (ws, u1), Duration::ZERO, || load(4)).await.unwrap(), 4);
+            // Une erreur n'est pas mise en cache.
+            let err: ApiResult<Arc<u32>> = cached(&cache, (Uuid::new_v4(), u1), ttl, || async { Err(ApiError::NotFound) }).await;
+            assert!(err.is_err());
+        });
     }
 }
