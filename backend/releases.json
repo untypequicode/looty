@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.40.3",
+      "date": "2026-11-18",
+      "title": {
+        "en": "A faster workspace graph",
+        "fr": "Un graphe de l’espace plus rapide"
+      },
+      "notes": {
+        "en": [
+          "**Workspace graph**: it opens faster and loads less data, even in large workspaces."
+        ],
+        "fr": [
+          "**Graphe de l’espace** : il s’ouvre plus vite et charge moins de données, même dans les grands espaces."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.40.2",
       "date": "2026-11-18",
       "title": {
