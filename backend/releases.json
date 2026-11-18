@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.40.1",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Safer and steadier Moodle questions for the assistant",
+        "fr": "Questions Moodle à l’assistant plus sûres et plus stables"
+      },
+      "notes": {
+        "en": [
+          "**Shared computers**: the message you are writing in the Assistant (text and attached items) is now kept per person and cleared when you log out, so the next person on the same browser never sees it.",
+          "**Moodle files**: stricter checks on the addresses of Moodle files before they are downloaded.",
+          "**Large courses**: reading several files of a course at once is now limited per person and respects its time budget after each file; a temporary overload no longer marks a file as unreadable for weeks."
+        ],
+        "fr": [
+          "**Ordinateurs partagés** : le message en cours de rédaction dans l’Assistant (texte et éléments joints) est maintenant conservé par personne et effacé à la déconnexion, la personne suivante sur le même navigateur ne le voit jamais.",
+          "**Fichiers Moodle** : contrôles plus stricts des adresses des fichiers Moodle avant leur téléchargement.",
+          "**Gros cours** : la lecture de plusieurs fichiers d’un cours en même temps est maintenant limitée par personne et respecte son budget de temps après chaque fichier ; une surcharge passagère ne marque plus un fichier comme illisible pendant des semaines."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.40.0",
       "date": "2026-11-18",
       "title": {
