@@ -4,6 +4,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.39.1",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Polish for the assistant and trainings",
+        "fr": "Finitions pour l’assistant et les entraînements"
+      },
+      "notes": {
+        "en": [
+          "**Undo in the assistant**: a change you already undid stays marked “Undone” after you reload the conversation, and its button stays disabled.",
+          "**Assistant workspace**: the composer shows “Space: …” and lets you change where the assistant creates trainings and pages. A message sent from another space no longer changes it.",
+          "**Search in files**: the @ picker and the workspace search now find words inside the text of Drive files you can read, with an extract.",
+          "**Graphs**: click a graph in the chat or in a training to enlarge it and copy its source. Graphs over 20,000 characters show their source with a clear message.",
+          "**Trainings**: formulas in the expected answer after a wrong answer display correctly, even with several answers.",
+          "**Uploads**: two files dropped at the same time can no longer exceed your Drive quota."
+        ],
+        "fr": [
+          "**Annuler dans l’assistant** : une modification déjà annulée reste marquée « Annulée » après le rechargement de la conversation, et son bouton reste désactivé.",
+          "**Espace de l’assistant** : la zone de saisie affiche « Espace : … » et permet de changer où l’assistant crée les entraînements et les pages. Un message envoyé depuis un autre espace ne le change plus.",
+          "**Recherche dans les fichiers** : le sélecteur @ et la recherche de l’espace trouvent maintenant des mots dans le texte des fichiers du Drive que vous pouvez lire, avec un extrait.",
+          "**Graphes** : cliquez sur un graphe du chat ou d’un entraînement pour l’agrandir et copier sa source. Au-delà de 20 000 caractères, la source s’affiche avec un message clair.",
+          "**Entraînements** : les formules de la réponse attendue après une mauvaise réponse s’affichent correctement, même avec plusieurs réponses.",
+          "**Dépôts** : deux fichiers déposés en même temps ne peuvent plus dépasser le quota de votre Drive."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.39.0",
       "date": "2026-11-18",
       "title": {
