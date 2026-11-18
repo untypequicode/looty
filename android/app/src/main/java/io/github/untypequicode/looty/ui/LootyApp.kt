@@ -201,6 +201,8 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("moodle/{id}?name={name}") { e -> MoodleConversationScreen(state, e.arguments?.getString("id")?.toLongOrNull() ?: 0L, e.arguments?.getString("name").orEmpty(), onBack = { nav.popBackStack() }) }
             composable("activity") { ActivityScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("trash") { TrashScreen(state, onBack = { nav.popBackStack() }) }
+            composable("ai") { AiListScreen(state, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("ai/$it") }) }
+            composable("ai/{id}") { e -> AiChatScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("graph") { GraphScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("settings") { SettingsScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("settings/profile") { ProfileSettingsScreen(state, onBack = { nav.popBackStack() }) }
