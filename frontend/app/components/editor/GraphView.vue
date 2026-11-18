@@ -7,7 +7,8 @@ import { useDebounceFn } from '@vueuse/core'
 import { useTheme } from '~/composables/useTheme'
 import { useI18n } from '~/composables/useI18n'
 import { nodeSource, useSourceField } from '~/editor/source'
-import { diagramStyleSettings, resolveStyle, FONT_STACKS } from '~/editor/diagramStyles'
+import { diagramStyleSettings, resolveStyle } from '~/editor/diagramStyles'
+import { graphSheet, layoutOptions, type LayoutKind } from '~/editor/graphCore'
 import { parseGraph, updateNodes, addEdge, removeElements, updateEdge, setDirected, nextNodeId, type Graph } from '~/editor/graphSource'
 
 /**
@@ -48,34 +49,8 @@ let ro: ResizeObserver | null = null
 
 // --- Apparence -------------------------------------------------------------
 
-const SHAPES = { rounded: 'round-rectangle', rect: 'rectangle', circle: 'ellipse' } as const
-function nodeWidth(label: string, circle: boolean) {
-  const w = Math.min(180, label.length * 8.2 + (circle ? 14 : 22))
-  return Math.max(circle ? 38 : 44, w)
-}
 function sheet(): any[] {
-  const s = style.value, c = palette.value, font = FONT_STACKS[s.font]
-  const circle = s.shape === 'circle'
-  return [
-    { selector: 'node', style: {
-      shape: SHAPES[s.shape], 'background-color': c.node, 'border-color': c.border, 'border-width': 1.5,
-      label: 'data(label)', color: c.text, 'font-family': font, 'font-size': 14, 'text-valign': 'center', 'text-halign': 'center',
-      'text-wrap': 'wrap', 'text-max-width': '170px',
-      width: (n: NodeSingular) => nodeWidth(String(n.data('label') ?? ''), circle),
-      height: (n: NodeSingular) => (circle ? nodeWidth(String(n.data('label') ?? ''), true) : 36),
-    } },
-    { selector: 'edge', style: {
-      width: 1.6, 'line-color': c.edge, 'target-arrow-color': c.edge, 'curve-style': 'bezier', 'arrow-scale': 1.15,
-      label: 'data(label)', 'font-family': font, 'font-size': 13, color: c.text,
-      'text-background-color': c.background, 'text-background-opacity': 1, 'text-background-padding': '2px', 'text-background-shape': 'roundrectangle',
-      'loop-direction': '-45deg', 'loop-sweep': '-60deg',
-    } },
-    { selector: 'edge[?directed]', style: { 'target-arrow-shape': 'triangle' } },
-    { selector: 'node.hl', style: { 'border-width': 3.5, 'background-color': c.accent } },
-    { selector: 'edge.hl', style: { width: 3.4, 'line-color': c.border, 'target-arrow-color': c.border } },
-    { selector: ':selected', style: { 'overlay-color': c.border, 'overlay-opacity': 0.16, 'overlay-padding': 5 } },
-    { selector: 'node.link-from', style: { 'border-style': 'dashed', 'border-width': 3 } },
-  ]
+  return graphSheet(style.value, palette.value)
 }
 
 // --- Synchronisation texte → graphe ----------------------------------------
@@ -207,19 +182,10 @@ function toggleHighlight() {
 
 // --- Dispositions automatiques ---------------------------------------------
 
-type LayoutKind = 'layers' | 'tree' | 'circle' | 'grid' | 'force'
 function runLayout(kind: LayoutKind, save = true) {
   if (!cy || cy.nodes().empty()) return
   const roots = cy.nodes().filter((n) => n.incomers('edge[?directed]').empty())
-  const opts: Record<LayoutKind, any> = {
-    // Couches de gauche à droite (réseaux de flot, DAG) : arbre en largeur, couché.
-    layers: { name: 'breadthfirst', directed: true, roots: roots.length ? roots : undefined, spacingFactor: 1.15, transform: (_n: unknown, p: Position) => ({ x: p.y, y: p.x }) },
-    tree: { name: 'breadthfirst', directed: true, roots: roots.length ? roots : undefined, spacingFactor: 1.1 },
-    circle: { name: 'circle', spacingFactor: 1.1 },
-    grid: { name: 'grid', avoidOverlap: true },
-    force: { name: 'cose', animate: false, nodeRepulsion: () => 9000, idealEdgeLength: () => 90, randomize: true },
-  }
-  const layout = cy.layout({ ...opts[kind], fit: false, padding: 28, animate: false })
+  const layout = cy.layout({ ...layoutOptions(kind, roots), fit: false, padding: 28, animate: false })
   layout.one('layoutstop', () => {
     fitView()
     if (save && editable()) write(updateNodes(code.value, Object.fromEntries(cy!.nodes().map((n) => [n.id(), { x: n.position().x, y: n.position().y }]))))

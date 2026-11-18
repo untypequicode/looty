@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Me } from '~/types'
 import { api } from './api'
+import { draftKeyFor, LEGACY_DRAFT_KEY } from '~/utils/assistantDraft'
 
 export const ME_KEY = ['me']
 
@@ -17,6 +18,8 @@ export function useAuth() {
 
   async function logout() {
     await api('/api/auth/logout', { method: 'POST', silent: true }).catch(() => {})
+    // Le brouillon de l'Assistant de cette personne ne reste pas dans le navigateur.
+    try { if (user.value) localStorage.removeItem(draftKeyFor(user.value.id)); localStorage.removeItem(LEGACY_DRAFT_KEY) } catch { /* stockage indisponible */ }
     qc.clear()
     window.location.href = '/login'
   }

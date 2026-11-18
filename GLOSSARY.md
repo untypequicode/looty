@@ -195,22 +195,54 @@ _Avoid_: chat, session
 Droit donné par une personne à une conversation IA d'écrire sur une page précise, dans un mode (suggérer, ajouter ou remplacer) et pour une durée limitée ; révocable à tout moment. Sans elle, l'assistant est en lecture seule, et elle ne dépasse jamais les droits de la personne sur la page.
 _Avoid_: permission, accès, droit d'écriture (réservé aux rôles)
 
-**Autorisation pour les jeux**:
-Droit donné à une conversation IA, pour une durée limitée et révocable, soit de créer des jeux de révision dans un espace (ou l'espace personnel), soit de modifier un jeu précis. Les jeux créés par l'assistant sont privés ; une modification garde la version précédente pour pouvoir l'annuler.
+**Autorisation pour les entraînements**:
+Droit donné à une conversation IA, pour une durée limitée et révocable, soit de créer des entraînements dans un espace (ou l'espace personnel), soit de modifier un entraînement précis. Ceux créés par l'assistant sont personnels ; une modification garde la version précédente pour pouvoir l'annuler.
 _Avoid_: permission, droit d'écriture
+
+**Assistant**:
+Page d'un espace où une personne retrouve toutes ses conversations IA : liste à gauche (recherche, renommage, suppression), discussion à droite. Une conversation peut être ouverte seule ou depuis une page, un projet ou un entraînement, qui lui sert alors de contexte.
+_Avoid_: chat, panneau IA, bulle IA
+
+**Pièce jointe de message**:
+Élément (page, tâche, tableau, événement, document, entraînement…) que la personne joint à un message pour que l'assistant le lise avec la question. Elle ne donne aucun droit d'écriture. Aussi appelée contexte joint.
+_Avoid_: fichier joint, contexte (seul)
+
+**Fichier de l'assistant**:
+Fichier déposé par une personne dans une conversation avec l'assistant (PDF, document Word, présentation, texte…). Il est rangé dans le Drive personnel, dossier « Assistant IA », privé, et disparaît comme tout fichier du Drive à l'échéance de celui-ci ; l'assistant n'en lit que le texte.
+_Avoid_: upload, document IA
+
+**Texte extrait**:
+Texte qu'on tire d'un fichier (Drive, Moodle ou déposé dans le chat) pour que l'assistant puisse le lire. Il vit avec le fichier et disparaît avec lui. Un fichier sans texte (PDF scanné, image) n'en a pas et n'est pas lisible par l'assistant.
+_Avoid_: OCR, contenu du fichier
+
+**Cours Moodle joint**:
+Cours Moodle (ou l'un de ses fichiers) qu'une personne joint à un message pour interroger l'assistant. Il est lu avec le compte Moodle de cette personne seulement : un cours que ce compte ne peut pas ouvrir est refusé. Un cours arrive sous forme de plan (sections, activités, fichiers avec type et taille) ; le contenu d'un fichier n'est lu que quand la question le demande.
+_Avoid_: import Moodle, synchronisation du cours
+
+**Envoyer à l'IA**:
+Action d'un cours ou d'un fichier Moodle qui l'ajoute au message en cours de rédaction dans l'Assistant, sans toucher au texte déjà tapé, et ouvre l'Assistant s'il ne l'est pas.
+_Avoid_: partager avec l'IA, exporter
+
+**Carte d'autorisation**:
+Carte affichée dans la conversation quand l'assistant a besoin d'un droit d'écriture qu'il n'a pas : elle indique la page ou l'entraînement, le mode et la durée, et la personne l'accepte ou la refuse d'un clic. Accepter crée l'autorisation correspondante.
+_Avoid_: popup de permission, demande d'accès
 
 **Suggestion**:
 Modification proposée par l'assistant en mode « suggérer » : une différence que la personne accepte ou refuse, rien n'étant écrit avant.
 _Avoid_: brouillon, patch
 
-## Révisions
+## Entraînements
 
-**Jeu de révision**:
-Document de révision d'une personne ou d'un espace : QCM, questionnaire, fiches de révision ou synthèse, fait d'éléments au format strict (`docs/study-items.md`). Privé par défaut ; partageable à l'espace ou par lien. Deux modes : *édition* (propriétaire et éditeurs) et *utilisation* (toute personne qui peut le voir).
-_Avoid_: quiz, test, cours, entraînement (dans l'interface, « entraînements » désigne les jeux de révision)
+**Entraînement**:
+Élément de l'espace qui sert à s'exercer ou à réviser : QCM, questionnaire, fiches ou synthèse. Il se range dans l'arbre comme une page, se déplace, se renomme, se duplique, passe par la corbeille et peut être personnel. Ses droits suivent ceux des documents de l'espace : lecture pour s'entraîner, édition pour modifier et supprimer. Il peut être lié à tout autre élément de l'espace.
+_Avoid_: jeu de révision, révision (réservé à l'historique d'une page), quiz, test, cours
+
+**Lien d'entraînement**:
+Référence d'un entraînement vers un élément de l'espace (page, tâche, événement, tableau, projet…), affichée des deux côtés mais seulement à qui voit la cible.
+_Avoid_: pièce jointe, source
 
 **Tentative**:
-Passage d'un jeu de révision par une personne, avec sa note et ses réponses. Visible de cette personne seulement, jamais du propriétaire du jeu.
+Passage d'un entraînement par une personne, avec sa note et ses réponses. Visible de cette personne seulement, jamais de l'auteur de l'entraînement.
 _Avoid_: copie, résultat partagé
 
 **État de fiche**:

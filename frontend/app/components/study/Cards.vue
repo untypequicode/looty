@@ -3,11 +3,10 @@ import { useStudyActions, useStudyCards, type Rating, type StudySet } from '~/co
 import { useI18n } from '~/composables/useI18n'
 
 /** Fiches : recto/verso, puis évaluation (répétition espacée propre à la personne). */
-const props = defineProps<{ set: StudySet; token: string | null }>()
+const props = defineProps<{ set: StudySet }>()
 const { t } = useI18n()
 const id = computed(() => props.set.id)
-const token = computed(() => props.token)
-const states = useStudyCards(id, token)
+const states = useStudyCards(id)
 const actions = useStudyActions()
 
 const all = ref(false)
@@ -29,7 +28,7 @@ const current = computed(() => due.value[0])
 async function rate(r: Rating) {
   const it = current.value
   if (!it) return
-  await actions.review(props.set.id, it.id!, props.token, r)
+  await actions.review(props.set.id, it.id!, r)
   done.value = new Set([...done.value, it.id!])
   flipped.value = false
 }
@@ -40,10 +39,10 @@ const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy']
   <div class="cd">
     <p class="faint">{{ t('study.dueCards', { count: due.length }) }}</p>
     <template v-if="current">
-      <button class="cd-card" :aria-label="t('study.flip')" @click="flipped = !flipped">
+      <div class="cd-card" role="button" tabindex="0" :aria-label="t('study.flip')" @click="flipped = !flipped" @keydown.enter.prevent="flipped = !flipped" @keydown.space.prevent="flipped = !flipped">
         <span class="cd-side">{{ flipped ? t('study.back') : t('study.front') }}</span>
-        <span class="cd-text">{{ flipped ? current.answer?.back : current.prompt }}</span>
-      </button>
+        <RichMarkdown class="cd-text" :src="(flipped ? current.answer?.back : current.prompt) ?? ''" mode="auto" />
+      </div>
       <div class="cd-actions">
         <UiButton v-if="!flipped" variant="primary" @click="flipped = true">{{ t('study.flip') }}</UiButton>
         <template v-else>
@@ -60,9 +59,9 @@ const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy']
 
 <style scoped>
 .cd { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
-.cd-card { min-height: 200px; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; padding: 24px; border: 1px solid var(--border); border-radius: var(--r-lg, 12px); background: var(--bg-elevated, transparent); cursor: pointer; text-align: center; white-space: pre-wrap; }
+.cd-card { min-height: 200px; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; padding: 24px; border: 1px solid var(--border); border-radius: var(--r-lg, 12px); background: var(--bg-elevated, transparent); cursor: pointer; text-align: center; }
 .cd-side { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
-.cd-text { font-size: 20px; }
+.cd-text { font-size: 20px; max-width: 100%; }
 .cd-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .cd-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px; }
 </style>

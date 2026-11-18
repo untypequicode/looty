@@ -9,12 +9,12 @@ import { moveRequest, useMovePage } from '~/composables/useMovePage'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
 
-/** « Déplacer vers… » : une page et ses sous-pages changent d'espace (perso compris). */
+/** « Déplacer vers… » : une page (et ses sous-pages) ou un entraînement change d'espace (perso compris). */
 const { t } = useI18n()
 const { user } = useAuth()
 const { data: workspaces } = useWorkspaces()
 const personal = usePersonalSpace()
-const { move } = useMovePage()
+const { move, moveStudy } = useMovePage()
 
 const open = computed({ get: () => !!moveRequest.value, set: (v) => { if (!v) moveRequest.value = null } })
 const target = ref('')
@@ -48,7 +48,8 @@ async function submit() {
   if (!req || !target.value) return
   busy.value = true
   try {
-    await move(req.ws, req.id, target.value, parent.value)
+    if (req.kind === 'study') await moveStudy(req.ws, req.id, target.value, parent.value)
+    else await move(req.ws, req.id, target.value, parent.value)
     moveRequest.value = null
   } finally {
     busy.value = false
@@ -57,7 +58,7 @@ async function submit() {
 </script>
 
 <template>
-  <UiDialog v-model:open="open" :title="t('move.title', { name: moveRequest?.title || t('docs.untitled') })" :description="t('move.hint')">
+  <UiDialog v-model:open="open" :title="t('move.title', { name: moveRequest?.title || t('docs.untitled') })" :description="t(moveRequest?.kind === 'study' ? 'move.hintStudy' : 'move.hint')">
     <div class="mv">
       <div class="mv-label">{{ t('move.to') }}</div>
       <div class="mv-spaces" role="radiogroup">
@@ -76,7 +77,7 @@ async function submit() {
           <button class="mv-select"><span class="truncate">{{ parentLabel }}</span><ChevronDown :size="14" class="faint" /></button>
         </UiCombobox>
       </template>
-      <p class="mv-note faint">{{ t('move.note') }}</p>
+      <p class="mv-note faint">{{ t(moveRequest?.kind === 'study' ? 'move.noteStudy' : 'move.note') }}</p>
     </div>
     <template #footer>
       <UiButton variant="ghost" @click="open = false">{{ t('common.cancel') }}</UiButton>

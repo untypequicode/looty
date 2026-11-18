@@ -733,6 +733,9 @@ pub struct SearchResult {
     /// Mot-clé de l'élément qui correspond à la recherche.
     #[sqlx(default)]
     pub keyword: Option<String>,
+    /// Chemin affichable : titres des pages parentes, tableau d'une tâche, calendrier d'un événement.
+    #[sqlx(default)]
+    pub path: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -759,6 +762,53 @@ fn search_terms(q: &str) -> (String, bool) {
         Some(k) if !k.is_empty() => (escape_like(&crate::classes::fold(&k)), true),
         _ => (like_pattern(&q), false),
     }
+}
+
+/// Complète `path` : titres des pages parentes (pages, entraînements, projets d'une page), nom du
+/// tableau d'une tâche, nom du calendrier d'un événement. Les parents que la personne ne voit pas
+/// sont omis, avec ce qui les surmonte.
+pub async fn fill_paths(pool: &PgPool, workspace_id: Uuid, visible: &std::collections::HashMap<Uuid, PageAccess>, results: &mut [SearchResult]) -> ApiResult<()> {
+    use std::collections::HashMap;
+    if results.iter().any(|r| matches!(r.r#type.as_str(), "page" | "study" | "project")) {
+        let rows: Vec<(Uuid, Option<Uuid>, String)> = sqlx::query_as("SELECT id, parent_id, title FROM pages WHERE workspace_id = $1").bind(workspace_id).fetch_all(pool).await?;
+        let pages: HashMap<Uuid, (Option<Uuid>, String)> = rows.into_iter().map(|(id, parent, title)| (id, (parent, title))).collect();
+        for r in results.iter_mut() {
+            let start = match r.r#type.as_str() {
+                "page" => pages.get(&r.id).and_then(|p| p.0),
+                "study" => r.parent_id,
+                // Le projet d'une page : le chemin est celui de cette page.
+                "project" => r.parent_id.and_then(|pg| pages.get(&pg).and_then(|p| p.0)),
+                _ => continue,
+            };
+            let mut chain = Vec::new();
+            let mut cur = start;
+            while let Some(id) = cur {
+                if chain.len() >= 12 || !visible.get(&id).is_some_and(|a| *a != PageAccess::None) {
+                    break;
+                }
+                let Some((parent, title)) = pages.get(&id) else { break };
+                chain.push(title.clone());
+                cur = *parent;
+            }
+            chain.reverse();
+            r.path = chain;
+        }
+    }
+    let boards: Vec<Uuid> = results.iter().filter(|r| r.r#type == "task").filter_map(|r| r.parent_id).collect();
+    if !boards.is_empty() {
+        let names: HashMap<Uuid, String> = sqlx::query_as::<_, (Uuid, String)>("SELECT id, name FROM boards WHERE id = ANY($1)").bind(&boards).fetch_all(pool).await?.into_iter().collect();
+        for r in results.iter_mut().filter(|r| r.r#type == "task") {
+            r.path = r.parent_id.and_then(|b| names.get(&b)).cloned().into_iter().collect();
+        }
+    }
+    let cals: Vec<Uuid> = results.iter().filter(|r| r.r#type == "event").filter_map(|r| r.parent_id).collect();
+    if !cals.is_empty() {
+        let names: HashMap<Uuid, String> = sqlx::query_as::<_, (Uuid, String)>("SELECT id, name FROM looty_calendars WHERE id = ANY($1)").bind(&cals).fetch_all(pool).await?.into_iter().collect();
+        for r in results.iter_mut().filter(|r| r.r#type == "event") {
+            r.path = r.parent_id.and_then(|c| names.get(&c)).cloned().into_iter().collect();
+        }
+    }
+    Ok(())
 }
 
 async fn search_workspace(
@@ -909,6 +959,25 @@ async fn search_workspace(
         results.extend(subscribed);
     }
 
+    // Entraînements : même droit que pour les ouvrir (lire les documents) ; un entraînement
+    // personnel n'apparaît qu'à son propriétaire. Pas de mots-clés : rien pour `#mot`.
+    if read_docs && !kw_only {
+        let sets: Vec<SearchResult> = sqlx::query_as(
+            "SELECT id, title, 'study' AS type, NULL::varchar AS icon, kind AS snippet,
+                    parent_id, NULL::timestamptz AS date, NULL::text AS folder, NULL::text AS keyword
+             FROM study_sets
+             WHERE workspace_id = $1 AND deleted_at IS NULL AND looty_fold(title) LIKE $2 AND (private_to IS NULL OR private_to = $3)
+             ORDER BY updated_at DESC
+             LIMIT 10",
+        )
+        .bind(workspace_id)
+        .bind(&pattern)
+        .bind(user.id)
+        .fetch_all(&pool)
+        .await?;
+        results.extend(sets);
+    }
+
     // Fichiers et dossiers du Drive (même droit que pour le parcourir : lire les documents).
     if read_docs {
         let files: Vec<SearchResult> = sqlx::query_as(
@@ -928,7 +997,34 @@ async fn search_workspace(
         .fetch_all(&pool)
         .await?;
         results.extend(files);
+
+        // Contenu des fichiers dont le texte a été extrait (mots entiers ou débuts de mot) : mêmes règles d'accès
+        // que ci-dessus (fichier non expiré, non privé à un autre) ; l'extrait est tiré du texte lui-même.
+        let words: Vec<String> = crate::classes::fold(q).split(|c: char| !(c.is_alphabetic() || c.is_ascii_digit())).filter(|w| !w.is_empty()).take(6).map(String::from).collect();
+        if !kw_only && !words.is_empty() {
+            let tsquery = words.iter().map(|w| format!("'{w}':*")).collect::<Vec<_>>().join(" & ");
+            let hits: Vec<SearchResult> = sqlx::query_as(
+                "SELECT f.id, f.name AS title, 'file' AS type, NULL::varchar AS icon,
+                        '… ' || substring(t.search_text from greatest(position($3 in t.search_text) - 50, 1) for 160) || ' …' AS snippet,
+                        NULL::uuid AS parent_id, NULL::timestamptz AS date, f.folder::text AS folder, NULL::text AS keyword
+                 FROM drive_file_text t JOIN drive_files f ON f.id = t.file_id
+                 WHERE f.workspace_id = $1 AND NOT f.is_dir AND t.search_tsv @@ to_tsquery('simple', $2)
+                   AND (f.expires_at IS NULL OR f.expires_at > NOW()) AND (f.private_to IS NULL OR f.private_to = $4)
+                   AND NOT (f.id = ANY($5))
+                 ORDER BY f.created_at DESC
+                 LIMIT 10",
+            )
+            .bind(workspace_id)
+            .bind(&tsquery)
+            .bind(&words[0])
+            .bind(user.id)
+            .bind(results.iter().map(|r| r.id).collect::<Vec<_>>())
+            .fetch_all(&pool)
+            .await?;
+            results.extend(hits);
+        }
     }
+    fill_paths(&pool, workspace_id, &visible, &mut results).await?;
     Ok(Json(serde_json::json!({ "results": results })))
 }
 
@@ -1069,6 +1165,75 @@ mod tests {
         assert_eq!(like_pattern("Algèbre"), "%algebre%");
         assert_eq!(like_pattern("RÉUNION"), "%reunion%");
         assert_eq!(like_pattern("50%_a\\b"), "%50\\%\\_a\\\\b%");
+    }
+
+    #[sqlx::test]
+    async fn search_paths_show_visible_parent_titles_and_the_board(pool: PgPool) {
+        use std::collections::HashMap;
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        let uid: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ('a@example.org', 'a') RETURNING id").fetch_one(&pool).await.unwrap();
+        let mut ids = vec![];
+        let mut parent: Option<Uuid> = None;
+        for title in ["Cours", "Algèbre", "Fiche"] {
+            let id: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, parent_id, created_by) VALUES ($1, $2, $3, $4) RETURNING id").bind(ws).bind(title).bind(parent).bind(uid).fetch_one(&pool).await.unwrap();
+            ids.push(id);
+            parent = Some(id);
+        }
+        let board: Uuid = sqlx::query_scalar("INSERT INTO boards (workspace_id, name) VALUES ($1, 'Sprint') RETURNING id").bind(ws).fetch_one(&pool).await.unwrap();
+        let hit = |id: Uuid, kind: &str, parent_id: Option<Uuid>| SearchResult { id, title: String::new(), r#type: kind.into(), icon: None, snippet: None, parent_id, date: None, folder: None, keyword: None, path: vec![] };
+        let mut visible: HashMap<Uuid, PageAccess> = ids.iter().map(|i| (*i, PageAccess::Write)).collect();
+        let task = Uuid::new_v4();
+        let mut results = vec![hit(ids[2], "page", Some(ids[1])), hit(Uuid::new_v4(), "study", Some(ids[1])), hit(task, "task", Some(board))];
+        fill_paths(&pool, ws, &visible, &mut results).await.unwrap();
+        assert_eq!(results[0].path, vec!["Cours", "Algèbre"]);
+        assert_eq!(results[1].path, vec!["Cours", "Algèbre"]);
+        assert_eq!(results[2].path, vec!["Sprint"]);
+        // Un parent invisible coupe le chemin : on n'en révèle pas le titre.
+        visible.insert(ids[1], PageAccess::None);
+        let mut results = vec![hit(ids[2], "page", Some(ids[1]))];
+        fill_paths(&pool, ws, &visible, &mut results).await.unwrap();
+        assert!(results[0].path.is_empty());
+    }
+
+    #[sqlx::test]
+    async fn search_finds_words_inside_extracted_file_text_within_drive_access(pool: PgPool) {
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        let mut users = vec![];
+        for name in ["a", "b"] {
+            let id: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id").bind(format!("{name}@example.org")).bind(name).fetch_one(&pool).await.unwrap();
+            sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')").bind(ws).bind(id.to_string()).execute(&pool).await.unwrap();
+            users.push(AuthUser { id, is_super_admin: false });
+        }
+        for (name, private, text) in [("cours.pdf", None, "Le théorème de Pythagore"), ("secret.pdf", Some(users[0].id), "pythagore en cachette")] {
+            let id: Uuid = sqlx::query_scalar("INSERT INTO drive_files (workspace_id, folder, name, mime, size, uploaded_by, private_to) VALUES ($1, '', $2, 'application/pdf', 10, $3, $4) RETURNING id")
+                .bind(ws)
+                .bind(name)
+                .bind(users[0].id)
+                .bind(private)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, '[]', 10, $3, looty_safe_tsv($3))").bind(id).bind(serde_json::json!([text])).bind(crate::classes::fold(text)).execute(&pool).await.unwrap();
+        }
+        let find = |user: &AuthUser, q: &str| {
+            let (pool, user, q) = (pool.clone(), AuthUser { id: user.id, is_super_admin: false }, q.to_string());
+            async move {
+                let Json(v) = search_workspace(State(pool), user, Path(ws), Query(SearchQuery { q: Some(q) })).await.unwrap();
+                v["results"].as_array().unwrap().clone()
+            }
+        };
+        let mine = find(&users[0], "pythagor").await;
+        assert_eq!(mine.len(), 2);
+        let theirs = find(&users[1], "THEOREME pyth").await;
+        assert_eq!(theirs.len(), 1, "{theirs:?}");
+        assert_eq!(theirs[0]["title"], "cours.pdf");
+        assert!(theirs[0]["snippet"].as_str().unwrap().contains("pythagore"));
+        assert_eq!(find(&users[1], "cachette").await.len(), 0);
+        // Jetons étranges : jamais une erreur ; sans mot exploitable la branche contenu est sautée.
+        for q in ["½", "²", "&", "|", "!", "'", "\"", "½ pyth & | ! '", "pyth:*", "(pyth)", "a<->b", "\\"] {
+            let _ = find(&users[0], q).await;
+        }
+        assert_eq!(find(&users[0], "½ pythagor ! &").await.len(), 2);
     }
 
     #[test]

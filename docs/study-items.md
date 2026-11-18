@@ -1,6 +1,6 @@
 # Study set item schema (version 1)
 
-Reference format for the items of a study set (GLOSSARY: *Jeu de révision*). It is enforced by the backend (`backend/src/study.rs`: `ItemIn`, `validate_item`) and meant to be produced by humans or by an AI. Unknown fields are rejected.
+Reference format for the items of an entraînement / training (GLOSSARY: *Entraînement*; formerly study set). It is enforced by the backend (`backend/src/study.rs`: `ItemIn`, `validate_item`) and meant to be produced by humans or by an AI. Unknown fields are rejected.
 
 A set has a `kind`; each kind accepts only some item types:
 
@@ -9,7 +9,7 @@ A set has a `kind`; each kind accepts only some item types:
 | `qcm` | `single`, `multi` |
 | `questionnaire` | `single`, `multi`, `text` |
 | `flashcards` | `flashcard` |
-| `summary` | `flashcard` (front = section title, back = its content) |
+| `summary` | `flashcard`, used as a section (see below) |
 
 ## Item
 
@@ -38,6 +38,18 @@ No `choices`. `"answer": { "accepted": ["Paris", "la ville de Paris"] }`. Compar
 ### `flashcard`
 No `choices`. `"answer": { "back": "string, 1..4000 chars" }`. Not scored; reviewed with spaced repetition (again / hard / good / easy).
 
+### `summary` sets: sections
+A summary is read, not played. Each `flashcard` item is one section, in order: `prompt` = the section heading (plain text, keep it short), `answer.back` = the body in Markdown (paragraphs, lists, emphasis, tables, code, LaTeX, diagrams; see "Markdown in item text"), no `explanation`. The reader shows a table of contents and lets each person mark sections as read (kept in the browser only). No new item type: sets created before this convention stay valid.
+
+
+## Markdown in item text
+`prompt`, choice `text`, `explanation` and `answer.back` are Markdown, rendered by the shared rich renderer (the same everywhere: player, flashcards, summaries, editor preview, assistant chat). Stored as plain strings; the only limits are the lengths above. Supported:
+
+- inline `$O(n^2)$` and block `$$...$$` LaTeX (KaTeX); an unclosed formula stays text;
+- **bold**, *italic*, `code`, fenced code with a language (highlighted), tables, task lists (read-only), quotes, links (http, https, mailto);
+- callouts: `:::info`, `:::success`, `:::warning`, `:::tip` on their own line, content, then `:::`;
+- a fenced ```` ```mermaid ```` block (diagram) or ```` ```looty-graph ```` block (one line per node or edge, see ADR 0007), drawn lazily with the workspace diagram style; an invalid block shows its source with an error note;
+- raw HTML and images are dropped. Choices and one-line prompts render inline (no paragraph): keep them short.
 ## Limits
 At most 500 items per set; set title 1..200 chars.
 
@@ -58,7 +70,7 @@ At most 500 items per set; set title 1..200 chars.
 }
 ```
 
-`POST /api/study/sets` accepts this object (plus optional `workspace_id`).
+`POST /api/study/sets` accepts `title`, `kind` and `items` (this object's list) plus a required `workspace_id` and optional `parent_id` (a page of that workspace) and `personal`. A training is a workspace item (ADR 0011): move, duplicate, trash, personal and links have their own routes under `/api/study`.
 
 ## Submitting an attempt
 `POST /api/study/sets/{id}/attempts` with `{ "answers": { "<item uuid>": <value> } }` where value is the choice id (`single`), an array of choice ids (`multi`) or a string (`text`).

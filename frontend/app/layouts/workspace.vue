@@ -15,6 +15,7 @@ import { useIdle, useDocumentVisibility } from '@vueuse/core'
 import { toast } from '~/composables/useToast'
 import { useTabs, tabsEnabled, isWorkspaceLink, tabMod, draggingTab } from '~/composables/useTabs'
 import { isPane } from '~/composables/usePane'
+import { useAiOpenItemTracker } from '~/composables/useAiOpenItem'
 import { saveScroll, restoreScroll } from '~/composables/useScrollMemory'
 import { useAuth } from '~/composables/useAuth'
 import { useUi, notepadOpen } from '~/composables/useUi'
@@ -26,6 +27,7 @@ import { useI18n } from '~/composables/useI18n'
 import { usePersonalShell, usePersonalSpace } from '~/composables/usePersonal'
 
 const route = useRoute()
+useAiOpenItemTracker()
 // Coque : l'espace partagé reste autour d'un élément perso ouvert depuis lui.
 const shell = usePersonalShell()
 const personal = usePersonalSpace()
@@ -342,7 +344,6 @@ function onEdgeStart(e: TouchEvent) {
     <AppShellScope :ws="wsId">
       <AppCommandPalette />
       <AppNotepad v-if="!isPane" />
-      <AppAiChat v-if="!isPane" />
       <AppWorkOnDialog v-if="!isPane" />
       <AppCreateBoardDialog />
     </AppShellScope>
@@ -350,6 +351,7 @@ function onEdgeStart(e: TouchEvent) {
     <AppShortcutsDialog />
     <TaskCreateDialog />
     <DocMoveDialog v-if="!isPane" />
+    <StudyCreateDialog v-if="!isPane" />
   </div>
 </template>
 

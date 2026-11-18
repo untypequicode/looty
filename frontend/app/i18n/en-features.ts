@@ -58,7 +58,7 @@ export default {
     moved: 'Moved to the trash', deleteForever: 'Delete forever', empty: 'Empty trash', emptyTitle: 'Empty the trash?',
     deleteTitle: 'Delete “{title}” forever?', deleteMessage: 'This can’t be undone.',
     hint: 'Deleted items are kept {days} days, then removed for good.', disabled: 'The trash is turned off: deleted items are removed immediately.',
-    change: 'Change', emptyTasks: 'No deleted tasks', emptyPages: 'No deleted documents', pagesOwnOnly: 'You only see the documents you deleted.',
+    change: 'Change', emptyTasks: 'No deleted tasks', emptyPages: 'No deleted documents', study: 'Trainings', emptyStudy: 'No deleted trainings', pagesOwnOnly: 'You only see the documents you deleted.',
     deletedBy: 'deleted by {name} {when}', someone: 'someone',
     daysLeft: { zero: 'Removed today', one: '1 day left', other: '{count} days left' },
     subtasks: { one: '1 sub-task', other: '{count} sub-tasks' }, subpages: { one: '1 sub-document', other: '{count} sub-documents' },

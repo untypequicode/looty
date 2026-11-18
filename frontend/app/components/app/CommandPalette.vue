@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import {
   Search, Home, Inbox, CircleUserRound, FileText, Kanban, SquarePen, FilePlus2, Plus, Settings,
   Sun, Moon, Languages, Users, CheckSquare, CornerDownLeft, Keyboard, LogOut,
-  BookOpen, PencilLine, Activity, Waypoints, Sparkles, Columns2, CalendarDays, File, Folder, FolderCode, Hash,
+  BookOpen, BookCheck, PencilLine, Activity, Waypoints, Sparkles, Columns2, CalendarDays, File, Folder, FolderCode, Hash,
 } from 'lucide-vue-next'
 import { useTabs, tabsEnabled } from '~/composables/useTabs'
 import { isPane } from '~/composables/usePane'
@@ -143,13 +143,14 @@ const results = computed<Cmd[]>(() => {
   return [...local, ...rem]
 })
 
-const GROUP: Record<SearchResult['type'], string> = { page: 'content', board: 'boards', project: 'projects', task: 'tasks', event: 'events', calendar_event: 'events', file: 'files', folder: 'files' }
-const ICON: Record<SearchResult['type'], Component> = { page: FileText, board: Kanban, project: FolderCode, task: CheckSquare, event: CalendarDays, calendar_event: CalendarDays, file: File, folder: Folder }
+const GROUP: Record<SearchResult['type'], string> = { page: 'content', study: 'content', board: 'boards', project: 'projects', task: 'tasks', event: 'events', calendar_event: 'events', file: 'files', folder: 'files' }
+const ICON: Record<SearchResult['type'], Component> = { page: FileText, study: BookCheck, board: Kanban, project: FolderCode, task: CheckSquare, event: CalendarDays, calendar_event: CalendarDays, file: File, folder: Folder }
 const eventDate = (d: string) => new Date(d).toLocaleDateString(locale.value, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 
 function resultLink(r: SearchResult): string {
   const ws = wsId.value
   switch (r.type) {
+    case 'study': return links.studySet(ws, r.id)
     case 'task': return links.task(ws, r.parent_id!, r.id)
     case 'board': return links.board(ws, r.id)
     case 'project': return r.parent_id ? links.doc(ws, r.parent_id) : `/w/${ws}/projects/${r.id}`

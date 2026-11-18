@@ -1,8 +1,8 @@
 import { ref } from 'vue'
 import { api, errorMessage } from './api'
-
-/** Panneau de l'agent IA (reste ouvert d'une page à l'autre). */
-export const aiOpen = ref(false)
+import { links } from './useWorkspace'
+import type { EndedGrant } from '~/utils/grantState'
+import { attachmentPayload } from '~/utils/assistantDraft'
 
 export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'perplexity' | 'openai_compatible'
 export type AiMode = 'suggest' | 'append' | 'replace'
@@ -15,6 +15,8 @@ export interface AiConnection {
   base_url: string | null
   has_key: boolean
   key_hint: string | null
+  /** La personne a déjà vu l'avis « le contenu d'un fichier part chez ce fournisseur ». */
+  files_notice_seen?: boolean
 }
 
 export interface AiConversation {
@@ -26,21 +28,37 @@ export interface AiConversation {
   updated_at: string
 }
 
-export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any }
+/** Type d'élément joignable à un message (la même liste que les résultats de recherche utiles). */
+export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'event' | 'file' | 'moodle_course' | 'moodle_file'
+/** Élément joint : le serveur le relit avec vos droits à l'envoi (rien du contenu ne part du navigateur). */
+export interface AiAttachment {
+  kind: AiAttachKind; id: string; title: string; ws?: string
+  /** Fichier : échéance dans le Drive (au-delà, l'assistant ne le lit plus). */
+  expiresAt?: string | null; pages?: number
+  /** Moodle : cours (et son nom) et, pour un fichier, son adresse d'origine sur la plateforme. `ws` est l'espace de la connexion Moodle. */
+  courseId?: number; courseName?: string; url?: string; size?: number
+}
+
+export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any; created_at?: string }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
-export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
 export interface AiStudyGrant { id: string; kind: 'create' | 'update'; workspace_id: string | null; workspace_name: string | null; personal: boolean; set_id: string | null; set_title: string | null; expires_at: string }
 export interface AiDiffLine { op: ' ' | '+' | '-'; text: string }
 export interface AiSuggestion { id: string; page_id: string; diff: AiDiffLine[] }
+/** Autorisation que l'assistant a demandée sans l'avoir (carte dans la discussion). */
+export type AiGrantNeed =
+  | { kind: 'page'; page_id: string; workspace_id: string; title: string; operation: 'append' | 'replace' }
+  | { kind: 'study_create'; workspace_id: string | null; personal: boolean; title: string }
+  | { kind: 'study_update'; set_id: string; title: string }
 
-/** Valeurs proposées à la création d'une connexion. */
-export const AI_PROVIDERS: { value: AiProvider; label: string; model: string; baseUrl?: string }[] = [
-  { value: 'openai', label: 'OpenAI', model: 'gpt-4.1' },
-  { value: 'anthropic', label: 'Anthropic (Claude)', model: 'claude-sonnet-4-5' },
-  { value: 'gemini', label: 'Google Gemini', model: 'gemini-3.5-flash-lite' },
-  { value: 'perplexity', label: 'Perplexity', model: 'sonar' },
-  { value: 'openai_compatible', label: 'OpenAI-compatible (Ollama…)', model: 'llama3.1', baseUrl: 'http://localhost:11434/v1' },
-]
+/** Éléments à joindre au prochain message de la page Assistant (« Demander à l'IA » dans un menu). */
+export const aiInbox = ref<AiAttachment[]>([])
+
+/** Ouvre l'Assistant avec cet élément joint. */
+export function askAi(ws: string, item: AiAttachment) {
+  aiInbox.value = [{ ...item, ws }]
+  return navigateTo(links.assistant(ws))
+}
+
 
 /**
  * Erreur du fournisseur (« provider_http_503: {...} » dans le flux) → phrase courte et lisible.
@@ -65,16 +83,18 @@ export type AiStreamEvent =
   | { type: 'tool'; name: string; ok: boolean; page_id?: string; study_set_id?: string | null }
   | { type: 'suggestion'; suggestion: AiSuggestion }
   | { type: 'page_changed'; page_id: string }
+  | { type: 'grant_needed'; grant: AiGrantNeed }
+  | { type: 'title'; title: string }
   | { type: 'error'; message: string }
   | { type: 'done' }
 
 /** Envoie un message et lit la réponse en flux (SSE par POST : pas d'`EventSource`). */
-export async function streamMessage(conversationId: string, content: string, onEvent: (e: AiStreamEvent) => void, signal?: AbortSignal) {
+export async function streamMessage(conversationId: string, content: string, attachments: AiAttachment[], onEvent: (e: AiStreamEvent) => void, signal?: AbortSignal, workspaceId?: string) {
   const res = await fetch(`/api/ai/conversations/${conversationId}/messages`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, workspace_id: workspaceId || undefined, attachments: attachments.map(attachmentPayload) }),
     signal,
   })
   if (!res.ok || !res.body) {
@@ -102,7 +122,8 @@ export async function streamMessage(conversationId: string, content: string, onE
 
 export const aiApi = {
   connections: () => api<AiConnection[]>('/api/ai/connections'),
-  conversations: (kind?: string, id?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { context_kind: kind, context_id: id }, silent: true }),
-  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; suggestions: AiSuggestion[] }>(`/api/ai/conversations/${id}`),
+  ackFilesNotice: (id: string) => api(`/api/ai/connections/${id}/files-notice`, { method: 'POST', silent: true }),
+  conversations: (q?: string) => api<AiConversation[]>('/api/ai/conversations', { query: { q: q || undefined }, silent: true }),
+  conversation: (id: string) => api<{ conversation: AiConversation; messages: AiMessage[]; grants: AiGrant[]; study_grants: AiStudyGrant[]; ended_grants?: EndedGrant[]; suggestions: AiSuggestion[]; restored_revisions?: string[]; default_workspace_id?: string | null }>(`/api/ai/conversations/${id}`),
 }
 

@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { FileText, Sigma, Globe, NotebookText, PenTool, LockKeyhole } from 'lucide-vue-next'
+import { FileText, Sigma, Globe, NotebookText, PenTool, LockKeyhole, BookCheck } from 'lucide-vue-next'
 import type { Placement } from '@floating-ui/vue'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { usePages, type NewPageProject } from '~/composables/usePages'
 import { useI18n } from '~/composables/useI18n'
+import { openStudyCreate } from '~/composables/useStudyCreate'
 import { useWorkspaceId, useWorkspace, links } from '~/composables/useWorkspace'
 
 /**
- * « Nouveau » des documents : une page, ou une page qui porte un projet (LaTeX, site,
- * notebook) et s'ouvre sur ses fichiers et son aperçu.
+ * « Nouveau » des documents : une page, une page qui porte un projet (LaTeX, site,
+ * notebook) et s'ouvre sur ses fichiers et son aperçu, ou un entraînement.
  */
 /** `personalOnly` : rôle en lecture seule, qui ne peut créer que des documents personnels. */
 const props = withDefaults(defineProps<{ parentId?: string | null; placement?: Placement; personalOnly?: boolean }>(), { parentId: null, placement: 'bottom-end', personalOnly: false })
@@ -31,12 +32,17 @@ async function createCanvas() {
   emit('created', p.id)
 }
 const items = computed<MenuItem[]>(() => props.personalOnly
-  ? [{ label: t('personalItem.newPersonalDoc'), icon: LockKeyhole, onSelect: () => create(undefined, true) }]
+  ? [
+      { label: t('personalItem.newPersonalDoc'), icon: LockKeyhole, onSelect: () => create(undefined, true) },
+      { label: t('study.new'), icon: BookCheck, onSelect: () => openStudyCreate(wsId.value, { parentId: props.parentId, personal: true }) },
+    ]
   : [
   { label: t('projects.pageKinds.doc'), icon: FileText, onSelect: () => create() },
   { label: t('canvas.title'), icon: PenTool, onSelect: createCanvas },
   // Document visible de soi seul, rangé ici (ex. son TP sous la page du cours).
   ...(personalSpace.value ? [] : [{ label: t('personalItem.newPersonalDoc'), icon: LockKeyhole, onSelect: () => create(undefined, true) }]),
+  // Entraînement (QCM, questionnaire, fiches, synthèse) : un élément de l'arbre comme une page.
+  { label: t('study.new'), icon: BookCheck, onSelect: () => openStudyCreate(wsId.value, { parentId: props.parentId }) },
   { divider: true },
   { heading: t('projects.pageKinds.projects') },
   { label: t('projects.pageKinds.latex'), icon: Sigma, onSelect: () => create({ kind: 'latex', template: 'article' }) },

@@ -164,11 +164,16 @@ pub(crate) struct Conn {
 }
 
 pub(crate) async fn conn_of(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<(Conn, Ws, i64)> {
-    require_member(&state.pool, user, ws).await?;
+    conn_for(&state.pool, user, ws).await
+}
+
+/// Connexion Moodle de la personne dans l'espace (jeton déchiffré) : membre de l'espace et connectée, sinon refus.
+pub(crate) async fn conn_for(pool: &sqlx::PgPool, user: &AuthUser, ws: Uuid) -> ApiResult<(Conn, Ws, i64)> {
+    require_member(pool, user, ws).await?;
     let c: Conn = sqlx::query_as("SELECT id, base_url, token_enc, moodle_user_id, calendar_id FROM moodle_connections WHERE workspace_id = $1 AND user_id = $2")
         .bind(ws)
         .bind(user.id)
-        .fetch_optional(&state.pool)
+        .fetch_optional(pool)
         .await?
         .ok_or_else(|| ApiError::bad_request("moodle_not_connected"))?;
     let token = crate::crypto::decrypt(&c.token_enc).ok_or_else(|| ApiError::bad_request("moodle_invalid_token"))?;
@@ -414,6 +419,8 @@ async fn disconnect(State(state): State<AppState>, user: AuthUser, Path(ws): Pat
     }
     // Copie hors ligne de ce qui avait été ouvert : effacée avec la connexion.
     crate::moodle_cache::forget(&state, ws, user.id).await;
+    // Texte des fichiers lus par l'assistant : effacé aussi.
+    crate::ai_moodle::forget(&state.pool, ws, user.id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

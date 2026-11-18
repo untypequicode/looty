@@ -21,6 +21,254 @@
     },
     {
       "platform": "web",
+      "version": "0.40.1",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Safer and steadier Moodle questions for the assistant",
+        "fr": "Questions Moodle à l’assistant plus sûres et plus stables"
+      },
+      "notes": {
+        "en": [
+          "**Shared computers**: the message you are writing in the Assistant (text and attached items) is now kept per person and cleared when you log out, so the next person on the same browser never sees it.",
+          "**Moodle files**: stricter checks on the addresses of Moodle files before they are downloaded.",
+          "**Large courses**: reading several files of a course at once is now limited per person and respects its time budget after each file; a temporary overload no longer marks a file as unreadable for weeks."
+        ],
+        "fr": [
+          "**Ordinateurs partagés** : le message en cours de rédaction dans l’Assistant (texte et éléments joints) est maintenant conservé par personne et effacé à la déconnexion, la personne suivante sur le même navigateur ne le voit jamais.",
+          "**Fichiers Moodle** : contrôles plus stricts des adresses des fichiers Moodle avant leur téléchargement.",
+          "**Gros cours** : la lecture de plusieurs fichiers d’un cours en même temps est maintenant limitée par personne et respecte son budget de temps après chaque fichier ; une surcharge passagère ne marque plus un fichier comme illisible pendant des semaines."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.40.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Ask the assistant about your Moodle courses",
+        "fr": "Interrogez l’assistant sur vos cours Moodle"
+      },
+      "notes": {
+        "en": [
+          "**Moodle in the assistant**: attach a Moodle course or one of its files to a message with @, then ask your question. The assistant gets the course outline and reads the files it needs, using your own Moodle account.",
+          "**Send to AI**: a new button on Moodle courses and on each file adds it to your message in the assistant, without losing what you already typed, and opens the assistant if needed.",
+          "**Search in a course**: the assistant can search the PDF, Word, PowerPoint and text files of a whole course. Scanned files, files over 25 MB and expired Moodle connections are reported clearly.",
+          "**Privacy**: the text of Moodle files is sent to the AI provider you chose, with a notice the first time. Your Moodle access never leaves the server, and the extracted text is kept for you only for 30 days without use."
+        ],
+        "fr": [
+          "**Moodle dans l’assistant** : joignez un cours Moodle ou l’un de ses fichiers à un message avec @, puis posez votre question. L’assistant reçoit le plan du cours et lit les fichiers dont il a besoin, avec votre propre compte Moodle.",
+          "**Envoyer à l’IA** : un nouveau bouton sur les cours Moodle et sur chaque fichier l’ajoute à votre message dans l’assistant, sans perdre ce que vous aviez déjà tapé, et ouvre l’assistant si besoin.",
+          "**Recherche dans un cours** : l’assistant peut chercher dans les fichiers PDF, Word, PowerPoint et texte de tout un cours. Les fichiers scannés, ceux de plus de 25 Mo et les connexions Moodle expirées sont signalés clairement.",
+          "**Confidentialité** : le texte des fichiers Moodle est envoyé au fournisseur d’IA que vous avez choisi, avec un avis la première fois. Votre accès Moodle ne quitte jamais le serveur, et le texte extrait n’est gardé que pour vous, 30 jours sans utilisation."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.39.1",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Polish for the assistant and trainings",
+        "fr": "Finitions pour l’assistant et les entraînements"
+      },
+      "notes": {
+        "en": [
+          "**Undo in the assistant**: a change you already undid stays marked “Undone” after you reload the conversation, and its button stays disabled.",
+          "**Assistant workspace**: the composer shows “Space: …” and lets you change where the assistant creates trainings and pages. A message sent from another space no longer changes it.",
+          "**Search in files**: the @ picker and the workspace search now find words inside the text of Drive files you can read, with an extract.",
+          "**Graphs**: click a graph in the chat or in a training to enlarge it and copy its source. Graphs over 20,000 characters show their source with a clear message.",
+          "**Trainings**: formulas in the expected answer after a wrong answer display correctly, even with several answers.",
+          "**Uploads**: two files dropped at the same time can no longer exceed your Drive quota."
+        ],
+        "fr": [
+          "**Annuler dans l’assistant** : une modification déjà annulée reste marquée « Annulée » après le rechargement de la conversation, et son bouton reste désactivé.",
+          "**Espace de l’assistant** : la zone de saisie affiche « Espace : … » et permet de changer où l’assistant crée les entraînements et les pages. Un message envoyé depuis un autre espace ne le change plus.",
+          "**Recherche dans les fichiers** : le sélecteur @ et la recherche de l’espace trouvent maintenant des mots dans le texte des fichiers du Drive que vous pouvez lire, avec un extrait.",
+          "**Graphes** : cliquez sur un graphe du chat ou d’un entraînement pour l’agrandir et copier sa source. Au-delà de 20 000 caractères, la source s’affiche avec un message clair.",
+          "**Entraînements** : les formules de la réponse attendue après une mauvaise réponse s’affichent correctement, même avec plusieurs réponses.",
+          "**Dépôts** : deux fichiers déposés en même temps ne peuvent plus dépasser le quota de votre Drive."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.39.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Formulas, diagrams and graphs everywhere: in the chat and in trainings",
+        "fr": "Formules, schémas et graphes partout : dans le chat et dans les entraînements"
+      },
+      "notes": {
+        "en": [
+          "**Trainings**: questions, choices, explanations, flashcards and summaries now render LaTeX, Mermaid diagrams, graphs, callouts, tables and highlighted code.",
+          "**Assistant replies**: the chat uses the same rendering, so formulas and diagrams show up as they should.",
+          "**Preview in the training editor**: check the Markdown of each item as you write it.",
+          "**Create a page from this answer**: a button on each assistant message makes a personal page in your current workspace and opens it.",
+          "**Agents**: they now know they can write Markdown, LaTeX, Mermaid and graphs in training items."
+        ],
+        "fr": [
+          "**Entraînements** : questions, choix, explications, fiches et synthèses affichent maintenant le LaTeX, les schémas Mermaid, les graphes, les encadrés, les tableaux et le code coloré.",
+          "**Réponses de l’assistant** : le chat utilise le même rendu, les formules et les schémas s’affichent donc comme il faut.",
+          "**Aperçu dans l’éditeur d’entraînement** : vérifiez le Markdown de chaque élément en l’écrivant.",
+          "**Créer une page avec cette réponse** : un bouton sur chaque message de l’assistant crée une page personnelle dans votre espace courant et l’ouvre.",
+          "**Agents** : ils savent maintenant qu’ils peuvent écrire du Markdown, du LaTeX, du Mermaid et des graphes dans les éléments d’entraînement."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.38.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Chat with your files, and a much better @ picker",
+        "fr": "Discutez avec vos fichiers, et un sélecteur @ bien meilleur"
+      },
+      "notes": {
+        "en": [
+          "**Files in the chat**: drop, paste or pick (paperclip) a PDF, Word, PowerPoint, text or code file. It is stored in your private Drive folder “Assistant IA” and expires like any Drive file.",
+          "**Drive files**: attach any readable Drive file with @, like a page.",
+          "**Large files**: the assistant reads them on demand with read and search tools, within a reading budget. A one-time notice tells you that the content goes to your AI provider.",
+          "**Not supported yet**: scanned PDFs and images (no text recognition).",
+          "**@ picker**: recent items and favorites when empty, results grouped by type, a preview of the highlighted item and full keyboard navigation (arrows, Tab or Enter).",
+          "**Drag and drop**: drag a page or a training from the sidebar onto the chat to attach it."
+        ],
+        "fr": [
+          "**Fichiers dans le chat** : déposez, collez ou choisissez (trombone) un fichier PDF, Word, PowerPoint, texte ou code. Il est rangé dans votre dossier privé « Assistant IA » du Drive et expire comme tout fichier du Drive.",
+          "**Fichiers du Drive** : joignez n’importe quel fichier lisible du Drive avec @, comme une page.",
+          "**Gros fichiers** : l’assistant les lit à la demande avec des outils de lecture et de recherche, dans la limite d’un budget de lecture. Un avis, affiché une seule fois, vous prévient que le contenu part chez votre fournisseur d’IA.",
+          "**Pas encore pris en charge** : les PDF scannés et les images (pas de reconnaissance de texte).",
+          "**Sélecteur @** : éléments récents et favoris quand il est vide, résultats groupés par type, aperçu de l’élément en surbrillance et navigation complète au clavier (flèches, Tab ou Entrée).",
+          "**Glisser-déposer** : glissez une page ou un entraînement depuis le menu de gauche sur le chat pour le joindre."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.37.3",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Adding an AI agent is now guided",
+        "fr": "Ajouter un agent IA est maintenant guidé"
+      },
+      "notes": {
+        "en": [
+          "**Guided form**: pick OpenAI, Anthropic, Gemini, Perplexity or an Ollama-compatible server and the form shows only what that provider needs, with a link to the site where you get your API key, the expected key format and what it costs.",
+          "**Models**: once your key is entered, the list of models your key can really use is loaded from the provider; you can also type any other model.",
+          "**Test**: a “Test the connection” button checks the key, the model and the address, with a readable message when something is wrong (invalid key, quota, unknown model, unreachable server).",
+          "**Getting started**: the agents settings explain what an agent can and cannot do, with a three-step guide, and the Assistant page points there when no agent is connected.",
+          "**Existing connections**: the key stays hidden; use “Replace the key” to change it."
+        ],
+        "fr": [
+          "**Formulaire guidé** : choisissez OpenAI, Anthropic, Gemini, Perplexity ou un serveur compatible Ollama et le formulaire n’affiche que ce dont ce fournisseur a besoin, avec le lien du site où récupérer votre clé d’API, le format attendu de la clé et ce que cela coûte.",
+          "**Modèles** : une fois la clé saisie, la liste des modèles que votre clé peut vraiment utiliser est chargée depuis le fournisseur ; vous pouvez aussi saisir n’importe quel autre modèle.",
+          "**Test** : un bouton « Tester la connexion » vérifie la clé, le modèle et l’adresse, avec un message lisible en cas de problème (clé invalide, quota, modèle inconnu, serveur injoignable).",
+          "**Prise en main** : les réglages des agents expliquent ce qu’un agent peut ou non faire, avec un guide en trois étapes, et la page Assistant y renvoie quand aucun agent n’est connecté.",
+          "**Connexions existantes** : la clé reste masquée ; utilisez « Remplacer la clé » pour la changer."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.37.2",
+      "date": "2026-11-17",
+      "title": {
+        "en": "The assistant can create trainings in your personal space",
+        "fr": "L’assistant peut créer des entraînements dans votre espace personnel"
+      },
+      "notes": {
+        "en": [
+          "**Assistant**: fixed a refusal when it created a training after you approved the card. By default it now uses the workspace you are in (or the one of the conversation), and the personal space is recognised however the assistant names it.",
+          "**Assistant**: when no authorization matches, the assistant is told which ones are active and asks you to approve the card instead of retrying with another target."
+        ],
+        "fr": [
+          "**Assistant** : correction d’un refus lors de la création d’un entraînement après approbation de la carte. Par défaut, il utilise désormais l’espace dans lequel vous êtes (ou celui de la conversation), et l’espace personnel est reconnu quelle que soit la façon dont l’assistant le désigne.",
+          "**Assistant** : quand aucune autorisation ne correspond, l’assistant connaît celles qui sont actives et vous demande d’approuver la carte au lieu de réessayer avec une autre cible."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.37.1",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Trainings can be dragged in the tree, richer links and assistant context",
+        "fr": "Entraînements glissables dans l’arbre, liens et contexte de l’assistant enrichis"
+      },
+      "notes": {
+        "en": [
+          "**Tree**: drag and drop trainings in the sidebar tree, like pages (move under a page, reorder, back to the root).",
+          "**Links**: link a training to tasks, events and projects too, not only pages and boards.",
+          "**Assistant**: the `@` picker shows the full path of each result (parent pages, board, calendar).",
+          "**Agents** now read attached tasks, boards, events and projects with your own rights (new read_item tool).",
+          "Expired permission cards are shown as expired in a reloaded conversation.",
+          "Suggestion cards and the history dialog are polished; the rename button of a version is now reachable."
+        ],
+        "fr": [
+          "**Arbre** : glissez-déposez les entraînements dans l’arbre de la barre latérale, comme les pages (sous une page, réordonner, retour à la racine).",
+          "**Liens** : liez un entraînement aussi à des tâches, événements et projets, pas seulement aux pages et tableaux.",
+          "**Assistant** : le sélecteur `@` affiche le chemin complet de chaque résultat (pages parentes, tableau, calendrier).",
+          "Les **agents** lisent maintenant les tâches, tableaux, événements et projets joints avec vos propres droits (nouvel outil read_item).",
+          "Les cartes d’autorisation expirées s’affichent comme expirées dans une conversation rechargée.",
+          "Les cartes de suggestion et la fenêtre d’historique sont soignées ; le bouton de renommage d’une version est maintenant accessible."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.37.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Trainings live in the workspace, and the assistant gets its own page",
+        "fr": "Les entraînements vivent dans l’espace, et l’assistant a sa propre page"
+      },
+      "notes": {
+        "en": [
+          "**Trainings** (formerly revision sets): a training is now an item of the workspace like a page. It sits in the tree, can be renamed, duplicated, moved to another workspace, made personal and sent to the trash. It opens in a tab of the usual interface, no longer full screen.",
+          "**Rights**: a training follows the workspace's documents role. Read lets you take it, edit lets you modify, move and delete it. Your attempts stay yours only.",
+          "**Links**: link a training to any page, task, event or board; it then shows as a related training there, only to people who can see the target.",
+          "**Migration**: trainings shared with a workspace become normal items; private ones become personal. Public share links are removed.",
+          "**Assistant**: the floating chat is replaced by an Assistant page with the list of your conversations (grouped by date, search, rename, delete, automatic title). Attach pages, tasks, events and trainings with `@` or the + button.",
+          "**Write permissions**: when an agent wants to write, a card appears in the conversation (suggest, append or replace, for a chosen duration) instead of hidden menus. You can undo an agent's change from the conversation.",
+          "**Formulas**: the agents' replies now display LaTeX formulas."
+        ],
+        "fr": [
+          "**Entraînements** (anciens sets de révision) : un entraînement est maintenant un élément de l’espace, comme une page. Il apparaît dans l’arbre, se renomme, se duplique, se déplace vers un autre espace, devient personnel et passe par la corbeille. Il s’ouvre dans un onglet de l’interface habituelle, plus en plein écran.",
+          "**Droits** : un entraînement suit le rôle sur les documents de l’espace. La lecture permet de le passer, l’édition de le modifier, le déplacer et le supprimer. Vos tentatives restent à vous seul·e.",
+          "**Liens** : liez un entraînement à une page, une tâche, un événement ou un tableau ; il apparaît alors comme entraînement lié, seulement pour les personnes qui voient la cible.",
+          "**Migration** : les entraînements partagés avec un espace deviennent des éléments normaux ; les privés deviennent personnels. Les liens de partage publics sont supprimés.",
+          "**Assistant** : le chat flottant est remplacé par une page Assistant avec la liste de vos conversations (groupées par date, recherche, renommage, suppression, titre automatique). Joignez pages, tâches, événements et entraînements avec `@` ou le bouton +.",
+          "**Autorisations d’écriture** : quand un agent veut écrire, une carte apparaît dans la conversation (suggérer, ajouter ou remplacer, pour une durée choisie) au lieu de menus cachés. Vous pouvez annuler une modification d’un agent depuis la conversation.",
+          "**Formules** : les réponses des agents affichent maintenant les formules LaTeX."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.36.0",
+      "date": "2026-11-17",
+      "title": {
+        "en": "Summaries get a reading view, and agents can edit older pages",
+        "fr": "Les synthèses ont une vue de lecture, et les agents peuvent modifier les anciennes pages"
+      },
+      "notes": {
+        "en": [
+          "**Summaries**: a summary set now opens in a reading view with a table of contents and a “mark as read” option, and is edited section by section (heading + Markdown). Agents create summaries in that shape.",
+          "**Agents and older pages**: an agent can now edit a page that was never opened in the editor, when its content only uses supported formatting (text, headings, lists, quotes, callouts, code, formulas, diagrams). Otherwise it refuses without touching anything, and a version is saved first.",
+          "After an agent edits a page, the page's text copy used by search and export follows the change; if the page contains blocks that copy cannot represent, it is left as it was.",
+          "**Chat**: when an agent edits a revision set, a “Restore previous version” button appears in the conversation.",
+          "**Share links**: opening a shared revision set while logged out now explains that you need to log in to take it, and brings you back to it afterwards."
+        ],
+        "fr": [
+          "**Synthèses** : un set de type synthèse s’ouvre maintenant dans une vue de lecture avec sommaire et « marquer comme lu », et se modifie section par section (titre + Markdown). Les agents créent les synthèses dans cette forme.",
+          "**Agents et anciennes pages** : un agent peut maintenant modifier une page jamais ouverte dans l’éditeur, quand son contenu n’utilise que des mises en forme prises en charge (texte, titres, listes, citations, encadrés, code, formules, diagrammes). Sinon il refuse sans rien toucher, et une version est enregistrée avant.",
+          "Après une modification par un agent, la copie texte de la page utilisée par la recherche et l’export suit le changement ; si la page contient des blocs que cette copie ne peut pas représenter, elle reste comme avant.",
+          "**Chat** : quand un agent modifie un set de révision, un bouton « Restaurer la version précédente » apparaît dans la conversation.",
+          "**Liens de partage** : ouvrir un set de révision partagé sans être connecté explique maintenant qu’il faut se connecter pour le passer, et vous y ramène ensuite."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.35.2",
       "date": "2026-11-17",
       "title": {

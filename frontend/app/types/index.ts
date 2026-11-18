@@ -211,7 +211,7 @@ export interface SearchResult {
   id: string
   title: string
   /** `event` : événement de l'espace ; `calendar_event` : occurrence d'un calendrier intégré. */
-  type: 'page' | 'board' | 'project' | 'task' | 'event' | 'calendar_event' | 'file' | 'folder'
+  type: 'page' | 'board' | 'project' | 'task' | 'event' | 'calendar_event' | 'file' | 'folder' | 'study'
   icon?: string | null
   snippet?: string | null
   parent_id?: string | null
@@ -221,6 +221,8 @@ export interface SearchResult {
   folder?: string | null
   /** Mot-clé de l'élément qui correspond à la recherche. */
   keyword?: string | null
+  /** Chemin affichable : pages parentes, tableau d'une tâche, calendrier d'un événement. */
+  path?: string[]
 }
 
 export interface Presence {

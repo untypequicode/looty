@@ -1,10 +1,11 @@
 import { computed, ref, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap, FolderCode, HardDrive, PenTool, Megaphone } from 'lucide-vue-next'
+import { FileText, Kanban, CircleDot, Home, CalendarDays, Mail, Inbox, CircleUserRound, Trash2, Settings, EyeOff, Activity, Files, Waypoints, GraduationCap, FolderCode, HardDrive, PenTool, Megaphone, BookCheck, Bot } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { api } from './api'
 import { links, useWorkspace } from './useWorkspace'
 import { translate } from './useI18n'
+import { useStudySets } from './useStudy'
 
 const SCREENS: Record<string, { icon: any; path: (ws: string) => string }> = {
   home: { icon: Home, path: (ws) => links.home(ws) },
@@ -22,11 +23,14 @@ const SCREENS: Record<string, { icon: any; path: (ws: string) => string }> = {
   activity: { icon: Activity, path: (ws) => `/w/${ws}/activity` },
   graph: { icon: Waypoints, path: (ws) => `/w/${ws}/graph` },
   canvas: { icon: PenTool, path: (ws) => `/w/${ws}/canvas` },
+  study: { icon: BookCheck, path: (ws) => links.study(ws) },
+  assistant: { icon: Bot, path: (ws) => links.assistant(ws) },
 }
 
 /** Libellé, icône et lien d'un emplacement de présence. */
 export function useLocationInfo(location: Ref<string | undefined>) {
   const { wsId, pages, boards } = useWorkspace()
+  const study = useStudySets(wsId)
   const kind = computed(() => location.value?.split(':')[0] ?? '')
   const id = computed(() => location.value?.split(':')[1] ?? '')
   const task = useQuery({
@@ -45,6 +49,10 @@ export function useLocationInfo(location: Ref<string | undefined>) {
       const p = pages.data.value?.find((x) => x.id === id.value)
       // Page inaccessible (droits restreints) : ni titre ni lien.
       return p ? { icon: FileText, emoji: p.icon, label: p.title || translate('docs.untitled'), path: links.doc(wsId.value, p.id) } : { icon: FileText, label: translate('presence.privateDoc'), path: null }
+    }
+    if (kind.value === 'study') {
+      const set = study.data.value?.find((x) => x.id === id.value)
+      return { icon: BookCheck, label: set ? set.title || translate('study.untitled') : translate('study.title'), path: links.studySet(wsId.value, id.value) }
     }
     if (kind.value === 'board') {
       const b = boards.data.value?.find((x) => x.id === id.value)
@@ -68,13 +76,15 @@ export function locationPath(ws: string, location: string | undefined): string |
   if (kind === 'page') return links.doc(ws, id)
   if (kind === 'board') return links.board(ws, id)
   if (kind === 'task') return links.taskById(ws, id)
+  if (kind === 'study') return links.studySet(ws, id)
   return null
 }
 
 /** Emplacement correspondant à une route (même règle que la présence envoyée). */
 export function locationOfRoute(route: { path: string; params: Record<string, any>; query: Record<string, any> }): string {
-  const screens = ['calendar', 'mail', 'moodle', 'projects', 'drive', 'inbox', 'announcements', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph', 'canvas']
+  const screens = ['calendar', 'mail', 'moodle', 'projects', 'drive', 'inbox', 'announcements', 'my-tasks', 'docs', 'trash', 'settings', 'activity', 'graph', 'canvas', 'study', 'assistant']
   const screen = route.path.split('/')[3] ?? ''
+  if (screen === 'study' && route.params.id) return `study:${route.params.id}`
   const task = (route.query.task as string) || (route.params.task as string)
   return task ? `task:${task}` : route.params.page ? `page:${route.params.page}` : route.params.board ? `board:${route.params.board}` : screens.includes(screen) ? screen : 'home'
 }

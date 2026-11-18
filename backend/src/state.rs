@@ -54,7 +54,7 @@ impl AppState {
             let _ = sqlx::query("SELECT pg_notify('looty_access', $1)").bind(workspace_id.to_string()).execute(&self.pool).await;
         }
         // Élément personnel (GLOSSARY) : seul son propriétaire en est prévenu.
-        let owner = ["task", "page", "board", "project", "file"]
+        let owner = ["task", "page", "board", "project", "file", "study"]
             .iter()
             .find_map(|k| event.get(*k).and_then(|o| o.get("private_to")).and_then(|v| v.as_str()).and_then(|v| Uuid::parse_str(v).ok()));
         match owner {

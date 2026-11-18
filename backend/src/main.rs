@@ -1,5 +1,7 @@
 mod access;
 mod ai;
+mod ai_files;
+mod ai_moodle;
 mod ai_pages;
 mod ai_provider;
 mod ai_tools;
@@ -34,6 +36,7 @@ mod public_project;
 mod jupyter;
 mod latex;
 mod drive;
+mod extract;
 mod trash;
 mod storage;
 mod text;

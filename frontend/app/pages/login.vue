@@ -14,6 +14,7 @@ const { data: cast } = useQuery({
   queryFn: () => api<{ key: string; name: string; role: string; color: [string, string] }[]>('/api/auth/demo/characters', { silent: true }),
   enabled: isDemo,
 })
+// Lien de partage d'un jeu de révision : la connexion reste requise (les tentatives sont personnelles).
 const initials = (name: string) => name.split(' ').map((p) => p[0]).join('')
 const providers = ref<{ id: string; name: string }[]>([])
 const loading = ref(true)

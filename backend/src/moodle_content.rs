@@ -40,7 +40,10 @@ pub(crate) fn proxied(ws: Uuid, url: &str) -> String {
 fn plugin_url(base: &str, raw: &str) -> Option<reqwest::Url> {
     let rest = raw.strip_prefix(base)?;
     let rest = if let Some(r) = rest.strip_prefix("/pluginfile.php/") { format!("/webservice/pluginfile.php/{r}") } else if rest.starts_with("/webservice/pluginfile.php/") { rest.to_string() } else { return None };
-    reqwest::Url::parse(&format!("{base}{rest}")).ok()
+    let url = reqwest::Url::parse(&format!("{base}{rest}")).ok()?;
+    // Une adresse avec « .. » ou « %2e%2e » sortirait du dossier des fichiers une fois normalisée : refusée.
+    let prefix = format!("{}/webservice/pluginfile.php/", reqwest::Url::parse(base).ok()?.path().trim_end_matches('/'));
+    url.path().starts_with(&prefix).then_some(url)
 }
 
 /// Le fichier vient bien de la plateforme `base` (pluginfile).
@@ -176,6 +179,56 @@ async fn fetch(client: &crate::moodle::Ws, raw: &str) -> ApiResult<reqwest::Resp
     }
 }
 
+/// Client des téléchargements faits pour l'assistant : une redirection n'est suivie que vers le même
+/// hôte (le jeton est dans l'adresse : il ne doit jamais partir ailleurs).
+fn http_same_host() -> &'static reqwest::Client {
+    static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    C.get_or_init(|| {
+        let policy = reqwest::redirect::Policy::custom(|attempt| {
+            let same = attempt.previous().first().is_some_and(|first| first.scheme() == attempt.url().scheme() && first.host_str() == attempt.url().host_str() && first.port_or_known_default() == attempt.url().port_or_known_default());
+            if attempt.previous().len() >= 3 || !same { attempt.stop() } else { attempt.follow() }
+        });
+        reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).redirect(policy).user_agent("Looty (MoodleMobile compatible)").build().expect("client http")
+    })
+}
+
+/// Télécharge un fichier de la plateforme connectée avec le jeton de la personne, en mémoire, sans
+/// dépasser `max` octets. Seule une adresse de la plateforme (`pluginfile`) est contactée : toute autre
+/// est refusée avant la moindre requête. Fichier trop gros : `file_too_large` ; jeton refusé :
+/// `moodle_invalid_token` ; fichier inaccessible : `NotFound`.
+pub(crate) async fn download(client: &crate::moodle::Ws, raw: &str, max: usize) -> ApiResult<Vec<u8>> {
+    let mut url = plugin_url(&client.base, raw).ok_or_else(|| ApiError::bad_request("moodle_bad_file"))?;
+    url.query_pairs_mut().append_pair("token", &client.token);
+    let r = http_same_host().get(url).send().await.map_err(|_| ApiError::bad_request("moodle_unreachable"))?;
+    match r.status().as_u16() {
+        200..=299 => {}
+        401 | 403 | 404 => return Err(ApiError::NotFound),
+        s => return Err(ApiError::BadRequest(format!("moodle_http_error: {s}"))),
+    }
+    if r.content_length().is_some_and(|l| l > max as u64) {
+        return Err(ApiError::bad_request("file_too_large"));
+    }
+    let mut r = r;
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = r.chunk().await.map_err(|_| ApiError::bad_request("moodle_unreachable"))? {
+        if buf.len() + chunk.len() > max {
+            return Err(ApiError::bad_request("file_too_large"));
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    // Moodle répond parfois 200 avec une erreur JSON (jeton révoqué) à la place du fichier.
+    if buf.len() < 4096 {
+        if let Ok(v) = serde_json::from_slice::<Value>(&buf) {
+            match v.get("errorcode").and_then(Value::as_str) {
+                Some("invalidtoken" | "accessexception") => return Err(ApiError::bad_request("moodle_invalid_token")),
+                Some(_) => return Err(ApiError::NotFound),
+                None => {}
+            }
+        }
+    }
+    Ok(buf)
+}
+
 async fn file(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<UrlQuery>) -> ApiResult<Response> {
     let (_, client, _) = conn_of(&state, &user, ws).await?;
     let name = q.url.split('?').next().unwrap_or("").rsplit('/').next().map(crate::moodle::pct_decode).unwrap_or_else(|| "file".into());
@@ -305,4 +358,27 @@ async fn page_html(State(state): State<AppState>, user: AuthUser, Path(ws): Path
 async fn assignment(State(state): State<AppState>, user: AuthUser, Path((ws, course_id, cmid)): Path<(Uuid, i64, i64)>) -> ApiResult<Response> {
     let live = assignment_live(State(state.clone()), user, Path((ws, course_id, cmid))).await.map(|Json(v)| v);
     crate::moodle_cache::json_or_cached(&state, ws, user.id, &format!("assign:{course_id}:{cmid}"), live).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_urls_cannot_climb_out_of_the_files_folder() {
+        let base = "https://moodle.test";
+        assert!(plugin_url(base, "https://moodle.test/pluginfile.php/1/mod/a.pdf").is_some());
+        assert!(plugin_url(base, "https://moodle.test/webservice/pluginfile.php/1/mod/a.pdf").is_some());
+        for bad in [
+            "https://moodle.test/pluginfile.php/../admin/secret",
+            "https://moodle.test/webservice/pluginfile.php/../../user/index.php",
+            "https://moodle.test/pluginfile.php/%2e%2e/admin",
+            "https://moodle.test/pluginfile.php/a/%2E%2E/%2e%2e/x",
+        ] {
+            assert!(plugin_url(base, bad).is_none(), "{bad}");
+        }
+        // Plateforme installée dans un sous-dossier.
+        assert!(plugin_url("https://m.test/moodle", "https://m.test/moodle/pluginfile.php/1/a.pdf").is_some());
+        assert!(plugin_url("https://m.test/moodle", "https://m.test/moodle/pluginfile.php/../../x").is_none());
+    }
 }
