@@ -1075,4 +1075,5 @@
     <string name="study_pending">En attente d’envoi</string>
     <string name="study_links">Liens</string>
     <string name="study_no_items">Cet entraînement ne contient encore aucun élément.</string>
+    <string name="err_study_nothing_to_score">Cet entraînement ne contient rien à noter.</string>
 </resources>

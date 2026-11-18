@@ -1073,4 +1073,5 @@
     <string name="study_pending">Waiting to be sent</string>
     <string name="study_links">Links</string>
     <string name="study_no_items">This training has no items yet.</string>
+    <string name="err_study_nothing_to_score">This training has nothing to score.</string>
 </resources>

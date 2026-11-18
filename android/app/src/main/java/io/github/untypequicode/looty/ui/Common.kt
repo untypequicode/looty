@@ -140,6 +140,7 @@ fun errorText(ctx: Context, code: String?): String {
     val res = when (c) {
         "forbidden", "http_403" -> R.string.error_forbidden
         "offline" -> R.string.error_offline
+        "study_nothing_to_score" -> R.string.err_study_nothing_to_score
         "mail_unreachable" -> R.string.err_mail_unreachable
         "mail_private_address" -> R.string.err_mail_private_address
         "mail_tls_failed" -> R.string.err_mail_tls_failed

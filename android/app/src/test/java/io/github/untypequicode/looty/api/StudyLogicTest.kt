@@ -130,3 +130,12 @@ class StudyLogicTest {
         assertEquals(arr("a", "c"), sent["answers"]!!.jsonObject["i2"])
     }
 }
+
+class StudyNothingToScoreTest {
+    @Test fun selfAssessedOnlySetHasNothingToScoreLocally() {
+        val a = buildJsonObject { putJsonArray("accepted") {} }
+        val set = StudySet("s", "w", items = listOf(StudyItem("1", "text", "q", null, a)))
+        assertTrue(StudyLogic.canCorrectLocally(set))
+        assertNull(StudyLogic.correctLocally(set, emptyMap()))
+    }
+}

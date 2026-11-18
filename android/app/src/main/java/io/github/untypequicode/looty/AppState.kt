@@ -1419,7 +1419,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
             runCatching { api.send("POST", "/api/auth/logout") }
             android.webkit.CookieManager.getInstance().removeAllCookies(null)
             withContext(Dispatchers.IO) { cache.clear() }
-            prefs.edit().remove("assetVersion").apply()
+            prefs.edit().remove("assetVersion").also { e -> prefs.all.keys.filter { it.startsWith("studyRead-") }.forEach { e.remove(it) } }.apply()
             outbox.clear(); pendingChanges = 0; offline = false
             session = Session.NeedLogin
             onDone()
@@ -1531,7 +1531,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     /** État de mes fiches. Évaluations en attente : la copie locale (déjà mise à jour) prime sur le serveur. */
     suspend fun studyCards(setId: String): List<CardState> {
-        val pending = outbox.all().any { it.path.startsWith("/api/study/items/") }
+        // Seules les évaluations en attente de CET entraînement priment sur le serveur.
+        val ids = withContext(Dispatchers.IO) { cached<StudySet>("study-set-$setId") }?.items.orEmpty().map { it.id }.toSet()
+        val pending = outbox.all().any { p -> p.path.startsWith("/api/study/items/") && p.path.removePrefix("/api/study/items/").substringBefore("/") in ids }
         if (!pending) {
             val remote = runCatching { api.get<List<CardState>>("/api/study/sets/$setId/cards") }.onFailure { if (it.isOffline()) markOffline() }.getOrNull()
             if (remote != null) { markOnline(); putCached("study-cards-$setId", api.json.encodeToString(remote)); return remote }
@@ -1574,8 +1576,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
                 return@runCatching r
             } catch (e: Exception) { if (!e.isOffline()) throw e; markOffline() }
         }
-        enqueue("POST", path, body, set.title)
         val local = StudyLogic.correctLocally(set, answers)
+        // Réponses attendues connues et rien à noter : le serveur refuserait, inutile de laisser une tentative 0/0 en attente.
+        if (local == null && StudyLogic.canCorrectLocally(set)) throw ApiException(400, "study_nothing_to_score")
+        enqueue("POST", path, body, set.title)
         val attempt = StudyAttempt("local-" + java.util.UUID.randomUUID(), startedAt, Instant.now().toString(), local?.first?.first ?: 0, local?.first?.second ?: 0, pending = true)
         val all = listOf(attempt) + withContext(Dispatchers.IO) { cached<List<StudyAttempt>>("study-attempts-${set.id}") }.orEmpty()
         putCached("study-attempts-${set.id}", api.json.encodeToString(all))
