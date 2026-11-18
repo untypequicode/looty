@@ -215,6 +215,14 @@ _Avoid_: upload, document IA
 Texte qu'on tire d'un fichier (Drive, Moodle ou déposé dans le chat) pour que l'assistant puisse le lire. Il vit avec le fichier et disparaît avec lui. Un fichier sans texte (PDF scanné, image) n'en a pas et n'est pas lisible par l'assistant.
 _Avoid_: OCR, contenu du fichier
 
+**Cours Moodle joint**:
+Cours Moodle (ou l'un de ses fichiers) qu'une personne joint à un message pour interroger l'assistant. Il est lu avec le compte Moodle de cette personne seulement : un cours que ce compte ne peut pas ouvrir est refusé. Un cours arrive sous forme de plan (sections, activités, fichiers avec type et taille) ; le contenu d'un fichier n'est lu que quand la question le demande.
+_Avoid_: import Moodle, synchronisation du cours
+
+**Envoyer à l'IA**:
+Action d'un cours ou d'un fichier Moodle qui l'ajoute au message en cours de rédaction dans l'Assistant, sans toucher au texte déjà tapé, et ouvre l'Assistant s'il ne l'est pas.
+_Avoid_: partager avec l'IA, exporter
+
 **Carte d'autorisation**:
 Carte affichée dans la conversation quand l'assistant a besoin d'un droit d'écriture qu'il n'a pas : elle indique la page ou l'entraînement, le mode et la durée, et la personne l'accepte ou la refuse d'un clic. Accepter crée l'autorisation correspondante.
 _Avoid_: popup de permission, demande d'accès

@@ -555,7 +555,7 @@ fn file_specs() -> Vec<ToolSpec> {
     vec![
         ToolSpec {
             name: "read_attachment",
-            description: "Read the text of a file the user attached (PDF, Word, PowerPoint, text, code) page by page. `id` is the file id shown in the attached item. Pass `page`, or `start` and `end` for several pages (page 1 by default). One call returns at most about 12,000 characters and counts against a reading budget for the conversation; the reply says where to continue. Use the outline in the attached summary to pick pages, or search_attachment to find them.",
+            description: "Read the text of a file the user attached (PDF, Word, PowerPoint, text, code) page by page. `id` is the file id shown in the attached item (for a Moodle course: the course id gives its table of contents, and each `file <id>` line of the table is a file you can read; Moodle files are fetched with the user's own Moodle account and may be refused or unreadable, the reply says why). Pass `page`, or `start` and `end` for several pages (page 1 by default). One call returns at most about 12,000 characters and counts against a reading budget for the conversation; the reply says where to continue. Use the outline in the attached summary to pick pages, or search_attachment to find them.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -569,10 +569,10 @@ fn file_specs() -> Vec<ToolSpec> {
         },
         ToolSpec {
             name: "search_attachment",
-            description: "Search keywords in the attached files of this conversation (or in one file with `id`). Returns the best pages with the matching lines, accents and case ignored. It is a keyword search, not a semantic one: try synonyms and word variants. Then read the pages with read_attachment.",
+            description: "Search keywords in the attached files of this conversation (or in one file with `id`). Given a Moodle course id it searches the readable files of the whole course, a bounded number per call (the reply says how many were searched; call again to continue). Returns the best pages with the matching lines, accents and case ignored. It is a keyword search, not a semantic one: try synonyms and word variants. Then read the pages with read_attachment.",
             parameters: json!({
                 "type": "object",
-                "properties": { "query": { "type": "string", "description": "A few keywords" }, "id": { "type": "string", "description": "Restrict to one attached file" } },
+                "properties": { "query": { "type": "string", "description": "A few keywords" }, "id": { "type": "string", "description": "Restrict to one attached file or Moodle course" } },
                 "required": ["query"]
             }),
         },

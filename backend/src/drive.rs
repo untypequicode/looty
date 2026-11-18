@@ -591,6 +591,8 @@ pub async fn purge_expired(pool: &sqlx::PgPool) -> ApiResult<usize> {
     )
     .execute(pool)
     .await?;
+    // Texte de fichiers Moodle lus par l'assistant : oublié après 30 jours sans lecture.
+    crate::ai_moodle::purge_unused(pool).await?;
     Ok(n)
 }
 

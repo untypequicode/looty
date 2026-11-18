@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { api, errorMessage } from './api'
 import { links } from './useWorkspace'
 import type { EndedGrant } from '~/utils/grantState'
+import { attachmentPayload } from '~/utils/assistantDraft'
 
 export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'perplexity' | 'openai_compatible'
 export type AiMode = 'suggest' | 'append' | 'replace'
@@ -28,9 +29,15 @@ export interface AiConversation {
 }
 
 /** Type d'élément joignable à un message (la même liste que les résultats de recherche utiles). */
-export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'event' | 'file'
+export type AiAttachKind = 'page' | 'study' | 'task' | 'board' | 'project' | 'event' | 'file' | 'moodle_course' | 'moodle_file'
 /** Élément joint : le serveur le relit avec vos droits à l'envoi (rien du contenu ne part du navigateur). */
-export interface AiAttachment { kind: AiAttachKind; id: string; title: string; ws?: string; /** Fichier : échéance dans le Drive (au-delà, l'assistant ne le lit plus). */ expiresAt?: string | null; pages?: number }
+export interface AiAttachment {
+  kind: AiAttachKind; id: string; title: string; ws?: string
+  /** Fichier : échéance dans le Drive (au-delà, l'assistant ne le lit plus). */
+  expiresAt?: string | null; pages?: number
+  /** Moodle : cours (et son nom) et, pour un fichier, son adresse d'origine sur la plateforme. `ws` est l'espace de la connexion Moodle. */
+  courseId?: number; courseName?: string; url?: string; size?: number
+}
 
 export interface AiMessage { id: string; role: 'user' | 'assistant' | 'tool'; content: string; data?: any; created_at?: string }
 export interface AiGrant { id: string; page_id: string; page_title: string; workspace_id: string; mode: AiMode; expires_at: string }
@@ -87,7 +94,7 @@ export async function streamMessage(conversationId: string, content: string, att
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ content, workspace_id: workspaceId || undefined, attachments: attachments.map((a) => ({ kind: a.kind, id: a.id, title: a.title })) }),
+    body: JSON.stringify({ content, workspace_id: workspaceId || undefined, attachments: attachments.map(attachmentPayload) }),
     signal,
   })
   if (!res.ok || !res.body) {

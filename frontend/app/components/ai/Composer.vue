@@ -9,6 +9,7 @@ import { useWorkspaces } from '~/composables/useWorkspace'
 import type { ComboItem } from '~/components/ui/Combobox.vue'
 import { AI_PROVIDER_CATALOG } from '~/utils/aiProviders'
 import { pastedFiles, pageAttachment, type DraggedPage, type DropIntent } from '~/utils/chatFiles'
+import { isMoodleKind } from '~/utils/assistantDraft'
 
 /**
  * Zone de saisie : texte, éléments joints (puces) avec « + », « @ », glisser-déposer ou collage de fichiers,
@@ -84,8 +85,11 @@ const providerName = computed(() => { const p = current.value?.provider; return 
 
 // --- Avis « le contenu part chez le fournisseur » : une fois par connexion -----------------------------
 const acked = ref(new Set<string>())
-const hasFile = computed(() => attachments.value.some((a) => a.kind === 'file') || uploads.value.length > 0)
-const showNotice = computed(() => hasFile.value && !!current.value && !current.value.files_notice_seen && !acked.value.has(current.value.id))
+const hasDriveFile = computed(() => attachments.value.some((a) => a.kind === 'file') || uploads.value.length > 0)
+const hasMoodle = computed(() => attachments.value.some((a) => isMoodleKind(a.kind)))
+const showNotice = computed(() => (hasDriveFile.value || hasMoodle.value) && !!current.value && !current.value.files_notice_seen && !acked.value.has(current.value.id))
+/** Un fichier du Drive : le texte parle du Drive ; sinon (Moodle seul), de la plateforme. */
+const noticeKey = computed(() => (hasDriveFile.value ? 'ai.files.notice' : 'ai.moodle.notice'))
 async function ackNotice() {
   const id = current.value?.id
   if (!id) return
@@ -106,11 +110,11 @@ async function ackNotice() {
     </div>
     <div v-if="attachments.length || uploads.length" class="cp-chips">
       <AiChip v-for="u in uploads" :key="u.key" kind="file" :title="u.name" :progress="u.progress" />
-      <AiChip v-for="a in attachments" :key="`${a.kind}:${a.id}`" :kind="a.kind" :title="a.title" :expires-at="a.expiresAt" :provider="providerName" removable @remove="remove(a)" />
+      <AiChip v-for="a in attachments" :key="`${a.kind}:${a.id}`" :kind="a.kind" :title="a.title" :expires-at="a.expiresAt" :provider="providerName" :source="a.kind === 'moodle_file' ? a.courseName : undefined" removable @remove="remove(a)" />
     </div>
     <div v-if="showNotice" class="cp-notice" role="note">
       <Info :size="14" class="cp-notice-icon" />
-      <span>{{ t('ai.files.notice', { provider: providerName }) }}</span>
+      <span>{{ t(noticeKey, { provider: providerName }) }}</span>
       <UiButton size="sm" variant="ghost" @click="ackNotice">{{ t('ai.files.noticeOk') }}</UiButton>
     </div>
     <UiInput ref="field" v-model="draft" multiline :rows="2" class="cp-field" :placeholder="t('ai.composer.placeholder')" @keydown="onKey" @input="onInput" @paste="onPaste" />

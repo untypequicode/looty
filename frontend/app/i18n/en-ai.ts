@@ -95,10 +95,12 @@ export default {
     },
     picker: {
       search: 'Search for an item to attach…', hint: 'Type to search all your workspaces.', none: 'No results.', all: 'All',
-      kind: { page: 'Page', study: 'Training', task: 'Task', file: 'File', board: 'Board', event: 'Event', project: 'Project' },
-      group: { page: 'Pages', study: 'Trainings', task: 'Tasks', file: 'Files', board: 'Boards', event: 'Events', project: 'Projects' },
+      kind: { page: 'Page', study: 'Training', task: 'Task', file: 'File', board: 'Board', event: 'Event', project: 'Project', moodle: 'Moodle', moodle_course: 'Moodle course', moodle_file: 'Moodle file' },
+      group: { page: 'Pages', study: 'Trainings', task: 'Tasks', file: 'Files', board: 'Boards', event: 'Events', project: 'Projects', moodle_course: 'Moodle courses', moodle_file: 'Moodle files' },
       recent: 'Recent', favorites: 'Favorites', results: 'Results', preview: 'Preview', noExcerpt: 'No preview available.',
       count: { one: '1 result', other: '{count} results' }, navigate: 'navigate', attachAction: 'attach',
+      wholeCourse: 'Whole course (table of contents)', browse: 'Browse the files of this course', courseHint: 'The assistant gets the table of contents and reads files on demand. → to browse its files.', courseError: 'This course cannot be opened with your Moodle account.',
+      fact: { course: 'Course', section: 'Section', type: 'Type', size: 'Size' },
     },
     files: {
       dropFiles: 'Drop files to attach them', dropPage: 'Drop to attach this item', attachFile: 'Attach a file (PDF, Word, PowerPoint, text, code)',
@@ -109,6 +111,14 @@ export default {
         file_no_text: 'This file has no readable text (a scanned document, for example). Text recognition is not available yet.', file_unreadable: 'This file cannot be read: it may be damaged or protected by a password.',
         drive_quota_exceeded: 'Your Drive is full.', too_many_uploads: 'Too many files at once: wait a minute and try again.', demo_unavailable: 'Not available in the demo.', other: 'The upload failed. Try again.',
       },
+    },
+    send: {
+      label: 'Send to AI', fileLabel: 'Send “{name}” to AI', added: '“{title}” added to your message to the assistant.', already: '“{title}” is already in your message to the assistant.',
+      open: 'Open the assistant', full: 'A message holds at most 10 attached items.',
+    },
+    moodle: {
+      notice: 'The table of contents of Moodle courses and the text of Moodle files you attach are sent to {provider}, the provider you chose for this connection. They are read with your own Moodle account and are not stored in your Drive.',
+      unreadable: 'unreadable', unreadableTip: '“{title}” could not be read (no text, too large or unsupported): the assistant will tell you.',
     },
     composer: {
       placeholder: 'Ask something…', attach: 'Attach an item', atHint: '@ to attach', workspace: 'Space: {name}', workspaceHint: 'Where the assistant creates what you ask for', workspaceSearch: 'Find a space…', detach: 'Remove “{title}”',

@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import {
-  ArrowLeft, ExternalLink, FileText, BookOpen, Folder, Link2, ClipboardCheck, CircleHelp, MessagesSquare, Box, ChevronRight, Download, CheckCircle2, Circle,
+  ArrowLeft, ExternalLink, Bot, FileText, BookOpen, Folder, Link2, ClipboardCheck, CircleHelp, MessagesSquare, Box, ChevronRight, Download, CheckCircle2, Circle,
 } from 'lucide-vue-next'
 import { useQuery } from '@tanstack/vue-query'
 import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { fileSize } from '~/composables/useProjects'
 import { useMoodleCourses } from '~/composables/useMoodleCourses'
+import { useSendToAssistant } from '~/composables/useAssistantDraft'
+import { moodleCourseAttachment, moodleFileAttachment } from '~/utils/assistantDraft'
+import { isReadable } from '~/utils/chatFiles'
 import type { MoodleCourse, MoodleCourseContent, MoodleModule, MoodleFile, MoodleAssignment } from '~/composables/useMoodle'
 
 /**
@@ -20,6 +23,13 @@ const { t, formatDateTime } = useI18n()
 const mcs = useMoodleCourses(toRef(props, 'ws'))
 
 const base = computed(() => `/api/workspaces/${props.ws}/moodle`)
+
+// « Envoyer à l'IA » : le cours (sa table des matières) ou un fichier lisible devient une puce du message en cours de l'Assistant.
+const assistant = useSendToAssistant(toRef(props, 'ws'))
+const courseName = computed(() => (props.course ? mcs.nameOf(props.course) : String(props.courseId)))
+const sendCourse = () => assistant.send(moodleCourseAttachment(props.ws, { id: props.courseId, name: courseName.value }))
+const sendable = (f: MoodleFile) => !!f.source && !f.html && isReadable(f.name, f.mime ?? '')
+const sendFile = (f: MoodleFile) => assistant.send(moodleFileAttachment(props.ws, { id: props.courseId, name: courseName.value }, { name: f.name, source: f.source, size: f.size }))
 const { data, isLoading, error } = useQuery({
   queryKey: computed(() => ['moodle', props.ws, 'course', props.courseId]),
   queryFn: () => api<MoodleCourseContent>(`${base.value}/courses/${props.courseId}`, { silent: true }),
@@ -92,6 +102,7 @@ function onContentClick(e: MouseEvent) {
     <header v-if="!embedded" class="mc-head">
       <UiButton size="sm" variant="ghost" :icon="ArrowLeft" @click="emit('back')">{{ t('moodle.course.back') }}</UiButton>
       <h2 class="truncate">{{ course ? mcs.nameOf(course) : '' }}</h2>
+      <UiButton size="sm" variant="ghost" :icon="Bot" @click="sendCourse">{{ t('ai.send.label') }}</UiButton>
       <UiButton size="sm" :icon="ExternalLink" @click="emit('open', data?.url ?? course?.url ?? '')">{{ t('moodle.course.openOnSite') }}</UiButton>
     </header>
 
@@ -108,6 +119,7 @@ function onContentClick(e: MouseEvent) {
       <div v-for="m in s.modules" :key="m.id" class="mc-mod" :class="{ label: m.type === 'label', open: open.has(m.id) }">
         <div v-if="m.type === 'label'" class="mc-html" @click="onContentClick" v-html="m.description" />
         <template v-else>
+          <div class="mc-rowwrap">
           <button class="mc-row" @click="toggle(m)">
             <component :is="ICONS[m.type] ?? Box" :size="16" class="mc-ic" />
             <span class="mc-name truncate">{{ m.name }}</span>
@@ -119,6 +131,10 @@ function onContentClick(e: MouseEvent) {
             <ChevronRight v-if="INLINE.has(m.type) && !(m.type === 'resource' && m.files.length === 1)" :size="15" class="mc-chev" />
             <ExternalLink v-else :size="13" class="mc-chev" />
           </button>
+          <UiTooltip v-if="m.type === 'resource' && m.files.length === 1 && sendable(m.files[0]!)" :text="t('ai.send.label')">
+            <button class="mc-ai" :aria-label="t('ai.send.fileLabel', { name: m.files[0]!.name })" @click="sendFile(m.files[0]!)"><Bot :size="14" /></button>
+          </UiTooltip>
+          </div>
           <div v-if="open.has(m.id)" class="mc-body">
             <div v-if="m.description.trim()" class="mc-html" @click="onContentClick" v-html="m.description" />
             <template v-for="f in m.files.filter((f) => f.html)" :key="f.source">
@@ -148,10 +164,15 @@ function onContentClick(e: MouseEvent) {
               </div>
             </template>
             <div v-if="otherFiles(m).length" class="mc-files">
-              <button v-for="f in otherFiles(m)" :key="f.source" class="mc-file" @click="preview(otherFiles(m), f)">
-                <FileText :size="14" /> <span class="truncate">{{ f.path !== '/' ? f.path.slice(1) : '' }}{{ f.name }}</span> <small>{{ fileSize(f.size) }}</small>
-                <a v-if="f.url" class="mc-dl" :href="`${f.url}&download=1`" :aria-label="t('moodle.course.download')" @click.stop><Download :size="13" /></a>
-              </button>
+              <div v-for="f in otherFiles(m)" :key="f.source" class="mc-filerow">
+                <button class="mc-file" @click="preview(otherFiles(m), f)">
+                  <FileText :size="14" /> <span class="truncate">{{ f.path !== '/' ? f.path.slice(1) : '' }}{{ f.name }}</span> <small>{{ fileSize(f.size) }}</small>
+                  <a v-if="f.url" class="mc-dl" :href="`${f.url}&download=1`" :aria-label="t('moodle.course.download')" @click.stop><Download :size="13" /></a>
+                </button>
+                <UiTooltip v-if="sendable(f)" :text="t('ai.send.label')">
+                  <button class="mc-ai" :aria-label="t('ai.send.fileLabel', { name: f.name })" @click="sendFile(f)"><Bot :size="14" /></button>
+                </UiTooltip>
+              </div>
             </div>
           </div>
         </template>
@@ -172,6 +193,12 @@ function onContentClick(e: MouseEvent) {
 .mc-sec h3 { margin: 0 0 8px; font-size: var(--fs-md, 15px); }
 .mc-mod + .mc-mod { border-top: 1px solid var(--border); }
 .mc-mod.label { padding: 6px 4px; }
+.mc-rowwrap { display: flex; align-items: center; gap: 2px; }
+.mc-rowwrap .mc-row { flex: 1; min-width: 0; }
+.mc-filerow { display: flex; align-items: center; gap: 2px; }
+.mc-filerow .mc-file { flex: 1; min-width: 0; }
+.mc-ai { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: var(--r-sm); color: var(--text-3); }
+.mc-ai:hover { background: var(--bg-hover); color: var(--accent); }
 .mc-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 4px; text-align: left; border-radius: var(--r-sm); }
 .mc-row:hover { background: var(--bg-hover); }
 .mc-ic { color: var(--accent); flex: none; }
