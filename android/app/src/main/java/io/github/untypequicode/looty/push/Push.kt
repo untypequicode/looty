@@ -110,6 +110,11 @@ object Push {
 
     /** Remet en place la vérification périodique après un redémarrage de l'application. */
     fun restore(ctx: Context) {
-        if (PushStore.mode(ctx) == PushMode.POLLING) enablePolling(ctx)
+        when (PushStore.mode(ctx)) {
+            PushMode.POLLING -> enablePolling(ctx)
+            // UnifiedPush actif : la vérification périodique est inutile (économie de batterie et de réseau).
+            PushMode.UNIFIED_PUSH -> stopPolling(ctx)
+            PushMode.OFF -> {}
+        }
     }
 }

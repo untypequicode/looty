@@ -25,8 +25,8 @@ android {
         applicationId = "io.github.untypequicode.looty"
         minSdk = 26
         targetSdk = 37
-        versionCode = 33
-        versionName = "0.29.0"
+        versionCode = 34
+        versionName = "0.29.1"
     }
 
     signingConfigs {
