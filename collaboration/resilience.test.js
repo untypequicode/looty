@@ -37,3 +37,10 @@ test('retryFailedStores relance les documents chargés et oublie les autres', ()
   assert.deepEqual(calls, [['docA', { u: 1 }]])
   assert.deepEqual([...failed.keys()], ['a'])
 })
+
+test('describeRefusal ne contient ni cookie ni jeton', () => {
+  const { describeRefusal } = require('./resilience')
+  const line = describeRefusal({ reason: 'forbidden', status: 403, documentName: 'abc', hasToken: false, hasCookie: true, userAgent: 'Mozilla/5.0 (Android)' })
+  assert.equal(line, 'refused reason=forbidden status=403 doc=abc via=cookie ua="Mozilla/5.0 (Android)"')
+  assert.match(describeRefusal({ reason: 'unauthenticated', documentName: 'x'.repeat(200), userAgent: 'u'.repeat(300) }), /^refused reason=unauthenticated doc=x{64} via=none ua="u{80}"$/)
+})

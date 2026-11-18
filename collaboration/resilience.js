@@ -32,7 +32,19 @@ function authErrorForStatus(status) {
   return 'auth-unavailable'
 }
 
-module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus }
+/**
+ * Ligne de journal d'un refus de connexion : motif, statut renvoyé par le backend, document et
+ * type de client, pour retrouver d'où vient une reconnexion en boucle. Jamais de cookie, de jeton
+ * ni d'adresse : le navigateur et le document suffisent.
+ */
+function describeRefusal({ reason, status, documentName, hasToken, hasCookie, userAgent }) {
+  const ua = String(userAgent || '-').replace(/\s+/g, ' ').slice(0, 80)
+  const doc = String(documentName || '-').slice(0, 64)
+  const via = hasToken ? 'token' : hasCookie ? 'cookie' : 'none'
+  return `refused reason=${reason}${status ? ` status=${status}` : ''} doc=${doc} via=${via} ua="${ua}"`
+}
+
+module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal }
 
 /**
  * Relance l'enregistrement des documents dont l'enregistrement a échoué et qui sont encore

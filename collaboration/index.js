@@ -2,7 +2,7 @@ const { Server } = require('@hocuspocus/server')
 const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
 const Y = require('yjs')
-const { withRetry, authErrorForStatus, retryFailedStores } = require('./resilience')
+const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal } = require('./resilience')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/looty_db',
@@ -266,11 +266,16 @@ const server = new Server({
       throw authError('outdated-client')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
+    const userAgent = requestHeaders.get ? requestHeaders.get('user-agent') : requestHeaders['user-agent']
+    const refuse = (reason, status) => {
+      console.warn(describeRefusal({ reason, status, documentName, hasToken: !!(token && token.startsWith('looty_')), hasCookie: !!cookie, userAgent }))
+      return authError(reason)
+    }
     // Jeton API optionnel (clients non navigateur), sinon cookie de session.
     const headers = {}
     if (token && token.startsWith('looty_')) headers.authorization = `Bearer ${token}`
     else if (cookie) headers.cookie = cookie
-    else throw authError('unauthenticated')
+    else throw refuse('unauthenticated')
     let res
     try {
       res = await fetch(accessUrl(documentName), { headers, signal: AbortSignal.timeout(10_000) })
@@ -283,7 +288,7 @@ const server = new Server({
     const refusal = authErrorForStatus(res.status)
     if (refusal) {
       if (refusal !== 'forbidden') console.error('Backend auth check failed', res.status)
-      throw authError(refusal)
+      throw refuse(refusal, res.status)
     }
     const access = await res.json()
     connectionConfig.readOnly = !access.can_write
