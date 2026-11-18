@@ -350,7 +350,7 @@ private fun BlockView(state: AppState, b: Block, pageId: String) {
             }
         }
         is MathBlock -> Surface(color = scheme.surfaceContainerHigh, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Text(b.latex, fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, modifier = Modifier.horizontalScroll(rememberScrollState()).padding(12.dp), softWrap = false)
+            MathView(b.latex, display = true, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = scheme.onSurface)
         }
         is Special -> Surface(color = scheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().clickable(enabled = pageId.isNotEmpty()) { state.ws?.let { openWeb(ctx, Paths.doc(it, pageId)) } }) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

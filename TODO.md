@@ -24,3 +24,7 @@ Done (0.13.0 to 0.18.0, phases N1 to N6): every screen is native. Still opened i
 
 - Node 26 once it becomes the LTS version (end of October 2026).
 - Moodle: the course personalization (short name, colour, icon) is deliberately not applied to the Looty calendar events imported from Moodle, see [docs/adr/0001-moodle-personalization-not-in-looty-calendar.md](docs/adr/0001-moodle-personalization-not-in-looty-calendar.md).
+
+## Android: gaps vs web (not in scope of the AI chat / study / LaTeX work)
+
+Not yet native on Android: canvas, Jupyter notebooks (kernel runs in the browser, ADR 0008), trash, activity, announcements, what's new, full study-set item editor.

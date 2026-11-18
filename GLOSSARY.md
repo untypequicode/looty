@@ -207,7 +207,7 @@ _Avoid_: brouillon, patch
 
 **Jeu de révision**:
 Document de révision d'une personne ou d'un espace : QCM, questionnaire, fiches de révision ou synthèse, fait d'éléments au format strict (`docs/study-items.md`). Privé par défaut ; partageable à l'espace ou par lien. Deux modes : *édition* (propriétaire et éditeurs) et *utilisation* (toute personne qui peut le voir).
-_Avoid_: quiz, test, cours
+_Avoid_: quiz, test, cours, entraînement (dans l'interface, « entraînements » désigne les jeux de révision)
 
 **Tentative**:
 Passage d'un jeu de révision par une personne, avec sa note et ses réponses. Visible de cette personne seulement, jamais du propriétaire du jeu.
@@ -215,3 +215,7 @@ _Avoid_: copie, résultat partagé
 
 **État de fiche**:
 Facilité et prochaine échéance d'une fiche pour une personne (répétition espacée simplifiée).
+
+**Formule**:
+Expression mathématique écrite en LaTeX dans une page (dans le texte ou en bloc), rendue comme sur le web quel que soit l'appareil, hors-ligne compris.
+_Avoid_: équation, maths
