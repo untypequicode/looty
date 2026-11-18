@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.40.4",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Clearer logs when a live-editing connection is refused",
+        "fr": "Journaux plus clairs quand une connexion d'édition en direct est refusée"
+      },
+      "notes": {
+        "en": [
+          "**Server**: when the live-editing service refuses a connection (signed out, no access, document gone), its log now says why, for which document and from which kind of client, to find a client that keeps reconnecting. No cookie, token or address is written."
+        ],
+        "fr": [
+          "**Serveur** : quand le service d'édition en direct refuse une connexion (session fermée, accès retiré, document disparu), son journal indique maintenant pourquoi, pour quel document et depuis quel type de client, afin de retrouver un client qui se reconnecte en boucle. Aucun cookie, jeton ni adresse n'y est écrit."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.40.3",
       "date": "2026-11-18",
       "title": {
