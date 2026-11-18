@@ -52,6 +52,15 @@ const studyGrants = ref<AiStudyGrant[]>([])
 const endedGrants = ref<EndedGrant[]>([])
 const suggestions = ref<AiSuggestion[]>([])
 const draft = ref('')
+/** Espace cible des créations de l'IA : celui de la conversation, sinon l'espace courant. Modifiable dans la zone de saisie. */
+const targetWs = ref(wsId.value)
+/** Versions déjà rétablies depuis cette discussion (gardées par le serveur) : leur bouton « Annuler » est grisé. */
+const restored = ref(new Set<string>())
+async function setTarget(id: string) {
+  targetWs.value = id
+  if (!conv.value) return
+  try { await api(`/api/ai/conversations/${conv.value.id}`, { method: 'PATCH', body: { default_workspace_id: id } }) } catch (e) { toast.error(errorMessage(e)) }
+}
 const attachments = ref<AiAttachment[]>([])
 const busy = ref(false)
 const streaming = ref('')
@@ -74,12 +83,14 @@ async function loadConversation(id: string) {
   studyGrants.value = r.study_grants ?? []
   endedGrants.value = r.ended_grants ?? []
   suggestions.value = r.suggestions
+  restored.value = new Set(r.restored_revisions ?? [])
+  targetWs.value = r.default_workspace_id || wsId.value
   if (r.conversation.connection_id) connectionId.value = r.conversation.connection_id
   scrollDown()
 }
 function reset() {
   conv.value = null; messages.value = []; grants.value = []; studyGrants.value = []; endedGrants.value = []; suggestions.value = []
-  draft.value = ''; streaming.value = ''
+  draft.value = ''; streaming.value = ''; restored.value = new Set(); targetWs.value = wsId.value
   attachments.value = defaultAttachments()
 }
 const routeConv = computed(() => (typeof route.query.c === 'string' ? route.query.c : ''))
@@ -134,7 +145,7 @@ async function send(override?: string) {
     toolLog.value = []
     scrollDown()
     abort = new AbortController()
-    await streamMessage(c.id, text, atts, onEvent, abort.signal, wsId.value)
+    await streamMessage(c.id, text, atts, onEvent, abort.signal, targetWs.value)
   } catch (e: any) {
     if (e?.name !== 'AbortError') toast.error(errorMessage(e))
   } finally {
@@ -215,7 +226,7 @@ function onGranted() { if (busy.value) retryAfter = true; else void send(t('ai.p
 
 async function undoPage(revId: string, undo = false) {
   try {
-    const r = await api<{ page_id: string; undo_revision_id: string | null }>(`/api/ai/page-revisions/${revId}/restore`, { method: 'POST' })
+    const r = await api<{ page_id: string; undo_revision_id: string | null }>(`/api/ai/page-revisions/${revId}/restore`, { method: 'POST', query: undo ? { undo: 1 } : undefined })
     if (!undo) restored.value = new Set(restored.value).add(revId)
     pageChanged()
     toast.success(t(undo ? 'ai.page.undoUndone' : 'ai.page.pageChangedUndone'), undo || !r.undo_revision_id ? {} : { duration: 10000, action: { label: t('ai.page.undo'), run: () => { void undoPage(r.undo_revision_id!, true) } } })
@@ -239,7 +250,6 @@ async function decide(s: AiSuggestion, accept: boolean) {
   }
 }
 const studyActions = useStudyActions()
-const restored = ref(new Set<string>())
 
 // « Créer une page avec cette réponse » : page personnelle de l'espace courant, puis ouverture.
 const toPageBusy = ref('')
@@ -254,7 +264,7 @@ async function toPage(messageId: string) {
 }
 async function restoreStudy(setId: string, revId: string, undo = false) {
   try {
-    const undoId = await studyActions.restore(setId, revId)
+    const undoId = await studyActions.restore(setId, revId, undo)
     if (!undo) restored.value = new Set(restored.value).add(revId)
     toast.success(t(undo ? 'study.restoreUndone' : 'study.restored'), undo ? {} : { duration: 10000, action: { label: t('study.undo'), run: () => { void restoreStudy(setId, undoId, true) } } })
   } catch (e: any) { toast.error(errorMessage(e)) }
@@ -306,11 +316,11 @@ const empty = computed(() => !visible.value.length && !streaming.value)
                 <AiGrantCard v-if="m.data?.grant_needed && showNeed(m) && conv" :need="m.data.grant_needed" :conversation-id="conv.id" :grants="grants" :study-grants="studyGrants" :ended="endedGrants" :card-at="m.created_at" @changed="refreshGrants" @granted="onGranted" />
                 <div v-if="m.data?.study_set_id" class="as-row">
                   <NuxtLink :to="`/study/${m.data.study_set_id}?mode=edit`" class="msg as-link"><GraduationCap :size="13" /> {{ t('ai.chat.studyLink') }}</NuxtLink>
-                  <UiButton v-if="m.data.study_revision_id" size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.study_revision_id)" @click="restoreStudy(m.data.study_set_id, m.data.study_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
+                  <UiButton v-if="m.data.study_revision_id" size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.study_revision_id)" @click="restoreStudy(m.data.study_set_id, m.data.study_revision_id)">{{ t(restored.has(m.data.study_revision_id) ? 'ai.chat.undone' : 'ai.chat.studyRestore') }}</UiButton>
                 </div>
                 <div v-if="m.data?.page_revision_id" class="as-row">
                   <component :is="pageLink(m.data.page_id) ? 'NuxtLink' : 'span'" :to="pageLink(m.data.page_id) ?? undefined" class="msg as-link"><PenLine :size="13" /> {{ t('ai.page.pageChanged') }}</component>
-                  <UiButton size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.page_revision_id)" @click="undoPage(m.data.page_revision_id)">{{ t('ai.chat.studyRestore') }}</UiButton>
+                  <UiButton size="sm" variant="ghost" :icon="Undo2" :disabled="restored.has(m.data.page_revision_id)" @click="undoPage(m.data.page_revision_id)">{{ t(restored.has(m.data.page_revision_id) ? 'ai.chat.undone' : 'ai.chat.studyRestore') }}</UiButton>
                 </div>
               </template>
               <div v-else-if="m.role === 'assistant'" class="as-answer">
@@ -334,7 +344,7 @@ const empty = computed(() => !visible.value.length && !streaming.value)
         </div>
         <div class="as-compose">
           <div class="as-col">
-            <AiComposer ref="composer" v-model:draft="draft" :dropping="dropping" v-model:attachments="attachments" v-model:connection-id="connectionId" :busy="busy" :connections="connections ?? []" @send="send()" @stop="stop" />
+            <AiComposer ref="composer" v-model:draft="draft" :dropping="dropping" v-model:attachments="attachments" v-model:connection-id="connectionId" :workspace-id="targetWs" :busy="busy" :connections="connections ?? []" @update:workspace-id="setTarget" @send="send()" @stop="stop" />
           </div>
         </div>
       </section>

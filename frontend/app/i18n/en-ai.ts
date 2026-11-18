@@ -79,7 +79,7 @@ export default {
       noConnection: 'Connect an AI agent (GPT, Claude, Gemini…) to start: you need an API key from your account.', setUp: 'Connect an agent',
       placeholder: 'Ask something…', send: 'Send', stop: 'Stop',
       allow: 'Allow', expiry: 'Duration', personal: 'Personal space',
-      toPage: 'Create a page with this answer', studyLink: 'Open the training', studyRestore: 'Undo the change',
+      toPage: 'Create a page with this answer', studyLink: 'Open the training', studyRestore: 'Undo the change', undone: 'Undone',
       mode: { suggest: 'Suggest', append: 'Append', replace: 'Replace' },
       suggestion: 'Proposed change', accept: 'Accept', reject: 'Reject', applied: 'Change applied (previous version saved in history)',
     },
@@ -111,7 +111,7 @@ export default {
       },
     },
     composer: {
-      placeholder: 'Ask something…', attach: 'Attach an item', atHint: '@ to attach', detach: 'Remove “{title}”',
+      placeholder: 'Ask something…', attach: 'Attach an item', atHint: '@ to attach', workspace: 'Space: {name}', workspaceHint: 'Where the assistant creates what you ask for', workspaceSearch: 'Find a space…', detach: 'Remove “{title}”',
     },
     card: {
       title: 'Write permission', page: 'The assistant wants to edit “{title}”.', studyCreate: 'The assistant wants to create a training in “{where}”.', studyUpdate: 'The assistant wants to edit the training “{title}”.',

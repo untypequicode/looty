@@ -25,6 +25,11 @@ function expected(it: StudySet['items'][number], c?: StudyCorrection): { plain: 
   const ids: string[] = it.type === 'single' ? [a.choice] : a.choices ?? []
   return { plain: '', choices: (it.choices ?? []).filter((x) => ids.includes(x.id)).map((x) => x.text) }
 }
+/** Réponse attendue en un seul texte : un `$…$` ne doit pas être coupé entre deux fragments rendus séparément. */
+function expectedText(it: StudySet['items'][number], c?: StudyCorrection): string {
+  const e = expected(it, c)
+  return e.plain || e.choices.join(', ')
+}
 async function submit() {
   busy.value = true
   try {
@@ -53,8 +58,8 @@ function restart() {
       <UiInput v-else v-model="answers[it.id!]" :placeholder="t('study.typeAnswer')" :disabled="!!result" :aria-label="t('study.yourAnswer')" />
       <div v-if="result" class="pl-fix">
         <span v-if="correction(it.id)?.correct === true" class="good"><Check :size="14" /> {{ t('study.right') }}</span>
-        <span v-else-if="correction(it.id)?.correct === false" class="bad"><X :size="14" /> {{ t('study.wrong') }} · {{ t('study.expected') }} : {{ expected(it, correction(it.id)).plain }}<template v-for="(x, k) in expected(it, correction(it.id)).choices" :key="k">{{ k ? ', ' : '' }}<RichMarkdown :src="x" mode="inline" /></template></span>
-        <span v-else class="faint">{{ t('study.unscored') }} · {{ expected(it, correction(it.id)).plain }}<template v-for="(x, k) in expected(it, correction(it.id)).choices" :key="k">{{ k ? ', ' : '' }}<RichMarkdown :src="x" mode="inline" /></template></span>
+        <span v-else-if="correction(it.id)?.correct === false" class="bad"><X :size="14" /> {{ t('study.wrong') }} · {{ t('study.expected') }} : <RichMarkdown :src="expectedText(it, correction(it.id))" mode="inline" /></span>
+        <span v-else class="faint">{{ t('study.unscored') }} · <RichMarkdown :src="expectedText(it, correction(it.id))" mode="inline" /></span>
         <RichMarkdown v-if="correction(it.id)?.explanation" class="faint" :src="correction(it.id)!.explanation!" />
       </div>
     </article>

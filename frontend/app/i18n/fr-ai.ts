@@ -79,7 +79,7 @@ export default {
       noConnection: 'Connectez un agent IA (GPT, Claude, Gemini…) pour commencer : il faut une clé d’API de votre compte.', setUp: 'Connecter un agent',
       placeholder: 'Posez une question…', send: 'Envoyer', stop: 'Arrêter',
       allow: 'Autoriser', expiry: 'Durée', personal: 'Espace personnel',
-      toPage: 'Créer une page avec cette réponse', studyLink: 'Ouvrir l’entraînement', studyRestore: 'Annuler la modification',
+      toPage: 'Créer une page avec cette réponse', studyLink: 'Ouvrir l’entraînement', studyRestore: 'Annuler la modification', undone: 'Annulée',
       mode: { suggest: 'Suggérer', append: 'Ajouter', replace: 'Remplacer' },
       suggestion: 'Modification proposée', accept: 'Accepter', reject: 'Refuser', applied: 'Modification appliquée (version précédente gardée dans l’historique)',
     },
@@ -111,7 +111,7 @@ export default {
       },
     },
     composer: {
-      placeholder: 'Posez une question…', attach: 'Joindre un élément', atHint: '@ pour joindre', detach: 'Retirer « {title} »',
+      placeholder: 'Posez une question…', attach: 'Joindre un élément', atHint: '@ pour joindre', workspace: 'Espace : {name}', workspaceHint: 'Où l’assistant crée ce que vous demandez', workspaceSearch: 'Chercher un espace…', detach: 'Retirer « {title} »',
     },
     card: {
       title: 'Autorisation d’écriture', page: 'L’assistant veut modifier « {title} ».', studyCreate: 'L’assistant veut créer un entraînement dans « {where} ».', studyUpdate: 'L’assistant veut modifier l’entraînement « {title} ».',

@@ -6,7 +6,7 @@ export default {
     study_nothing_to_score: 'This training has nothing to score.', study_invalid_rating: 'Unknown rating.',
   },
   nav: { study: 'Trainings' },
-  rich: { diagramError: 'Invalid diagram, showing its source' },
+  rich: { diagramError: 'Invalid diagram, showing its source', graphTooLarge: 'Graph too large to draw (limit: 20,000 characters), showing its source', graphTitle: 'Graph', copySource: 'Copy the source', sourceCopied: 'Source copied' },
   presence: { screens: { study: 'Trainings' } },
   study: {
     preview: 'Preview', markdownHint: 'Markdown: $x^2$ for formulas, mermaid and looty-graph blocks, :::info callouts, tables, code.',
