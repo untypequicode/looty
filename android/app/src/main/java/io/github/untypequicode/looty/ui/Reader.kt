@@ -136,7 +136,7 @@ object ReaderParser {
                     }
                 }
                 "span" -> if (el.attr("data-type") == "math-inline") {
-                    withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic, background = colors.codeBackground)) { append(el.attr("latex")) }
+                    appendInlineMath(el.attr("latex"))
                 } else el.childNodes().forEach { inline(it) }
                 else -> el.childNodes().forEach { inline(it) }
             }
@@ -306,13 +306,13 @@ private fun BlockView(state: AppState, b: Block, pageId: String) {
     val ctx = LocalContext.current
     val scheme = MaterialTheme.colorScheme
     when (b) {
-        is Heading -> Text(b.text, style = when (b.level) {
+        is Heading -> MathText(b.text, style = when (b.level) {
             1 -> MaterialTheme.typography.headlineMedium
             2 -> MaterialTheme.typography.headlineSmall
             3 -> MaterialTheme.typography.titleLarge
             else -> MaterialTheme.typography.titleMedium
         }, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-        is Para -> Text(b.text, style = MaterialTheme.typography.bodyLarge)
+        is Para -> MathText(b.text, style = MaterialTheme.typography.bodyLarge)
         is ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             b.items.forEachIndexed { i, e ->
                 Row(verticalAlignment = Alignment.Top) {
@@ -343,7 +343,7 @@ private fun BlockView(state: AppState, b: Block, pageId: String) {
                 Row(Modifier.height(IntrinsicSize.Min)) {
                     row.forEach { c ->
                         Box(Modifier.width(150.dp).fillMaxHeight().border(BorderStroke(0.5.dp, scheme.outlineVariant)).background(if (c.header) scheme.surfaceContainerHigh else Color.Transparent).padding(8.dp)) {
-                            Text(c.text, style = MaterialTheme.typography.bodyMedium, fontWeight = if (c.header) FontWeight.SemiBold else null)
+                            MathText(c.text, style = MaterialTheme.typography.bodyMedium, fontWeight = if (c.header) FontWeight.SemiBold else null)
                         }
                     }
                 }
@@ -367,7 +367,7 @@ private fun BlockView(state: AppState, b: Block, pageId: String) {
             Column {
                 Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
                     Icon(if (open) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight, null)
-                    Text(b.summary, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    MathText(b.summary, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 }
                 if (open) Column(Modifier.padding(start = 24.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { b.blocks.forEach { BlockView(state, it, pageId) } }
             }
