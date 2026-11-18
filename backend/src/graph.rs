@@ -211,8 +211,10 @@ async fn build_uncached(pool: &PgPool, user: &AuthUser, ws: Uuid) -> ApiResult<B
     Ok(Built { nodes, edges })
 }
 
-/// Durée de vie d'un graphe en cache : borne la péremption (les écritures de pages ne l'invalident pas).
-const CACHE_TTL: Duration = Duration::from_secs(20);
+/// Durée de vie d'un graphe en cache : 5 s. Compromis : l'appartenance à l'espace est revérifiée à chaque
+/// appel (hors cache), mais une réduction des droits sur des pages, les écritures de pages, de tâches
+/// ou de membres n'invalident pas le cache : elles peuvent mettre jusqu'à 5 s à apparaître.
+const CACHE_TTL: Duration = Duration::from_secs(5);
 
 type Key = (Uuid, Uuid);
 type Cell = Arc<OnceCell<Arc<Built>>>;
@@ -241,6 +243,8 @@ fn invalidate(ws: Uuid) {
 }
 
 async fn build(state: &AppState, user: &AuthUser, ws: Uuid) -> ApiResult<Arc<Built>> {
+    // Appartenance vérifiée hors cache : un membre retiré n'obtient jamais un graphe en cache.
+    require_member(&state.pool, user, ws).await?;
     cached(&CACHE, (ws, user.id), CACHE_TTL, || build_uncached(&state.pool, user, ws)).await
 }
 
@@ -398,12 +402,15 @@ mod tests {
         let mut yjs = vec![0xff, 0xfe, 0x00, b'\\', 0x80];
         yjs.extend_from_slice(format!("x/doc/{c}\u{e9}").as_bytes());
         yjs.extend_from_slice(&[0xc3]);
+        let e = page(&pool, ws, owner.id, "E", None, None).await;
+        let f = page(&pool, ws, owner.id, "F", None, None).await;
+        yjs.extend_from_slice(format!("\0task={e}\0data-board=\"{f}\"").as_bytes());
         let a = page(&pool, ws, owner.id, "A", Some(format!(r#"<a href="/w/x/doc/{b}">B</a>"#)), Some(yjs)).await;
         // D : un état Yjs sans lien, un marqueur sans identifiant valide.
         sqlx::query("UPDATE pages SET yjs_state = $2 WHERE id = $1").bind(d).bind(b"/doc/not-a-uuid-at-all-0000000000000000000".to_vec()).execute(&pool).await.unwrap();
         let built = build_uncached(&pool, &owner, ws).await.unwrap();
-        assert_eq!(edge_pairs(&built), HashSet::from([(a, b), (a, c)]));
-        assert_eq!(built.nodes.len(), 4);
+        assert_eq!(edge_pairs(&built), HashSet::from([(a, b), (a, c), (a, e), (a, f)]));
+        assert_eq!(built.nodes.len(), 6);
     }
 
     #[test]
