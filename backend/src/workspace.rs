@@ -1000,9 +1000,9 @@ async fn search_workspace(
 
         // Contenu des fichiers dont le texte a été extrait (mots entiers ou débuts de mot) : mêmes règles d'accès
         // que ci-dessus (fichier non expiré, non privé à un autre) ; l'extrait est tiré du texte lui-même.
-        let words: Vec<String> = crate::classes::fold(q).split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).take(6).map(String::from).collect();
+        let words: Vec<String> = crate::classes::fold(q).split(|c: char| !(c.is_alphabetic() || c.is_ascii_digit())).filter(|w| !w.is_empty()).take(6).map(String::from).collect();
         if !kw_only && !words.is_empty() {
-            let tsquery = words.iter().map(|w| format!("{w}:*")).collect::<Vec<_>>().join(" & ");
+            let tsquery = words.iter().map(|w| format!("'{w}':*")).collect::<Vec<_>>().join(" & ");
             let hits: Vec<SearchResult> = sqlx::query_as(
                 "SELECT f.id, f.name AS title, 'file' AS type, NULL::varchar AS icon,
                         '… ' || substring(t.search_text from greatest(position($3 in t.search_text) - 50, 1) for 160) || ' …' AS snippet,
@@ -1213,7 +1213,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-            sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text) VALUES ($1, $2, '[]', 10, $3)").bind(id).bind(serde_json::json!([text])).bind(crate::classes::fold(text)).execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, '[]', 10, $3, looty_safe_tsv($3))").bind(id).bind(serde_json::json!([text])).bind(crate::classes::fold(text)).execute(&pool).await.unwrap();
         }
         let find = |user: &AuthUser, q: &str| {
             let (pool, user, q) = (pool.clone(), AuthUser { id: user.id, is_super_admin: false }, q.to_string());
@@ -1229,6 +1229,11 @@ mod tests {
         assert_eq!(theirs[0]["title"], "cours.pdf");
         assert!(theirs[0]["snippet"].as_str().unwrap().contains("pythagore"));
         assert_eq!(find(&users[1], "cachette").await.len(), 0);
+        // Jetons étranges : jamais une erreur ; sans mot exploitable la branche contenu est sautée.
+        for q in ["½", "²", "&", "|", "!", "'", "\"", "½ pyth & | ! '", "pyth:*", "(pyth)", "a<->b", "\\"] {
+            let _ = find(&users[0], q).await;
+        }
+        assert_eq!(find(&users[0], "½ pythagor ! &").await.len(), 2);
     }
 
     #[test]

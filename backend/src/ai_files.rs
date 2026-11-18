@@ -63,11 +63,11 @@ impl From<Extracted> for FileText {
 
 /// Texte plié (sans casse ni accents) et plafonné, gardé pour la recherche dans le Drive.
 fn search_text(t: &FileText) -> String {
-    crate::classes::fold(&t.pages.join(" ").chars().take(400_000).collect::<String>())
+    crate::classes::fold(&t.pages.join(" ").chars().take(150_000).collect::<String>())
 }
 
 async fn store_text(pool: &PgPool, file_id: Uuid, t: &FileText) -> ApiResult<()> {
-    sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (file_id) DO NOTHING")
+    sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, $3, $4, $5, COALESCE(looty_safe_tsv($5), ''::tsvector)) ON CONFLICT (file_id) DO NOTHING")
         .bind(file_id)
         .bind(json!(t.pages))
         .bind(json!(t.outline))
@@ -187,7 +187,7 @@ pub async fn save_file(pool: &PgPool, user: &AuthUser, name: &str, bytes: &[u8],
         .bind(expires)
         .fetch_one(&mut *tx)
         .await?;
-        sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text) VALUES ($1, $2, $3, $4, $5)")
+        sqlx::query("INSERT INTO drive_file_text (file_id, pages, outline, chars, search_text, search_tsv) VALUES ($1, $2, $3, $4, $5, COALESCE(looty_safe_tsv($5), ''::tsvector))")
             .bind(id)
             .bind(json!(text.pages))
             .bind(json!(text.outline))
