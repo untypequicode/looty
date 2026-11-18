@@ -3,6 +3,57 @@
   "site": "https://looty.untypequicode.fr",
   "releases": [
     {
+      "platform": "web",
+      "version": "0.40.2",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Less battery and network use",
+        "fr": "Moins de batterie et de réseau"
+      },
+      "notes": {
+        "en": [
+          "**Background tabs**: periodic refreshes (mail, drive, calendars, Moodle) stay paused while the tab is hidden, and out-of-date data is reloaded once when you come back."
+        ],
+        "fr": [
+          "**Onglets en arrière-plan** : les rafraîchissements périodiques (mails, drive, calendriers, Moodle) restent en pause tant que l’onglet est masqué, et les données périmées sont rechargées une fois à votre retour."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.8.3",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Less battery and network use",
+        "fr": "Moins de batterie et de réseau"
+      },
+      "notes": {
+        "en": [
+          "**Idle window**: the connection check slows down when nothing changes and stops while the window is hidden."
+        ],
+        "fr": [
+          "**Fenêtre au repos** : la vérification de la connexion ralentit quand rien ne change et s’arrête tant que la fenêtre est masquée."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.29.1",
+      "date": "2026-11-18",
+      "title": {
+        "en": "Less battery and network use",
+        "fr": "Moins de batterie et de réseau"
+      },
+      "notes": {
+        "en": [
+          "**Notifications**: the periodic check is no longer scheduled when push notifications are working, and comes back by itself if push is lost."
+        ],
+        "fr": [
+          "**Notifications** : la vérification périodique n’est plus programmée quand les notifications push fonctionnent, et revient d’elle-même si le push est perdu."
+        ]
+      }
+    },
+    {
       "platform": "android",
       "version": "0.29.0",
       "date": "2026-11-18",
