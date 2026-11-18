@@ -293,9 +293,9 @@ fun AiChatScreen(state: AppState, id: String, onBack: () -> Unit) {
     fun grantFor(n: AiGrantNeed) {
         scope.launch {
             val body = when (n.kind) {
-                "page" -> buildJsonObject { put("page_id", n.pageId ?: ""); put("mode", n.operation ?: "append"); put("expires_in_minutes", 60) }
-                "study_update" -> buildJsonObject { put("set_id", n.setId ?: ""); put("expires_in_minutes", 60) }
-                else -> buildJsonObject { if (n.personal) put("personal", true) else put("workspace_id", n.workspaceId ?: ""); put("expires_in_minutes", 60) }
+                "page" -> buildJsonObject { put("page_id", n.pageId ?: return@launch); put("mode", n.operation ?: "append"); put("expires_in_minutes", 60) }
+                "study_update" -> buildJsonObject { put("set_id", n.setId ?: return@launch); put("expires_in_minutes", 60) }
+                else -> buildJsonObject { if (n.personal) put("personal", true) else put("workspace_id", n.workspaceId ?: return@launch); put("expires_in_minutes", 60) }
             }
             val path = if (n.kind == "page") "grants" else "study-grants"
             runCatching { state.api.send("POST", "$AI/conversations/$id/$path", body) }
