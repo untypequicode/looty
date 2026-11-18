@@ -5,6 +5,7 @@ import android.webkit.CookieManager
 import io.github.untypequicode.looty.BuildConfig
 import io.github.untypequicode.looty.Config
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -70,6 +71,34 @@ class Api(private val ctx: Context) {
             }
             text
         }
+    }
+
+    /**
+     * POST dont la réponse est un flux SSE (chat de l'assistant) : chaque évènement terminé est donné
+     * à [onData] (charge utile JSON). Annulable : annuler la coroutine ferme la connexion.
+     */
+    suspend fun stream(path: String, body: JsonElement, onData: suspend (String) -> Unit) = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url(server + path).header("Accept", "text/event-stream")
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+        val call = client.newBuilder().readTimeout(120, TimeUnit.SECONDS).build().newCall(req)
+        val handle = kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion { call.cancel() }
+        try {
+            call.execute().use { res ->
+                if (!res.isSuccessful) {
+                    val text = res.body.string()
+                    val code = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+                    throw ApiException(res.code, code ?: "http_${res.code}")
+                }
+                val src = res.body.source()
+                val sse = SseParser()
+                while (true) {
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    val line = src.readUtf8Line() ?: break
+                    sse.push(line)?.let { onData(it) }
+                }
+                sse.finish()?.let { onData(it) }
+            }
+        } finally { handle?.dispose() }
     }
 
     /** Envoie un fichier (champ « file », comme l'interface web) ; renvoie la réponse du serveur. */

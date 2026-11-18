@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "android",
+      "version": "0.28.0",
+      "date": "2026-11-18",
+      "title": {
+        "en": "The AI assistant is now in the app",
+        "fr": "L’assistant IA est maintenant dans l’application"
+      },
+      "notes": {
+        "en": [
+          "**Assistant**: chat with the AI assistant from More, with replies streamed live, formatted text and typeset formulas.",
+          "**Suggestions**: review an edit suggested for a page and accept or reject it.",
+          "**Write access**: allow the assistant to write to a page or to study sets for a limited time, and revoke it at any time. The provider itself is still set up on the web."
+        ],
+        "fr": [
+          "**Assistant** : discutez avec l’assistant IA depuis Plus, avec les réponses en direct, le texte mis en forme et les formules.",
+          "**Suggestions** : relisez une modification suggérée pour une page, puis acceptez-la ou refusez-la.",
+          "**Autorisations d’écriture** : autorisez l’assistant à écrire sur une page ou dans des entraînements pour une durée limitée, et retirez-les quand vous voulez. Le fournisseur se configure toujours sur le web."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.27.0",
       "date": "2026-11-18",
       "title": {
