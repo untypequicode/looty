@@ -81,7 +81,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             when (val screen = seg.getOrNull(1)) {
                 "quickadd" -> quickAdd = true
                 "tasks", "docs", "inbox", "home" -> nav.navigate(screen) { launchSingleTop = true }
-                "calendar", "mail", "moodle", "drive", "projects", "notifications" -> nav.navigate(screen) { launchSingleTop = true }
+                "calendar", "mail", "moodle", "drive", "projects", "notifications", "study" -> nav.navigate(screen) { launchSingleTop = true }
             }
             return@LaunchedEffect
         }
@@ -203,6 +203,8 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("trash") { TrashScreen(state, onBack = { nav.popBackStack() }) }
             composable("ai") { AiListScreen(state, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("ai/$it") }) }
             composable("ai/{id}") { e -> AiChatScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
+            composable("study") { StudyListScreen(state, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("study/$it") }) }
+            composable("study/{id}") { e -> StudyScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("graph") { GraphScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("settings") { SettingsScreen(state, onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("settings/profile") { ProfileSettingsScreen(state, onBack = { nav.popBackStack() }) }
