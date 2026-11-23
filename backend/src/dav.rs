@@ -630,6 +630,10 @@ fn multistatus(responses: Vec<String>) -> Response {
 }
 
 fn status(code: StatusCode) -> Response {
+    // 204 and 304 must have no body: OkHttp (DAVx5) rejects a non-zero Content-Length.
+    if code == StatusCode::NO_CONTENT || code == StatusCode::NOT_MODIFIED {
+        return code.into_response();
+    }
     (code, code.canonical_reason().unwrap_or("")).into_response()
 }
 
@@ -958,4 +962,25 @@ fn proppatch(path: &str, body: &str) -> Response {
         esc(path),
         status_line(StatusCode::FORBIDDEN)
     )])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn status_204_has_empty_body() {
+        let r = status(StatusCode::NO_CONTENT);
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let b = axum::body::to_bytes(r.into_body(), usize::MAX).await.unwrap();
+        assert!(b.is_empty());
+    }
+
+    #[tokio::test]
+    async fn status_404_keeps_reason_body() {
+        let r = status(StatusCode::NOT_FOUND);
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        let b = axum::body::to_bytes(r.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(&b[..], b"Not Found");
+    }
 }
