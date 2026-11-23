@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.40.5",
+      "date": "2026-11-23",
+      "title": {
+        "en": "CalDAV sync fix for DAVx5",
+        "fr": "Correctif de synchronisation CalDAV pour DAVx5"
+      },
+      "notes": {
+        "en": [
+          "DAVx5 and other CalDAV clients no longer fail on modifications with \"HTTP 204 had non-zero Content-Length\"."
+        ],
+        "fr": [
+          "DAVx5 et les autres clients CalDAV n’échouent plus lors des modifications avec « HTTP 204 had non-zero Content-Length »."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.40.4",
       "date": "2026-11-18",
       "title": {
