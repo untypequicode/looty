@@ -88,6 +88,15 @@ export default {
     },
     r: {
       needsJupyter: 'Les cellules R s’exécutent sur le serveur Jupyter du projet (IRkernel). Ouvrez le bouton Moteur de la barre d’outils et choisissez le serveur Jupyter avec un noyau R : le moteur du navigateur n’exécute que Python.',
+      panel: {
+        title: 'Panneaux R', toggle: 'Panneaux R : environnement, graphiques, aide, console', env: 'Environnement', plots: 'Graphiques', help: 'Aide', console: 'Console',
+        needKernel: 'Connectez d’abord le noyau Jupyter : exécutez une cellule, ou envoyez une ligne depuis l’onglet Console.', timeout: 'Le noyau R n’a pas répondu à temps (il est peut-être occupé par un long calcul).',
+        refresh: 'Actualiser', count: '{n} objet(s)', envEmpty: 'La session R ne contient pas encore de variable.', name: 'Nom', type: 'Type', dims: 'Taille', size: 'Mémoire', empty: '(vide)',
+        plotsEmpty: 'Aucun graphique pour l’instant. Ceux des cellules et de la console apparaissent ici, dans l’ordre.', noFormat: 'Ce graphique n’est pas disponible dans ce format.',
+        helpPlaceholder: 'Nom de fonction, par ex. mean ou stats::lm', search: 'Chercher', helpHint: 'Saisissez un nom de fonction (ou ?nom dans la console) pour lire sa documentation.', loading: 'Chargement…', helpMissing: 'Aucune page d’aide pour « {topic} ».',
+        consoleHint: 'Même noyau que les cellules. Entrée exécute, Maj+Entrée ajoute une ligne, ↑/↓ rappellent l’historique. Ctrl+Alt+Entrée dans une cellule envoie ici la ligne ou la sélection.',
+        clear: 'Vider la console', prompt: 'Code R…',
+      },
     },
     deps: {
       refreshFailed:'Impossible d’actualiser les fichiers du projet : le code s’exécute avec les fichiers déjà chargés.', saveFailed: '{pkg} est installé pour cette session mais n’a pas pu être enregistré dans requirements.txt.',

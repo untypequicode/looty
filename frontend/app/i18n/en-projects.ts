@@ -88,6 +88,15 @@ export default {
     },
     r: {
       needsJupyter: 'R cells run on the project’s Jupyter server (IRkernel). Open the Engine button in the toolbar and pick the Jupyter server with an R kernel: the browser engine only runs Python.',
+      panel: {
+        title: 'R panels', toggle: 'R panels: environment, plots, help, console', env: 'Environment', plots: 'Plots', help: 'Help', console: 'Console',
+        needKernel: 'Connect the Jupyter kernel first: run a cell, or send a line from the Console tab.', timeout: 'The R kernel did not answer in time (it may be busy with a long calculation).',
+        refresh: 'Refresh', count: '{n} object(s)', envEmpty: 'The R session has no variable yet.', name: 'Name', type: 'Type', dims: 'Size', size: 'Memory', empty: '(empty)',
+        plotsEmpty: 'No plot yet. Plots drawn by cells or by the console appear here, in order.', noFormat: 'This plot is not available in that format.',
+        helpPlaceholder: 'Function name, e.g. mean or stats::lm', search: 'Search', helpHint: 'Type a function name (or ?name in the console) to read its documentation.', loading: 'Loading…', helpMissing: 'No help page found for “{topic}”.',
+        consoleHint: 'Same kernel as the cells. Enter runs, Shift+Enter adds a line, ↑/↓ recall history. Ctrl+Alt+Enter in a cell sends the line or selection here.',
+        clear: 'Clear the console', prompt: 'R code…',
+      },
     },
     deps: {
       refreshFailed: 'Project files could not be refreshed: the code runs with the files already loaded.', saveFailed: '{pkg} is installed for this session but could not be saved to requirements.txt.',

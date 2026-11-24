@@ -200,14 +200,38 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
     try { await connectP } finally { connectP = null }
   }
 
-  function send(code: string): string {
+  function send(code: string, history = true): string {
     const id = msgId()
     ws!.send(JSON.stringify({
       header: { msg_id: id, msg_type: 'execute_request', session, username: 'looty', date: new Date().toISOString(), version: '5.3' },
       parent_header: {}, metadata: {}, channel: 'shell', buffers: [],
-      content: { code, silent: false, store_history: true, user_expressions: {}, allow_stdin: false, stop_on_error: true },
+      content: { code, silent: false, store_history: history, user_expressions: {}, allow_stdin: false, stop_on_error: history },
     }))
     return id
+  }
+
+  /**
+   * Requête hors cellule (panneaux R : environnement, aide, console). Même noyau et mêmes
+   * messages que l'exécution, mais le résultat revient à l'appelant, jamais dans une cellule.
+   * `silent` (par défaut) : ni historique ni numéro d'exécution, et le noyau n'est pas démarré
+   * pour l'occasion (réponse `null` s'il n'est pas connecté). `timeoutMs` : abandon explicite.
+   */
+  async function query(code: string, o: { silent?: boolean; timeoutMs?: number; onUpdate?: (o: NbOutput[]) => void } = {}): Promise<Result | null> {
+    const silent = o.silent ?? true
+    if (silent && (!ws || ws.readyState !== WebSocket.OPEN)) return null
+    if (!silent) {
+      try { await start() } catch (e: any) { return { ok: false, outputs: [fail(e?.message || translate('notebook.jupyter.lost'))] } }
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) return { ok: false, outputs: [fail(message.value || translate('notebook.jupyter.lost'))] }
+    return new Promise<Result>((resolve) => {
+      const id = send(code, !silent)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      pending.set(id, {
+        outputs: [], count: null, failed: false, clearNext: false, started: false, onUpdate: o.onUpdate ?? (() => {}),
+        resolve: (r) => { clearTimeout(timer); resolve(r) },
+      })
+      if (o.timeoutMs) timer = setTimeout(() => { if (pending.delete(id)) resolve({ ok: false, outputs: [fail(translate('notebook.r.panel.timeout'))] }) }, o.timeoutMs)
+    })
   }
 
   /** Exécute une cellule sur le noyau distant ; `onUpdate` reçoit les sorties au fil de l'eau. */
@@ -296,5 +320,5 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
   }
 
   onBeforeUnmount(shutdown)
-  return { state, message, kernelName, run, restart, interrupt, start, shutdown, complete }
+  return { state, message, kernelName, run, query, restart, interrupt, start, shutdown, complete }
 }

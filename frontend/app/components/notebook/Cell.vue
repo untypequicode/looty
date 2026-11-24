@@ -18,6 +18,7 @@ import { useI18n } from '~/composables/useI18n'
 import { formatDuration } from '~/editor/notebookCells'
 import { markdownEdit, type MdAction } from '~/editor/notebookToolbar'
 import type { CompletionOut } from '~/editor/notebookComplete'
+import { lineOrSelection } from '~/editor/rPanels'
 
 /**
  * Une cellule de notebook : le texte est un Y.Text partagé (édition à plusieurs, curseurs),
@@ -57,6 +58,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: []
   run: [mode: 'stay' | 'next' | 'below']
+  runLine: [text: string]
   add: [where: 'above' | 'below', type: 'code' | 'markdown']
   remove: []
   move: [dir: -1 | 1]
@@ -117,6 +119,8 @@ function mount() {
         EditorView.lineWrapping,
         Prec.highest(keymap.of([
           { key: 'Shift-Enter', run: run('next') }, { key: 'Mod-Enter', run: run('stay') }, { key: 'Alt-Enter', run: run('below') },
+          { key: 'Mod-Shift-Enter', run: run('stay') },
+          { key: 'Mod-Alt-Enter', run: (v) => { if (props.type !== 'code') return false; const s = v.state.selection.main; emit('runLine', lineOrSelection(v.state.doc.toString(), s.from, s.to)); return true } },
           { key: 'Escape', run: (v) => { v.contentDOM.blur(); if (props.type === 'markdown' && src.value.trim()) editing.value = false; emit('escape'); return true } },
         ])),
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...completionKeymap, indentWithTab]),

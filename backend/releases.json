@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.51.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "R notebooks: environment, plots, help and console panels",
+        "fr": "Notebooks R : panneaux environnement, graphiques, aide et console"
+      },
+      "notes": {
+        "en": [
+          "**RStudio-like panels**: an R notebook on a Jupyter server gets a side panel (button in the toolbar) with the session's **variables** (name, type, size, preview of data frames), the **plot history** (PNG and SVG export), the **help** of any function (`?mean`) and an interactive **console** on the same kernel.",
+          "**Silent kernel requests**: the panels query the kernel without creating a cell, an output or an execution number.",
+          "**Shortcuts**: Ctrl+Shift+Enter runs the chunk, Ctrl+Alt+Enter sends the current line or selection to the console."
+        ],
+        "fr": [
+          "**Panneaux façon RStudio** : un notebook R sur un serveur Jupyter dispose d’un panneau latéral (bouton de la barre d’outils) avec les **variables** de la session (nom, type, taille, aperçu des data frames), l’**historique des graphiques** (export PNG et SVG), l’**aide** de toute fonction (`?mean`) et une **console** interactive sur le même noyau.",
+          "**Requêtes silencieuses** : les panneaux interrogent le noyau sans créer de cellule, de sortie ni de numéro d’exécution.",
+          "**Raccourcis** : Ctrl+Maj+Entrée exécute le chunk, Ctrl+Alt+Entrée envoie la ligne ou la sélection à la console."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.50.0",
       "date": "2026-11-24",
       "title": {
