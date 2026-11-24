@@ -41,7 +41,6 @@ modules:
       - install -Dm644 desktop/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.untypequicode.looty.png
       - install -Dm644 desktop/src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.untypequicode.looty.png
       - install -Dm644 desktop/src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/io.github.untypequicode.looty.png
-      - install -Dm644 desktop/src-tauri/icons/icon.svg /app/share/icons/hicolor/scalable/apps/io.github.untypequicode.looty.svg
     sources:
       # BEGIN looty-source
       - type: dir
