@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.49.0",
+      "version": "0.50.0",
       "date": "2026-11-24",
       "title": {
         "en": "Demo instance: nightly full reset",
@@ -16,6 +16,25 @@
         ],
         "fr": [
           "**Remise à zéro de la démo** : sur une instance de démo (`LOOTY_DEMO=true`), toutes les copies des visiteurs sont désormais supprimées chaque nuit, expirées ou non, à l'heure de `LOOTY_DEMO_RESET_HOUR` (3 par défaut ; `off` la désactive). Les vraies instances ne sont pas concernées."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.49.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "R notebooks and R Markdown / Quarto documents",
+        "fr": "Notebooks R et documents R Markdown / Quarto"
+      },
+      "notes": {
+        "en": [
+          "**R in notebooks**: pick an R kernel (IRkernel) of the project's Jupyter server in the Engine dialog. Cells get R syntax highlighting and completion from the kernel, and the kernel choice is kept in the .ipynb.",
+          "**R Markdown and Quarto**: *Open as notebook* converts a .Rmd or .qmd file into a notebook without losing chunk options or the YAML header. Export gives back .Rmd, .qmd or an .R script, and HTML / PDF exports honour echo, include and results options."
+        ],
+        "fr": [
+          "**R dans les notebooks** : choisissez un noyau R (IRkernel) du serveur Jupyter du projet dans la fenêtre Moteur. Les cellules ont la coloration R et la complétion du noyau, et le choix du noyau est conservé dans le .ipynb.",
+          "**R Markdown et Quarto** : *Ouvrir comme notebook* convertit un fichier .Rmd ou .qmd en notebook sans perdre les options de chunk ni l'en-tête YAML. L'export redonne un .Rmd, un .qmd ou un script .R, et les exports HTML / PDF respectent les options echo, include et results."
         ]
       }
     },

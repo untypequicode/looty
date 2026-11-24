@@ -8,6 +8,7 @@ import { markdown } from '@codemirror/lang-markdown'
 import { stex } from '@codemirror/legacy-modes/mode/stex'
 import { yaml } from '@codemirror/legacy-modes/mode/yaml'
 import { python } from '@codemirror/legacy-modes/mode/python'
+import { r } from '@codemirror/legacy-modes/mode/r'
 import { lua } from '@codemirror/legacy-modes/mode/lua'
 import { xml } from '@codemirror/legacy-modes/mode/xml'
 import { autocompletion, snippetCompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete'
@@ -22,7 +23,8 @@ export function languageFor(path: string): Extension[] {
     case 'js': case 'mjs': return [javascript()]
     case 'ts': return [javascript({ typescript: true })]
     case 'json': case 'webmanifest': return [json()]
-    case 'md': return [markdown()]
+    case 'md': case 'rmd': case 'qmd': return [markdown()]
+    case 'r': return [StreamLanguage.define(r)]
     case 'tex': case 'sty': case 'cls': case 'ltx': case 'dtx': case 'bib': case 'bbx': case 'cbx': case 'tikz': case 'def':
       return [StreamLanguage.define(stex)]
     case 'yaml': case 'yml': return [StreamLanguage.define(yaml)]

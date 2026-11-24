@@ -15,9 +15,9 @@ Cette page est générée à partir de `docs/env-vars.json` et vérifiée en CI 
 |---|---|---|---|---|---|---|---|
 | `APP_NAME` | docker compose | Nom de la pile dans Traefik (noms des routeurs). Un mot court. | – | Traefik only | `looty` | 0.1.0 | oui |
 | `APP_DOMAIN` | docker compose | Nom de domaine de l'instance. Son DNS doit pointer vers la machine. | – | oui | `looty.example.org` | 0.1.0 | oui |
-| `TRAEFIK_NETWORK` | docker compose | Traefik seulement, avec le générateur ou install.sh --traefik-network : nom du réseau Docker externe existant par lequel Traefik joint la pile. Les services y sont rattachés. | – | non | `traefik-public` | 0.49.0 | oui |
-| `TRAEFIK_ENTRYPOINT` | docker compose | Traefik seulement, avec le générateur ou install.sh --traefik-entrypoint : point d'entrée de votre Traefik qui sert les routeurs (en général celui de HTTPS). | – | non | `websecure` | 0.49.0 | oui |
-| `TRAEFIK_CERT_RESOLVER` | docker compose | Traefik seulement, avec le générateur ou install.sh --traefik-resolver : résolveur de certificats de votre Traefik pour les routeurs. | – | non | `letsencrypt` | 0.49.0 | oui |
+| `TRAEFIK_NETWORK` | docker compose | Traefik seulement, avec le générateur ou install.sh --traefik-network : nom du réseau Docker externe existant par lequel Traefik joint la pile. Les services y sont rattachés. | – | non | `traefik-public` | 0.50.0 | oui |
+| `TRAEFIK_ENTRYPOINT` | docker compose | Traefik seulement, avec le générateur ou install.sh --traefik-entrypoint : point d'entrée de votre Traefik qui sert les routeurs (en général celui de HTTPS). | – | non | `websecure` | 0.50.0 | oui |
+| `TRAEFIK_CERT_RESOLVER` | docker compose | Traefik seulement, avec le générateur ou install.sh --traefik-resolver : résolveur de certificats de votre Traefik pour les routeurs. | – | non | `letsencrypt` | 0.50.0 | oui |
 | `LOOTY_VERSION` | docker compose | Version des images Docker : « latest » par défaut, ou un numéro de version publié pour rester sur une version précise. | `latest` | non | `0.33.0` | 0.10.0 | oui |
 | `BASE_URL` | backend | Adresse publique de l'instance (https://domaine, sans « / » final). Sert aux redirections de connexion, aux e-mails et aux liens. | `http://localhost:3000` | oui | `https://looty.example.org` | 0.1.0 | oui |
 
@@ -93,7 +93,7 @@ Cette page est générée à partir de `docs/env-vars.json` et vérifiée en CI 
 | `LOOTY_DEMO_COPIES_PER_IP_HOUR` | backend | Démo : copies par adresse et par heure (le reverse proxy doit envoyer X-Forwarded-For). | `5` | non | `5` | 0.30.0 | oui |
 | `LOOTY_DEMO_MAX_FILE_MB` | backend | Démo : taille d'un envoi, en Mo. | `2` | non | `2` | 0.30.0 | oui |
 | `LOOTY_DEMO_MAX_COPY_MB` | backend | Démo : taille totale par copie, en Mo. | `20` | non | `20` | 0.30.0 | oui |
-| `LOOTY_DEMO_RESET_HOUR` | backend | Démo : heure (0 à 23, dans CALENDAR_DEFAULT_TZ, sinon UTC) de la remise à zéro complète de chaque nuit, qui supprime toutes les copies même non expirées. Toute autre valeur, comme off, la désactive. | `3` | non | `3` | 0.49.0 | oui |
+| `LOOTY_DEMO_RESET_HOUR` | backend | Démo : heure (0 à 23, dans CALENDAR_DEFAULT_TZ, sinon UTC) de la remise à zéro complète de chaque nuit, qui supprime toutes les copies même non expirées. Toute autre valeur, comme off, la désactive. | `3` | non | `3` | 0.50.0 | oui |
 
 ## Avancé
 

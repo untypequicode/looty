@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import hljs from 'highlight.js/lib/core'
 import pythonLang from 'highlight.js/lib/languages/python'
+import rLang from 'highlight.js/lib/languages/r'
 import 'katex/dist/katex.min.css'
 import type { NbOutput } from '~/composables/useNotebookKernel'
 import { renderMarkdown, type NbAttachments } from '~/editor/notebookMarkdown'
@@ -19,6 +20,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 if (!hljs.getLanguage('python')) hljs.registerLanguage('python', pythonLang)
+if (!hljs.getLanguage('r')) hljs.registerLanguage('r', rLang)
 const join = (v: unknown) => (Array.isArray(v) ? v.join('') : String(v ?? ''))
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
@@ -31,7 +33,7 @@ const cells = computed(() => (parsed.value?.cells ?? []).filter((c) => c && type
   const type: 'code' | 'markdown' | 'raw' = c.cell_type === 'markdown' ? 'markdown' : c.cell_type === 'raw' ? 'raw' : 'code'
   if (type === 'markdown') return { key: `${i}`, type, html: renderMarkdown(source, { attachments: (c.attachments ?? null) as NbAttachments | null, resolve: props.resolve }) }
   if (type === 'raw') return { key: `${i}`, type, code: escape(source) }
-  const code = language.value === 'python' ? hljs.highlight(source, { language: 'python', ignoreIllegals: true }).value : escape(source)
+  const code = language.value === 'python' || language.value === 'r' ? hljs.highlight(source, { language: language.value, ignoreIllegals: true }).value : escape(source)
   return { key: `${i}`, type, code, count: typeof c.execution_count === 'number' ? c.execution_count : null, outputs: (Array.isArray(c.outputs) ? c.outputs : []) as NbOutput[] }
 }))
 </script>

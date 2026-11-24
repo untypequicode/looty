@@ -7,6 +7,8 @@ import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap, completionKeymap, autocompletion, type CompletionContext } from '@codemirror/autocomplete'
 import { python } from '@codemirror/lang-python'
+import { StreamLanguage } from '@codemirror/language'
+import { r as rMode } from '@codemirror/legacy-modes/mode/r'
 import { markdown } from '@codemirror/lang-markdown'
 import { yCollab } from 'y-codemirror.next'
 import type { NbOutput } from '~/composables/useNotebookKernel'
@@ -24,6 +26,8 @@ import type { CompletionOut } from '~/editor/notebookComplete'
 const props = defineProps<{
   id: string
   type: 'code' | 'markdown' | 'raw'
+  /** Langage des cellules de code (noyau du notebook) : Python par défaut. */
+  language?: 'python' | 'r'
   ytext: Y.Text
   attachments?: NbAttachments | null
   count: number | null
@@ -117,7 +121,7 @@ function mount() {
         ])),
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...completionKeymap, indentWithTab]),
         ...(props.type === 'code' && props.complete ? [autocompletion({ override: [completeCode], icons: true })] : []),
-        ...(props.type === 'code' ? [python()] : props.type === 'markdown' ? [markdown()] : []),
+        ...(props.type === 'code' ? [props.language === 'r' ? StreamLanguage.define(rMode) : python()] : props.type === 'markdown' ? [markdown()] : []),
         yCollab(props.ytext, props.awareness, { undoManager: undo }),
         EditorState.readOnly.of(props.readOnly), EditorView.editable.of(!props.readOnly),
         theme,

@@ -11,6 +11,7 @@ import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
 import { projectResolver, renderMarkdown, sanitizeOutputHtml, type NbAttachments } from '~/editor/notebookMarkdown'
 import { notebookToPython, notebookToHtml, notebookToIpynb, embedImages, type ExportCell, type FetchedImage } from '~/editor/notebookExport'
+import { notebookToRmd, notebookLanguage } from '~/editor/rmarkdown'
 import { planUploads, insertionText } from '~/editor/notebookFiles'
 import { useProjectActions, type ProjectDetail } from '~/composables/useProjects'
 import { api } from '~/composables/api'
@@ -389,6 +390,8 @@ readMeta()
 const engine = computed<'pyodide' | 'jupyter'>(() => (nbMeta.value?.metadata?.looty?.engine === 'jupyter' ? 'jupyter' : 'pyodide'))
 const remote = computed(() => engine.value === 'jupyter')
 const nbKernelName = computed(() => (typeof nbMeta.value?.metadata?.looty?.kernel === 'string' ? nbMeta.value.metadata.looty.kernel as string : undefined))
+/** Langage des cellules de code : celui du noyau (`kernelspec`), R ou Python. */
+const language = computed(() => notebookLanguage(nbMeta.value))
 const engineOpen = ref(false)
 function setEngine(next: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec: KernelSpec }) {
   if (ro.value) return
@@ -401,7 +404,8 @@ function setEngine(next: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec
     else delete meta.metadata.looty.kernel
     if (choice?.spec?.name) meta.metadata.kernelspec = { name: choice.spec.name, display_name: choice.spec.display_name, language: choice.spec.language || 'python' }
   } else {
-    delete meta.metadata.looty
+    if (meta.metadata.looty) { delete meta.metadata.looty.engine; delete meta.metadata.looty.kernel; if (!Object.keys(meta.metadata.looty).length) delete meta.metadata.looty }
+    delete meta.metadata.language_info
     meta.metadata.kernelspec = { name: 'python3', display_name: 'Python 3 (Pyodide)', language: 'python' }
   }
   meta.nbformat ??= 4
@@ -520,6 +524,11 @@ async function runCell(c: CellVM): Promise<boolean> {
     local[c.id] = { outputs: [{ output_type: 'error', ename: 'JupyterError', evalue: t('notebook.jupyter.readOnly'), traceback: [t('notebook.jupyter.readOnly')] }], count: null }
     return false
   }
+  // Pyodide ne sait pas exécuter R : erreur explicite, jamais d'exécution de R comme du Python.
+  if (language.value === 'r' && !remote.value) {
+    local[c.id] = { outputs: [{ output_type: 'error', ename: 'KernelError', evalue: t('notebook.r.needsJupyter'), traceback: [t('notebook.r.needsJupyter')] }], count: null }
+    return false
+  }
   queued.value = new Set(queued.value).add(c.id)
   let started: Date | null = null
   const res: { ok: boolean; outputs: NbOutput[]; count?: number | null } = await kernel.value.run(code, (o) => { started ??= new Date(); running.value = c.id; queued.value.delete(c.id); queued.value = new Set(queued.value); local[c.id] = { outputs: o, count: null } })
@@ -599,12 +608,13 @@ function printPage(html: string) {
   document.body.appendChild(f)
   setTimeout(() => f.remove(), 120_000)
 }
-async function exportAs(kind: 'html' | 'pdf' | 'py' | 'ipynb') {
+async function exportAs(kind: 'html' | 'pdf' | 'py' | 'ipynb' | 'rmd' | 'qmd') {
   if (exporting.value) return
   exporting.value = true
   try {
-    const list = await exportCells(kind !== 'py')
-    if (kind === 'py') saveAs(notebookToPython(list), `${baseName.value}.py`, 'text/x-python')
+    const list = await exportCells(kind !== 'py' && kind !== 'rmd' && kind !== 'qmd')
+    if (kind === 'py') saveAs(notebookToPython(list, language.value), `${baseName.value}.${language.value === 'r' ? 'R' : 'py'}`, 'text/plain')
+    else if (kind === 'rmd' || kind === 'qmd') saveAs(notebookToRmd(nbMeta.value ?? {}, list), `${baseName.value}.${kind === 'rmd' ? 'Rmd' : 'qmd'}`, 'text/markdown')
     else if (kind === 'html') saveAs(htmlPage(list), `${baseName.value}.html`, 'text/html')
     else if (kind === 'pdf') printPage(htmlPage(list))
     else saveAs(notebookToIpynb(nbMeta.value ?? {}, list, cells.value.map((c) => c.id)), `${baseName.value}.ipynb`, 'application/x-ipynb+json')
@@ -617,7 +627,9 @@ async function exportAs(kind: 'html' | 'pdf' | 'py' | 'ipynb') {
 const exportItems = computed(() => [
   { label: t('notebook.export.html'), icon: FileText, onSelect: () => exportAs('html') },
   { label: t('notebook.export.pdf'), icon: Printer, onSelect: () => exportAs('pdf') },
-  { label: t('notebook.export.py'), icon: FileCode2, onSelect: () => exportAs('py') },
+  { label: language.value === 'r' ? t('notebook.export.r') : t('notebook.export.py'), icon: FileCode2, onSelect: () => exportAs('py') },
+  { label: t('notebook.export.rmd'), icon: FileText, onSelect: () => exportAs('rmd') },
+  { label: t('notebook.export.qmd'), icon: FileText, onSelect: () => exportAs('qmd') },
   { label: t('notebook.export.ipynb'), icon: Package, onSelect: () => exportAs('ipynb') },
 ])
 
@@ -738,7 +750,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
         <template v-else>
           <NotebookCell
             v-for="(c, i) in cells" :key="c.key" :ref="(el: any) => { if (el) cellRefs.set(c.id, el); else cellRefs.delete(c.id) }"
-            :id="c.id" :type="c.type" :ytext="c.ytext" :attachments="c.attachments" :count="shownCount(c)" :outputs="shown(c)" :running="running === c.id" :queued="queued.has(c.id) && running !== c.id"
+            :id="c.id" :type="c.type" :language="language" :ytext="c.ytext" :attachments="c.attachments" :count="shownCount(c)" :outputs="shown(c)" :running="running === c.id" :queued="queued.has(c.id) && running !== c.id"
             :selected="selectedId === c.id" :read-only="ro" :awareness="provider.awareness"
             :resolve="resolveLink" :on-files="ro ? null : (fl: File[], pasted: boolean) => uploadForCell(c, fl, pasted)"
             :source-hidden="isSourceHidden(c.meta)" :outputs-hidden="isOutputsHidden(c.meta)" :duration-ms="c.type === 'code' ? shownMs(c) : null"
