@@ -103,6 +103,9 @@ pub struct CreatePage {
     /// les documents peut en créer, même sous une page partagée qu'elle ne peut que lire.
     #[serde(default)]
     pub personal: bool,
+    /// Modèle (GLOSSARY) : identifiant d'un modèle de l'espace, ou nom d'un modèle fourni. Le contenu,
+    /// le titre et l'icône qu'il porte remplacent ce que la requête ne donne pas.
+    pub template_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -241,7 +244,7 @@ async fn create_page(
     State(state): State<AppState>,
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
-    Json(payload): Json<CreatePage>,
+    Json(mut payload): Json<CreatePage>,
 ) -> ApiResult<(StatusCode, Json<Page>)> {
     let pool = &state.pool;
     // Rôle qui crée des documents, ou partage « sous-pages permises » sur la page parente.
@@ -290,6 +293,15 @@ async fn create_page(
                 Ok(_) => Ok((StatusCode::OK, Json(p))),
                 Err(_) => Err(ApiError::Conflict("id_taken".into())),
             };
+        }
+    }
+    if let Some(tid) = payload.template_id.clone() {
+        if let crate::templates::Chosen::Page(t) = crate::templates::resolve(&state, user.id, workspace_id, &tid, "page").await? {
+            if payload.title.as_deref().map(str::trim).unwrap_or("").is_empty() {
+                payload.title = Some(t.title);
+            }
+            payload.icon = payload.icon.or(t.icon);
+            payload.content = payload.content.or(Some(t.content));
         }
     }
     let title = check_title(payload.title.as_deref().unwrap_or(""))?;

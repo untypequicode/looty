@@ -38,6 +38,10 @@ mod latex;
 mod drive;
 mod extract;
 mod trash;
+mod templates;
+mod openapi;
+mod token_guard;
+mod webhooks;
 mod storage;
 mod text;
 mod bg;
@@ -145,6 +149,7 @@ async fn main() {
         drive::start_purge_loop(state.clone());
         jupyter::start_reaper();
         account::start_deletion_loop(state.clone());
+        webhooks::start_worker(state.clone());
     }
     let app = app(state);
 
@@ -185,6 +190,9 @@ fn app(state: state::AppState) -> Router {
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes().merge(prefs::user_routes()).merge(account::user_routes()))
         .nest("/workspaces/{workspace_id}/export", account::workspace_routes())
+        .nest("/workspaces/{workspace_id}/webhooks", webhooks::routes())
+        .nest("/workspaces/{workspace_id}/templates", templates::routes())
+        .route("/openapi.json", get(openapi::spec))
         .merge(roles::user_routes())
         .nest("/user/releases", releases::user_routes())
         .nest("/releases", releases::routes())
@@ -240,6 +248,7 @@ fn app(state: state::AppState) -> Router {
         .route("/metrics", get(status::metrics))
         .nest("/api", api)
         .merge(dav::routes())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), token_guard::guard))
         .layer(axum::middleware::from_fn_with_state(state.clone(), demo_mode::guard))
         .with_state(state)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))

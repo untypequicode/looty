@@ -112,11 +112,14 @@ struct ApiTokenDto {
     created_at: chrono::DateTime<chrono::Utc>,
     last_used_at: Option<chrono::DateTime<chrono::Utc>>,
     calendar_id: Option<Uuid>,
+    access: String,
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    workspace_ids: Option<Vec<Uuid>>,
 }
 
 async fn list_tokens(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<Vec<ApiTokenDto>>> {
     Ok(Json(
-        sqlx::query_as("SELECT id, name, scope, created_at, last_used_at, calendar_id FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC")
+        sqlx::query_as("SELECT id, name, scope, created_at, last_used_at, calendar_id, access, expires_at, workspace_ids FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC")
             .bind(user.id)
             .fetch_all(&pool)
             .await?,
@@ -130,6 +133,12 @@ struct CreateTokenRequest {
     scope: Option<String>,
     /// Flux 'ics' : calendrier Looty limité (absent : tous les calendriers du membre).
     calendar_id: Option<Uuid>,
+    /// Jeton 'api' : `read` (lecture seule) ou `write` (par défaut, comme avant).
+    access: Option<String>,
+    /// Jeton 'api' : validité en jours (1 à 3650) ; absent : sans expiration.
+    expires_in_days: Option<i64>,
+    /// Jeton 'api' : espaces autorisés ; absent ou vide : tous les espaces de la personne.
+    workspace_ids: Option<Vec<Uuid>>,
 }
 
 async fn create_token(
@@ -166,13 +175,42 @@ async fn create_token(
             return Err(ApiError::NotFound);
         }
     }
+    let access = p.access.as_deref().unwrap_or("write");
+    if !matches!(access, "read" | "write") || (scope != "api" && (p.access.is_some() || p.expires_in_days.is_some() || p.workspace_ids.is_some())) {
+        return Err(ApiError::bad_request("invalid_scope"));
+    }
+    let expires_at = match p.expires_in_days {
+        Some(d) if (1..=3650).contains(&d) => Some(chrono::Utc::now() + chrono::Duration::days(d)),
+        Some(_) => return Err(ApiError::bad_request("invalid_expiry")),
+        None => None,
+    };
+    // Un jeton ne peut être limité qu'à des espaces dont la personne est membre.
+    let mut spaces: Vec<Uuid> = p.workspace_ids.unwrap_or_default();
+    spaces.sort();
+    spaces.dedup();
+    if spaces.len() > 100 {
+        return Err(ApiError::bad_request("invalid_workspaces"));
+    }
+    if !spaces.is_empty() {
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM workspace_members WHERE user_id = $1 AND workspace_id = ANY($2)")
+            .bind(user.id.to_string())
+            .bind(&spaces)
+            .fetch_one(&pool)
+            .await?;
+        if n != spaces.len() as i64 {
+            return Err(ApiError::NotFound);
+        }
+    }
     let raw = format!("looty_{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-    let id: Uuid = sqlx::query_scalar("INSERT INTO api_tokens (user_id, name, token_hash, scope, calendar_id) VALUES ($1, $2, $3, $4, $5) RETURNING id")
+    let id: Uuid = sqlx::query_scalar("INSERT INTO api_tokens (user_id, name, token_hash, scope, calendar_id, access, expires_at, workspace_ids) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id")
         .bind(user.id)
         .bind(name)
         .bind(hash_token(&raw))
         .bind(scope)
         .bind(p.calendar_id)
+        .bind(access)
+        .bind(expires_at)
+        .bind(if spaces.is_empty() { None } else { Some(spaces) })
         .fetch_one(&pool)
         .await?;
     // Le jeton brut n'est renvoyé qu'une seule fois : seul son hash est stocké.

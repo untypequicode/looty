@@ -844,6 +844,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     if let Some(labels) = &p.label_ids {
         set_labels(&state.pool, id, labels).await?;
     }
+    crate::webhooks::dispatch(&state, ws, "event.created", serde_json::json!({ "id": id, "summary": m.summary, "starts_at": m.start }));
     changed(&state, ws).await;
     Ok(Json(serde_json::json!({ "id": id })))
 }

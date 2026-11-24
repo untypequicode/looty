@@ -33,6 +33,7 @@ fn api_unavailable(method: &str, seg: &[&str]) -> bool {
         // Créer un calendrier, c'est toujours s'abonner à un agenda externe (ICS ou CalDAV).
         ["workspaces", _, "calendars"] => method == "POST",
         ["workspaces", _, "latex"] => true,
+        ["workspaces", _, "webhooks", ..] => true,
         ["workspaces", _, "moodle", ..] => true,
         ["workspaces", _, "invites"] => method == "POST",
         ["workspaces", _, "access", "members", "add"] => true,

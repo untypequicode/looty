@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.44.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Integrations: API tokens, webhooks, and board and document templates",
+        "fr": "Intégrations : jetons d'API, webhooks, et modèles de tableaux et de documents"
+      },
+      "notes": {
+        "en": [
+          "**API**: the stable routes are described by an OpenAPI specification served at /api/openapi.json. Access tokens (Settings > Security & access) can now be read-only, limited to chosen workspaces, and expire; a token never has more rights than you, and cannot manage tokens or your account.",
+          "**Webhooks**: workspace administrators send signed messages (HMAC-SHA256) to an https address when a task is created, changed or completed, a document is saved, an event is created or an announcement is published. Failed deliveries are retried, and a delivery log shows each attempt. Personal items are never sent. Private network addresses need WEBHOOKS_ALLOW_PRIVATE=true.",
+          "**Templates**: start a board or a document from a template (Project tracking, Retrospective, Meeting notes, Course notes, Lab report), or save a board or a document as a template of the workspace (administrators), under Settings > Templates."
+        ],
+        "fr": [
+          "**API** : les routes stables sont décrites par une spécification OpenAPI servie sur /api/openapi.json. Les jetons d'accès (Réglages > Sécurité et accès) peuvent être en lecture seule, limités à des espaces choisis, et expirer ; un jeton n'a jamais plus de droits que vous et ne gère ni les jetons ni votre compte.",
+          "**Webhooks** : les administrateurs d'un espace envoient des messages signés (HMAC-SHA256) à une adresse https quand une tâche est créée, modifiée ou terminée, qu'un document est enregistré, qu'un événement est créé ou qu'une annonce est publiée. Les livraisons échouées sont réessayées, et un journal montre chaque tentative. Les éléments personnels ne sont jamais envoyés. Les adresses du réseau privé demandent WEBHOOKS_ALLOW_PRIVATE=true.",
+          "**Modèles** : démarrez un tableau ou un document depuis un modèle (suivi de projet, rétrospective, compte rendu de réunion, notes de cours, compte rendu de TP), ou enregistrez un tableau ou un document comme modèle de l'espace (administrateurs), dans Réglages > Modèles."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.43.0",
       "date": "2026-11-24",
       "title": {

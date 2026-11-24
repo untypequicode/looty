@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { FileText, Sigma, Globe, NotebookText, PenTool, LockKeyhole, BookCheck } from 'lucide-vue-next'
+import { FileText, Sigma, Globe, NotebookText, PenTool, LockKeyhole, BookCheck, LayoutTemplate } from 'lucide-vue-next'
+import { useTemplates } from '~/composables/useTemplates'
 import type { Placement } from '@floating-ui/vue'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { usePages, type NewPageProject } from '~/composables/usePages'
@@ -21,6 +22,17 @@ const wsId = useWorkspaceId()
 const { workspace } = useWorkspace()
 // Dans l'espace perso, tout est déjà privé.
 const personalSpace = computed(() => !!workspace.data.value?.personal)
+// Modèles de document : proposés quand il y en a (ceux de l'espace et les modèles fournis).
+defineOptions({ inheritAttrs: false })
+const tplOpen = ref(false)
+const { data: allTemplates } = useTemplates(wsId, () => !props.personalOnly)
+const pageTemplates = computed(() => (allTemplates.value ?? []).filter((x) => x.kind === 'page'))
+async function fromTemplate(id: string) {
+  tplOpen.value = false
+  const p = await createPage({ parentId: props.parentId, templateId: id })
+  await navigateTo(links.doc(wsId.value, p.id))
+  emit('created', p.id)
+}
 
 async function create(project?: NewPageProject, personal = false) {
   const p = await createAndOpen(props.parentId, project, personal)
@@ -39,6 +51,7 @@ const items = computed<MenuItem[]>(() => props.personalOnly
   : [
   { label: t('projects.pageKinds.doc'), icon: FileText, onSelect: () => create() },
   { label: t('canvas.title'), icon: PenTool, onSelect: createCanvas },
+  ...(pageTemplates.value.length ? [{ label: t('tpl.fromTemplate'), icon: LayoutTemplate, onSelect: () => (tplOpen.value = true) }] : []),
   // Document visible de soi seul, rangé ici (ex. son TP sous la page du cours).
   ...(personalSpace.value ? [] : [{ label: t('personalItem.newPersonalDoc'), icon: LockKeyhole, onSelect: () => create(undefined, true) }]),
   // Entraînement (QCM, questionnaire, fiches, synthèse) : un élément de l'arbre comme une page.
@@ -52,7 +65,23 @@ const items = computed<MenuItem[]>(() => props.personalOnly
 </script>
 
 <template>
-  <UiMenu v-model:open="open" :items="items" :placement="placement" :width="230">
+  <UiMenu v-bind="$attrs" v-model:open="open" :items="items" :placement="placement" :width="230">
     <slot :open="open" />
   </UiMenu>
+  <UiDialog v-model:open="tplOpen" :title="t('tpl.pick')" :width="460">
+    <div class="tpl-pick">
+      <button v-for="x in pageTemplates" :key="x.id" type="button" class="tpl-row" @click="fromTemplate(x.id)">
+        <LayoutTemplate :size="16" />
+        <span>{{ x.name }}</span>
+        <span v-if="x.builtin" class="faint tpl-tag">{{ t('tpl.builtin') }}</span>
+      </button>
+    </div>
+  </UiDialog>
 </template>
+
+<style scoped>
+.tpl-pick { display: flex; flex-direction: column; gap: 4px; }
+.tpl-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r-md); text-align: left; }
+.tpl-row:hover { background: var(--bg-hover); }
+.tpl-tag { margin-left: auto; font-size: var(--fs-sm); }
+</style>

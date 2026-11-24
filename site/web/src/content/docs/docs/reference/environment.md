@@ -52,6 +52,7 @@ This page is generated from `docs/env-vars.json` and checked in CI against the c
 | `AI_ALLOW_PRIVATE` | backend | Allow AI providers on a private network or over http (for example Ollama on the same machine). Also allowed when CALDAV_ALLOW_PRIVATE is true. | `false` | no | `true` | 0.34.1 | no |
 | `PUSH_ALLOW_PRIVATE` | backend | Tests only: accept a local push service (http, private network). | `false` | no | `false` | 0.1.0 | no |
 | `LOOTY_METRICS_TOKEN` | backend | Turns on the Prometheus endpoint /metrics (also /api/metrics), read with the header Authorization: Bearer <token>. At least 16 characters; without it the endpoint does not exist. | – | no | `a-long-random-secret` | 0.43.0 | no |
+| `WEBHOOKS_ALLOW_PRIVATE` | backend | Lets workspace webhooks call private network addresses (localhost, 10.x, 192.168.x…) and plain http, for example an n8n on the same network. By default webhooks only reach public https addresses. | `false` | no | `true` | 0.44.0 | no |
 
 ## Email
 

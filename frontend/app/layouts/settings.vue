@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity } from 'lucide-vue-next'
+import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -37,7 +37,13 @@ const groups = computed(() => [
           { key: 'members', label: t('settings.nav.members'), icon: Users },
           { key: 'groups', label: t('memberGroups.title'), icon: AtSign },
           { key: 'roles', label: t('rolesUi.title'), icon: ShieldCheck },
-          ...(isAdmin.value ? [{ key: 'space-overview', label: t('insights.spaceOverview'), icon: ChartLine }] : []),
+          ...(isAdmin.value
+            ? [
+                { key: 'templates', label: t('tpl.nav'), icon: LayoutTemplate },
+                { key: 'webhooks', label: t('integ.hooks.nav'), icon: Webhook },
+                { key: 'space-overview', label: t('insights.spaceOverview'), icon: ChartLine },
+              ]
+            : []),
         ],
   },
   ...(user.value?.is_super_admin
