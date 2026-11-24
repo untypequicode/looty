@@ -1,4 +1,5 @@
 import type { NbAttachments } from './notebookMarkdown'
+import { chunkRender } from './rmarkdown.ts'
 // eslint-disable-next-line no-control-regex
 const stripAnsi = (s: string) => s.replace(/\u001b\[[0-9;]*m/g, '')
 
@@ -19,15 +20,15 @@ export interface ExportCell {
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const text = (v: unknown) => (Array.isArray(v) ? v.join('') : String(v ?? ''))
 
-/** Script Python au format « percent » (`# %%`) ; texte et commandes magiques en commentaires. */
-export function notebookToPython(cells: ExportCell[]): string {
+/** Script Python (ou R) au format « percent » (`# %%`) ; texte et commandes magiques en commentaires. */
+export function notebookToPython(cells: ExportCell[], lang: 'python' | 'r' = 'python'): string {
   const comment = (s: string) => s.split('\n').map((l) => (l ? `# ${l}` : '#')).join('\n')
   const parts = cells.map((c) => {
     const src = c.source.replace(/\s+$/, '')
     if (c.type === 'markdown') return `# %% [markdown]\n${comment(src)}`
     if (c.type === 'raw') return `# %% [raw]\n${comment(src)}`
     // Commandes magiques (%pip, !ls) : non exécutables hors Jupyter, laissées en commentaire.
-    const body = src.split('\n').map((l) => (/^\s*[%!]/.test(l) ? l.replace(/^(\s*)/, '$1# ') : l)).join('\n')
+    const body = src.split('\n').map((l) => (lang === 'python' && /^\s*[%!]/.test(l) ? l.replace(/^(\s*)/, '$1# ') : l)).join('\n')
     return `# %%\n${body}`
   })
   return parts.join('\n\n') + '\n'
@@ -121,10 +122,14 @@ export function notebookToHtml(
 ): string {
   const body = cells.map((c) => {
     if (c.type === 'markdown') return `<section class="cell md">${opts.renderMarkdown(c.source, c.attachments ?? null)}</section>`
+    if (c.type === 'raw' && c.metadata?.looty?.rmd?.kind === 'yaml') return '' // en-tête YAML R Markdown : pas affiché
     if (c.type === 'raw') return `<section class="cell"><pre class="raw">${escapeHtml(c.source)}</pre></section>`
-    const outs = (c.outputs ?? []).map((o) => outputHtml(o, opts.sanitize, (s) => opts.renderMarkdown(s, null))).join('')
-    return `<section class="cell"><div class="count">${c.count != null ? `[${c.count}]` : ''}</div><pre class="code">${escapeHtml(c.source)}</pre>${outs}</section>`
-  }).join('\n')
+    // Options de chunk R Markdown / Quarto (echo, include, results) : seul l'affichage change.
+    const opt = chunkRender(c.metadata?.looty?.rmd?.header, c.source)
+    if (!opt.include) return ''
+    const outs = (opt.hideResults ? (c.outputs ?? []).filter((o) => o.output_type === 'error') : (c.outputs ?? [])).map((o) => outputHtml(o, opts.sanitize, (s) => opts.renderMarkdown(s, null))).join('')
+    return `<section class="cell">${opt.echo ? `<div class="count">${c.count != null ? `[${c.count}]` : ''}</div><pre class="code">${escapeHtml(c.source)}</pre>` : ''}${outs}</section>`
+  }).filter(Boolean).join('\n')
   const css = body.includes('class="katex"') ? `<link rel="stylesheet" href="${KATEX_CSS}">` : ''
   return `<!doctype html>\n<html lang="${escapeHtml(opts.lang)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title>${css}<style>${CSS}</style></head><body>\n<h1 class="title">${escapeHtml(opts.title)}</h1>\n${body}\n</body></html>\n`
 }

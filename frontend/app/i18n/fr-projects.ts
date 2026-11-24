@@ -44,6 +44,7 @@ export default {
     compile: 'Compiler', compiled: 'Compilé en {s} s', compiledWithErrors: { one: 'PDF produit, 1 erreur', other: 'PDF produit, {count} erreurs' }, failed: { one: 'Échec : 1 erreur', other: 'Échec : {count} erreurs' },
     compileHint: 'Compilez pour voir le PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Journal de compilation', downloadPdf: 'Télécharger le PDF',
     compileServer: 'Compiler sur le serveur', compileLocal: 'Compiler sur cet ordinateur', local: 'sur cet ordinateur',
+    convertToNotebook: 'Ouvrir comme notebook (.ipynb)', converted: 'Notebook {path} créé à partir du document.', convertFailed: 'Ce document n’a pas pu être converti.',
     downloadZip: 'Télécharger le projet (zip)', zipParts: 'Gros projet : téléchargement de {count} fichiers zip (200 Mo max chacun)', renameProject: 'Renommer le projet', deleteProject: 'Supprimer le projet',
     deleteProjectTitle: 'Supprimer « {name} » ?', deleteProjectHint: 'Tous les fichiers sont supprimés et le site éventuel est retiré du web. Cette action est irréversible.',
   },
@@ -82,7 +83,11 @@ export default {
     },
     export: {
       title: 'Exporter', html: 'Page web (.html)', pdf: 'PDF (impression)', py: 'Script Python (.py)', ipynb: 'Notebook avec ses images (.ipynb)',
+      r: 'Script R (.R)', rmd: 'Document R Markdown (.Rmd)', qmd: 'Document Quarto (.qmd)',
       failed: 'Le notebook n’a pas pu être exporté.',
+    },
+    r: {
+      needsJupyter: 'Les cellules R s’exécutent sur le serveur Jupyter du projet (IRkernel). Ouvrez le bouton Moteur de la barre d’outils et choisissez le serveur Jupyter avec un noyau R : le moteur du navigateur n’exécute que Python.',
     },
     deps: {
       refreshFailed:'Impossible d’actualiser les fichiers du projet : le code s’exécute avec les fichiers déjà chargés.', saveFailed: '{pkg} est installé pour cette session mais n’a pas pu être enregistré dans requirements.txt.',

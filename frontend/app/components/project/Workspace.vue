@@ -2,7 +2,7 @@
 import {
   FolderCode, FilePlus, FolderPlus, Upload, Download, Globe, RefreshCw, ExternalLink, Play, Settings2, Monitor, Tablet, Smartphone,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, AlertCircle, AlertTriangle, CheckCircle2, Pencil, Trash2, Star,
-  FileText, Laptop, Server, ScrollText, Copy, Lock, Users, Sigma, NotebookText,
+  FileText, Laptop, Server, ScrollText, Copy, Lock, Users, Sigma, NotebookText, BookOpen,
 } from 'lucide-vue-next'
 import { useLocalStorage } from '@vueuse/core'
 import AppPageHeader from '~/components/app/PageHeader.vue'
@@ -18,6 +18,8 @@ import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { isDesktop } from '~/composables/useDesktop'
 import { isNotebookDrop } from '~/editor/notebookFiles'
+import { rmdToNotebook } from '~/editor/rmarkdown'
+import { notebookToIpynb } from '~/editor/notebookExport'
 import {
   useProject, useProjectActions, buildFileTree, parseLatexLog, fileSize,
   type TreeNode, type CompileResult, type LatexIssue,
@@ -91,6 +93,23 @@ const cursorUser = computed(() => ({ name: user.value?.name ?? '?', color: userC
 const isIpynb = computed(() => !!current.value?.text && /\.ipynb$/i.test(current.value.path))
 const imagePreview = computed(() => current.value && !current.value.text && /^image\//.test(current.value.mime ?? '') ? `/api/projects/${id.value}/files/${current.value.id}/raw` : null)
 
+// --- Documents R Markdown / Quarto : ouverts comme notebook (conversion sans perte, le .Rmd reste en place) ---
+const isRmd = (p: string) => /\.(rmd|qmd)$/i.test(p)
+async function convertToNotebook(f: { id: string; path: string }) {
+  try {
+    const text = await $fetch<string>(`/api/projects/${id.value}/files/${f.id}/raw`, { responseType: 'text' })
+    const doc = rmdToNotebook(text, { flavor: /\.qmd$/i.test(f.path) ? 'qmd' : 'rmd' })
+    const taken = new Set(files.value.map((x) => x.path))
+    const stem = f.path.replace(/\.(rmd|qmd)$/i, '')
+    let path = `${stem}.ipynb`
+    for (let n = 2; taken.has(path); n++) path = `${stem}-${n}.ipynb`
+    const json = notebookToIpynb({ metadata: doc.metadata }, doc.cells, doc.cells.map((_, i) => `c${i}`))
+    const r = await actions.createFile(path, false, json)
+    open(r.id)
+    toast.success(t('projects.converted', { path }))
+  } catch { toast.error(t('projects.convertFailed')) }
+}
+
 // --- Actions sur les fichiers ---
 const folderOf = (n: TreeNode | null) => (!n ? '' : n.dir ? n.path : n.path.includes('/') ? n.path.slice(0, n.path.lastIndexOf('/')) : '')
 async function newFile(folder = '') {
@@ -143,6 +162,7 @@ function nodeMenu(n: TreeNode): MenuItem[] {
   if (!n.dir && n.file) {
     if (canWrite.value && !isNotebook.value && (isSite.value ? /\.html?$/i.test(n.path) : /\.tex$/i.test(n.path))) items.push({ label: isSite.value ? t('projects.setEntry') : t('projects.setMain'), icon: Star, onSelect: () => setMain(n) })
     items.push({ label: t('projects.download'), icon: Download, onSelect: () => window.open(`/api/projects/${id.value}/files/${n.file!.id}/raw`, '_blank') })
+    if (canWrite.value && isRmd(n.path)) items.push({ label: t('projects.convertToNotebook'), icon: BookOpen, onSelect: () => convertToNotebook(n.file!) })
   }
   if (canWrite.value && n.file) items.push({ label: t('projects.rename'), icon: Pencil, onSelect: () => rename(n) }, { divider: true }, { label: t('common.delete'), icon: Trash2, danger: true, onSelect: () => remove(n) })
   return items
@@ -284,6 +304,7 @@ const moreOpen = ref(false)
 const moreItems = computed<MenuItem[]>(() => [
   ...(props.embedded ? [] : openInAppItems(`/w/${wsId.value}/projects/${id.value}`)),
   ...(isIpynb.value && current.value ? [{ label: t('notebook.download'), icon: Download, onSelect: () => window.open(`/api/projects/${id.value}/files/${current.value!.id}/raw`, '_blank') }] : []),
+  ...(canWrite.value && current.value && isRmd(current.value.path) ? [{ label: t('projects.convertToNotebook'), icon: BookOpen, onSelect: () => convertToNotebook(current.value!) }] : []),
   { label: t('projects.downloadZip'), icon: Download, onSelect: downloadZip },
   ...(canWrite.value ? [{ label: t('projects.renameProject'), icon: Pencil, onSelect: renameProject }] : []),
   ...(data.value?.can_manage && !props.embedded ? [{ divider: true }, { label: t('projects.deleteProject'), icon: Trash2, danger: true, onSelect: deleteProject }] : []),
