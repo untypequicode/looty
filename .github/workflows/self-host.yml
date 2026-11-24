@@ -59,6 +59,8 @@ jobs:
       - run: node --test deploy/test/render.test.mjs
       # install.sh en mode non interactif : mêmes fichiers que render.sh, secrets générés, refus d'écraser, --upgrade.
       - run: node --test deploy/test/install.test.mjs
+      # Le générateur du site (navigateur) : mêmes fichiers que render.sh et install.sh, aux secrets près ; zip lisible.
+      - run: node --test deploy/test/generator.test.mjs
 
   nixos:
     name: NixOS module

@@ -108,6 +108,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.looty-demo-web.rule=Host(`${DEMO_DOMAIN:-demo.looty.untypequicode.fr}`)"
       - "traefik.http.services.looty-demo-web.loadbalancer.server.port=3000"
+      # La démo n'est pas à référencer (le site officiel l'est) : les moteurs de recherche ne l'indexent pas.
+      - "traefik.http.middlewares.looty-demo-noindex.headers.customresponseheaders.X-Robots-Tag=noindex, nofollow"
+      - "traefik.http.routers.looty-demo-web.middlewares=looty-demo-noindex"
     restart: unless-stopped
 
 volumes:

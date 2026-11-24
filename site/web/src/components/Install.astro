@@ -1,0 +1,114 @@
+---
+import Base from '../layouts/Base.astro'
+import { t, type Lang } from '../i18n'
+import { gen } from '../i18n-install'
+interface Props { lang: Lang }
+const { lang } = Astro.props
+const l = t[lang]
+const g = gen[lang]
+const base = l.homeHref
+const strings = JSON.stringify({ lang, errors: g.out.errors, copy: g.out.copy, copied: g.out.copied })
+---
+<Base lang={lang} title={g.title} description={g.description} alternates={{ en: '/install/', fr: '/fr/install/' }} crumbs={[[g.h1, `${base}install/`]]}>
+  <main id="main" class="gen">
+    <div class="wrap">
+      <p class="kicker">{l.nav.host}</p>
+      <h1>{g.h1}</h1>
+      <p class="lead">{g.lead}</p>
+      <p class="privacy">{g.privacy}</p>
+      <p class="help" style="color:var(--text-3);font-size:13.5px">{g.beforeP} <a href={`${base}docs/host/requirements/`}>{g.requirements}</a></p>
+      <noscript><p class="privacy">{g.noscript}</p></noscript>
+
+      <div class="gen-grid" id="gen" data-strings={strings}>
+        <form id="form" novalidate autocomplete="off" onsubmit="return false">
+          <fieldset>
+            <legend>{g.target.legend}</legend>
+            <label class="choice"><input type="radio" name="target" value="compose" checked /><span>{g.target.compose}</span></label>
+            <label class="choice"><input type="radio" name="target" value="nixos" /><span>{g.target.nixos}</span></label>
+          </fieldset>
+
+          <fieldset data-for="compose">
+            <legend>{g.proxy.legend}</legend>
+            <label class="choice"><input type="radio" name="proxy-compose" value="caddy" checked /><span>{g.proxy.caddy}</span></label>
+            <label class="choice"><input type="radio" name="proxy-compose" value="traefik" /><span>{g.proxy.traefik}</span></label>
+          </fieldset>
+          <fieldset data-for="nixos" hidden>
+            <legend>{g.proxy.legend}</legend>
+            <label class="choice"><input type="radio" name="proxy-nixos" value="caddy" checked disabled /><span>{g.proxy.caddy.replace(': included, HTTPS automatic', '').replace(' : inclus, HTTPS automatique', '')}</span></label>
+            <label class="choice"><input type="radio" name="proxy-nixos" value="nginx" disabled /><span>{g.proxy.nginx}</span></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>{g.basics.legend}</legend>
+            <label>{g.basics.domain}<input type="text" name="domain" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="looty.example.org" aria-describedby="domain-hint domain-err" /><span class="hint" id="domain-hint">{g.basics.domainHint}</span><span class="err" id="domain-err" role="alert"></span></label>
+            <label>{g.basics.name}<input type="text" name="name" value="Looty" aria-describedby="name-hint name-err" /><span class="hint" id="name-hint">{g.basics.nameHint}</span><span class="err" id="name-err" role="alert"></span></label>
+            <label>{g.basics.version}<input type="text" name="version" placeholder="latest" inputmode="decimal" aria-describedby="version-hint version-err" /><span class="hint" id="version-hint">{g.basics.versionHint}</span><span class="err" id="version-err" role="alert"></span></label>
+            <label>{g.basics.lang}
+              <select name="readme" style="height:40px;border-radius:9px;border:1px solid var(--border-2);background:var(--bg);color:var(--text);font:inherit;padding:0 10px">
+                <option value="en" selected={lang === 'en'}>English</option>
+                <option value="fr" selected={lang === 'fr'}>Français</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>{g.auth.legend}</legend>
+            <label class="choice"><input type="radio" name="auth" value="oidc" checked /><span>{g.auth.oidc}</span>
+              <span class="hint">{g.auth.oidcHint} {g.auth.guides.map(([name, href], i) => <><a href={`/${href}`}>{name}</a>{i < g.auth.guides.length - 1 ? ', ' : ''}</>)}</span></label>
+            <div class="sub-fields" data-auth="oidc">
+              <label>{g.auth.issuer}<input type="text" name="issuer" placeholder="https://id.example.org" inputmode="url" spellcheck="false" aria-describedby="issuer-hint issuer-err" /><span class="hint" id="issuer-hint">{g.auth.issuerHint}</span><span class="err" id="issuer-err" role="alert"></span></label>
+              <label>{g.auth.clientId}<input type="text" name="clientId" value="looty" spellcheck="false" /><span class="err" id="clientId-err" role="alert"></span></label>
+              <label>{g.auth.clientSecret}<input type="password" name="clientSecret" autocomplete="off" aria-describedby="secret-hint clientSecret-err" /><span class="hint" id="secret-hint">{g.auth.secretHint}</span><span class="err" id="clientSecret-err" role="alert"></span></label>
+              <p class="help">{g.auth.redirect}</p>
+            </div>
+            <label class="choice"><input type="radio" name="auth" value="bundled-oidc" /><span>{g.auth.bundled}</span><span class="hint">{g.auth.bundledHint}</span></label>
+            <label class="choice" id="local-choice"><input type="radio" name="auth" value="local" /><span>{g.auth.local}</span><span class="hint warn">{g.auth.localHint}</span><span class="hint" id="local-nix" hidden>{g.auth.localNix}</span></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>{g.options.legend}</legend>
+            <label class="choice"><input type="checkbox" name="smtp" /><span>{g.options.smtp}</span><span class="hint">{g.options.smtpHint}</span></label>
+            <div class="sub-fields" data-smtp hidden>
+              <div class="row2">
+                <label>{g.options.smtpHost}<input type="text" name="smtpHost" placeholder="smtp.example.org" spellcheck="false" /></label>
+                <label>{g.options.smtpPort}<input type="number" name="smtpPort" value="587" min="1" max="65535" /></label>
+              </div>
+              <label>{g.options.smtpUser}<input type="text" name="smtpUser" autocomplete="off" spellcheck="false" /></label>
+              <label>{g.options.smtpPassword}<input type="password" name="smtpPassword" autocomplete="off" /></label>
+              <label>{g.options.smtpFrom}<input type="text" name="smtpFrom" placeholder="looty@example.org" spellcheck="false" /></label>
+              <span class="err" id="smtp-err" role="alert"></span>
+            </div>
+            <label class="choice"><input type="checkbox" name="jupyter" /><span>{g.options.jupyter}</span><span class="hint">{g.options.jupyterHint}</span></label>
+            <label class="choice" data-for="nixos" hidden><input type="checkbox" name="backup" checked /><span>{g.options.backup}</span><span class="hint">{g.options.backupHint}</span></label>
+            <p class="help">{g.options.push}</p>
+          </fieldset>
+        </form>
+
+        <div class="out" aria-live="polite">
+          <h2>{g.out.legend}</h2>
+          <p id="invalid" hidden>{g.out.invalid}</p>
+          <div id="ready" hidden>
+            <p style="margin-bottom:10px"><button class="btn primary" type="button" id="zip"><span aria-hidden="true">⬇</span> {g.out.zip}</button></p>
+            <p class="hint">{g.out.zipNote}</p>
+          </div>
+          <div id="command-box" hidden>
+            <h3 style="margin:0 0 6px">{g.out.command}</h3>
+            <pre id="command-pre"><code id="command"></code></pre>
+            <p style="margin-top:8px"><button class="btn sm" type="button" id="copy">{g.out.copy}</button> <a class="btn sm" href="/install.sh">{g.out.readScript}</a></p>
+            <p class="hint">{g.out.commandNote}</p>
+          </div>
+          <div id="preview-box" hidden>
+            <h3 style="margin:0 0 4px">{g.out.preview}</h3>
+            <p class="hint">{g.out.previewNote}</p>
+            <div id="preview" style="display:grid;gap:8px;margin-top:10px"></div>
+          </div>
+          <p>{g.out.next} · {g.out.nextP} <a href={`${base}docs/host/`}>{g.out.guide}</a></p>
+          <p class="status" id="status" role="status"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    import '../scripts/install'
+  </script>
+</Base>

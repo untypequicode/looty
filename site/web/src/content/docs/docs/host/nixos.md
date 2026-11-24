@@ -5,6 +5,8 @@ description: "Run Looty on NixOS with the services.looty module: secrets in a fi
 
 The Looty flake provides `nixosModules.default`. It runs the same release images as the Docker Compose install (server, web interface, live editing), as systemd units through Podman, with a local PostgreSQL, a reverse proxy configured through the usual NixOS options (HTTPS certificates included) and a daily database dump.
 
+The [configuration generator](/install/) writes this configuration and the secrets file for you, in your browser.
+
 ## Configuration
 
 ```nix

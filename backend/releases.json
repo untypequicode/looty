@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.48.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Help links to the documentation",
+        "fr": "Liens d'aide vers la documentation"
+      },
+      "notes": {
+        "en": [
+          "**Help in Settings**: a new Help section at the bottom of the settings menu opens the user guide on the Looty website, in your language. Administrators also get the hosting guide. The Android and desktop apps show the same menu."
+        ],
+        "fr": [
+          "**Aide dans les réglages** : une nouvelle section Aide, en bas du menu des réglages, ouvre le guide d'utilisation sur le site de Looty, dans votre langue. Les administrateurs y trouvent aussi le guide d'hébergement. Les applications Android et bureau affichent le même menu."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.47.1",
       "date": "2026-11-24",
       "title": {

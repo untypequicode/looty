@@ -9,7 +9,7 @@
 # Options (sans elles, le script pose les questions) :
 #   --domain D      domaine de l'instance (son DNS doit pointer vers cette machine)
 #   --proxy P       caddy (HTTPS inclus) ou traefik (étiquettes, pour un Traefik déjà en place)
-#   --auth A        oidc (votre fournisseur), bundled-oidc (Pocket ID inclus) ou local (pas encore disponible)
+#   --auth A        oidc (votre fournisseur), bundled-oidc (Pocket ID inclus) ou local (comptes locaux, déconseillé)
 #   --name N        nom de l'instance (e-mails)
 #   --version X.Y.Z version des images (défaut : latest)
 #   --dir D         dossier d'installation (défaut : /opt/looty)
@@ -36,6 +36,7 @@ upgrade=0
 start=ask
 yes=0
 checks=1
+provider_id=
 oidc_issuer_=
 oidc_client_=
 smtp_host_=
@@ -110,6 +111,10 @@ ask_secret() {
 
 random() { openssl rand -hex "$1"; }
 
+uuid() {
+	if [ -r /proc/sys/kernel/random/uuid ]; then cat /proc/sys/kernel/random/uuid; else echo "$(random 4)-$(random 2)-4$(random 2 | cut -c2-)-a$(random 2 | cut -c2-)-$(random 6)"; fi
+}
+
 env_get() { sed -n "s/^$1=//p" "$dir/.env" | head -n 1; }
 
 # --- Mise à jour -----------------------------------------------------------------------------------------------
@@ -124,14 +129,13 @@ if [ "$upgrade" = 0 ]; then
 	ask domain "Domain of the instance (DNS pointing to this machine)"
 	ask proxy "Reverse proxy: caddy (HTTPS included) or traefik (already running)" caddy
 	ask name "Name of the instance" Looty
-	ask auth "Sign-in: oidc (your provider), bundled-oidc (Pocket ID included)" oidc
+	ask auth "Sign-in: oidc (your provider), bundled-oidc (Pocket ID included), local (not recommended)" oidc
 	[ -n "$domain" ] || die "--domain is required"
 fi
 case $proxy in caddy | traefik) ;; *) die "--proxy must be caddy or traefik" ;; esac
 case $auth in
-oidc | bundled-oidc | '') ;;
-local) die "--auth local is not available yet (local accounts); use oidc or bundled-oidc" ;;
-*) die "--auth must be oidc or bundled-oidc" ;;
+oidc | bundled-oidc | local | '') ;;
+*) die "--auth must be oidc, bundled-oidc or local" ;;
 esac
 if [ "$upgrade" = 0 ]; then
 	case $domain in *[!A-Za-z0-9.-]* | .* | *. | '') die "invalid domain: $domain" ;; esac
@@ -213,7 +217,8 @@ else
 		[ -n "$OIDC_ISSUER" ] || die "OIDC_ISSUER is required with --auth oidc"
 		ask_secret OIDC_CLIENT_SECRET "OpenID Connect client secret (not shown)"
 		[ -n "$OIDC_CLIENT_SECRET" ] || die "OIDC_CLIENT_SECRET is required with --auth oidc"
-		note "Redirect URL to register at your provider: https://$domain/api/auth/callback/<provider id> (see the docs)"
+		provider_id=$(uuid)
+		note "Redirect URL to register at your provider: https://$domain/api/auth/callback/$provider_id (see the docs)"
 	fi
 	smtp=
 	if [ "$interactive" = 1 ]; then
@@ -226,7 +231,7 @@ else
 	for file in "$rendered"/*; do cp "$file" "$dir/$(basename "$file")"; done
 	umask 077
 	{
-		echo "# Written by install.sh. Settings: https://looty.untypequicode.fr/docs/reference/environment/"
+		echo "# Written by the Looty installer (install.sh or the generator on the site). Settings: https://looty.untypequicode.fr/docs/reference/environment/"
 		echo "APP_NAME=looty"
 		echo "APP_DOMAIN=$domain"
 		echo "BASE_URL=https://$domain"
@@ -243,11 +248,14 @@ else
 			echo "OIDC_ISSUER=https://auth.$domain"
 			echo "OIDC_CLIENT_ID=looty"
 			echo "OIDC_CLIENT_SECRET=$(random 32)"
-			if [ -r /proc/sys/kernel/random/uuid ]; then echo "OIDC_PROVIDER_ID=$(cat /proc/sys/kernel/random/uuid)"; else echo "OIDC_PROVIDER_ID=$(random 4)-$(random 2)-4$(random 2 | cut -c2-)-a$(random 2 | cut -c2-)-$(random 6)"; fi
+			echo "OIDC_PROVIDER_ID=$(uuid)"
+		elif [ "$auth" = local ]; then
+			echo "LOOTY_LOCAL_ACCOUNTS=true"
 		else
 			echo "OIDC_ISSUER=$OIDC_ISSUER"
 			echo "OIDC_CLIENT_ID=$OIDC_CLIENT_ID"
 			echo "OIDC_CLIENT_SECRET=$OIDC_CLIENT_SECRET"
+			echo "OIDC_PROVIDER_ID=$provider_id"
 		fi
 	} > "$dir/.env"
 	chmod 600 "$dir/.env"
@@ -292,6 +300,9 @@ if [ "$upgrade" = 1 ]; then
 	echo "Updated. Restart with: cd $dir && docker compose pull && docker compose up -d"
 else
 	echo "Open https://$domain: the first account to sign in becomes the administrator."
+	if [ "$auth" = local ]; then
+		echo "Local accounts are not recommended. The sign-in page asks for a setup code printed in the backend logs: docker compose logs backend | grep setup"
+	fi
 	if [ "$auth" = bundled-oidc ]; then
 		echo "Create the first Pocket ID account NOW at https://auth.$domain/setup: that page stays open to anyone until it exists."
 	fi

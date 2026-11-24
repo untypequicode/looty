@@ -1,0 +1,76 @@
+// Textes de la page /install/ (générateur de configuration). Le français a exactement les mêmes clés que l'anglais.
+const en = {
+  title: 'Install Looty: configuration generator',
+  description: 'Generate the files to self-host Looty with Docker Compose (Caddy or Traefik) or NixOS, in your browser. Secrets are made on your machine and never sent anywhere.',
+  h1: 'Host Looty: configuration generator',
+  lead: 'Answer a few questions and get the files for your server: a zip with the Compose file, the settings and a README, a NixOS module, or a single command. Looty does not offer hosting: you run it.',
+  privacy: 'Everything happens in this page. Nothing is sent to this site or to anyone else: the secrets (database password, secret key, OpenID Connect secret) are drawn by your browser and exist only in the zip you download. The page keeps working offline once loaded.',
+  before: 'Before you start', beforeP: 'You need a machine with Docker (or NixOS), a domain name, and ports 80 and 443 for HTTPS.', requirements: 'Requirements',
+  target: { legend: 'Where will it run?', compose: 'Docker Compose', nixos: 'NixOS' },
+  proxy: { legend: 'Reverse proxy', caddy: 'Caddy: included, HTTPS automatic', traefik: 'Traefik: you already run it', nginx: 'nginx: configured by NixOS' },
+  basics: { legend: 'Your instance', domain: 'Domain', domainHint: 'Its DNS record must point to your machine, for example looty.example.org.', name: 'Name of the instance', nameHint: 'Used as the sender name of e-mails.', version: 'Version', versionHint: 'Empty for the latest; pin a version such as 0.47.1 for reproducible installs.', lang: 'Language of the README' },
+  auth: {
+    legend: 'How do people sign in?',
+    oidc: 'My OpenID Connect provider (recommended)', oidcHint: 'Your school, company or own provider. Guides:',
+    bundled: 'Bundled provider (Pocket ID)', bundledHint: 'Pocket ID is installed next to Looty on auth.<your domain>, with sign-in by passkey, and configured for you.',
+    local: 'Local accounts (not recommended)', localHint: 'E-mail and password stored by Looty. Passwords, resets and second factors are better handled by an identity provider, which is why OpenID Connect comes first. Administrators must use two-step verification.',
+    localNix: 'Not available with NixOS yet.',
+    issuer: 'Issuer URL', issuerHint: 'https://…, as given by your provider.', clientId: 'Client id', clientSecret: 'Client secret', secretHint: 'Goes into the zip only, never into the command. With the command, the script asks for it in your terminal.',
+    redirect: 'Redirect URL to register at your provider: the README of the zip gives the exact address (it ends with the id of the provider).',
+    guides: [['Zitadel', 'docs/host/sign-in/zitadel/'], ['Keycloak', 'docs/host/sign-in/keycloak/'], ['Authentik', 'docs/host/sign-in/authentik/'], ['Google', 'docs/host/sign-in/google/']],
+  },
+  options: {
+    legend: 'Options', smtp: 'Send e-mail (SMTP)', smtpHost: 'SMTP server', smtpPort: 'Port', smtpUser: 'Username', smtpPassword: 'Password', smtpFrom: 'Sender address',
+    smtpHint: 'You can also set this later in Administration > E-mail. The password goes into the zip only.',
+    jupyter: 'Allow Jupyter servers on a private network', jupyterHint: 'Lets projects reach a Jupyter server on your local network or over http (JUPYTER_ALLOW_PRIVATE).',
+    backup: 'Daily database backup', backupHint: 'NixOS: a dump in /var/backup/postgresql. With Compose, see the backup guide.',
+    push: 'Notifications need nothing here: Web Push works over HTTPS, and UnifiedPush is chosen by each person in the Android app.',
+  },
+  out: {
+    legend: 'Your files', zip: 'Download the zip', zipNote: 'Folder “looty”: the files below, with generated secrets. Keep it private.',
+    command: 'Or run one command on the server', commandNote: 'It carries only non-secret settings; the script generates the secrets on the machine. Read the script before running it.', copy: 'Copy', copied: 'Copied', readScript: 'Read install.sh',
+    preview: 'Preview', previewNote: 'Secrets are hidden here; the zip contains real ones, new at each download.',
+    invalid: 'Fix the highlighted fields to get your files.', next: 'Next steps', nextP: 'The README in the zip lists the remaining steps. Full guide:', guide: 'Hosting guide',
+    errors: { domain: 'Letters, digits, dots and dashes only (no https://).', version: 'Three numbers, like 0.47.1.', name: 'No quotes, backslash, $ or backtick.', required: 'Required.', issuer: 'Must start with https://.', smtp: 'No line breaks.' },
+  },
+  noscript: 'This page needs JavaScript: it builds your files in the browser, so that nothing is sent to a server.',
+}
+
+const fr: typeof en = {
+  title: 'Installer Looty : générateur de configuration',
+  description: 'Générez les fichiers pour auto-héberger Looty avec Docker Compose (Caddy ou Traefik) ou NixOS, dans votre navigateur. Les secrets sont créés sur votre machine et ne sont envoyés nulle part.',
+  h1: 'Héberger Looty : générateur de configuration',
+  lead: 'Répondez à quelques questions et obtenez les fichiers pour votre serveur : un zip avec le fichier Compose, les réglages et un README, un module NixOS, ou une seule commande. Looty ne propose pas d’hébergement : vous l’hébergez.',
+  privacy: 'Tout se passe dans cette page. Rien n’est envoyé à ce site ni à personne : les secrets (mot de passe de la base, clé secrète, secret OpenID Connect) sont tirés par votre navigateur et n’existent que dans le zip que vous téléchargez. La page continue de fonctionner hors ligne une fois chargée.',
+  before: 'Avant de commencer', beforeP: 'Il vous faut une machine avec Docker (ou NixOS), un nom de domaine, et les ports 80 et 443 pour le HTTPS.', requirements: 'Prérequis',
+  target: { legend: 'Où va-t-il tourner ?', compose: 'Docker Compose', nixos: 'NixOS' },
+  proxy: { legend: 'Proxy inverse', caddy: 'Caddy : inclus, HTTPS automatique', traefik: 'Traefik : vous en avez déjà un', nginx: 'nginx : configuré par NixOS' },
+  basics: { legend: 'Votre instance', domain: 'Domaine', domainHint: 'Son DNS doit pointer vers votre machine, par exemple looty.exemple.fr.', name: 'Nom de l’instance', nameHint: 'Utilisé comme nom d’expéditeur des e-mails.', version: 'Version', versionHint: 'Vide pour la dernière ; figez une version comme 0.47.1 pour une installation reproductible.', lang: 'Langue du README' },
+  auth: {
+    legend: 'Comment se connecte-t-on ?',
+    oidc: 'Mon fournisseur OpenID Connect (recommandé)', oidcHint: 'Celui de votre école, de votre entreprise ou le vôtre. Guides :',
+    bundled: 'Fournisseur inclus (Pocket ID)', bundledHint: 'Pocket ID est installé à côté de Looty sur auth.<votre domaine>, avec connexion par passkey, et configuré pour vous.',
+    local: 'Comptes locaux (déconseillé)', localHint: 'E-mail et mot de passe conservés par Looty. Mots de passe, réinitialisations et seconds facteurs sont mieux gérés par un fournisseur d’identité, d’où la place d’OpenID Connect en premier. Les administrateurs doivent activer la vérification en deux étapes.',
+    localNix: 'Pas encore disponible avec NixOS.',
+    issuer: 'URL de l’émetteur (issuer)', issuerHint: 'https://…, comme l’indique votre fournisseur.', clientId: 'Identifiant du client', clientSecret: 'Secret du client', secretHint: 'Va dans le zip seulement, jamais dans la commande. Avec la commande, le script le demande dans votre terminal.',
+    redirect: 'URL de redirection à déclarer chez votre fournisseur : le README du zip donne l’adresse exacte (elle se termine par l’identifiant du fournisseur).',
+    guides: [['Zitadel', 'fr/docs/host/sign-in/zitadel/'], ['Keycloak', 'fr/docs/host/sign-in/keycloak/'], ['Authentik', 'fr/docs/host/sign-in/authentik/'], ['Google', 'fr/docs/host/sign-in/google/']],
+  },
+  options: {
+    legend: 'Options', smtp: 'Envoyer des e-mails (SMTP)', smtpHost: 'Serveur SMTP', smtpPort: 'Port', smtpUser: 'Utilisateur', smtpPassword: 'Mot de passe', smtpFrom: 'Adresse d’expédition',
+    smtpHint: 'Vous pouvez aussi le régler plus tard dans Administration > E-mail. Le mot de passe va dans le zip seulement.',
+    jupyter: 'Autoriser les serveurs Jupyter en réseau privé', jupyterHint: 'Permet aux projets de joindre un serveur Jupyter de votre réseau local ou en http (JUPYTER_ALLOW_PRIVATE).',
+    backup: 'Sauvegarde quotidienne de la base', backupHint: 'NixOS : un export dans /var/backup/postgresql. Avec Compose, voir le guide des sauvegardes.',
+    push: 'Les notifications ne demandent rien ici : le Web Push fonctionne en HTTPS, et UnifiedPush se choisit dans l’application Android.',
+  },
+  out: {
+    legend: 'Vos fichiers', zip: 'Télécharger le zip', zipNote: 'Dossier « looty » : les fichiers ci-dessous, avec des secrets générés. Gardez-le privé.',
+    command: 'Ou lancez une commande sur le serveur', commandNote: 'Elle ne porte que des réglages non secrets ; le script génère les secrets sur la machine. Lisez le script avant de l’exécuter.', copy: 'Copier', copied: 'Copié', readScript: 'Lire install.sh',
+    preview: 'Aperçu', previewNote: 'Les secrets sont masqués ici ; le zip contient les vrais, nouveaux à chaque téléchargement.',
+    invalid: 'Corrigez les champs signalés pour obtenir vos fichiers.', next: 'Et ensuite', nextP: 'Le README du zip liste les étapes restantes. Guide complet :', guide: 'Guide d’hébergement',
+    errors: { domain: 'Lettres, chiffres, points et tirets seulement (sans https://).', version: 'Trois nombres, comme 0.47.1.', name: 'Ni guillemets, ni antislash, ni $, ni accent grave.', required: 'Obligatoire.', issuer: 'Doit commencer par https://.', smtp: 'Pas de retour à la ligne.' },
+  },
+  noscript: 'Cette page demande JavaScript : elle fabrique vos fichiers dans le navigateur, pour que rien ne soit envoyé à un serveur.',
+}
+
+export const gen = { en, fr }

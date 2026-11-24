@@ -18,7 +18,9 @@ Deux morceaux, tous deux très légers :
 | URL | Contenu |
 |---|---|
 | `/`, `/fr/` | Présentation, téléchargements |
+| `/install/`, `/fr/install/` | Générateur de configuration (zip Docker Compose ou NixOS, commande `install.sh`), dans le navigateur, sans appel au serveur (`docs/adr/0005-install-generator-runs-in-the-browser.md`). Il embarque `deploy/templates/` et `deploy/generate.mjs` : l'image se construit donc depuis la racine du dépôt (`docker build -f site/Dockerfile .`). `node scripts/check-seo.mjs` (dans `web/`, après `npm run build`) vérifie titre, description, canonical, hreflang, Open Graph, JSON-LD et plan du site de chaque page. |
 | `/docs/`, `/fr/docs/` | Documentation (Starlight : recherche Pagefind, mode sombre) |
+| `/sitemap.xml`, `/robots.txt` | Plan du site (accueil, générateur, documentation, deux langues, `lastmod`) et règles pour les robots |
 | `/latest.json` | Dernières versions de `android`, `linux` et `windows` : version, date, titre, notes, somme SHA-256, taille, adresse du fichier. Lu par l'application Android. |
 | `/download/android`, `/download/linux`, `/download/windows` | Liens stables : redirigent vers le dernier fichier |
 | `/releases/<plateforme>/…` | Les fichiers (APK, .deb, installateur Windows), avec reprise de téléchargement |
