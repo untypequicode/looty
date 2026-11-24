@@ -4,8 +4,18 @@ description: "Démarrer une instance Looty avec les fichiers de la release et un
 ---
 
 :::note
-Le **générateur d’installation** dans le navigateur (zip) et la commande `curl … | sh` sont prévus (voir la décision *le générateur d’installation tourne dans le navigateur*). En attendant leur publication, suivez les étapes ci-dessous : ce sont celles que le générateur fera pour vous.
+Le **générateur d’installation** dans le navigateur (zip) est prévu (voir la décision *le générateur d’installation tourne dans le navigateur*). La commande ci-dessous fait la même chose sur votre machine : elle y génère les secrets et ne les prend jamais en argument.
 :::
+
+## Une commande
+
+```sh
+curl -fsSL https://looty.untypequicode.fr/install.sh | sh -s -- --domain looty.exemple.fr --proxy caddy --name "Mon association" --auth bundled-oidc
+```
+
+`--auth` vaut `oidc` (votre fournisseur : le script demande le secret du client dans le terminal) ou `bundled-oidc` (Pocket ID inclus). Aussi : `--proxy traefik`, `--version x.y.z`, `--dir /opt/looty` (défaut), `--force` pour écraser une installation, `--upgrade` pour mettre à jour les fichiers en gardant `.env`. Sans paramètre, il pose les questions. Il vérifie Docker, Compose, les ports 80 et 443 (Caddy) et le DNS, écrit les fichiers et propose de lancer `docker compose up -d`. Le script est aussi sur [GitHub](https://raw.githubusercontent.com/untypequicode/looty/main/deploy/install.sh) : lisez-le avant de l’exécuter. Sous NixOS, voir [NixOS](/fr/docs/host/nixos/).
+
+## À la main
 
 Avec [Caddy](https://caddyserver.com) inclus (HTTPS automatique ; ports 80 et 443 libres, domaine pointant vers la machine) :
 

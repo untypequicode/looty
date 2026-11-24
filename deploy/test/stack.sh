@@ -58,6 +58,13 @@ trap cleanup EXIT INT TERM
 
 random() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
+if [ -n "${LOOTY_INSTALL_SH:-}" ]; then
+	# Les fichiers viennent de install.sh (mode non interactif, modèles de ce dépôt) au lieu de render.sh et du .env ci-dessous.
+	[ "$option" = pocket-id ] || { echo "LOOTY_INSTALL_SH needs the pocket-id option" >&2; exit 2; }
+	LOOTY_TEMPLATES="$repo/deploy" sh "$repo/deploy/install.sh" --yes --skip-checks --no-start --domain localhost --proxy "$proxy" --auth bundled-oidc --dir "$dir" --force
+	printf 'LOOTY_VERSION=%s\n' "${LOOTY_VERSION:-latest}" >> "$dir/.env"
+	provider_id=$(sed -n 's/^OIDC_PROVIDER_ID=//p' "$dir/.env")
+else
 # shellcheck disable=SC2086 # $option : aucun ou un mot
 sh "$repo/deploy/render.sh" "$proxy" "$dir" $option
 cat > "$dir/.env" <<ENV
@@ -87,6 +94,7 @@ OIDC_ISSUER=
 OIDC_CLIENT_ID=
 OIDC_CLIENT_SECRET=
 ENV
+fi
 fi
 
 if [ "$proxy" = traefik ]; then

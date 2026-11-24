@@ -20,6 +20,18 @@
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
+      # Module NixOS : services.looty (deploy/nixos/module.nix), guide « NixOS » du site.
+      nixosModules = rec {
+        looty = ./deploy/nixos/module.nix;
+        default = looty;
+      };
+
+      # nix flake check : le module démarré dans une machine virtuelle (deploy/nixos/test.nix).
+      checks.x86_64-linux.nixos-module = nixpkgs.legacyPackages.x86_64-linux.testers.runNixOSTest {
+        imports = [ ./deploy/nixos/test.nix ];
+        defaults.imports = [ self.nixosModules.default ];
+      };
+
       packages = forAll (pkgs: rec {
         looty-desktop = pkgs.callPackage ./desktop/package.nix { };
         default = looty-desktop;
