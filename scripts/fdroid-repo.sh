@@ -59,7 +59,7 @@ rm -f "$out/config.yml"
 
 # 4. Empreinte de la clé du dépôt (SHA-256 du certificat, majuscules, sans « : »)
 keytool -list -v -keystore "$REPO_KEYSTORE" -storepass "$REPO_KEYSTORE_PASSWORD" -alias "$REPO_KEY_ALIAS" \
-  | sed -n 's/^ *SHA256: *//p' | head -1 | tr -d ':' | tr 'a-f' 'A-F' > "$out/fingerprint.txt"
+  | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -1 | tr -d ':' | tr 'a-f' 'A-F' > "$out/fingerprint.txt"
 [ -s "$out/fingerprint.txt" ] || { echo "fdroid-repo: no fingerprint" >&2; exit 1; }
 test -f "$out/repo/index-v1.json" && grep -q "\"$appid\"" "$out/repo/index-v1.json"
 echo "fdroid repository ready in $out/repo (key fingerprint $(cat "$out/fingerprint.txt"))"
