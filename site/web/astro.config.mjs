@@ -9,8 +9,12 @@ export default defineConfig({
   site: process.env.SITE_URL || 'https://looty.untypequicode.fr',
   output: 'static',
   compressHTML: true,
+  // Pas de préchargement des liens au survol : pas de script ajouté aux pages, aucune requête qu'on n'a pas demandée.
+  prefetch: false,
   build: { inlineStylesheets: 'always' },
   devToolbar: { enabled: false },
+  // Le générateur (/install/) embarque les modèles de deploy/ (hors de ce dossier) : le serveur de développement doit les lire.
+  vite: { server: { fs: { allow: ['../..'] } } },
   integrations: [
     starlight({
       title: 'Looty',
@@ -21,11 +25,12 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/untypequicode/looty' }],
       editLink: { baseUrl: 'https://github.com/untypequicode/looty/edit/main/site/web/' },
       customCss: ['./src/styles/docs.css'],
+      routeMiddleware: './src/routeData.ts',
       disable404Route: true,
       // Plan du site : src/pages/sitemap.xml.ts (accueil et documentation).
       lastUpdated: false,
       pagination: true,
-      plugins: [starlightLinksValidator({ errorOnInvalidHashes: true, exclude: ['/', '/fdroid/**', '/fr/', '/#download', '/fr/#download'] })],
+      plugins: [starlightLinksValidator({ errorOnInvalidHashes: true, exclude: ['/', '/fdroid/**', '/fr/', '/#download', '/fr/#download', '/install/', '/fr/install/'] })],
       sidebar: [
         { label: 'Use an existing instance', translations: { fr: 'J’utilise une instance existante' }, items: [
           { slug: 'docs/use' }, { slug: 'docs/use/apps' }, { slug: 'docs/use/android-fdroid' }, { slug: 'docs/use/flathub-winget' },

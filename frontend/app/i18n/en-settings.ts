@@ -6,6 +6,7 @@ export default {
       hint: 'Applied right away to every page, for all members.', adminOnly: 'Only workspace admins can edit these macros.',
     },
     backToApp: 'Back to app',
+    help: { title: 'Help', guide: 'User guide', host: 'Hosting guide' },
     groups: { account: 'My account', workspace: 'Workspace', admin: 'Administration' },
     nav: { profile: 'Profile', preferences: 'Preferences', security: 'Security & access', general: 'General', members: 'Members', overview: 'Overview', users: 'Users', workspaces: 'Workspaces', auth: 'Authentication', instance: 'Instance' },
     profile: {

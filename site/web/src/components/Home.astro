@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro'
 import Icon from './Icon.astro'
 import Shot from './Shot.astro'
 import Phone from './Phone.astro'
-import { t, REPO, type Lang } from '../i18n'
+import { t, REPO, DEMO, type Lang } from '../i18n'
 interface Props { lang: Lang }
 const { lang } = Astro.props
 const l = t[lang]
@@ -13,7 +13,7 @@ const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released,
 // Hauteur affichée des captures (part de la largeur) : le vide sous le contenu est coupé.
 const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
 ---
-<Base lang={lang}>
+<Base lang={lang} home>
   <main id="main">
     <section class="hero" style="padding-bottom:0">
       <div class="wrap">
@@ -21,13 +21,30 @@ const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
         <h1 class="reveal">{l.hero.pre} <em>{l.hero.em}</em>{l.hero.post}</h1>
         <p class="lead reveal">{l.hero.lead}</p>
         <div class="cta reveal">
-          <a class="btn primary" href="#download"><Icon name="download" size={17} />{l.hero.cta}</a>
-          <a class="btn" href={REPO}><Icon name="github" size={17} />{l.hero.cta2}</a>
+          <a class="btn primary" href={DEMO}><Icon name="play" size={17} />{l.hero.cta}</a>
+          <a class="btn" href={`${l.homeHref}install/`}><Icon name="server" size={17} />{l.hero.cta2}</a>
         </div>
         <p class="chips">{l.hero.chips.map((c) => <span><Icon name="check" size={15} />{c}</span>)}</p>
         <div class="hero-shot">
           <Shot name="home" lang={lang} alt={l.hero.shot} url="looty.example.org/w/acme" eager />
           <div class="hero-phone"><Phone name="home" lang={lang} alt={l.hero.phone} eager /></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="start" class="start" aria-labelledby="start-h">
+      <div class="wrap center">
+        <h2 id="start-h">{l.start.h}</h2>
+        <p class="sub">{l.start.p}</p>
+        <div class="paths">
+          {l.start.cards.map(([icon, name, text, cta, href, more, moreHref]) => (
+            <div class="card">
+              <span class="ico"><Icon name={icon} /></span>
+              <h3>{name}</h3>
+              <p>{text}</p>
+              <p class="acts"><a class="btn primary" href={href.startsWith('http') || href.startsWith('#') ? href : `/${href}`}>{cta}</a><a class="btn" href={`/${moreHref}`}>{more}</a></p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -74,11 +91,14 @@ const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
           <h2>{l.host.h}</h2>
           <p class="sub" style="margin-bottom:18px">{l.host.p}</p>
           <ul class="ticks">{l.host.ticks.map((x) => <li>{x}</li>)}</ul>
-          <p style="margin-top:22px"><a class="btn" href={`${l.homeHref}docs/host/`}>{l.host.docs}</a></p>
+          <p class="free">{l.host.free} <a href={REPO}>{l.host.repo}</a> · <a href={`${REPO}/blob/main/LICENSE`}>{l.host.licence}</a></p>
+          <p class="acts"><a class="btn primary" href={`${l.homeHref}install/`}>{l.host.gen}</a><a class="btn" href={`${l.homeHref}docs/host/`}>{l.host.docs}</a></p>
         </div>
-        <pre data-copy><code><span class="c"># docker-compose.yml + .env</span>
-curl -LO {REPO}/releases/latest/download/docker-compose.yml
-<span class="k">docker compose</span> up -d</code></pre>
+        <div>
+          <h3>{l.host.cmd}</h3>
+          <pre data-copy id="cmd"><code>curl -fsSL SITE/install.sh | sh -s -- --domain looty.example.org --proxy caddy --auth bundled-oidc</code></pre>
+          <p class="note">{l.host.cmdNote}</p>
+        </div>
       </div>
     </section>
 
@@ -98,6 +118,15 @@ curl -LO {REPO}/releases/latest/download/docker-compose.yml
                 <a class="btn primary" data-get href={`/download/${p}`} hidden><Icon name="download" size={16} />{l.dl.get}</a>
                 <a class="btn" data-gh href={`${REPO}/releases?q=${p}`} hidden><Icon name="github" size={16} />{l.dl.github}</a>
               </div>
+            </div>
+          ))}
+        </div>
+        <h3 class="more-h">{l.dl.moreH}</h3>
+        <div class="more">
+          {l.dl.more.map(([os, icon, name, text, href]) => (
+            <div class="card" data-os={os}>
+              <span class="ico"><Icon name={icon} /></span>
+              <div><h3>{name} <span class="badge" data-rec hidden>{l.recommended}</span></h3><p>{text}</p><p class="acts"><a class="btn sm" href={`/${href}`}>{l.dl.guide}</a></p></div>
             </div>
           ))}
         </div>
@@ -126,6 +155,7 @@ nix profile install github:untypequicode/looty#looty-desktop</code></pre></div>
       var box = document.getElementById('dl'); if (!box) return;
       var s = JSON.parse(box.dataset.strings);
       var apt = document.getElementById('apt'); if (apt) apt.innerHTML = apt.innerHTML.replace(/SITE/g, location.origin);
+      var cmd = document.getElementById('cmd'); if (cmd) cmd.innerHTML = cmd.innerHTML.replace(/SITE/g, location.origin);
       function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
       function fill(d) {
         box.querySelectorAll('[data-platform]').forEach(function (card) {
@@ -139,9 +169,14 @@ nix profile install github:untypequicode/looty#looty-desktop</code></pre></div>
         });
       }
       // Plateforme du visiteur : sa carte passe en premier, avec un badge.
-      var ua = navigator.userAgent, mine = /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows' : /Linux|X11/i.test(ua) && !/CrOS/i.test(ua) ? 'linux' : null;
+      var ua = navigator.userAgent, mine = /iPhone|iPad|iPod/i.test(ua) ? 'ios' : /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows' : /Linux|X11/i.test(ua) && !/CrOS/i.test(ua) ? 'linux' : null;
       var card = mine && box.querySelector('[data-platform="' + mine + '"]');
       if (card) { card.classList.add('rec'); card.querySelector('[data-rec]').hidden = false; box.prepend(card); }
+      // Autres façons d'installer : celles de la plateforme du visiteur sont mises en avant.
+      document.querySelectorAll('[data-os]').forEach(function (c) {
+        var os = c.dataset.os;
+        if (os === mine || (mine === 'android' && os === 'fdroid') || (mine === 'linux' && os === 'flatpak') || (mine === 'windows' && os === 'winget')) { c.classList.add('rec'); c.querySelector('[data-rec]').hidden = false; c.parentNode.prepend(c); }
+      });
       fetch('/latest.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(fill).catch(function () { fill({}); });
     })();
   </script>

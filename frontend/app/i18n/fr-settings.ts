@@ -6,6 +6,7 @@ export default {
       hint: 'Appliquées immédiatement à toutes les pages, pour tous les membres.', adminOnly: 'Seuls les administrateurs de l’espace peuvent modifier ces macros.',
     },
     backToApp: 'Retour à l’application',
+    help: { title: 'Aide', guide: 'Guide d’utilisation', host: 'Guide d’hébergement' },
     groups: { account: 'Mon compte', workspace: 'Espace de travail', admin: 'Administration' },
     nav: { profile: 'Profil', preferences: 'Préférences', security: 'Sécurité & accès', general: 'Général', members: 'Membres', overview: 'Vue d’ensemble', users: 'Utilisateurs', workspaces: 'Espaces de travail', auth: 'Authentification', instance: 'Instance' },
     profile: {

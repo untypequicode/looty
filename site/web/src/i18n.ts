@@ -1,17 +1,27 @@
 export type Lang = 'en' | 'fr'
 export const REPO = 'https://github.com/untypequicode/looty'
+export const DEMO = 'https://demo.looty.untypequicode.fr'
 
 const en = {
-  title: 'Looty — tasks, documents and calendar for your team',
-  description: 'Looty is a free, self-hosted workspace: kanban boards, collaborative documents, a calendar, your mailbox and projects, with apps for Android, Linux and Windows that work offline.',
-  nav: { features: 'Features', apps: 'Apps', host: 'Self-host', docs: 'Docs', download: 'Download' },
+  title: 'Looty: self-hosted tasks, documents and calendar for your team',
+  description: 'Looty is a free, open source and self-hosted task manager and workspace: kanban boards, collaborative documents, a CalDAV calendar, your mailbox and projects. An alternative to Notion and Trello, with Android, Linux and Windows apps that work offline.',
+  nav: { home: 'Home', features: 'Features', apps: 'Apps', host: 'Self-host', docs: 'Docs', download: 'Download' },
   hero: {
     eyebrow: 'Free and open source', eyebrow2: 'self-hosted',
     pre: 'Run your team’s work in', em: 'one calm place', post: '.',
     lead: 'Kanban boards, collaborative documents, a calendar, your mailbox and projects in a single workspace that you host yourself, with apps for Android, Linux and Windows that keep working offline.',
-    cta: 'Download the apps', cta2: 'View on GitHub',
+    cta: 'Try the demo', cta2: 'Host Looty',
     chips: ['Android', 'Linux', 'Windows', 'Web', 'iPhone and iPad'],
     shot: 'The Looty home page: today’s events, your tasks, documents and board progress', phone: 'The Looty Android app',
+  },
+  start: {
+    h: 'How do you want to start?',
+    p: 'Looty is free software that you or your organisation host. We do not offer hosting: the demo is a playground, and the apps connect to your own server.',
+    cards: [
+      ['play', 'Try the demo', 'Explore a sample workspace with fictional data, with nothing to install.', 'Open the demo', DEMO, 'What the demo is', 'docs/faq/'],
+      ['users', 'I already have an instance', 'Your school, association or team already runs Looty. Install the app, then learn how to use it.', 'Get the apps', '#download', 'Read the user guide', 'docs/use/'],
+      ['server', 'Host Looty', 'Generate the configuration for your own server in your browser, then follow the hosting guide.', 'Configuration generator', 'install/', 'Read the hosting guide', 'docs/host/'],
+    ],
   },
   show: [
     { kicker: 'Boards', h: 'Boards your team will actually use', p: 'Move work from idea to done on a calm, fast board, then see the same tasks in a list, a timeline or the calendar.',
@@ -47,7 +57,8 @@ const en = {
   host: {
     kicker: 'Self-hosting', h: 'Your server, your data', p: 'Looty is a server you run. Each team or school installs its own: no shared account, and nobody else holds your data. This site only distributes the apps; inside them you sign in to your own Looty server.',
     ticks: ['Docker Compose: three small containers and PostgreSQL', 'Single sign-on with OpenID Connect providers', 'Roles, guests and public sharing under your control', 'Free software, GPL-3.0'],
-    docs: 'Read the setup guide',
+    docs: 'Read the hosting guide', gen: 'Configuration generator', cmd: 'One command on your server', cmdNote: 'It generates the secrets on the machine and never takes them as arguments.',
+    free: 'Looty is free software under the GPL-3.0 licence.', repo: 'Source code on GitHub', licence: 'Read the licence',
   },
   dl: {
     kicker: 'Download', h: 'Get Looty', p: 'Latest versions, straight from this site.',
@@ -58,24 +69,41 @@ const en = {
     windows: ['Windows 10 and 11', 'Installs for your user only. Windows may warn about an unknown publisher: More info, then Run anyway.'],
     aptH: 'Debian and Ubuntu with apt', aptP: 'Add the repository by hand if you prefer, then install and update like any package:',
     nixH: 'NixOS and Nix', nixP: 'Run it, or install it in your profile:',
+    moreH: 'Other ways to install',
+    more: [
+      ['fdroid', 'phone', 'F-Droid', 'Add the Looty repository to F-Droid or Droid-ify: it installs and updates like any app.', 'docs/use/android-fdroid/'],
+      ['flatpak', 'monitor', 'Flathub', 'The Linux desktop app as a Flatpak. Listing in progress: see the guide for its status.', 'docs/use/flathub-winget/'],
+      ['winget', 'monitor', 'winget', 'The Windows installer through winget. Listing in progress: see the guide for its status.', 'docs/use/flathub-winget/'],
+      ['ios', 'globe', 'iPhone and iPad', 'No App Store app: open your instance in Safari and add it to the home screen.', 'docs/use/apps/#iphone-and-ipad'],
+    ],
+    guide: 'Guide',
   },
-  footer: { faq: 'FAQ', compare: 'Compare', product: 'Product', project: 'Project', releases: 'All releases', source: 'Source code', license: 'Licence GPL-3.0', issues: 'Report an issue', language: 'Language', tag: 'Free software, made to be hosted by you.' },
+  footer: { faq: 'FAQ', compare: 'Compare', install: 'Configuration generator', product: 'Product', project: 'Project', releases: 'All releases', source: 'Source code', license: 'Licence GPL-3.0', issues: 'Report an issue', language: 'Language', tag: 'Free software, made to be hosted by you.' },
   notFound: 'Page not found', home: 'Back to the home page',
   other: { code: 'fr', label: 'FR', href: '/fr/', name: 'Français' }, homeHref: '/', theme: 'Toggle light and dark theme', menu: 'Menu', skip: 'Skip to content',
   copy: 'Copy', copied: 'Copied', recommended: 'For this device',
 }
 
 const fr: typeof en = {
-  title: 'Looty — tâches, documents et agenda pour votre équipe',
-  description: 'Looty est un espace de travail libre et auto-hébergé : tableaux kanban, documents collaboratifs, calendrier, boîte mail et projets, avec des applications Android, Linux et Windows qui fonctionnent hors ligne.',
-  nav: { features: 'Fonctionnalités', apps: 'Applications', host: 'Héberger', docs: 'Documentation', download: 'Télécharger' },
+  title: 'Looty : tâches, documents et agenda auto-hébergés pour votre équipe',
+  description: 'Looty est un gestionnaire de tâches et un espace de travail libre, open source et auto-hébergé : tableaux kanban, documents collaboratifs, agenda CalDAV, boîte mail et projets. Une alternative à Notion et Trello, avec des applications Android, Linux et Windows qui fonctionnent hors ligne.',
+  nav: { home: 'Accueil', features: 'Fonctionnalités', apps: 'Applications', host: 'Héberger', docs: 'Documentation', download: 'Télécharger' },
   hero: {
     eyebrow: 'Libre et open source', eyebrow2: 'auto-hébergé',
     pre: 'Le travail de votre équipe dans', em: 'un seul endroit calme', post: '.',
     lead: 'Tableaux kanban, documents collaboratifs, calendrier, boîte mail et projets dans un seul espace de travail que vous hébergez vous-même, avec des applications Android, Linux et Windows qui fonctionnent même hors ligne.',
-    cta: 'Télécharger les applications', cta2: 'Voir sur GitHub',
+    cta: 'Essayer la démo', cta2: 'Héberger Looty',
     chips: ['Android', 'Linux', 'Windows', 'Web', 'iPhone et iPad'],
     shot: 'L’accueil de Looty : événements du jour, vos tâches, documents et avancement des tableaux', phone: 'L’application Android de Looty',
+  },
+  start: {
+    h: 'Par où voulez-vous commencer ?',
+    p: 'Looty est un logiciel libre que vous ou votre organisation hébergez. Nous ne proposons pas d’hébergement : la démo est un bac à sable, et les applications se connectent à votre propre serveur.',
+    cards: [
+      ['play', 'Essayer la démo', 'Explorez un espace d’exemple aux données fictives, sans rien installer.', 'Ouvrir la démo', DEMO, 'Ce qu’est la démo', 'fr/docs/faq/'],
+      ['users', 'J’ai déjà une instance', 'Votre école, association ou équipe utilise déjà Looty. Installez l’application, puis apprenez à vous en servir.', 'Télécharger les applications', '#download', 'Lire le guide d’utilisation', 'fr/docs/use/'],
+      ['server', 'Héberger Looty', 'Générez dans votre navigateur la configuration de votre propre serveur, puis suivez le guide d’hébergement.', 'Générateur de configuration', 'fr/install/', 'Lire le guide d’hébergement', 'fr/docs/host/'],
+    ],
   },
   show: [
     { kicker: 'Tableaux', h: 'Des tableaux que votre équipe utilisera vraiment', p: 'Faites avancer le travail de l’idée à « terminé » sur un tableau calme et rapide, puis retrouvez les mêmes tâches en liste, en frise ou dans le calendrier.',
@@ -111,7 +139,8 @@ const fr: typeof en = {
   host: {
     kicker: 'Auto-hébergement', h: 'Votre serveur, vos données', p: 'Looty est un serveur que vous faites tourner. Chaque équipe ou établissement installe le sien : pas de compte partagé, et personne d’autre ne détient vos données. Ce site ne fait que distribuer les applications ; vous vous connectez à votre propre serveur Looty dans celles-ci.',
     ticks: ['Docker Compose : trois petits conteneurs et PostgreSQL', 'Connexion unique avec les fournisseurs OpenID Connect', 'Rôles, invités et partage public sous votre contrôle', 'Logiciel libre, GPL-3.0'],
-    docs: 'Lire le guide d’installation',
+    docs: 'Lire le guide d’hébergement', gen: 'Générateur de configuration', cmd: 'Une commande sur votre serveur', cmdNote: 'Elle génère les secrets sur la machine et ne les prend jamais en argument.',
+    free: 'Looty est un logiciel libre sous licence GPL-3.0.', repo: 'Code source sur GitHub', licence: 'Lire la licence',
   },
   dl: {
     kicker: 'Télécharger', h: 'Obtenir Looty', p: 'Dernières versions, directement depuis ce site.',
@@ -122,8 +151,16 @@ const fr: typeof en = {
     windows: ['Windows 10 et 11', 'S’installe pour votre utilisateur seulement. Windows peut signaler un éditeur inconnu : Informations complémentaires, puis Exécuter quand même.'],
     aptH: 'Debian et Ubuntu avec apt', aptP: 'Ajoutez le dépôt à la main si vous préférez, puis installez et mettez à jour comme n’importe quel paquet :',
     nixH: 'NixOS et Nix', nixP: 'Lancez-le, ou installez-le dans votre profil :',
+    moreH: 'Autres façons d’installer',
+    more: [
+      ['fdroid', 'phone', 'F-Droid', 'Ajoutez le dépôt Looty à F-Droid ou Droid-ify : il s’installe et se met à jour comme n’importe quelle application.', 'fr/docs/use/android-fdroid/'],
+      ['flatpak', 'monitor', 'Flathub', 'L’application de bureau Linux en Flatpak. Publication en cours : voir le guide pour son état.', 'fr/docs/use/flathub-winget/'],
+      ['winget', 'monitor', 'winget', 'L’installateur Windows via winget. Publication en cours : voir le guide pour son état.', 'fr/docs/use/flathub-winget/'],
+      ['ios', 'globe', 'iPhone et iPad', 'Pas d’application App Store : ouvrez votre instance dans Safari et ajoutez-la à l’écran d’accueil.', 'fr/docs/use/apps/#iphone-et-ipad'],
+    ],
+    guide: 'Guide',
   },
-  footer: { faq: 'FAQ', compare: 'Comparer', product: 'Produit', project: 'Projet', releases: 'Toutes les versions', source: 'Code source', license: 'Licence GPL-3.0', issues: 'Signaler un problème', language: 'Langue', tag: 'Logiciel libre, fait pour être hébergé par vous.' },
+  footer: { faq: 'FAQ', compare: 'Comparer', install: 'Générateur de configuration', product: 'Produit', project: 'Projet', releases: 'Toutes les versions', source: 'Code source', license: 'Licence GPL-3.0', issues: 'Signaler un problème', language: 'Langue', tag: 'Logiciel libre, fait pour être hébergé par vous.' },
   notFound: 'Page introuvable', home: 'Retour à l’accueil',
   other: { code: 'en', label: 'EN', href: '/', name: 'English' }, homeHref: '/fr/', theme: 'Basculer entre thème clair et sombre', menu: 'Menu', skip: 'Aller au contenu',
   copy: 'Copier', copied: 'Copié', recommended: 'Pour cet appareil',

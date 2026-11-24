@@ -5,6 +5,8 @@ description: "Faire tourner Looty sous NixOS avec le module services.looty : sec
 
 Le flake de Looty fournit `nixosModules.default`. Il lance les mêmes images de release que l’installation Docker Compose (serveur, interface web, édition en direct), en unités systemd via Podman, avec un PostgreSQL local, un proxy configuré par les options NixOS habituelles (certificats HTTPS compris) et une sauvegarde quotidienne de la base.
 
+Le [générateur de configuration](/fr/install/) écrit cette configuration et le fichier de secrets pour vous, dans votre navigateur.
+
 ## Configuration
 
 ```nix

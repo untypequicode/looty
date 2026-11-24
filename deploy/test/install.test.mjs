@@ -94,8 +94,28 @@ test('--upgrade rewrites the files and keeps .env (version updated)', () => {
   assert.deepEqual(dotenv(dir), { ...secrets, LOOTY_VERSION: '0.45.0' })
 })
 
-test('refusals: local accounts, unknown proxy, bad domain', () => {
-  assert.match(install(['--domain', 'a.org', '--auth', 'local']).stderr, /not available yet/)
+test('local accounts: only LOOTY_LOCAL_ACCOUNTS, no OIDC settings', () => {
+  const dir = tempDir()
+  const r = install(['--domain', 'looty.example.org', '--proxy', 'caddy', '--auth', 'local', '--dir', dir])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(files(dir), rendered('caddy'))
+  const env = dotenv(dir)
+  assert.equal(env.LOOTY_LOCAL_ACCOUNTS, 'true')
+  assert.ok(!('OIDC_ISSUER' in env))
+  assert.match(r.stdout, /setup code/)
+})
+
+test('oidc: a provider id is written, and it is the one in the redirect URL', () => {
+  const dir = tempDir()
+  const r = install(['--domain', 'looty.example.org', '--proxy', 'caddy', '--auth', 'oidc', '--dir', dir], { OIDC_ISSUER: 'https://idp.example.org', OIDC_CLIENT_SECRET: 'abcdefghijklmnop1234' })
+  assert.equal(r.status, 0, r.stderr)
+  const id = dotenv(dir).OIDC_PROVIDER_ID
+  assert.match(id, /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/)
+  assert.ok(r.stdout.includes(`https://looty.example.org/api/auth/callback/${id}`), r.stdout)
+})
+
+test('refusals: unknown auth, unknown proxy, bad domain', () => {
+  assert.match(install(['--domain', 'a.org', '--auth', 'ldap']).stderr, /--auth must be/)
   assert.match(install(['--domain', 'a.org', '--proxy', 'nginx']).stderr, /--proxy/)
   assert.match(install(['--domain', 'a b']).stderr, /invalid domain/)
 })

@@ -3,8 +3,10 @@ import '@fontsource-variable/inter'
 import '../styles/global.css'
 import Icon from '../components/Icon.astro'
 import { t, REPO, type Lang } from '../i18n'
-interface Props { lang: Lang; title?: string; description?: string; noindex?: boolean }
-const { lang, title, description, noindex = false } = Astro.props
+// `alternates` : l'adresse de la même page dans chaque langue (hreflang) ; `crumbs` : fil d'Ariane [nom, adresse] (BreadcrumbList) ;
+// `home` : page d'accueil, qui porte la fiche du logiciel et de l'organisation (JSON-LD).
+interface Props { lang: Lang; title?: string; description?: string; noindex?: boolean; alternates?: { en: string; fr: string }; crumbs?: [string, string][]; home?: boolean }
+const { lang, title, description, noindex = false, alternates = { en: '/', fr: '/fr/' }, crumbs = [], home = false } = Astro.props
 const l = t[lang]
 const base = l.homeHref
 // Adresses absolues (aperçus des réseaux sociaux, moteurs de recherche) : `site` d'astro.config.mjs.
@@ -12,19 +14,35 @@ const site = Astro.site ?? new URL('https://looty.untypequicode.fr')
 const abs = (path: string) => new URL(path, site).href
 const pageTitle = title ?? l.title
 const pageDescription = description ?? l.description
-const ld = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'Looty',
-  applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Android, Linux, Windows, Web',
-  description: l.description,
-  url: abs(base),
-  downloadUrl: abs(`${base}#download`),
-  license: 'https://www.gnu.org/licenses/gpl-3.0.html',
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
-  codeRepository: REPO,
-})
+const graph: object[] = [
+  { '@type': 'Organization', '@id': abs('/#organization'), name: 'Looty', url: abs('/'), logo: abs('/apple-touch-icon.png'), sameAs: [REPO] },
+]
+if (home) {
+  graph.push(
+    { '@type': 'WebSite', '@id': abs('/#website'), name: 'Looty', url: abs('/'), inLanguage: ['en', 'fr'], publisher: { '@id': abs('/#organization') } },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': abs('/#software'),
+      name: 'Looty',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Android, Linux, Windows, Web',
+      description: l.description,
+      url: abs(base),
+      inLanguage: lang,
+      downloadUrl: abs(`${base}#download`),
+      softwareHelp: abs(`${base}docs/`),
+      license: 'https://www.gnu.org/licenses/gpl-3.0.html',
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+      codeRepository: REPO,
+      publisher: { '@id': abs('/#organization') },
+    },
+  )
+}
+if (crumbs.length) {
+  graph.push({ '@type': 'BreadcrumbList', itemListElement: [[l.nav.home, base], ...crumbs].map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: abs(path) })) })
+}
+const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })
 ---
 <!doctype html>
 <html lang={lang}>
@@ -40,17 +58,21 @@ const ld = JSON.stringify({
     <meta property="og:type" content="website" />
     <meta property="og:url" content={abs(Astro.url.pathname)} />
     <meta property="og:locale" content={lang === 'fr' ? 'fr_FR' : 'en_US'} />
+    <meta property="og:locale:alternate" content={lang === 'fr' ? 'en_US' : 'fr_FR'} />
     <meta property="og:image" content={abs(`/og-${lang}.png`)} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={l.hero.shot} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+    <meta name="twitter:image" content={abs(`/og-${lang}.png`)} />
     <meta name="theme-color" content="#0b0b0d" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="alternate" hreflang="en" href={abs('/')} />
-    <link rel="alternate" hreflang="fr" href={abs('/fr/')} />
-    <link rel="alternate" hreflang="x-default" href={abs('/')} />
+    {!noindex && <link rel="alternate" hreflang="en" href={abs(alternates.en)} />}
+    {!noindex && <link rel="alternate" hreflang="fr" href={abs(alternates.fr)} />}
+    {!noindex && <link rel="alternate" hreflang="x-default" href={abs(alternates.en)} />}
     <script type="application/ld+json" set:html={ld} />
     <script is:inline>
       // Thème : celui choisi ici, sinon celui du système (sombre par défaut, comme l'application). Avant l'affichage : pas de flash.
@@ -95,7 +117,7 @@ const ld = JSON.stringify({
       <div class="wrap">
         <div><a class="brand" href={base}><img src="/favicon.svg" alt="" width="24" height="24" />Looty</a><p style="margin:12px 0 0;max-width:300px">{l.footer.tag}</p></div>
         <div class="cols">
-          <div><h4>{l.footer.product}</h4><a href={`${base}#features`}>{l.nav.features}</a><a href={`${base}#apps`}>{l.nav.apps}</a><a href={`${base}#download`}>{l.nav.download}</a><a href={`${base}docs/`}>{l.nav.docs}</a><a href={`${base}docs/faq/`}>{l.footer.faq}</a><a href={`${base}docs/compare/`}>{l.footer.compare}</a></div>
+          <div><h4>{l.footer.product}</h4><a href={`${base}#features`}>{l.nav.features}</a><a href={`${base}#apps`}>{l.nav.apps}</a><a href={`${base}#download`}>{l.nav.download}</a><a href={`${base}docs/`}>{l.nav.docs}</a><a href={`${base}install/`}>{l.footer.install}</a><a href={`${base}docs/faq/`}>{l.footer.faq}</a><a href={`${base}docs/compare/`}>{l.footer.compare}</a></div>
           <div><h4>{l.footer.project}</h4><a href={REPO}>{l.footer.source}</a><a href={`${REPO}/releases`}>{l.footer.releases}</a><a href={`${REPO}/issues`}>{l.footer.issues}</a><a href={`${REPO}/blob/main/LICENSE`}>{l.footer.license}</a></div>
           <div><h4>{l.footer.language}</h4><a href="/" lang="en">English</a><a href="/fr/" lang="fr">Français</a></div>
         </div>

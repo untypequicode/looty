@@ -5,10 +5,10 @@ name: Site
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'docs/env-vars.json', '.github/workflows/site.yml']
+    paths: ['site/**', 'deploy/**', 'docs/env-vars.json', '.github/workflows/site.yml']
     tags: ['site-v*']
   pull_request:
-    paths: ['site/**', 'docs/env-vars.json', '.github/workflows/site.yml']
+    paths: ['site/**', 'deploy/**', 'docs/env-vars.json', '.github/workflows/site.yml']
   workflow_dispatch:
 
 permissions:
@@ -43,6 +43,15 @@ jobs:
           test -f dist/index.html && test -f dist/fr/index.html
           # La documentation (Starlight) et son index de recherche ; les liens internes sont vérifiés pendant le build.
           test -f dist/docs/index.html && test -f dist/fr/docs/index.html && test -d dist/pagefind
+          test -f dist/install/index.html && test -f dist/fr/install/index.html
+          # Titre, description, canonical, hreflang, Open Graph, JSON-LD et plan du site de chaque page ; pas d'appel réseau dans le générateur.
+          node scripts/check-seo.mjs
+      - name: Install generator gives the same files as render.sh and install.sh
+        working-directory: .
+        run: |
+          node --test deploy/test/generator.test.mjs
+      - name: Pages stage of the image builds (context = repository root)
+        run: docker build --target web -f site/Dockerfile -t looty-site-web-check .
 
   image:
     name: Docker image
@@ -64,7 +73,8 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/site-v* ]]; then echo "list=$img:latest,$img:${GITHUB_REF_NAME#site-v}" >> "$GITHUB_OUTPUT"; else echo "list=$img:latest,$img:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"; fi
       - uses: docker/build-push-action@v7
         with:
-          context: site
+          context: .
+          file: site/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.list }}
           cache-from: type=gha,scope=site

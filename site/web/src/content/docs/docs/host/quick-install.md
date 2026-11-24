@@ -3,8 +3,8 @@ title: "Quick install"
 description: "Get a Looty instance running with the release files and a .env file."
 ---
 
-:::note
-The browser **install generator** (zip) is planned (see the design decision *install generator runs in the browser*). The command below does the same on your machine: it generates the secrets there and never takes them as arguments.
+:::tip
+The [**configuration generator**](/install/) builds these files in your browser (a zip, or a NixOS configuration) and sends nothing anywhere: the secrets are drawn by your browser. The command below does the same on your machine: it generates the secrets there and never takes them as arguments.
 :::
 
 ## One command
@@ -13,7 +13,7 @@ The browser **install generator** (zip) is planned (see the design decision *ins
 curl -fsSL https://looty.untypequicode.fr/install.sh | sh -s -- --domain looty.example.org --proxy caddy --name "My association" --auth bundled-oidc
 ```
 
-`--auth` is `oidc` (your own provider: the script asks for the client secret in the terminal) or `bundled-oidc` (Pocket ID included). Also: `--proxy traefik`, `--version x.y.z`, `--dir /opt/looty` (default), `--force` to overwrite an installation, `--upgrade` to update the files while keeping `.env`. Without parameters it asks the questions. It checks Docker, Compose, ports 80 and 443 (Caddy) and DNS, writes the files and offers to run `docker compose up -d`. The script is also on [GitHub](https://raw.githubusercontent.com/untypequicode/looty/main/deploy/install.sh): read it before running it. On NixOS, see [NixOS](/docs/host/nixos/).
+`--auth` is `oidc` (your own provider: the script asks for the client secret in the terminal), `bundled-oidc` (Pocket ID included) or `local` ([local accounts](/docs/host/sign-in/local-accounts/), not recommended). Also: `--proxy traefik`, `--version x.y.z`, `--dir /opt/looty` (default), `--force` to overwrite an installation, `--upgrade` to update the files while keeping `.env`. Without parameters it asks the questions. It checks Docker, Compose, ports 80 and 443 (Caddy) and DNS, writes the files and offers to run `docker compose up -d`. The script is also on [GitHub](https://raw.githubusercontent.com/untypequicode/looty/main/deploy/install.sh): read it before running it. On NixOS, see [NixOS](/docs/host/nixos/).
 
 ## By hand
 

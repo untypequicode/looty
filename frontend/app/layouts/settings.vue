@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook, Stethoscope } from 'lucide-vue-next'
+import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook, Stethoscope, BookOpen, ExternalLink } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
-import { useI18n } from '~/composables/useI18n'
+import { useI18n, currentLocale } from '~/composables/useI18n'
 import { useShortcuts } from '~/composables/useShortcuts'
 
 const route = useRoute()
@@ -67,6 +67,11 @@ const groups = computed(() => [
       }]
     : []),
 ])
+// Aide : la documentation du site officiel, dans la langue de l'interface (le guide d'hébergement : administrateurs).
+const docs = computed(() => {
+  const base = `https://looty.untypequicode.fr${currentLocale() === 'fr' ? '/fr' : ''}/docs/`
+  return [{ href: `${base}use/`, label: t('settings.help.guide') }, ...(user.value?.is_super_admin ? [{ href: `${base}host/`, label: t('settings.help.host') }] : [])]
+})
 const current = computed(() => (route.params.section as string) || 'profile')
 
 useShortcuts([{ keys: 'escape', handler: () => { if (document.querySelector('[role=dialog]')) return false; navigateTo(links.home(wsId.value)) } }])
@@ -82,6 +87,12 @@ useShortcuts([{ keys: 'escape', handler: () => { if (document.querySelector('[ro
         <NuxtLink v-for="i in g.items" :key="i.key" :to="links.settings(wsId, i.key)" class="st-item" :class="{ active: current === i.key }">
           <component :is="i.icon" :size="15" /> {{ i.label }}
         </NuxtLink>
+      </section>
+      <section class="st-group">
+        <div class="st-group-title truncate">{{ t('settings.help.title') }}</div>
+        <a v-for="d in docs" :key="d.href" :href="d.href" target="_blank" rel="noopener" class="st-item">
+          <BookOpen :size="15" /> {{ d.label }} <ExternalLink :size="12" class="st-ext" />
+        </a>
       </section>
     </nav>
     <main class="st-main">
@@ -103,6 +114,7 @@ useShortcuts([{ keys: 'escape', handler: () => { if (document.querySelector('[ro
 .st-item svg { color: var(--text-3); }
 .st-item:hover { background: var(--bg-hover); color: var(--text); }
 .st-item.active { background: var(--bg-active); color: var(--text); }
+.st-ext { margin-left: auto; }
 .st-main { overflow-y: auto; min-width: 0; }
 .st-menu { display: none; }
 .st-overlay { display: none; }
