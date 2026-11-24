@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.46.1",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Clearer sign-in refusals in the logs",
+        "fr": "Refus de connexion plus lisibles dans les journaux"
+      },
+      "notes": {
+        "en": [
+          "**Diagnostics**: every refused sign-in (401) is now logged with its cause and the answer carries a `reason`, so collaboration refusals can be traced to their exact cause."
+        ],
+        "fr": [
+          "**Diagnostic** : chaque refus de connexion (401) est désormais journalisé avec sa cause et la réponse porte une `reason`, ce qui permet de retrouver la cause exacte des refus de la collaboration."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.46.0",
       "date": "2026-11-24",
       "title": {
