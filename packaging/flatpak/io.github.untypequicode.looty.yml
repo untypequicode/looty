@@ -21,6 +21,9 @@ finish-args:
   - --talk-name=org.freedesktop.secrets
   # Téléchargements et « Enregistrer sous » passent par les portails : aucun accès aux dossiers de l'utilisateur.
 build-options:
+  # Les modules CMake installent sinon dans lib64, hors du chemin de bibliothèques de Flatpak.
+  config-opts:
+    - -DCMAKE_INSTALL_LIBDIR=lib
   append-path: /usr/lib/sdk/rust-stable/bin
   env:
     CARGO_HOME: /run/build/looty/cargo
