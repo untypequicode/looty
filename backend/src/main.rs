@@ -41,6 +41,8 @@ mod trash;
 mod storage;
 mod text;
 mod bg;
+mod status;
+mod account;
 mod events;
 mod activity;
 mod graph;
@@ -142,6 +144,7 @@ async fn main() {
         trash::start_purge_loop(state.clone());
         drive::start_purge_loop(state.clone());
         jupyter::start_reaper();
+        account::start_deletion_loop(state.clone());
     }
     let app = app(state);
 
@@ -180,7 +183,8 @@ fn app(state: state::AppState) -> Router {
         .route("/public/pages/{token}/output.pdf", get(public_project::pdf))
         .nest("/auth", auth::routes().nest("/demo", demo_mode::routes()))
         .nest("/admin", admin::routes())
-        .nest("/user", user_settings::routes().merge(prefs::user_routes()))
+        .nest("/user", user_settings::routes().merge(prefs::user_routes()).merge(account::user_routes()))
+        .nest("/workspaces/{workspace_id}/export", account::workspace_routes())
         .merge(roles::user_routes())
         .nest("/user/releases", releases::user_routes())
         .nest("/releases", releases::routes())
@@ -191,6 +195,8 @@ fn app(state: state::AppState) -> Router {
         .nest("/admin/storage", storage::routes())
         .nest("/admin/insights", analytics::admin_routes())
         .nest("/admin/backups", backup::routes())
+        .nest("/admin/status", status::routes())
+        .route("/metrics", get(status::metrics))
         .route("/boards/tasks/{task_id}/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
@@ -231,6 +237,7 @@ fn app(state: state::AppState) -> Router {
     Router::new()
         .route("/uploads/{name}", get(upload::serve_upload))
         .merge(projects::public_routes())
+        .route("/metrics", get(status::metrics))
         .nest("/api", api)
         .merge(dav::routes())
         .layer(axum::middleware::from_fn_with_state(state.clone(), demo_mode::guard))

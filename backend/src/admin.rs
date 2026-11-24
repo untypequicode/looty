@@ -175,7 +175,7 @@ async fn list_users(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Jso
         sqlx::query_as(
             "SELECT u.id, u.name, u.email, u.avatar_url, u.is_super_admin, u.is_suspended, u.created_at,
                 (SELECT count(*) FROM workspace_members m WHERE m.user_id = u.id::varchar) AS workspace_count
-             FROM users u ORDER BY u.created_at ASC",
+             FROM users u WHERE u.id <> '00000000-0000-0000-0000-000000000000' ORDER BY u.created_at ASC",
         )
         .fetch_all(&pool)
         .await?,
@@ -408,7 +408,7 @@ async fn get_stats(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json
     require_super_admin(&user)?;
     let stats: AdminStatsDto = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM users) AS total_users,
+            (SELECT count(*) FROM users WHERE id <> '00000000-0000-0000-0000-000000000000') AS total_users,
             (SELECT count(DISTINCT user_id) FROM task_activities WHERE created_at > NOW() - INTERVAL '7 days') AS active_users_7d,
             (SELECT count(*) FROM users WHERE created_at > NOW() - INTERVAL '30 days') AS new_users_30d,
             (SELECT count(*) FROM users WHERE is_suspended) AS suspended_users,

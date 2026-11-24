@@ -63,6 +63,16 @@ pub fn semver(v: &str) -> (u32, u32, u32) {
     (it.next().unwrap_or(0), it.next().unwrap_or(0), it.next().unwrap_or(0))
 }
 
+/// Adresse du dépôt des versions (`releases.json`).
+pub fn repository() -> String {
+    file().repository.clone()
+}
+
+/// Page de publication d'une version.
+pub fn release_url(platform: &str, version: &str) -> String {
+    format!("{}/releases/tag/{platform}-v{version}", file().repository)
+}
+
 fn latest(platform: &str) -> Option<&'static Release> {
     file().releases.iter().filter(|r| r.platform == platform).max_by_key(|r| semver(&r.version))
 }

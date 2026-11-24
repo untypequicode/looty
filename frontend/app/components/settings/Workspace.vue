@@ -72,6 +72,10 @@ async function save() {
     toast.success(t('common.saved'))
   } finally { saving.value = false }
 }
+function exportSpace() {
+  toast(t('data.exportStarted'))
+  window.location.href = `/api/workspaces/${wsId.value}/export`
+}
 async function leave() {
   if (!(await confirmDialog({ title: t('settings.ws.leaveTitle', { name: workspace.data.value?.name ?? '' }), message: t('settings.ws.leaveMessage'), danger: true, confirmLabel: t('settings.ws.leave') }))) return
   await api(`/api/workspaces/${wsId.value}/leave`, { method: 'POST' })
@@ -128,6 +132,9 @@ async function remove() {
     </SettingsRow>
     <SettingsRow :label="t('transfer.exportWorkspace')" :hint="t('transfer.exportRowHint')">
       <UiButton size="sm" :icon="Download" @click="exportOpen = true">{{ t('transfer.export') }}</UiButton>
+    </SettingsRow>
+    <SettingsRow v-if="isAdmin && !personal" :label="t('data.exportSpaceTitle')" :hint="t('data.exportSpaceHint')">
+      <UiButton size="sm" :icon="Download" @click="exportSpace">{{ t('data.exportSpaceButton') }}</UiButton>
     </SettingsRow>
     <DocImportDialog v-model:open="importOpen" />
     <DocExportDialog v-model:open="exportOpen" />

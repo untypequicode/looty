@@ -8,6 +8,10 @@
  * - Markdown : un dossier par collection, sous-documents dans un dossier portant
  *   le titre du parent, pièces jointes référencées par chemin relatif.
  * Les fichiers .md / .html isolés sont aussi acceptés à l'import.
+ *
+ * Même chemin pour les dossiers Markdown d'Obsidian (liens [[wiki]], images ![[…]], en-tête YAML) et les
+ * exports Notion (identifiants retirés des noms, bases CSV en tableaux). Un export JSON de Trello est
+ * reconnu ici et importé en tableau par trelloImport.ts. Ce qui n'a pas pu être repris va au rapport d'import.
  */
 import JSZip from 'jszip'
 import { Marked, type TokenizerAndRendererExtension } from 'marked'
@@ -18,6 +22,7 @@ import { links } from '~/composables/useWorkspace'
 import { readonlyExtensions } from './extensions'
 import { htmlToMarkdown } from './export'
 import { sourceJSON } from './source'
+import { csvToHtml, hasNotionIds, isTrelloExport, parseCsv, parseTrello, relativePath, splitFrontMatter, stripNotionId, wikiToMarkdown, type ImportIssue, type TrelloPlan } from '~/utils/importers'
 
 type PM = JSONContent
 type UrlMap = (url: string) => string
@@ -319,13 +324,17 @@ export interface ImportNode {
   render?: (ctx: RenderCtx) => Promise<string>
   children: ImportNode[]
 }
-interface RenderCtx { pageUrl: (key: string) => string | null; upload: (zipPath: string) => Promise<string | null> }
+interface RenderCtx { pageUrl: (key: string) => string | null; upload: (zipPath: string) => Promise<string | null>; issue: (i: ImportIssue) => void }
 
 export interface ImportPlan {
-  format: 'outline-json' | 'markdown' | 'html'
+  format: 'outline-json' | 'markdown' | 'html' | 'notion' | 'obsidian' | 'trello'
   roots: ImportNode[]
   documents: number
   collections: number
+  /** Tableau Trello à créer (format « trello »). */
+  trello?: TrelloPlan
+  /** Éléments que l'analyse sait déjà ne pas pouvoir reprendre (cartes archivées…). */
+  issues?: ImportIssue[]
 }
 
 const decode = (s: string) => { try { return decodeURIComponent(s) } catch { return s } }
@@ -472,6 +481,15 @@ export async function planImport(files: File[]): Promise<ImportPlan> {
     } catch { /* fichier JSON étranger : ignoré */ }
   }
   if (jsonCollections.length) return planOutlineJson(jsonCollections, src)
+  for (const p of paths.filter((x) => /\.json$/i.test(x))) {
+    try {
+      const data = JSON.parse(await src.text(p))
+      if (isTrelloExport(data)) {
+        const trello = parseTrello(data)
+        return { format: 'trello', roots: [], documents: 0, collections: 0, trello, issues: trello.issues }
+      }
+    } catch { /* pas du JSON : ignoré */ }
+  }
   return planMarkdown(src, paths)
 }
 
@@ -542,15 +560,32 @@ function planOutlineJson(collections: { data: any; dir: string }[], src: Source)
   return { format: 'outline-json', roots, documents, collections: roots.length }
 }
 
+const DOC_EXT = /\.(md|markdown|html?|csv)$/i
+const dirOf = (p: string) => p.split('/').slice(0, -1).join('/')
+
 function planMarkdown(src: Source, paths: string[]): ImportPlan {
-  const docs = paths.filter((p) => /\.(md|markdown|html?)$/i.test(p)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  const notion = hasNotionIds(paths)
+  const obsidian = paths.some((p) => /(^|\/)\.obsidian\//.test(p))
+  const clean = (name: string) => (notion ? stripNotionId(name) : name)
+  // Notion exporte aussi chaque base sous « <nom>_all.csv » : on ne garde que la première.
+  const docs = paths
+    .filter((p) => DOC_EXT.test(p) && !/(^|\/)\.obsidian\//.test(p) && !(/_all\.csv$/i.test(p) && paths.includes(p.replace(/_all\.csv$/i, '.csv'))))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
   const nodes = new Map<string, ImportNode>()
   const roots: ImportNode[] = []
-  const stem = (p: string) => p.replace(/\.(md|markdown|html?)$/i, '')
+  const stem = (p: string) => p.replace(DOC_EXT, '')
+  // Liens [[wiki]] d'Obsidian : le nom du fichier (ou la fin de son chemin) suffit, sans tenir compte de la casse.
+  const lc = (s: string) => s.toLowerCase()
+  const findDoc = (t: string) => { const k = lc(t).replace(/\.(md|markdown)$/, ''); return docs.find((p) => !/\.csv$/i.test(p) && (lc(stem(p)) === k || lc(stem(p)).endsWith('/' + k))) }
+  const findFile = (t: string) => { const k = lc(t); return paths.find((p) => !DOC_EXT.test(p) && !/(^|\/)\.obsidian\//.test(p) && (lc(p) === k || lc(p).endsWith('/' + k))) }
+  const resolveWiki = (from: string) => (t: string) => {
+    const hit = /\.[a-z0-9]{2,5}$/i.test(t) ? findFile(t) ?? findDoc(t) : findDoc(t) ?? findFile(t)
+    return hit ? relativePath(dirOf(from), hit) : null
+  }
   const ensureFolder = (dir: string): ImportNode | null => {
     if (!dir) return null
     if (nodes.has(dir)) return nodes.get(dir)!
-    const n: ImportNode = { key: dir, title: dir.split('/').pop()!, container: true, children: [] }
+    const n: ImportNode = { key: dir, title: clean(dir.split('/').pop()!), container: true, children: [] }
     nodes.set(dir, n)
     ;(ensureFolder(dir.split('/').slice(0, -1).join('/'))?.children ?? roots).push(n)
     return n
@@ -559,21 +594,32 @@ function planMarkdown(src: Source, paths: string[]): ImportPlan {
   for (const p of docs) {
     const key = stem(p)
     const isHtml = /\.html?$/i.test(p)
+    const isCsv = /\.csv$/i.test(p)
     const node: ImportNode = {
       key,
-      title: key.split('/').pop()!,
+      title: clean(key.split('/').pop()!),
       children: [],
       render: async (ctx) => {
         const raw = await src.text(p)
-        const parsed = isHtml ? htmlFileToHtml(raw) : markdownToHtml(raw)
-        const dir = p.split('/').slice(0, -1).join('/')
+        // Base Notion : un tableau.
+        if (isCsv) return csvToHtml(parseCsv(raw))
+        const found: ImportIssue[] = []
+        const parsed = isHtml ? htmlFileToHtml(raw) : markdownToHtml(wikiToMarkdown(splitFrontMatter(raw).body, resolveWiki(p), found))
+        found.forEach(ctx.issue)
+        const dir = dirOf(p)
         return rewriteHtmlUrls(parsed.html, async (u) => {
           if (u.startsWith('data:')) return (await uploadDataUri(u)) ?? u
           if (!isLocal(u)) return u
           const [path, hash] = decode(u).split('#')
           const target = normPath(`${dir}/${path}`)
-          if (/\.(md|markdown|html?)$/i.test(target)) return ctx.pageUrl(stem(target)) ? ctx.pageUrl(stem(target))! + (hash ? `#${hash}` : '') : u
-          return (await ctx.upload(target)) ?? (await ctx.upload(normPath(path ?? ''))) ?? u
+          if (DOC_EXT.test(target)) {
+            const url = ctx.pageUrl(stem(target))
+            if (!url) ctx.issue({ kind: 'link', detail: target })
+            return url ? url + (hash ? `#${hash}` : '') : u
+          }
+          const uploaded = (await ctx.upload(target)) ?? (await ctx.upload(normPath(path ?? '')))
+          if (!uploaded) ctx.issue({ kind: /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(target) ? 'image' : 'file', detail: target })
+          return uploaded ?? u
         })
       },
     }
@@ -583,7 +629,8 @@ function planMarkdown(src: Source, paths: string[]): ImportPlan {
     const key = stem(p)
     ;(ensureFolder(key.split('/').slice(0, -1).join('/'))?.children ?? roots).push(nodes.get(key)!)
   }
-  return { format: docs.some((p) => /\.html?$/i.test(p)) && !docs.some((p) => /\.(md|markdown)$/i.test(p)) ? 'html' : 'markdown', roots, documents: docs.length, collections: roots.filter((r) => r.container).length }
+  const format = notion ? 'notion' : obsidian ? 'obsidian' : docs.some((p) => /\.html?$/i.test(p)) && !docs.some((p) => /\.(md|markdown)$/i.test(p)) ? 'html' : 'markdown'
+  return { format, roots, documents: docs.length, collections: roots.filter((r) => r.container).length }
 }
 
 export interface ImportOptions {
@@ -592,6 +639,8 @@ export interface ImportOptions {
   /** Crée une page par collection / dossier racine ; sinon leurs documents sont importés directement. */
   containerPages: boolean
   onProgress?: (done: number, total: number) => void
+  /** Reçoit ce qui n'a pas pu être repris (liens et fichiers introuvables). */
+  issues?: ImportIssue[]
 }
 
 /** Crée les pages (arborescence d'abord, contenu ensuite pour résoudre les liens internes). */
@@ -611,10 +660,12 @@ export async function runImport(files: File[], plan: ImportPlan, o: ImportOption
   // Titre réel des documents Markdown / HTML (première ligne « # Titre »).
   async function titleOf(n: ImportNode) {
     if (plan.format === 'outline-json' || n.container) return n.title
-    const path = [...src.files.keys()].find((p) => p.replace(/\.(md|markdown|html?)$/i, '') === n.key)
+    const path = [...src.files.keys()].find((p) => !/\.csv$/i.test(p) && p.replace(DOC_EXT, '') === n.key)
     if (!path) return n.title
     const raw = await src.text(path)
-    return (/\.html?$/i.test(path) ? htmlFileToHtml(raw) : markdownToHtml(raw)).title || n.title
+    if (/\.html?$/i.test(path)) return htmlFileToHtml(raw).title || n.title
+    const { body, title } = splitFrontMatter(raw)
+    return markdownToHtml(body).title || title || n.title
   }
   async function create(l: ImportNode[], parentId: string | null) {
     for (const n of l) {
@@ -631,6 +682,7 @@ export async function runImport(files: File[], plan: ImportPlan, o: ImportOption
 
   const uploads = new Map<string, Promise<string | null>>()
   const ctx: RenderCtx = {
+    issue: (i) => { if (!o.issues?.some((x) => x.kind === i.kind && x.detail === i.detail)) o.issues?.push(i) },
     pageUrl: (key) => { const p = created.get(key); return p ? links.doc(o.wsId, p.id) : null },
     upload: (path) => {
       if (!src.files.has(path)) return Promise.resolve(null)

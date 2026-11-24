@@ -40,13 +40,13 @@ struct Usage {
     in_trash: bool,
 }
 
-struct FileInfo {
-    name: String,
-    size: u64,
+pub(crate) struct FileInfo {
+    pub(crate) name: String,
+    pub(crate) size: u64,
     modified: Option<DateTime<Utc>>,
 }
 
-fn list_files() -> Vec<FileInfo> {
+pub(crate) fn list_files() -> Vec<FileInfo> {
     let Ok(dir) = std::fs::read_dir(UPLOAD_DIR) else { return vec![] };
     dir.filter_map(|e| e.ok())
         .filter_map(|e| {
@@ -64,7 +64,7 @@ fn list_files() -> Vec<FileInfo> {
 }
 
 /// Noms de fichiers cités dans un texte (« /uploads/<nom> »).
-fn upload_refs(text: &str) -> Vec<&str> {
+pub(crate) fn upload_refs(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut rest = text;
     while let Some(i) = rest.find("/uploads/") {
@@ -184,7 +184,7 @@ struct FileDto {
     usages: Vec<Usage>,
 }
 
-fn disk_space(path: &str) -> Option<(u64, u64)> {
+pub(crate) fn disk_space(path: &str) -> Option<(u64, u64)> {
     let c = std::ffi::CString::new(path).ok()?;
     let mut s: libc::statvfs = unsafe { std::mem::zeroed() };
     // SAFETY : chemin C valide, structure initialisée par l'appel.
@@ -310,6 +310,16 @@ pub(crate) async fn files_in_workspaces(pool: &sqlx::PgPool, workspaces: &[Uuid]
         .await?
         .into_iter()
         .filter(|(_, usages)| usages.iter().any(|u| u.workspace_id.is_some_and(|w| workspaces.contains(&w))))
+        .map(|(name, _)| name)
+        .collect())
+}
+
+/// Fichiers d'upload qui ne servent qu'à des éléments des espaces donnés : ils peuvent disparaître avec eux.
+pub(crate) async fn files_only_in(pool: &sqlx::PgPool, workspaces: &[Uuid]) -> ApiResult<Vec<String>> {
+    Ok(collect_usages(pool)
+        .await?
+        .into_iter()
+        .filter(|(_, usages)| usages.iter().any(|u| u.workspace_id.is_some_and(|w| workspaces.contains(&w))) && usages.iter().all(|u| u.workspace_id.is_some_and(|w| workspaces.contains(&w))))
         .map(|(name, _)| name)
         .collect())
 }

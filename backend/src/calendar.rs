@@ -583,8 +583,9 @@ pub fn start_sync_loop(state: AppState) {
             .fetch_all(&state.pool)
             .await
             .unwrap_or_default();
+            crate::bg::tick("calendar sync");
             for id in due {
-                if let Some(Err(e)) = crate::bg::guard("calendar sync", sync_calendar(&state, id)).await {
+                if let Some(Err(e)) = crate::bg::guard_result("calendar sync", sync_calendar(&state, id)).await {
                     tracing::debug!("calendar {id}: {e:?}");
                 }
             }

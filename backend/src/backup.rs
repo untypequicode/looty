@@ -457,6 +457,7 @@ pub fn start_scheduler(pool: sqlx::PgPool) {
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tick.tick().await;
+            crate::bg::tick("backup");
             let row: Result<(String, i16, i16, Option<DateTime<Utc>>), _> =
                 sqlx::query_as("SELECT backup_schedule, backup_hour, backup_keep, backup_last_at FROM global_settings WHERE id = 1").fetch_one(&pool).await;
             let Ok((schedule, hour, keep, last)) = row else { continue };
@@ -471,8 +472,14 @@ pub fn start_scheduler(pool: sqlx::PgPool) {
                 continue;
             }
             match create_backup(&pool, "auto").await {
-                Ok(_) => prune_auto(keep as usize).await,
-                Err(e) => tracing::error!("scheduled backup failed: {e:?}"),
+                Ok(_) => {
+                    crate::bg::record("backup", Ok(()));
+                    prune_auto(keep as usize).await
+                }
+                Err(e) => {
+                    tracing::error!("scheduled backup failed: {e:?}");
+                    crate::bg::record("backup", Err(format!("{e:?}")));
+                }
             }
         }
     });

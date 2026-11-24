@@ -257,9 +257,10 @@ pub fn start_poll_loop(state: AppState) {
             .fetch_all(&state.pool)
             .await
             .unwrap_or_default();
+            crate::bg::tick("mail poll");
             for a in accounts {
-                let synced = crate::bg::guard("mail poll", tokio::time::timeout(Duration::from_secs(90), sync_and_notify(&state, &a))).await;
-                if let Some(Err(e)) = synced.map(|r| r.unwrap_or(Err(ApiError::bad_request("mail_timeout")))) {
+                let synced = crate::bg::guard_result("mail poll", async { tokio::time::timeout(Duration::from_secs(90), sync_and_notify(&state, &a)).await.unwrap_or(Err(ApiError::bad_request("mail_timeout"))) }).await;
+                if let Some(Err(e)) = synced {
                     tracing::debug!("mail account {}: {e:?}", a.id);
                 }
             }

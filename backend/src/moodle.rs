@@ -729,9 +729,10 @@ pub fn start_poll_loop(state: AppState) {
                 .fetch_all(&state.pool)
                 .await
                 .unwrap_or_default();
+            crate::bg::tick("moodle poll");
             for (ws, user) in rows {
-                let polled = crate::bg::guard("moodle poll", tokio::time::timeout(Duration::from_secs(60), poll_one(&state, ws, user, true))).await;
-                if let Some(Err(e)) = polled.map(|r| r.unwrap_or(Err(ApiError::bad_request("moodle_timeout")))) {
+                let polled = crate::bg::guard_result("moodle poll", async { tokio::time::timeout(Duration::from_secs(60), poll_one(&state, ws, user, true)).await.unwrap_or(Err(ApiError::bad_request("moodle_timeout"))) }).await;
+                if let Some(Err(e)) = polled {
                     tracing::debug!("moodle {ws}/{user}: {e:?}");
                 }
             }

@@ -34,7 +34,7 @@ struct Row {
 }
 
 /// Cellule CSV : entre guillemets si besoin, formule neutralisée.
-fn cell(s: &str) -> String {
+pub(crate) fn cell(s: &str) -> String {
     let s = if s.starts_with(['=', '+', '-', '@', '\t', '\r']) { format!("'{s}") } else { s.to_string() };
     if s.contains([',', '"', '\n', '\r']) {
         format!("\"{}\"", s.replace('"', "\"\""))
@@ -43,7 +43,7 @@ fn cell(s: &str) -> String {
     }
 }
 
-fn line(cells: &[String]) -> String {
+pub(crate) fn line(cells: &[String]) -> String {
     let mut l = cells.iter().map(|c| cell(c)).collect::<Vec<_>>().join(",");
     l.push_str("\r\n");
     l

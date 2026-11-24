@@ -628,8 +628,9 @@ pub fn start_sync_loop(state: AppState, notify: Arc<Notify>) {
                 .fetch_all(&state.pool)
                 .await
                 .unwrap_or_default();
+            crate::bg::tick("caldav sync");
             for id in ids {
-                if let Some(Err(e)) = crate::bg::guard("caldav sync", sync_account(&state, id)).await {
+                if let Some(Err(e)) = crate::bg::guard_result("caldav sync", sync_account(&state, id)).await {
                     tracing::debug!("caldav sync {} failed: {:?}", id, e);
                 }
             }
