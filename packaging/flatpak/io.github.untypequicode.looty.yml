@@ -21,17 +21,18 @@ finish-args:
   - --talk-name=org.freedesktop.secrets
   # Téléchargements et « Enregistrer sous » passent par les portails : aucun accès aux dossiers de l'utilisateur.
 build-options:
-  # Les modules CMake installent sinon dans lib64, hors du chemin de bibliothèques de Flatpak.
-  config-opts:
-    - -DCMAKE_INSTALL_LIBDIR=lib
   append-path: /usr/lib/sdk/rust-stable/bin
   env:
     CARGO_HOME: /run/build/looty/cargo
+    # Les modules CMake des bibliothèques de la barre système installent dans lib64.
+    PKG_CONFIG_PATH: /app/lib64/pkgconfig:/app/lib/pkgconfig:/app/share/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
 modules:
   - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
   - name: looty
     buildsystem: simple
     build-commands:
+      # Flatpak ne cherche les bibliothèques de l'application que dans /app/lib.
+      - if [ -d /app/lib64 ]; then cp -a /app/lib64/. /app/lib/ && rm -rf /app/lib64; fi
       - cargo --offline build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
       - install -Dm755 desktop/src-tauri/target/release/looty /app/bin/looty
       - install -Dm644 packaging/flatpak/io.github.untypequicode.looty.desktop /app/share/applications/io.github.untypequicode.looty.desktop
