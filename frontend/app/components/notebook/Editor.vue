@@ -697,6 +697,8 @@ const rPanelOpen = useLocalStorage('looty.notebook.rpanels', false)
 const rPanelRef = ref<{ send: (code: string) => Promise<void> } | null>(null)
 const rPanelOn = computed(() => rPanelOpen.value && language.value === 'r')
 const cellPlots = computed(() => (rPanelOn.value ? cells.value.flatMap((c) => (c.type === 'code' ? plotsOf(`cell-${c.id}`, shown(c)) : [])) : []))
+/** Requêtes des panneaux : seulement vers le noyau Jupyter (jamais de démarrage pour un autre moteur). */
+const rQuery: typeof jupyter.query = async (code, o) => (remote.value ? jupyter.query(code, o) : null)
 /** Ctrl+Alt+Entrée : la ligne du curseur (ou la sélection) part dans la console. */
 async function runLine(text: string) {
   if (!text.trim() || ro.value || language.value !== 'r') return
@@ -782,7 +784,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
         </template>
       </div>
       <NotebookRPanels
-        v-if="rPanelOn" ref="rPanelRef" :query="(code, o) => (remote ? jupyter.query(code, o) : Promise.resolve(null))" :kernel-state="jupyter.state.value" :cell-plots="cellPlots" :read-only="ro"
+        v-if="rPanelOn" ref="rPanelRef" :query="rQuery" :kernel-state="jupyter.state.value" :cell-plots="cellPlots" :read-only="ro"
         @close="rPanelOpen = false"
       />
     </div>

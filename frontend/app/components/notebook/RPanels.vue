@@ -71,7 +71,7 @@ function exportPlot(kind: 'png' | 'svg') {
   if (!p) return
   const n = plots.value.indexOf(p) + 1
   if (kind === 'svg' && p.svg) save(`plot-${n}.svg`, new Blob([p.svg], { type: 'image/svg+xml' }))
-  else if (kind === 'png' && p.mime === 'image/png') save(`plot-${n}.png`, new Blob([base64Bytes(p.data)], { type: 'image/png' }))
+  else if (kind === 'png' && p.mime === 'image/png') save(`plot-${n}.png`, new Blob([base64Bytes(p.data) as BlobPart],{ type: 'image/png' }))
   else toast(t('notebook.r.panel.noFormat'), { kind: 'error' })
 }
 
