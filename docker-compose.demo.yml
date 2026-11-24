@@ -70,13 +70,19 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.looty-demo-api.rule=Host(`${DEMO_DOMAIN:-demo.looty.untypequicode.fr}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/pages`) || PathPrefix(`/dav`) || Path(`/.well-known/caldav`))"
       - "traefik.http.services.looty-demo-api.loadbalancer.server.port=8080"
+    # Nom unique pour les appels entre services : sur un réseau Docker partagé entre piles, « backend » désignerait aussi
+    # celui des autres piles.
+    networks:
+      default:
+        aliases:
+          - looty-demo-backend
     restart: unless-stopped
 
   collaboration:
     image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
     environment:
       DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@postgres:5432/looty_demo
-      BACKEND_URL: http://backend:8080
+      BACKEND_URL: http://looty-demo-backend:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,11 +92,18 @@ services:
       - "traefik.http.middlewares.looty-demo-collab-strip.stripprefix.prefixes=/collab"
       - "traefik.http.routers.looty-demo-collab.middlewares=looty-demo-collab-strip"
       - "traefik.http.services.looty-demo-collab.loadbalancer.server.port=8082"
+    networks:
+      default:
+        aliases:
+          - looty-demo-collaboration
     restart: unless-stopped
     stop_grace_period: 30s
 
   frontend:
     image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
+    environment:
+      BACKEND_URL: http://looty-demo-backend:8080
+      COLLAB_URL: http://looty-demo-collaboration:8082
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.looty-demo-web.rule=Host(`${DEMO_DOMAIN:-demo.looty.untypequicode.fr}`)"

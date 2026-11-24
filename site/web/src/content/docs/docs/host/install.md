@@ -20,6 +20,14 @@ curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.exa
 
 The labels set no entry point or certificate: Traefik must reach the stack's network and serve HTTPS on its entry points, for example `--entrypoints.websecure.http.tls.certResolver=<resolver>`. `APP_NAME` and `APP_DOMAIN` in `.env` name the routers and the host rule.
 
+### Several Looty stacks on one Traefik network
+
+If Traefik reaches your stacks through a shared external network (for example `traefik-public`) and you attach the services of two Looty stacks to it, Docker answers the bare name `backend` with the addresses of every stack. A service of one stack can then reach the backend of the other and get 401 errors (the editor fails to connect, for instance). The compose files avoid this: each stack reaches its own services by names that include `APP_NAME`, `${APP_NAME}-backend` and `${APP_NAME}-collaboration`, which are set as network aliases and used by `BACKEND_URL` and `COLLAB_URL`.
+
+- Give every stack its own `APP_NAME` in `.env` (for example `looty` and `looty-demo`); the demo compose file uses `looty-demo`.
+- Attach to the shared network only the services Traefik must reach (usually all three), and never declare a generic alias such as `backend` on it.
+- Keep `postgres` off the shared network.
+
 ## Behind another reverse proxy
 
 Use the Traefik compose file and route, with WebSockets enabled:

@@ -76,6 +76,12 @@ services:
     extra_hosts:
       - "${AUTH_DOMAIN:?AUTH_DOMAIN must be set in .env}:host-gateway"
 #@end
+    # Nom unique pour les appels entre services : sur un réseau Docker partagé entre piles, « backend » désignerait aussi
+    # celui des autres piles.
+    networks:
+      default:
+        aliases:
+          - ${APP_NAME:-looty}-backend
     mem_limit: 1024m
     restart: unless-stopped
 
@@ -83,7 +89,7 @@ services:
     image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-looty_db}
-      BACKEND_URL: http://backend:8080
+      BACKEND_URL: http://${APP_NAME:-looty}-backend:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,12 +101,19 @@ services:
       - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
 #@end
+    networks:
+      default:
+        aliases:
+          - ${APP_NAME:-looty}-collaboration
     mem_limit: 512m
     restart: unless-stopped
     stop_grace_period: 30s
 
   frontend:
     image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
+    environment:
+      BACKEND_URL: http://${APP_NAME:-looty}-backend:8080
+      COLLAB_URL: http://${APP_NAME:-looty}-collaboration:8082
 #@if traefik
     labels:
       - "traefik.enable=true"

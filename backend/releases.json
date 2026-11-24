@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.47.1",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Sessions last 14 days of inactivity, not 14 days in total",
+        "fr": "Sessions : 14 jours d'inactivité, et non 14 jours au total"
+      },
+      "notes": {
+        "en": [
+          "**Stay signed in while you use Looty**: a session was ending 14 days after sign-in even if you used Looty every day. It now extends while you are active and ends after 14 days without use.",
+          "**Several stacks on one Traefik network**: the compose files give the backend and the collaboration service names that belong to their own stack, so two Looty instances on the same Docker network no longer reach each other's backend (which caused sign-in errors in the editor). Self-hosting: see the install guide."
+        ],
+        "fr": [
+          "**Restez connecté tant que vous utilisez Looty** : une session se terminait 14 jours après la connexion, même en utilisant Looty chaque jour. Elle se prolonge désormais tant que vous êtes actif et se termine après 14 jours sans utilisation.",
+          "**Plusieurs piles sur un même réseau Traefik** : les fichiers compose donnent au backend et à la collaboration des noms propres à leur pile, si bien que deux instances de Looty sur un même réseau Docker ne joignent plus le backend de l'autre (cause d'erreurs de connexion dans l'éditeur). Auto-hébergement : voir le guide d'installation."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.47.0",
       "date": "2026-11-24",
       "title": {

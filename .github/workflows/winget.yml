@@ -1,0 +1,62 @@
+# Ouvre (ou met à jour) la PR de la nouvelle version de l'application Windows sur microsoft/winget-pkgs.
+# Appelé par « Release » après la publication d'une version de bureau ; relançable à la main pour une version donnée.
+# Prérequis (une fois, par le propriétaire : docs/packaging-flathub-winget.md) :
+#   - le paquet untypequicode.Looty existe déjà dans microsoft/winget-pkgs (première soumission manuelle) ;
+#   - variable de dépôt WINGET_ENABLED = true ;
+#   - secret de dépôt WINGET_TOKEN : jeton GitHub classique, portée public_repo, d'un compte qui a un fork de winget-pkgs.
+# Sans ces éléments, le job s'arrête sans erreur.
+name: winget
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version de l'application de bureau (X.Y.Z)
+        type: string
+        required: true
+    secrets:
+      WINGET_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version de l'application de bureau (X.Y.Z)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    name: winget-pkgs pull request
+    runs-on: windows-2025
+    if: ${{ vars.WINGET_ENABLED == 'true' }}
+    env:
+      VERSION: ${{ inputs.version }}
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Skip when no token
+        id: gate
+        shell: bash
+        run: |
+          if [ -z "$WINGET_TOKEN" ]; then echo "::notice::WINGET_TOKEN is not set: nothing submitted"; echo "go=false" >> "$GITHUB_OUTPUT"; else echo "go=true" >> "$GITHUB_OUTPUT"; fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like 1.2.3"; exit 1; }
+      # Garde une copie du manifeste calculé (pour la première soumission ou une reprise à la main).
+      - name: Manifest (artifact)
+        if: steps.gate.outputs.go == 'true'
+        shell: bash
+        run: node scripts/winget-manifest.mjs "$VERSION" winget-out --download
+      - uses: actions/upload-artifact@v7
+        if: steps.gate.outputs.go == 'true'
+        with:
+          name: winget-manifest-${{ inputs.version }}
+          path: winget-out
+      - name: wingetcreate update
+        if: steps.gate.outputs.go == 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          $url = "https://github.com/${{ github.repository }}/releases/download/desktop-v$env:VERSION/Looty_${env:VERSION}_x64-setup.exe"
+          ./wingetcreate.exe update untypequicode.Looty --version $env:VERSION --urls "$url|x64" --submit --token $env:WINGET_TOKEN

@@ -341,3 +341,14 @@ jobs:
           mkdir -p publish
           find out/desktop out/android -type f ! -name notes.md -exec cp -t publish/ {} +
           ./scripts/publish-apps.sh publish
+
+  # Ouvre la PR de la nouvelle version sur microsoft/winget-pkgs (inactif sans la variable WINGET_ENABLED et le secret
+  # WINGET_TOKEN ; voir winget.yml et docs/packaging-flathub-winget.md). Après la publication : l'installateur doit exister.
+  winget:
+    name: winget
+    needs: [plan, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' && needs.plan.outputs.desktop != '' && vars.WINGET_ENABLED == 'true' }}
+    uses: ./.github/workflows/winget.yml
+    with:
+      version: ${{ needs.plan.outputs.desktop }}
+    secrets: inherit
