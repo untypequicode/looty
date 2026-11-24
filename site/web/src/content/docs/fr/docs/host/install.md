@@ -42,4 +42,4 @@ L'édition en direct (`/collab`) et les notifications (`/api/ws`) sont des WebSo
 
 ## NixOS
 
-Il n’y a pas de module NixOS pour le serveur. Lancez les fichiers compose avec Docker activé sous NixOS (voir [prérequis](/fr/docs/host/requirements/)). Seule l’*app de bureau* est empaquetée en flake.
+Le flake fournit un module NixOS, `services.looty` : voir [NixOS](/fr/docs/host/nixos/).

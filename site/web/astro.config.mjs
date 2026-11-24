@@ -32,7 +32,7 @@ export default defineConfig({
           { label: 'Features', translations: { fr: 'Fonctions' }, items: [{ autogenerate: { directory: 'docs/use/features' } }] },
         ] },
         { label: 'Host Looty', translations: { fr: 'J’héberge Looty' }, items: [
-          { slug: 'docs/host' }, { slug: 'docs/host/requirements' }, { slug: 'docs/host/quick-install' }, { slug: 'docs/host/install' },
+          { slug: 'docs/host' }, { slug: 'docs/host/requirements' }, { slug: 'docs/host/quick-install' }, { slug: 'docs/host/install' }, { slug: 'docs/host/nixos' },
           { label: 'Sign-in', translations: { fr: 'Connexion' }, items: [{ autogenerate: { directory: 'docs/host/sign-in' } }] },
           { slug: 'docs/host/services' },
           { label: 'Operations', translations: { fr: 'Exploitation' }, items: [{ autogenerate: { directory: 'docs/host/operate' } }] },

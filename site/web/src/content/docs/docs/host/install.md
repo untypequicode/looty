@@ -42,4 +42,4 @@ Live editing (`/collab`) and notifications (`/api/ws`) are WebSockets that stay 
 
 ## NixOS
 
-There is no NixOS module for the server. Run the compose files with Docker enabled on NixOS (see [requirements](/docs/host/requirements/)). The *desktop app* is packaged as a flake.
+The flake provides a NixOS module, `services.looty`: see [NixOS](/docs/host/nixos/).

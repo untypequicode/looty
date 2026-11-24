@@ -7,6 +7,8 @@ on:
     branches: [main]
     paths:
       - 'deploy/**'
+      - 'flake.nix'
+      - 'site/web/public/install.sh'
       - 'docker-compose.prod.yml'
       - 'backend/Dockerfile'
       - 'backend/src/auth.rs'
@@ -17,6 +19,8 @@ on:
   pull_request:
     paths:
       - 'deploy/**'
+      - 'flake.nix'
+      - 'site/web/public/install.sh'
       - 'docker-compose.prod.yml'
       - 'backend/Dockerfile'
       - 'backend/src/auth.rs'
@@ -45,12 +49,28 @@ jobs:
           node-version: 26
       - name: ShellCheck
         run: |
-          shellcheck deploy/render.sh deploy/test/stack.sh
+          shellcheck deploy/render.sh deploy/install.sh deploy/test/stack.sh
+          # install.sh servi par le site : copie exacte de deploy/install.sh.
+          cmp deploy/install.sh site/web/public/install.sh
           rendered=$(mktemp -d)
           sh deploy/render.sh caddy "$rendered" pocket-id
           shellcheck "$rendered/pocket-id-init.sh"
       # Sorties Caddy et Traefik ; docker-compose.prod.yml doit être le rendu Traefik.
       - run: node --test deploy/test/render.test.mjs
+      # install.sh en mode non interactif : mêmes fichiers que render.sh, secrets générés, refus d'écraser, --upgrade.
+      - run: node --test deploy/test/install.test.mjs
+
+  nixos:
+    name: NixOS module
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      # Évaluation de toutes les sorties, puis le test : la machine virtuelle démarre services.looty (voir deploy/nixos/test.nix).
+      - run: nix flake check --no-build
+      - run: nix build .#checks.x86_64-linux.nixos-module -L --no-link
 
   stacks:
     name: Caddy and Traefik stacks
@@ -100,3 +120,5 @@ jobs:
       - run: sh deploy/test/stack.sh traefik
       # Avec le Pocket ID inclus : Looty joint auth.localhost par l'hôte (extra_hosts du compose rendu).
       - run: sh deploy/test/stack.sh traefik pocket-id
+      # Les fichiers écrits par install.sh (non interactif), démarrés pour de bon avec le Pocket ID inclus.
+      - run: LOOTY_INSTALL_SH=1 sh deploy/test/stack.sh caddy pocket-id
