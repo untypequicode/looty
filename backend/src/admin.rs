@@ -284,10 +284,15 @@ pub struct GlobalSettings {
     pub allow_public_signups: bool,
     pub umami_website_id: Option<String>,
     pub umami_script_url: Option<String>,
+    /// Langue (`fr`, `en`) et fuseau IANA donnés aux nouveaux comptes qui n'ont rien choisi.
+    #[serde(default)]
+    pub default_locale: Option<String>,
+    #[serde(default)]
+    pub default_timezone: Option<String>,
 }
 
 const SETTINGS_SELECT: &str =
-    "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url FROM global_settings WHERE id = 1";
+    "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone FROM global_settings WHERE id = 1";
 
 async fn load_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
     Ok(sqlx::query_as(SETTINGS_SELECT).fetch_optional(pool).await?.unwrap_or(GlobalSettings {
@@ -296,6 +301,8 @@ async fn load_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
         allow_public_signups: true,
         umami_website_id: None,
         umami_script_url: None,
+        default_locale: None,
+        default_timezone: None,
     }))
 }
 
@@ -320,17 +327,27 @@ async fn update_settings(
             return Err(ApiError::bad_request("invalid_umami_id"));
         }
     }
+    let locale = p.default_locale.as_deref().map(str::trim).filter(|l| !l.is_empty());
+    if locale.is_some_and(|l| !matches!(l, "fr" | "en")) {
+        return Err(ApiError::bad_request("invalid_locale"));
+    }
+    let timezone = p.default_timezone.as_deref().map(str::trim).filter(|l| !l.is_empty());
+    if timezone.is_some_and(|z| !crate::setup::valid_timezone(z)) {
+        return Err(ApiError::bad_request("invalid_timezone"));
+    }
     sqlx::query(
-        "INSERT INTO global_settings (id, app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, updated_at)
-         VALUES (1, $1, $2, $3, $4, $5, NOW())
+        "INSERT INTO global_settings (id, app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, $6, $7, NOW())
          ON CONFLICT (id) DO UPDATE SET app_name = $1, favicon_url = $2, allow_public_signups = $3,
-            umami_website_id = $4, umami_script_url = $5, updated_at = NOW()",
+            umami_website_id = $4, umami_script_url = $5, default_locale = $6, default_timezone = $7, updated_at = NOW()",
     )
     .bind(name)
     .bind(check_url(&p.favicon_url, true)?)
     .bind(p.allow_public_signups)
     .bind(website_id)
     .bind(check_url(&p.umami_script_url, false)?)
+    .bind(locale)
+    .bind(timezone)
     .execute(&pool)
     .await?;
     Ok(Json(load_settings(&pool).await?))

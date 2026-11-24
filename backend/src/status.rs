@@ -166,7 +166,7 @@ fn update_cache() -> &'static Mutex<Option<(Instant, Option<String>)>> {
 }
 
 /// La vérification sort vers GitHub : elle est désactivée par défaut et mise en cache six heures.
-async fn update_status() -> serde_json::Value {
+pub(crate) async fn update_status() -> serde_json::Value {
     let enabled = std::env::var("LOOTY_UPDATE_CHECK").is_ok_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"));
     if !enabled {
         return serde_json::json!({ "checked": false });

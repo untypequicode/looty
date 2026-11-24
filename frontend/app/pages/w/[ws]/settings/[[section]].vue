@@ -30,6 +30,8 @@ import AccountData from '~/components/settings/AccountData.vue'
 import AdminStatus from '~/components/settings/AdminStatus.vue'
 import Webhooks from '~/components/settings/Webhooks.vue'
 import Templates from '~/components/settings/Templates.vue'
+import AdminLocal from '~/components/settings/AdminLocal.vue'
+import AdminDoctor from '~/components/settings/AdminDoctor.vue'
 
 definePageMeta({ layout: 'settings' })
 
@@ -63,6 +65,8 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   'admin-storage': { comp: AdminStorage, title: 'storage.title', admin: true },
   'admin-status': { comp: AdminStatus, title: 'adminStatus.title', admin: true },
   'admin-instance': { comp: AdminInstance, title: 'settings.nav.instance', admin: true },
+  'admin-local': { comp: AdminLocal, title: 'localAdmin.title', admin: true },
+  'admin-doctor': { comp: AdminDoctor, title: 'doctor.title', admin: true },
 }
 // Sections qui chargent le serveur ou sortent vers l'extérieur : indisponibles dans la démo.
 const DEMO_LOCKED = new Set(['notifications', 'calendars', 'ai'])

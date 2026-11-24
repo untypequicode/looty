@@ -5,15 +5,20 @@ import { api, uploadFile } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 
-interface Settings { app_name: string; favicon_url?: string | null; allow_public_signups: boolean; umami_website_id?: string | null; umami_script_url?: string | null }
+interface Settings { app_name: string; favicon_url?: string | null; allow_public_signups: boolean; umami_website_id?: string | null; umami_script_url?: string | null; default_locale?: 'fr' | 'en' | null; default_timezone?: string | null }
 const { t } = useI18n()
 const qc = useQueryClient()
 const { data } = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api<Settings>('/api/admin/settings') })
-const form = reactive<Settings>({ app_name: 'Looty', favicon_url: null, allow_public_signups: true, umami_website_id: '', umami_script_url: '' })
+const form = reactive<Settings>({ app_name: 'Looty', favicon_url: null, allow_public_signups: true, umami_website_id: '', umami_script_url: '', default_locale: null, default_timezone: null })
 watch(data, (d) => { if (d) Object.assign(form, { ...d, umami_website_id: d.umami_website_id ?? '', umami_script_url: d.umami_script_url ?? '' }) }, { immediate: true })
 const saving = ref(false)
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+
+const tzOpen = ref(false)
+const tzItems = computed(() => [{ value: '', label: t('settings.instance.noDefault') }, ...(((Intl as any).supportedValuesOf?.('timeZone') ?? []) as string[]).map((z) => ({ value: z, label: z.replace(/_/g, ' ') }))])
+const localeItems = computed(() => [{ value: '', label: t('settings.instance.noDefault') }, { value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }])
+const localeOpen = ref(false)
 
 async function onFile(e: Event) {
   const f = (e.target as HTMLInputElement).files?.[0]
@@ -49,6 +54,18 @@ async function save() {
       <UiSwitch v-model="form.allow_public_signups" />
     </SettingsRow>
   </SettingsSection>
+  <SettingsSection :title="t('settings.instance.defaults')" :description="t('settings.instance.defaultsHint')">
+    <SettingsRow :label="t('settings.instance.defaultLocale')">
+      <UiCombobox v-model:open="localeOpen" :model-value="form.default_locale ?? ''" :items="localeItems" :width="200" placement="bottom-end" @update:model-value="(v) => (form.default_locale = v ? (String(v) as 'fr' | 'en') : null)">
+        <button class="tz-select">{{ localeItems.find((i) => i.value === (form.default_locale ?? ''))?.label }}</button>
+      </UiCombobox>
+    </SettingsRow>
+    <SettingsRow :label="t('settings.instance.defaultTimezone')">
+      <UiCombobox v-model:open="tzOpen" :model-value="form.default_timezone ?? ''" :items="tzItems" :width="280" placement="bottom-end" @update:model-value="(v) => (form.default_timezone = v ? String(v) : null)">
+        <button class="tz-select">{{ form.default_timezone ? form.default_timezone.replace(/_/g, ' ') : t('settings.instance.noDefault') }}</button>
+      </UiCombobox>
+    </SettingsRow>
+  </SettingsSection>
   <SettingsSection :title="t('settings.instance.analytics')" :description="t('settings.instance.analyticsHint')">
     <SettingsRow label="Website ID"><UiInput v-model="form.umami_website_id" placeholder="xxxxxxxx-xxxx-…" style="width: 280px" /></SettingsRow>
     <SettingsRow :label="t('settings.instance.scriptUrl')"><UiInput v-model="form.umami_script_url" placeholder="https://analytics.example.com/script.js" style="width: 280px" /></SettingsRow>
@@ -57,6 +74,7 @@ async function save() {
 </template>
 
 <style scoped>
+.tz-select { background: var(--bg-hover); border: 0; border-radius: var(--r-md); padding: 6px 10px; color: inherit; cursor: pointer; font: inherit; }
 .fav { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; background: var(--bg-hover); }
 .actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 </style>

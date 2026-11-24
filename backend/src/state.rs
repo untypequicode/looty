@@ -22,6 +22,12 @@ pub struct AppState {
     /// Mode démo (`LOOTY_DEMO`) : les routes qui sortent vers l'extérieur sont refusées.
     pub demo: bool,
     pub demo_limits: crate::demo_mode::DemoLimits,
+    /// Comptes locaux (`LOOTY_LOCAL_ACCOUNTS`) : désactivés par défaut.
+    pub local_accounts: bool,
+    /// Inscription ouverte aux comptes locaux (`LOOTY_LOCAL_SIGNUP=open`), fermée par défaut.
+    pub local_signup_open: bool,
+    /// Code du premier compte local, lu dans les journaux du serveur.
+    pub setup_code: Arc<String>,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -40,6 +46,9 @@ impl AppState {
             caldav_notify: Arc::new(tokio::sync::Notify::new()),
             demo: crate::demo_mode::enabled(),
             demo_limits: crate::demo_mode::DemoLimits::from_env(),
+            local_accounts: crate::local_auth::env_enabled(),
+            local_signup_open: crate::local_auth::env_signup_open(),
+            setup_code: Arc::new(crate::local_auth::new_setup_code()),
         }
     }
 

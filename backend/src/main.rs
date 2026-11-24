@@ -9,6 +9,9 @@ mod admin;
 mod announcements;
 mod archive;
 mod auth;
+mod local_auth;
+mod setup;
+mod doctor;
 mod board;
 mod board_export;
 mod caldav;
@@ -109,6 +112,10 @@ async fn main() {
 
     // `backend seed-demo [fr] [en]` : génère l'espace « Looty Démo » (GLOSSARY : Démo) et s'arrête.
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // `backend doctor [--json]` (alias `looty doctor`) : diagnostic de l'installation (issue 164).
+    if args.first().map(String::as_str) == Some("doctor") {
+        std::process::exit(doctor::cli(&args[1..]).await);
+    }
     if args.first().map(String::as_str) == Some("seed-demo") {
         let pool = db::init_db().await.expect("Failed to initialize database");
         std::process::exit(demo::run(state::AppState::new(pool, base_url()), &args[1..]).await);
@@ -134,6 +141,7 @@ async fn main() {
     session_store.start_cleanup();
 
     let state = state::AppState::new(pool.clone(), base_url());
+    local_auth::announce_setup_code(&state).await;
     if demo {
         // Aucune tâche de fond qui sorte vers l'extérieur ; seul le ménage des copies tourne.
         demo_mode::start_purge_loop(state.clone());
@@ -186,7 +194,7 @@ fn app(state: state::AppState) -> Router {
         .route("/public/pages/{token}/notebook", get(public_project::notebook))
         .route("/public/pages/{token}/files/{*path}", get(public_project::image))
         .route("/public/pages/{token}/output.pdf", get(public_project::pdf))
-        .nest("/auth", auth::routes().nest("/demo", demo_mode::routes()))
+        .nest("/auth", auth::routes().nest("/demo", demo_mode::routes()).nest("/local", local_auth::routes()))
         .nest("/admin", admin::routes())
         .nest("/user", user_settings::routes().merge(prefs::user_routes()).merge(account::user_routes()))
         .nest("/workspaces/{workspace_id}/export", account::workspace_routes())
@@ -204,6 +212,9 @@ fn app(state: state::AppState) -> Router {
         .nest("/admin/insights", analytics::admin_routes())
         .nest("/admin/backups", backup::routes())
         .nest("/admin/status", status::routes())
+        .nest("/admin/local", local_auth::admin_routes())
+        .nest("/setup", setup::routes())
+        .nest("/admin/doctor", doctor::routes())
         .route("/metrics", get(status::metrics))
         .route("/boards/tasks/{task_id}/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())

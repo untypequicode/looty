@@ -15,5 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libssl3t64 ca-c
       texlive-lang-french texlive-lang-english texlive-xetex texlive-luatex texlive-bibtex-extra texlive-science texlive-pictures biber lmodern; fi \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/backend /app/backend
+# `docker compose exec backend looty doctor` : diagnostic de l'installation.
+RUN ln -s /app/backend /usr/local/bin/looty
 EXPOSE 8080
 CMD ["/app/backend"]

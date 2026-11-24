@@ -18,6 +18,9 @@ const { data: cast } = useQuery({
 const initials = (name: string) => name.split(' ').map((p) => p[0]).join('')
 const providers = ref<{ id: string; name: string }[]>([])
 const loading = ref(true)
+// Comptes locaux activés sur l'instance (LOOTY_LOCAL_ACCOUNTS) : le formulaire adresse + mot de passe s'affiche.
+const localOn = ref(false)
+const redirectTarget = computed(() => (typeof route.query.redirect === 'string' ? route.query.redirect : '/'))
 const redirecting = ref<string | null>(null)
 const card = ref<HTMLElement | null>(null)
 // Échec avant de quitter Looty (fournisseur injoignable, par exemple) : affiché dans la carte, pas en notification.
@@ -102,7 +105,8 @@ useHead({ title: () => t('auth.login') })
             {{ t('auth.continueWith', { provider: p.name }) }}
           </UiButton>
         </template>
-        <p v-else class="faint">{{ t('auth.noProvider') }}</p>
+        <p v-else-if="!localOn" class="faint">{{ t('auth.noProvider') }}</p>
+        <AuthLocalLogin v-if="!loading" :redirect="redirectTarget" :has-providers="providers.length > 0" @ready="localOn = $event" />
       </div>
     </div>
   </div>

@@ -41,6 +41,9 @@ services:
       LOOTY_DEMO_COPIES_PER_IP_HOUR: ${LOOTY_DEMO_COPIES_PER_IP_HOUR:-5}
       LOOTY_DEMO_MAX_FILE_MB: ${LOOTY_DEMO_MAX_FILE_MB:-2}
       LOOTY_DEMO_MAX_COPY_MB: ${LOOTY_DEMO_MAX_COPY_MB:-20}
+      # Comptes locaux (déconseillés, désactivés par défaut) : voir .env.example.
+      LOOTY_LOCAL_ACCOUNTS: ${LOOTY_LOCAL_ACCOUNTS:-false}
+      LOOTY_LOCAL_SIGNUP: ${LOOTY_LOCAL_SIGNUP:-closed}
       # E-mails : à configurer dans Administration > E-mail, ou ici (repli).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}

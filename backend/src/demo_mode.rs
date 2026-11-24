@@ -23,7 +23,7 @@ fn api_unavailable(method: &str, seg: &[&str]) -> bool {
     match seg {
         // Administration du serveur, courrier de l'instance, stockage, statistiques, sauvegardes.
         // Connexion : la seule entrée de la démo est « Entrer dans la démo ».
-        ["auth", "login" | "callback" | "dev-login" | "desktop", ..] => true,
+        ["auth", "login" | "callback" | "dev-login" | "desktop" | "local", ..] => true,
         ["admin", ..] => true,
         ["mail", ..] => true,
         ["user", "caldav" | "push" | "notifications", ..] => true,

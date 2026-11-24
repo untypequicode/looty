@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/vue-query'
 import { ME_KEY, fetchMe } from '~/composables/useAuth'
 import { setLocale } from '~/composables/useI18n'
 import { setTheme } from '~/composables/useTheme'
+import { checkSetup } from '~/composables/useSetup'
 
 const PUBLIC_PREFIXES = ['/login', '/public/']
 let prefsApplied = false
@@ -24,6 +25,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   if (!me.authenticated && !isPublic) {
     return navigateTo({ path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} })
+  }
+  // Première visite d'un administrateur sur une instance neuve : l'assistant de premier lancement.
+  if (me.authenticated && me.user?.is_super_admin && to.path !== '/setup' && await checkSetup()) {
+    return navigateTo('/setup')
   }
   if (me.authenticated && to.path === '/login') {
     const r = to.query.redirect
