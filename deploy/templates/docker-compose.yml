@@ -70,6 +70,15 @@ services:
       - "traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/pages`) || PathPrefix(`/dav`) || Path(`/.well-known/caldav`))"
       - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=8080"
 #@end
+#@if traefik entrypoint
+      - "traefik.http.routers.${APP_NAME}-api.entrypoints=${TRAEFIK_ENTRYPOINT:?TRAEFIK_ENTRYPOINT must be set in .env}"
+#@end
+#@if traefik resolver
+      - "traefik.http.routers.${APP_NAME}-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:?TRAEFIK_CERT_RESOLVER must be set in .env}"
+#@end
+#@if traefik network
+      - "traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in .env}"
+#@end
 #@if traefik pocket-id
     # Looty joint le fournisseur inclus par son adresse publique (https://AUTH_DOMAIN) : ce nom mène à l'hôte,
     # où Traefik écoute sur le port 443, sans dépendre d'un aller-retour par l'adresse publique du serveur.
@@ -82,6 +91,9 @@ services:
       default:
         aliases:
           - ${APP_NAME:-looty}-backend
+#@if traefik network
+      proxy:
+#@end
     mem_limit: 1024m
     restart: unless-stopped
 
@@ -101,10 +113,22 @@ services:
       - "traefik.http.routers.${APP_NAME}-collab.middlewares=${APP_NAME}-collab-strip"
       - "traefik.http.services.${APP_NAME}-collab.loadbalancer.server.port=8082"
 #@end
+#@if traefik entrypoint
+      - "traefik.http.routers.${APP_NAME}-collab.entrypoints=${TRAEFIK_ENTRYPOINT:?TRAEFIK_ENTRYPOINT must be set in .env}"
+#@end
+#@if traefik resolver
+      - "traefik.http.routers.${APP_NAME}-collab.tls.certresolver=${TRAEFIK_CERT_RESOLVER:?TRAEFIK_CERT_RESOLVER must be set in .env}"
+#@end
+#@if traefik network
+      - "traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in .env}"
+#@end
     networks:
       default:
         aliases:
           - ${APP_NAME:-looty}-collaboration
+#@if traefik network
+      proxy:
+#@end
     mem_limit: 512m
     restart: unless-stopped
     stop_grace_period: 30s
@@ -119,6 +143,20 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-web.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.services.${APP_NAME}-web.loadbalancer.server.port=3000"
+#@end
+#@if traefik entrypoint
+      - "traefik.http.routers.${APP_NAME}-web.entrypoints=${TRAEFIK_ENTRYPOINT:?TRAEFIK_ENTRYPOINT must be set in .env}"
+#@end
+#@if traefik resolver
+      - "traefik.http.routers.${APP_NAME}-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER:?TRAEFIK_CERT_RESOLVER must be set in .env}"
+#@end
+#@if traefik network
+      - "traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in .env}"
+#@end
+#@if traefik network
+    networks:
+      - default
+      - proxy
 #@end
     mem_limit: 384m
     restart: unless-stopped
@@ -179,6 +217,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 24
+#@end
+#@if pocket-id traefik network
+    networks:
+      - default
+      - proxy
+#@end
+#@if pocket-id
     mem_limit: 256m
     restart: unless-stopped
 #@end
@@ -187,6 +232,15 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${APP_NAME}-auth.rule=Host(`${AUTH_DOMAIN}`)"
       - "traefik.http.services.${APP_NAME}-auth.loadbalancer.server.port=1411"
+#@end
+#@if traefik pocket-id entrypoint
+      - "traefik.http.routers.${APP_NAME}-auth.entrypoints=${TRAEFIK_ENTRYPOINT:?TRAEFIK_ENTRYPOINT must be set in .env}"
+#@end
+#@if traefik pocket-id resolver
+      - "traefik.http.routers.${APP_NAME}-auth.tls.certresolver=${TRAEFIK_CERT_RESOLVER:?TRAEFIK_CERT_RESOLVER must be set in .env}"
+#@end
+#@if traefik pocket-id network
+      - "traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in .env}"
 #@end
 #@if pocket-id
 
@@ -210,4 +264,41 @@ services:
       pocket-id:
         condition: service_healthy
     restart: "no"
+#@end
+#@if backup
+
+  # Sauvegarde automatique de la base : un export (pg_dump, compressé) au démarrage puis toutes les 24 heures, dans
+  # ./data/db-backups ; les 7 derniers sont gardés. Les fichiers envoyés (./backend/uploads), .env et LOOTY_SECRET_KEY
+  # sont à sauvegarder à part ; l'administration de Looty fait aussi des sauvegardes complètes (base et fichiers).
+  # En cas d'échec : docker compose logs db-backup
+  db-backup:
+    image: postgres:18-alpine
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          f=/backups/looty-$$(date +%Y%m%d-%H%M%S).sql.gz
+          if PGPASSWORD="$$POSTGRES_PASSWORD" pg_dump -h postgres | gzip > "$$f.tmp"; then mv "$$f.tmp" "$$f"; else rm -f "$$f.tmp"; echo "pg_dump failed" >&2; fi
+          ls -1t /backups/looty-*.sql.gz | tail -n +8 | xargs -r rm -f
+          sleep 86400
+        done
+    environment:
+      PGUSER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      PGDATABASE: ${DB_NAME:-looty_db}
+    volumes:
+      - ./data/db-backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 128m
+    restart: unless-stopped
+#@end
+#@if traefik network
+
+# Réseau Docker existant par lequel votre Traefik joint la pile (TRAEFIK_NETWORK dans .env).
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in .env}
+    external: true
 #@end

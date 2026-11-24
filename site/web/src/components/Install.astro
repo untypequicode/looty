@@ -32,6 +32,13 @@ const strings = JSON.stringify({ lang, errors: g.out.errors, copy: g.out.copy, c
             <label class="choice"><input type="radio" name="proxy-compose" value="caddy" checked /><span>{g.proxy.caddy}</span></label>
             <label class="choice"><input type="radio" name="proxy-compose" value="traefik" /><span>{g.proxy.traefik}</span></label>
           </fieldset>
+          <fieldset data-for="compose" data-traefik hidden>
+            <legend>{g.traefik.legend}</legend>
+            <p class="help">{g.traefik.hint}</p>
+            <label>{g.traefik.network}<input type="text" name="traefikNetwork" placeholder="traefik-public" spellcheck="false" autocapitalize="off" aria-describedby="tnet-hint traefik-network-err" /><span class="hint" id="tnet-hint">{g.traefik.networkHint}</span><span class="err" id="traefik-network-err" role="alert"></span></label>
+            <label>{g.traefik.entrypoint}<input type="text" name="traefikEntrypoint" placeholder="websecure" spellcheck="false" autocapitalize="off" aria-describedby="tent-hint traefik-entrypoint-err" /><span class="hint" id="tent-hint">{g.traefik.entrypointHint}</span><span class="err" id="traefik-entrypoint-err" role="alert"></span></label>
+            <label>{g.traefik.resolver}<input type="text" name="traefikResolver" placeholder="letsencrypt" spellcheck="false" autocapitalize="off" aria-describedby="tres-hint traefik-resolver-err" /><span class="hint" id="tres-hint">{g.traefik.resolverHint}</span><span class="err" id="traefik-resolver-err" role="alert"></span></label>
+          </fieldset>
           <fieldset data-for="nixos" hidden>
             <legend>{g.proxy.legend}</legend>
             <label class="choice"><input type="radio" name="proxy-nixos" value="caddy" checked disabled /><span>{g.proxy.caddy.replace(': included, HTTPS automatic', '').replace(' : inclus, HTTPS automatique', '')}</span></label>
@@ -79,6 +86,7 @@ const strings = JSON.stringify({ lang, errors: g.out.errors, copy: g.out.copy, c
               <span class="err" id="smtp-err" role="alert"></span>
             </div>
             <label class="choice"><input type="checkbox" name="jupyter" /><span>{g.options.jupyter}</span><span class="hint">{g.options.jupyterHint}</span></label>
+            <label class="choice" data-for="compose"><input type="checkbox" name="dbBackup" /><span>{g.options.dbBackup}</span><span class="hint">{g.options.dbBackupHint}</span></label>
             <label class="choice" data-for="nixos" hidden><input type="checkbox" name="backup" checked /><span>{g.options.backup}</span><span class="hint">{g.options.backupHint}</span></label>
             <p class="help">{g.options.push}</p>
           </fieldset>

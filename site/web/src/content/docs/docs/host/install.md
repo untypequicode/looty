@@ -18,7 +18,9 @@ curl -LO https://github.com/untypequicode/looty/releases/latest/download/docker-
 curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
 ```
 
-The labels set no entry point or certificate: Traefik must reach the stack's network and serve HTTPS on its entry points, for example `--entrypoints.websecure.http.tls.certResolver=<resolver>`. `APP_NAME` and `APP_DOMAIN` in `.env` name the routers and the host rule.
+By default the labels set no entry point or certificate: Traefik must reach the stack's network and serve HTTPS on its entry points, for example `--entrypoints.websecure.http.tls.certResolver=<resolver>`. `APP_NAME` and `APP_DOMAIN` in `.env` name the routers and the host rule.
+
+To have the labels carry the names of your Traefik, fill in the **Your Traefik** section of the [configuration generator](/install/) (or pass `--traefik-network`, `--traefik-entrypoint` and `--traefik-resolver` to `install.sh`). The generated files then contain `TRAEFIK_ENTRYPOINT` (router entry point), `TRAEFIK_CERT_RESOLVER` (certificate resolver) and `TRAEFIK_NETWORK` (existing external Docker network, which the services join and the `traefik.docker.network` label names). See the [environment reference](/docs/reference/environment/).
 
 ### Several Looty stacks on one Traefik network
 

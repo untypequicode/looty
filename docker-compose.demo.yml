@@ -48,6 +48,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    mem_limit: 256m
     restart: unless-stopped
 
   backend:
@@ -61,6 +62,8 @@ services:
       LOOTY_DEMO_COPIES_PER_IP_HOUR: ${LOOTY_DEMO_COPIES_PER_IP_HOUR:-5}
       LOOTY_DEMO_MAX_FILE_MB: ${LOOTY_DEMO_MAX_FILE_MB:-2}
       LOOTY_DEMO_MAX_COPY_MB: ${LOOTY_DEMO_MAX_COPY_MB:-20}
+      # Remise à zéro complète chaque nuit (heure locale de CALENDAR_DEFAULT_TZ, UTC sinon) ; « off » la désactive.
+      LOOTY_DEMO_RESET_HOUR: ${LOOTY_DEMO_RESET_HOUR:-3}
     volumes:
       - demo_uploads:/app/uploads
     depends_on:
@@ -76,6 +79,7 @@ services:
       default:
         aliases:
           - looty-demo-backend
+    mem_limit: 512m
     restart: unless-stopped
 
   collaboration:
@@ -96,6 +100,7 @@ services:
       default:
         aliases:
           - looty-demo-collaboration
+    mem_limit: 256m
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -111,6 +116,7 @@ services:
       # La démo n'est pas à référencer (le site officiel l'est) : les moteurs de recherche ne l'indexent pas.
       - "traefik.http.middlewares.looty-demo-noindex.headers.customresponseheaders.X-Robots-Tag=noindex, nofollow"
       - "traefik.http.routers.looty-demo-web.middlewares=looty-demo-noindex"
+    mem_limit: 192m
     restart: unless-stopped
 
 volumes:

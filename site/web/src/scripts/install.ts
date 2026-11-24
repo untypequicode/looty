@@ -16,7 +16,7 @@ const checked = (name: string) => (form.querySelector(`input[name="${name}"]:che
 const touched = new Set<string>()
 let attempt = false
 
-interface Options { target: string; proxy: string; domain: string; name: string; version: string; auth: string; lang: string; oidc: { issuer: string; clientId: string; clientSecret: string }; smtp: Record<string, string> | null; jupyterPrivate: boolean; backup: boolean }
+interface Options { target: string; proxy: string; domain: string; name: string; version: string; auth: string; lang: string; oidc: { issuer: string; clientId: string; clientSecret: string }; smtp: Record<string, string> | null; jupyterPrivate: boolean; backup: boolean; dbBackup: boolean; traefik: { network: string; entrypoint: string; resolver: string } }
 
 function read(): Options {
   const target = checked('target')
@@ -33,6 +33,8 @@ function read(): Options {
     smtp: smtp ? { host: field('smtpHost').value.trim(), port: field('smtpPort').value.trim(), user: field('smtpUser').value.trim(), password: field('smtpPassword').value, from: field('smtpFrom').value.trim() } : null,
     jupyterPrivate: field('jupyter').checked,
     backup: field('backup').checked,
+    dbBackup: field('dbBackup').checked,
+    traefik: { network: field('traefikNetwork').value.trim(), entrypoint: field('traefikEntrypoint').value.trim(), resolver: field('traefikResolver').value.trim() },
   }
 }
 
@@ -42,7 +44,7 @@ const build = (o: Options) => (o.target === 'nixos' ? buildNixos(o, { origin }) 
 function showFields(o: Options) {
   const nixos = o.target === 'nixos'
   form.querySelectorAll<HTMLElement>('[data-for]').forEach((el) => {
-    const show = el.dataset.for === o.target
+    const show = el.dataset.for === o.target && (el.dataset.traefik === undefined || o.proxy === 'traefik')
     el.hidden = !show
     el.querySelectorAll<HTMLInputElement>('input').forEach((input) => (input.disabled = !show))
   })
@@ -59,14 +61,15 @@ function showFields(o: Options) {
 }
 
 function showErrors(errors: Record<string, string>) {
-  const names = ['domain', 'name', 'version', 'issuer', 'clientId', 'clientSecret', 'smtp']
+  const names = ['domain', 'name', 'version', 'issuer', 'clientId', 'clientSecret', 'smtp', 'traefik-network', 'traefik-entrypoint', 'traefik-resolver']
   for (const key of names) {
     const el = document.getElementById(`${key}-err`)
     if (!el) continue
-    const input = form.elements.namedItem(key) as HTMLInputElement | null
+    const inputName = key.replace(/-(\w)/g, (_, c: string) => c.toUpperCase())
+    const input = form.elements.namedItem(inputName) as HTMLInputElement | null
     const value = input ? input.value : ''
     // Une erreur n'apparaît qu'après la saisie du champ, ou à la demande d'un fichier.
-    const show = errors[key] && (attempt || touched.has(key) || (value && key !== 'clientSecret'))
+    const show = errors[key] && (attempt || touched.has(inputName) || (value && key !== 'clientSecret'))
     el.textContent = show ? strings.errors[errors[key]] ?? '' : ''
     if (input) input.setAttribute('aria-invalid', String(Boolean(show)))
   }

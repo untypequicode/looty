@@ -71,8 +71,17 @@ Captures et aperçus (pile de développement en marche, voir `tools/`) :
 
 ```sh
 CHROMIUM=… node tools/screenshots.mjs           # public/shots/*.webp, sur l'espace « Looty Démo » (régénéré)
+CHROMIUM=… node tools/videos.mjs           # public/clips/*.{webm,mp4,webp} (mini-vidéos, ffmpeg requis ; non versionnées)
 CHROMIUM=… node tools/og.mjs                    # public/og-en.png, og-fr.png (aperçus des réseaux sociaux)
 ```
+
+Mini-vidéos (#156, #157) : `tools/videos.mjs` enregistre des scénarios Playwright (curseur visible, mouvements fluides) sur le jeu
+« Looty Démo », puis `ffmpeg` les encode en WebM VP9, MP4 H.264 (repli) et affiche WebP, sous 1 Mo visés par vidéo, par langue et
+par thème (sombre par défaut) : `node tools/videos.mjs [dossier] [fr,en] [dark,light] [scénario…]`. `DRY_RUN=1` liste les
+fichiers attendus. Les fichiers (`public/clips/`) ne sont pas versionnés. Le composant `src/components/Clip.astro` les affiche
+(lecture à l'entrée dans l'écran, rien de téléchargé avant, affiche seule avec bouton lecture si le mouvement est réduit) et ne
+rend rien quand ils manquent : le site se construit donc sans eux. Scénarios écrits : `board`, `search`, `latex`, `calendar` ;
+restent à scripter : édition à deux curseurs, sondage, notebook Pyodide, Android hors ligne.
 
 Variables du serveur : `PORT` (8080), `WEB_DIR`, `DATA_DIR`, `UPLOAD_TOKEN`, `SITE_URL` (adresse publique ; sinon
 déduite de l'en-tête `Host` / `X-Forwarded-*`).

@@ -59,3 +59,6 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 /packaging/flatpak/.flatpak-builder/
 /packaging/flatpak/build/
 /packaging/flatpak/repo/
+
+# Mini-vidéos du site (site/tools/videos.mjs) : générées, jamais versionnées
+site/web/public/clips/

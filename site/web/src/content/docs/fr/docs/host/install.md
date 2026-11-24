@@ -18,7 +18,9 @@ curl -LO https://github.com/untypequicode/looty/releases/latest/download/docker-
 curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
 ```
 
-Les étiquettes ne fixent ni point d’entrée ni certificat : Traefik doit joindre le réseau de la pile et servir HTTPS sur ses points d’entrée, par exemple `--entrypoints.websecure.http.tls.certResolver=<résolveur>`. `APP_NAME` et `APP_DOMAIN` dans `.env` nomment les routeurs et la règle d’hôte.
+Par défaut, les étiquettes ne fixent ni point d’entrée ni certificat : Traefik doit joindre le réseau de la pile et servir HTTPS sur ses points d’entrée, par exemple `--entrypoints.websecure.http.tls.certResolver=<résolveur>`. `APP_NAME` et `APP_DOMAIN` dans `.env` nomment les routeurs et la règle d’hôte.
+
+Pour que les étiquettes portent les noms de votre Traefik, remplissez la section **Votre Traefik** du [générateur de configuration](/fr/install/) (ou passez `--traefik-network`, `--traefik-entrypoint` et `--traefik-resolver` à `install.sh`). Les fichiers générés contiennent alors `TRAEFIK_ENTRYPOINT` (point d’entrée des routeurs), `TRAEFIK_CERT_RESOLVER` (résolveur de certificats) et `TRAEFIK_NETWORK` (réseau Docker externe existant, que les services rejoignent et que nomme l’étiquette `traefik.docker.network`). Voir la [référence des variables](/fr/docs/reference/environment/).
 
 ### Plusieurs piles Looty sur un même réseau Traefik
 
