@@ -81,3 +81,9 @@ test('createRefusalLimiter : délai croissant puis abandon, fenêtre glissante, 
   l.note('a'); l.success('a')
   assert.deepEqual(l.check('a'), { delayMs: 0, giveUp: false })
 })
+
+test('describeRefusal ajoute la raison donnée par le backend, nettoyée', () => {
+  const { describeRefusal } = require('./resilience')
+  const line = describeRefusal({ reason: 'unauthorized', status: 401, documentName: 'abc', hasCookie: true, userAgent: 'u', backendReason: 'no_user_in_session"\n x' })
+  assert.match(line, / backend_reason=no_user_in_sessionx$/)
+})

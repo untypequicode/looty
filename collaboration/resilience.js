@@ -40,7 +40,7 @@ function authErrorForStatus(status) {
  * type de client, pour retrouver d'où vient une reconnexion en boucle. Jamais de cookie, de jeton
  * ni d'adresse : le navigateur et le document suffisent.
  */
-function describeRefusal({ reason, status, documentName, hasToken, hasCookie, userAgent, cookieCount, cookieHash, origin, forwardedFor, client }) {
+function describeRefusal({ reason, status, documentName, hasToken, hasCookie, userAgent, cookieCount, cookieHash, origin, forwardedFor, client, backendReason }) {
   const ua = String(userAgent || '-').replace(/\s+/g, ' ').slice(0, 80)
   const doc = String(documentName || '-').slice(0, 64)
   const via = hasToken ? 'token' : hasCookie ? 'cookie' : 'none'
@@ -48,6 +48,7 @@ function describeRefusal({ reason, status, documentName, hasToken, hasCookie, us
   let line = `refused reason=${reason}${status ? ` status=${status}` : ''} doc=${doc} via=${via} ua="${ua}"`
   if (cookieCount !== undefined) line += ` session_cookies=${cookieCount} session_sha=${cookieHash || '-'} origin="${clean(origin, 80)}" xff="${clean(forwardedFor, 80)}"`
   if (client) line += ` client=${client}`
+  if (backendReason) line += ` backend_reason=${String(backendReason).replace(/[^a-z0-9_-]/gi, '').slice(0, 40)}`
   return line
 }
 

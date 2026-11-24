@@ -18,6 +18,18 @@
         "fr": [
           "**Hauteur des lignes** : glissez le bord bas d'une ligne pour la redimensionner (double-clic pour revenir à l'automatique). La largeur des colonnes se règle toujours en glissant leurs bordures. Les tailles sont enregistrées dans la page, partagées en temps réel et conservées dans les pages publiques, les exports HTML et l'impression ; sur un petit écran, un tableau large défile horizontalement.",
           "**Texte tourné** : la barre du tableau permet de tourner de 90° vers la gauche ou la droite le texte des cellules sélectionnées, par exemple les en-têtes, ou de le remettre à l'horizontale. Les exports Markdown ne gardent que le texte."
+      "version": "0.46.1",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Clearer sign-in refusals in the logs",
+        "fr": "Refus de connexion plus lisibles dans les journaux"
+      },
+      "notes": {
+        "en": [
+          "**Diagnostics**: every refused sign-in (401) is now logged with its cause and the answer carries a `reason`, so collaboration refusals can be traced to their exact cause."
+        ],
+        "fr": [
+          "**Diagnostic** : chaque refus de connexion (401) est désormais journalisé avec sa cause et la réponse porte une `reason`, ce qui permet de retrouver la cause exacte des refus de la collaboration."
         ]
       }
     },

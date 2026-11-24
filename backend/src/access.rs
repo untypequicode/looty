@@ -29,6 +29,10 @@ pub fn hash_token(raw: &str) -> String {
     hex::encode(Sha256::digest(raw.as_bytes()))
 }
 
+/// Marque une extraction facultative : l'absence de connexion n'y est pas un refus à journaliser.
+#[derive(Clone, Copy)]
+struct QuietAuth;
+
 /// `Option<AuthUser>` : utilisateur connecté s'il y en a un (pages publiques, versions…).
 impl<S> OptionalFromRequestParts<S> for AuthUser
 where
@@ -38,6 +42,7 @@ where
     type Rejection = std::convert::Infallible;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Option<Self>, Self::Rejection> {
+        parts.extensions.insert(QuietAuth);
         Ok(<AuthUser as FromRequestParts<S>>::from_request_parts(parts, state).await.ok())
     }
 }
@@ -51,6 +56,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let pool = PgPool::from_ref(state);
+        let path = parts.uri.path().to_string();
+        let quiet = parts.extensions.get::<QuietAuth>().is_some();
 
         // 1. Jeton API
         if let Some(auth) = parts.headers.get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
@@ -67,7 +74,8 @@ where
                 .await?;
                 return match row {
                     Some((id, is_super_admin, false)) => Ok(AuthUser { id, is_super_admin }),
-                    _ => Err(ApiError::Unauthorized),
+                    Some(_) => Err(refuse("bearer_user_suspended", &path, None, quiet)),
+                    None => Err(refuse("bearer_unknown_or_expired", &path, None, quiet)),
                 };
             }
         }
@@ -75,14 +83,28 @@ where
         // 2. Session cookie
         let session = Session::from_request_parts(parts, state)
             .await
-            .map_err(|_| ApiError::Unauthorized)?;
+            .map_err(|_| refuse("session_extractor_failed", &path, None, quiet))?;
+        let sid = session.id();
+        let has_cookie = parts.headers.get(axum::http::header::COOKIE).is_some();
         // Erreur de lecture de la session (base indisponible…) : panne passagère (5xx), jamais un 401
         // qui passerait pour une session expirée (le client de collaboration abandonnerait).
-        let user_id: Uuid = session
+        let user_id: Uuid = match session
             .get(SESSION_USER_KEY)
             .await
             .map_err(|e| ApiError::Internal(format!("session read: {e}")))?
-            .ok_or(ApiError::Unauthorized)?;
+        {
+            Some(id) => id,
+            None => {
+                // Sans identifiant de session, le cookie est absent ou illisible ; avec, la session n'existe
+                // plus en base (expirée, supprimée, autre base) ou ne contient pas d'utilisateur.
+                let branch = match (sid, has_cookie) {
+                    (None, false) => "no_cookie_header",
+                    (None, true) => "no_session_cookie",
+                    (Some(_), _) => "no_user_in_session",
+                };
+                return Err(refuse(branch, &path, sid, quiet));
+            }
+        };
 
         let row: Option<(bool, bool)> =
             sqlx::query_as("SELECT is_super_admin, is_suspended FROM users WHERE id = $1")
@@ -91,13 +113,35 @@ where
                 .await?;
         match row {
             Some((is_super_admin, false)) => Ok(AuthUser { id: user_id, is_super_admin }),
-            _ => {
+            other => {
                 // Utilisateur supprimé ou suspendu : on invalide la session.
                 let _ = session.flush().await;
-                Err(ApiError::Unauthorized)
+                let branch = if other.is_none() { "user_missing" } else { "user_suspended" };
+                Err(refuse(branch, &path, sid, quiet))
             }
         }
     }
+}
+
+/// Préfixe court du hachage d'un identifiant de session (jamais l'identifiant lui-même).
+fn session_tag(sid: Option<tower_sessions::session::Id>) -> String {
+    match sid {
+        Some(id) => hex::encode(Sha256::digest(id.to_string().as_bytes()))[..8].to_string(),
+        None => "-".to_string(),
+    }
+}
+
+/// Journalise un refus 401 (branche, route, hachage court de la session, conteneur qui répond) et
+/// renvoie l'erreur avec la même raison dans le corps JSON.
+fn refuse(branch: &'static str, path: &str, sid: Option<tower_sessions::session::Id>, quiet: bool) -> ApiError {
+    if quiet {
+        return ApiError::UnauthorizedReason(branch);
+    }
+    // Identifie le conteneur qui répond (utile si plusieurs backends sont joignables sous le même nom).
+    static INSTANCE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let instance = INSTANCE.get_or_init(|| std::fs::read_to_string("/etc/hostname").unwrap_or_default().trim().to_string());
+    tracing::warn!(branch, path, session_sha = %session_tag(sid), instance = %instance, "401 unauthorized");
+    ApiError::UnauthorizedReason(branch)
 }
 
 /// Rôle d'un membre dans un workspace (ordre croissant de privilèges).
@@ -645,4 +689,92 @@ pub async fn label_ctx_for(pool: &PgPool, user: &AuthUser, label_id: Uuid) -> Ap
     let ctx = label_ctx(pool, label_id).await?;
     check_board(pool, user, ctx.1).await?;
     Ok(ctx)
+}
+
+#[cfg(test)]
+mod auth_tests {
+    use super::*;
+    use axum::{body::Body, http::Request};
+    use serde_json::Value;
+    use time::{Duration, OffsetDateTime};
+    use tower::ServiceExt;
+    use tower_sessions::session::{Id, Record};
+    use tower_sessions::SessionStore;
+
+    async fn setup(pool: &PgPool) -> (axum::Router, crate::session_store::PgSessionStore) {
+        let store = crate::session_store::PgSessionStore::new(pool.clone());
+        store.migrate().await.unwrap();
+        (crate::app(crate::state::AppState::new(pool.clone(), "http://localhost".into())), store)
+    }
+
+    async fn session_for(store: &crate::session_store::PgSessionStore, user: Option<Uuid>) -> String {
+        let mut data = HashMap::new();
+        if let Some(u) = user {
+            data.insert(SESSION_USER_KEY.to_string(), serde_json::json!(u));
+        }
+        let mut record = Record { id: Id::default(), data, expiry_date: OffsetDateTime::now_utc() + Duration::days(1) };
+        store.create(&mut record).await.unwrap();
+        record.id.to_string()
+    }
+
+    async fn get(app: &axum::Router, path: &str, headers: &[(&str, String)]) -> (u16, Value) {
+        let mut req = Request::builder().uri(path);
+        for (k, v) in headers {
+            req = req.header(*k, v);
+        }
+        let res = app.clone().oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+        let status = res.status().as_u16();
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    }
+
+    #[sqlx::test]
+    async fn a_bare_cookie_request_stays_authenticated_beside_concurrent_browser_requests(pool: PgPool) {
+        let (app, store) = setup(&pool).await;
+        let user: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ('ana@example.org', 'ana') RETURNING id").fetch_one(&pool).await.unwrap();
+        let sid = session_for(&store, Some(user)).await;
+        // La collaboration ne transmet que l'en-tête Cookie ; le navigateur ajoute Origin, Referer…
+        let bare = vec![("cookie", format!("theme=dark; looty_session={sid}; other=1"))];
+        let browser = vec![
+            ("cookie", format!("looty_session={sid}")),
+            ("origin", "http://localhost".to_string()),
+            ("x-forwarded-for", "203.0.113.7".to_string()),
+            ("x-forwarded-proto", "https".to_string()),
+        ];
+        let mut tasks = Vec::new();
+        for i in 0..40 {
+            let (app, h) = (app.clone(), if i % 2 == 0 { bare.clone() } else { browser.clone() });
+            let path = if i % 4 == 0 { "/api/auth/me" } else { "/api/workspaces" };
+            tasks.push(tokio::spawn(async move { get(&app, path, &h).await }));
+        }
+        for t in tasks {
+            let (status, body) = t.await.unwrap();
+            assert_eq!(status, 200, "{body}");
+        }
+    }
+
+    #[sqlx::test]
+    async fn each_refusal_names_its_branch_in_the_body(pool: PgPool) {
+        let (app, store) = setup(&pool).await;
+        let (status, body) = get(&app, "/api/workspaces", &[]).await;
+        assert_eq!((status, body["error"].as_str(), body["reason"].as_str()), (401, Some("unauthorized"), Some("no_cookie_header")));
+        let (_, body) = get(&app, "/api/workspaces", &[("cookie", "theme=dark".into())]).await;
+        assert_eq!(body["reason"], "no_session_cookie");
+        // Session inconnue de la base (expirée, supprimée, autre base).
+        let unknown = Id::default().to_string();
+        let (_, body) = get(&app, "/api/workspaces", &[("cookie", format!("looty_session={unknown}"))]).await;
+        assert_eq!(body["reason"], "no_user_in_session");
+        let empty = session_for(&store, None).await;
+        let (_, body) = get(&app, "/api/workspaces", &[("cookie", format!("looty_session={empty}"))]).await;
+        assert_eq!(body["reason"], "no_user_in_session");
+        // Utilisateur supprimé : la session est invalidée.
+        let gone = session_for(&store, Some(Uuid::new_v4())).await;
+        let (_, body) = get(&app, "/api/workspaces", &[("cookie", format!("looty_session={gone}"))]).await;
+        assert_eq!(body["reason"], "user_missing");
+        let (_, body) = get(&app, "/api/workspaces", &[("cookie", format!("looty_session={gone}"))]).await;
+        assert_eq!(body["reason"], "no_user_in_session");
+        // Jeton inconnu.
+        let (status, body) = get(&app, "/api/workspaces", &[("authorization", "Bearer looty_unknown".into())]).await;
+        assert_eq!((status, body["reason"].as_str()), (401, Some("bearer_unknown_or_expired")));
+    }
 }
