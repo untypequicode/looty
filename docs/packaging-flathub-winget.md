@@ -6,7 +6,7 @@ The repository holds everything that can be automated. The steps marked **owner*
 
 | Path | Role |
 | --- | --- |
-| `packaging/flatpak/io.github.untypequicode.looty.yml` | Flatpak manifest (GNOME 48 runtime, Rust from the SDK extension, offline Cargo build) |
+| `packaging/flatpak/io.github.untypequicode.looty.yml` | Flatpak manifest (GNOME 50 runtime, Rust from the SDK extension, offline Cargo build) |
 | `packaging/flatpak/io.github.untypequicode.looty.desktop` | Desktop entry, icon name = app id |
 | `packaging/flatpak/io.github.untypequicode.looty.metainfo.xml.in` | AppStream template (EN + FR, screenshots from the site) |
 | `scripts/flatpak-render.mjs` | Writes the final `metainfo.xml`, release notes (EN/FR) from `backend/releases.json`; `--flathub <dir>` also writes the Flathub manifest with a Git source at the latest `desktop-vX.Y.Z` tag and its commit |

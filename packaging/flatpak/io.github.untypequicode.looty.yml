@@ -3,7 +3,7 @@
 # Pour Flathub, `node scripts/flatpak-render.mjs --flathub` remplace la source « dir » par le tag Git de la version.
 app-id: io.github.untypequicode.looty
 runtime: org.gnome.Platform
-runtime-version: '48'
+runtime-version: '50'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
