@@ -267,7 +267,7 @@ Compte technique (« Deleted user ») qui apparaît comme auteur des éléments 
 
 **État de l'instance**:
 Page d'administration qui montre l'espace utilisé (base, fichiers, par espace), les comptes, espaces et sessions, les tâches de fond (dernier passage, erreurs), la dernière sauvegarde et la version. Le même état sort sur `/metrics` pour Prometheus quand un jeton est défini.
-_Avoid_: diagnostic, monitoring
+_Avoid_: monitoring (le *Diagnostic* vérifie l'installation, c'est autre chose)
 
 **Rapport d'import**:
 Liste, affichée à la fin d'un import depuis Notion, Obsidian, Trello ou Outline, de ce qui n'a pas pu être repris tel quel (cartes archivées, liens vers des pages absentes, images introuvables, membres sans correspondance).
@@ -285,3 +285,20 @@ _Avoid_: callback, notification (réservé aux notifications de la boîte de ré
 **Modèle**:
 Tableau (colonnes, étiquettes, tâches types) ou document enregistré par un administrateur d'un espace, proposé aux membres qui peuvent créer. Looty en fournit quelques-uns (suivi de projet, rétrospective, compte rendu de réunion, notes de cours, compte rendu de TP). Un élément personnel ne devient jamais un modèle.
 _Avoid_: gabarit, template (en français)
+
+## Installation
+
+**Compte local**:
+Compte avec adresse e-mail et mot de passe, géré par Looty lui-même, à activer avec `LOOTY_LOCAL_ACCOUNTS`. Déconseillé : on préfère OpenID Connect. L'inscription est fermée (sur invitation d'un administrateur) sauf choix contraire, et le premier compte d'une instance vide devient administrateur grâce à un code lu dans les journaux.
+_Avoid_: compte interne, compte Looty (tous les comptes sont des comptes Looty)
+
+**Double authentification**:
+Code à 6 chiffres d'une application d'authentification (TOTP), demandé après le mot de passe d'un compte local, avec des codes de secours à usage unique. Obligatoire pour les administrateurs ; un administrateur peut l'imposer à toute l'instance ou la retirer à quelqu'un qui a perdu son appareil.
+_Avoid_: 2FA, MFA, authentification forte
+
+**Assistant de premier lancement**:
+Suite d'étapes (connexion, nom et langue de l'instance, e-mails, notifications push, premier espace et invitations) proposée à l'administrateur d'une instance neuve, une seule fois. Chaque étape se refait ensuite depuis l'administration.
+_Avoid_: installateur, onboarding (réservé à l'accueil des membres)
+
+**Diagnostic**:
+Page d'administration et commande `looty doctor` qui vérifient l'installation : adresse, HTTPS, proxy, WebSocket, CalDAV, connexion, e-mails, base et fichiers. Chaque contrôle donne OK, avertissement ou erreur avec un lien vers le dépannage. À ne pas confondre avec l'*État de l'instance* (ce qui tourne et ce que ça occupe).

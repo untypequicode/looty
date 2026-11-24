@@ -59,7 +59,7 @@ struct ProviderConfig {
 
 /// Client HTTP des échanges OIDC : sans suivi des redirections (recommandation de la bibliothèque, évite les SSRF).
 /// `OIDC_CA_FILE` (facultatif) : certificats PEM d'une autorité interne, acceptés en plus des autorités publiques.
-fn oidc_http() -> &'static openidconnect::reqwest::Client {
+pub(crate) fn oidc_http() -> &'static openidconnect::reqwest::Client {
     static HTTP: std::sync::OnceLock<openidconnect::reqwest::Client> = std::sync::OnceLock::new();
     HTTP.get_or_init(|| {
         let mut builder = openidconnect::reqwest::ClientBuilder::new()
@@ -462,7 +462,9 @@ async fn resolve_user(
                 }
             }
             sqlx::query_scalar(
-                "INSERT INTO users (email, name, avatar_url, is_super_admin) VALUES ($1, $2, $3, $4) RETURNING id",
+                "INSERT INTO users (email, name, avatar_url, is_super_admin, locale, timezone)
+                 VALUES ($1, $2, $3, $4, (SELECT default_locale FROM global_settings WHERE id = 1), (SELECT default_timezone FROM global_settings WHERE id = 1))
+                 RETURNING id",
             )
             .bind(email)
             .bind(name)

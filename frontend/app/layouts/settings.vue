@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook } from 'lucide-vue-next'
+import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook, Stethoscope } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -61,6 +61,8 @@ const groups = computed(() => [
           { key: 'admin-storage', label: t('storage.title'), icon: HardDrive },
           { key: 'admin-status', label: t('adminStatus.title'), icon: Activity },
           { key: 'admin-instance', label: t('settings.nav.instance'), icon: Server },
+          { key: 'admin-local', label: t('localAdmin.title'), icon: KeyRound },
+          { key: 'admin-doctor', label: t('doctor.title'), icon: Stethoscope },
         ],
       }]
     : []),

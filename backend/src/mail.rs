@@ -87,6 +87,16 @@ pub async fn config(pool: &PgPool) -> Option<MailConfig> {
     }
 }
 
+/// Ouvre une connexion au serveur SMTP (et s'y authentifie) sans envoyer de message : diagnostic de l'instance.
+pub async fn test_connection(c: &MailConfig) -> Result<(), String> {
+    let t = transport(c).map_err(|e| format!("{e:?}"))?;
+    match tokio::time::timeout(Duration::from_secs(20), t.test_connection()).await {
+        Ok(Ok(true)) => Ok(()),
+        Ok(Ok(false)) | Err(_) => Err("no answer".into()),
+        Ok(Err(e)) => Err(e.to_string()),
+    }
+}
+
 fn transport(c: &MailConfig) -> ApiResult<AsyncSmtpTransport<Tokio1Executor>> {
     let tls = || TlsParameters::new(c.host.clone()).map_err(|e| ApiError::BadRequest(format!("smtp_tls: {e}")));
     let mut b = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&c.host)
@@ -243,7 +253,7 @@ async fn put_settings(State(pool): State<PgPool>, user: AuthUser, Json(p): Json<
 }
 
 /// Envoie un e-mail de test à l'administrateur avec la configuration active.
-async fn test(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
+pub(crate) async fn test(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
     require_super_admin(&user)?;
     let c = config(&state.pool).await.ok_or_else(|| ApiError::bad_request("smtp_not_configured"))?;
     let (email, name, locale): (String, String, Option<String>) = sqlx::query_as("SELECT email, name, locale FROM users WHERE id = $1").bind(user.id).fetch_one(&state.pool).await?;

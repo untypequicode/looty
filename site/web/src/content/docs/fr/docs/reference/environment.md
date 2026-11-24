@@ -40,6 +40,8 @@ Cette page est générée à partir de `docs/env-vars.json` et vérifiée en CI 
 | `AUTH_DOMAIN` | docker compose | Sous-domaine dédié du Pocket ID inclus. Son DNS pointe vers la même machine. | – | bundled Pocket ID only | `auth.looty.example.org` | 0.32.0 | oui |
 | `POCKET_ID_ENCRYPTION_KEY` | docker compose | Clé de chiffrement du Pocket ID inclus. | – | bundled Pocket ID only | `openssl rand -base64 32` | 0.32.0 | oui |
 | `POCKET_ID_STATIC_API_KEY` | docker compose | Clé d'administration utilisée par pocket-id-init pour créer le client Looty. Peut être retirée ensuite. | – | bundled Pocket ID only | `openssl rand -hex 32` | 0.32.0 | oui |
+| `LOOTY_LOCAL_ACCOUNTS` | backend | Active les comptes locaux (e-mail et mot de passe, double authentification facultative) en plus ou à la place d'OpenID Connect. Déconseillé : un fournisseur d'identité fait mieux. Désactivé par défaut. Voir aussi LOOTY_LOCAL_SIGNUP. | `false` | non | `true` | 0.45.0 | oui |
+| `LOOTY_LOCAL_SIGNUP` | backend | Qui peut créer un compte local : closed (par défaut, un administrateur invite) ou open (toute personne qui connaît l'adresse de l'instance, puis confirme son e-mail). Le premier compte d'une instance vide devient administrateur avec le code affiché dans les journaux du backend. | `closed` | non | `open` | 0.45.0 | oui |
 
 ## Sécurité et réseau
 

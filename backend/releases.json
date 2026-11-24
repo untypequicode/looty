@@ -4,6 +4,29 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.45.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Optional local accounts with two-step verification, a first-launch guide and an instance diagnostic",
+        "fr": "Comptes locaux facultatifs avec double authentification, assistant de premier lancement et diagnostic de l'instance"
+      },
+      "notes": {
+        "en": [
+          "**Local accounts (off by default)**: `LOOTY_LOCAL_ACCOUNTS=true` adds email and password sign-in next to OpenID Connect. Sign-up is by invitation unless `LOOTY_LOCAL_SIGNUP=open`; passwords use argon2id and are checked against common passwords; attempts are limited per account and per IP; addresses are confirmed and passwords reset by email, or by an administrator when no SMTP is set. The first account of an empty instance becomes the administrator with a code printed in the backend logs. The administration warns that OpenID Connect is preferred.",
+          "**Two-step verification**: authenticator-app codes and recovery codes for local accounts, required for administrators, which an administrator can require for everyone or reset for someone who lost their device.",
+          "**First-launch guide**: a new instance walks its administrator through sign-in, name, language and time zone, email with a test message, push notifications, the first space and invitation links. Each step stays available in the administration.",
+          "**Diagnostic**: Administration > Diagnostic and `docker compose exec backend looty doctor` check the address, HTTPS, proxy headers, WebSockets for real time and live editing, CalDAV, OpenID Connect, SMTP, database, files and version, with a link to the troubleshooting guide."
+        ],
+        "fr": [
+          "**Comptes locaux (désactivés par défaut)** : `LOOTY_LOCAL_ACCOUNTS=true` ajoute la connexion par e-mail et mot de passe à côté d'OpenID Connect. L'inscription se fait sur invitation sauf `LOOTY_LOCAL_SIGNUP=open` ; les mots de passe sont hachés en argon2id et comparés aux mots de passe courants ; les tentatives sont limitées par compte et par IP ; les adresses sont confirmées et les mots de passe réinitialisés par e-mail, ou par un administrateur sans SMTP. Le premier compte d'une instance vide devient administrateur grâce à un code affiché dans les journaux du backend. L'administration rappelle qu'OpenID Connect est préféré.",
+          "**Double authentification** : codes d'une application d'authentification et codes de secours pour les comptes locaux, obligatoires pour les administrateurs ; un administrateur peut l'exiger de tout le monde ou la réinitialiser pour quelqu'un qui a perdu son appareil.",
+          "**Assistant de premier lancement** : une instance neuve guide son administrateur : connexion, nom, langue et fuseau horaire, e-mails avec message de test, notifications push, premier espace et liens d'invitation. Chaque étape reste disponible dans l'administration.",
+          "**Diagnostic** : Administration > Diagnostic et `docker compose exec backend looty doctor` vérifient l'adresse, HTTPS, les en-têtes du proxy, les WebSocket du temps réel et de l'édition en direct, CalDAV, OpenID Connect, le SMTP, la base, les fichiers et la version, avec un lien vers le guide de dépannage."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.44.1",
       "date": "2026-11-24",
       "title": {

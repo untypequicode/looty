@@ -60,7 +60,7 @@ fn refuse(status: StatusCode, code: &str) -> Response {
 pub(crate) fn never_for_tokens(path: &str) -> bool {
     let segs: Vec<&str> = path.trim_start_matches("/api/").split('/').filter(|s| !s.is_empty()).collect();
     match segs.as_slice() {
-        ["user", "tokens", ..] | ["user", "deletion", ..] => true,
+        ["user", "tokens", ..] | ["user", "deletion", ..] | ["admin", "local", ..] | ["setup", ..] => true,
         ["auth", "me"] => false,
         ["auth", ..] => true,
         _ => false,

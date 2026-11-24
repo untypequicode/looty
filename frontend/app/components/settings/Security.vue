@@ -65,6 +65,7 @@ function copy() { navigator.clipboard.writeText(created.value!); toast.success(t
 </script>
 
 <template>
+  <SettingsLocalSecurity />
   <SettingsSection :title="t('settings.security.accounts')" :description="t('settings.security.accountsHint')">
     <SettingsRow v-for="i in identities ?? []" :key="i.provider" :label="i.provider_name || t('settings.security.unknownProvider')" :hint="t('settings.security.linkedOn', { date: formatDate(i.created_at) })">
       <ShieldCheck :size="16" class="ok" />
