@@ -173,6 +173,7 @@ fun LootyApp(state: AppState, onSignedOut: () -> Unit) {
             composable("doc/{id}") { e -> ReaderScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }, onRoute = { nav.navigate(it) }) }
             composable("doc/{id}/comments") { e -> DocCommentsScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
             composable("doc/{id}/history") { e -> DocHistoryScreen(state, e.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() }) }
+            composable("instances") { InstancesScreen(onBack = { nav.popBackStack() }) }
             composable("notifications") { NotificationsScreen(state, onBack = { nav.popBackStack() }) }
             composable("updates") { UpdatesScreen(state, onBack = { nav.popBackStack() }) }
             composable("announcements") { AnnouncementsScreen(state, onBack = { nav.popBackStack() }) }

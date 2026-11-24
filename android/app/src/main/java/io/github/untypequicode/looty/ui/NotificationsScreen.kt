@@ -187,7 +187,7 @@ fun NotificationsScreen(state: AppState, onBack: () -> Unit) {
                             ctx.startActivity(
                                 Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                                     .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
-                                    .putExtra(Settings.EXTRA_CHANNEL_ID, k.channel),
+                                    .putExtra(Settings.EXTRA_CHANNEL_ID, Notifier.channelId(k, io.github.untypequicode.looty.Instances.activeId(ctx))),
                             )
                         },
                     )

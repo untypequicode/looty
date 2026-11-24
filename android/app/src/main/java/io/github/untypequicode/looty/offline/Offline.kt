@@ -1,7 +1,8 @@
 package io.github.untypequicode.looty.offline
 
 import android.content.Context
-import io.github.untypequicode.looty.Config
+import io.github.untypequicode.looty.InstanceStore
+import io.github.untypequicode.looty.Instances
 import io.github.untypequicode.looty.api.ApiException
 import androidx.glance.appwidget.updateAll
 import androidx.work.Constraints
@@ -28,10 +29,10 @@ fun Throwable.isOffline(): Boolean = this is IOException || (this is ApiExceptio
  * Copie des données sur l'appareil (JSON), par serveur : les écrans s'affichent depuis elle quand
  * le serveur est injoignable. Écriture atomique (fichier temporaire puis renommage).
  */
-class OfflineCache(private val ctx: Context) {
+class OfflineCache(private val ctx: Context, private val instanceId: String = Instances.activeId(ctx)) {
     private fun dir(): File {
-        val server = Config.server(ctx) ?: "none"
-        return File(ctx.filesDir, "offline/" + Integer.toHexString(server.hashCode())).also { it.mkdirs() }
+        val server = Instances.origin(ctx, instanceId) ?: "none"
+        return File(ctx.filesDir, "offline/" + InstanceStore.dirKey(server)).also { it.mkdirs() }
     }
 
     private fun file(key: String, ext: String) =
@@ -59,7 +60,11 @@ class OfflineCache(private val ctx: Context) {
         for (f in files) { if (total <= maxBytes) break; total -= f.length(); f.delete() }
     }
 
-    @Synchronized fun clear() { File(ctx.filesDir, "offline").deleteRecursively(); File(ctx.filesDir, "webcache").deleteRecursively() }
+    /** Efface les données de cette instance seulement (les autres instances gardent les leurs). */
+    @Synchronized fun clear() {
+        val key = InstanceStore.dirKey(Instances.origin(ctx, instanceId) ?: "none")
+        File(ctx.filesDir, "offline/$key").deleteRecursively(); File(ctx.filesDir, "webcache/$key").deleteRecursively()
+    }
 }
 
 /** Modification faite hors ligne, rejouée dans l'ordre dès que le serveur répond. */
@@ -67,18 +72,19 @@ class OfflineCache(private val ctx: Context) {
 data class Pending(val id: String, val method: String, val path: String, val body: String? = null, val label: String)
 
 /** File d'attente des modifications, gardée sur l'appareil (elle survit à la fermeture de l'application). */
-class Outbox private constructor(ctx: Context, private val json: Json) {
+class Outbox private constructor(ctx: Context, private val json: Json, instanceId: String) {
     companion object {
-        @Volatile private var instance: Outbox? = null
-        /** Une seule file par processus : l'application et la tâche de fond partagent le même état. */
-        fun get(ctx: Context, json: Json): Outbox = instance ?: synchronized(this) { instance ?: Outbox(ctx.applicationContext, json).also { instance = it } }
+        private val byInstance = HashMap<String, Outbox>()
+        /** Une seule file par instance et par processus : l'application et la tâche de fond partagent le même état. */
+        fun get(ctx: Context, json: Json, instanceId: String = Instances.activeId(ctx)): Outbox = synchronized(this) { byInstance.getOrPut(instanceId) { Outbox(ctx.applicationContext, json, instanceId) } }
+        fun forget(instanceId: String) { synchronized(this) { byInstance.remove(instanceId) } }
         /** Un seul rejeu à la fois (application ou tâche de fond), sinon une modification partirait deux fois. */
         val replayLock = Mutex()
     }
 
-    private val file = File(ctx.filesDir, "outbox.json")
+    private val file = File(ctx.filesDir, InstanceStore.scoped("outbox", instanceId) + ".json")
     /** Fichiers partagés hors ligne, en attente d'envoi (un fichier par modification « UPLOAD »). */
-    val files = File(ctx.filesDir, "outbox-files")
+    val files = File(ctx.filesDir, InstanceStore.scoped("outbox-files", instanceId))
     private var items: MutableList<Pending> = load()
 
     private fun load(): MutableList<Pending> =
@@ -129,15 +135,17 @@ suspend fun Outbox.replay(api: Api): ReplayResult {
 /** Tâche de fond : renvoie la file dès que le réseau est là, même si l'application est fermée. */
 class OutboxWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        val api = Api(applicationContext)
-        val outbox = Outbox.get(applicationContext, api.json)
+        val instanceId = inputData.getString("instance") ?: InstanceStore.DEFAULT
+        if (Instances.origin(applicationContext, instanceId) == null) return Result.success()
+        val api = Api(applicationContext, instanceId)
+        val outbox = Outbox.get(applicationContext, api.json, instanceId)
         if (outbox.size() == 0) return Result.success()
         if (!Outbox.replayLock.tryLock()) return Result.retry()
         try {
             val r = outbox.replay(api)
             // Refus à signaler à la prochaine ouverture de l'application.
             if (r.refused.isNotEmpty()) {
-                val prefs = applicationContext.getSharedPreferences("looty", 0)
+                val prefs = Instances.prefs(applicationContext, instanceId)
                 prefs.edit().putStringSet("refusedChanges", prefs.getStringSet("refusedChanges", emptySet()).orEmpty() + r.refused).apply()
             }
             if (r.sent) runCatching { io.github.untypequicode.looty.widget.Widgets.updateAll(applicationContext) }
@@ -149,9 +157,9 @@ class OutboxWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
 
     companion object {
         /** À appeler quand une modification est mise en file : envoi dès que le réseau est disponible. */
-        fun schedule(ctx: Context) {
-            val req = OneTimeWorkRequestBuilder<OutboxWorker>().setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
-            WorkManager.getInstance(ctx).enqueueUniqueWork("looty-outbox", ExistingWorkPolicy.REPLACE, req)
+        fun schedule(ctx: Context, instanceId: String = Instances.activeId(ctx)) {
+            val req = OneTimeWorkRequestBuilder<OutboxWorker>().setInputData(androidx.work.workDataOf("instance" to instanceId)).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
+            WorkManager.getInstance(ctx).enqueueUniqueWork(InstanceStore.scoped("looty-outbox", instanceId), ExistingWorkPolicy.REPLACE, req)
         }
     }
 }

@@ -8,6 +8,15 @@
     <string name="link_foreign_title">Link from another instance</string>
     <string name="link_foreign_body">This link comes from %1$s, not from your instance (%2$s).</string>
     <string name="link_open_browser">Open in browser</string>
+    <string name="link_add_instance">Add this instance</string>
+    <string name="instances_title">Instances</string>
+    <string name="instances_hint">Each instance keeps its own sign-in, offline copy, notifications and widgets. Tap an instance to switch to it.</string>
+    <string name="instances_active">Active</string>
+    <string name="instances_add">Add an instance</string>
+    <string name="instances_remove">Remove</string>
+    <string name="instances_remove_title">Remove %1$s?</string>
+    <string name="instances_remove_body">You will be signed out of this instance, and its offline copy, pending changes, notification settings and widgets will be erased from this device. Nothing is deleted on the server.</string>
+    <string name="wc_instance">Instance</string>
     <string name="setup_url">Server address</string>
     <string name="setup_connect">Continue</string>
     <string name="setup_checking">Checking…</string>

@@ -42,8 +42,8 @@ class LootyWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = WidgetData.load(context)
         val style = Widgets.styleOf(context, id)
+        val data = WidgetData.load(context, style)
         provideContent { GlanceTheme { Content(context, data, style) } }
     }
 
@@ -56,20 +56,20 @@ class LootyWidget : GlanceAppWidget() {
         val fit = (((size.height - (if (compact) 64.dp else 74.dp)) / rowH).toInt()).coerceIn(1, style.items)
         Column(GlanceModifier.fillMaxSize().background(cp(p.bg)).cornerRadius(outer(style)).padding(14.dp)) {
             Row(GlanceModifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(GlanceModifier.size(34.dp).background(cp(p.accent)).cornerRadius(100.dp).clickable(openApp(ctx, "looty://app/tasks")), contentAlignment = Alignment.Center) {
+                Box(GlanceModifier.size(34.dp).background(cp(p.accent)).cornerRadius(100.dp).clickable(openApp(ctx, style, "looty://app/tasks")), contentAlignment = Alignment.Center) {
                     Icon(R.drawable.ic_w_tasks, p.onAccent, 20.dp)
                 }
                 Spacer(GlanceModifier.width(10.dp))
-                Column(GlanceModifier.defaultWeight().clickable(openApp(ctx, "looty://app/tasks"))) {
+                Column(GlanceModifier.defaultWeight().clickable(openApp(ctx, style, "looty://app/tasks"))) {
                     Text(ctx.getString(R.string.widget_title), maxLines = 1, style = TextStyle(color = cp(p.fg), fontSize = 16.sp, fontWeight = FontWeight.Bold))
                     if (!compact && data.tasks.isNotEmpty()) Text(ctx.resources.getQuantityString(R.plurals.widget_open_tasks, data.tasks.size, data.tasks.size), maxLines = 1, style = TextStyle(color = cp(p.soft), fontSize = 12.sp))
                 }
-                PillButton(R.drawable.ic_w_add, if (size.width > 200.dp) ctx.getString(R.string.widget_add) else null, p, openApp(ctx, "looty://app/quickadd"))
+                PillButton(R.drawable.ic_w_add, if (size.width > 200.dp) ctx.getString(R.string.widget_add) else null, p, openApp(ctx, style, "looty://app/quickadd"))
             }
             when {
-                data.signedOut -> Message(ctx.getString(R.string.widget_sign_in), p, style, openApp(ctx))
-                data.failed && data.tasks.isEmpty() -> Message(ctx.getString(R.string.widget_offline), p, style, openApp(ctx))
-                data.tasks.isEmpty() -> Message(ctx.getString(R.string.widget_empty), p, style, openApp(ctx), R.drawable.ic_w_check)
+                data.signedOut -> Message(ctx.getString(R.string.widget_sign_in), p, style, openApp(ctx, style))
+                data.failed && data.tasks.isEmpty() -> Message(ctx.getString(R.string.widget_offline), p, style, openApp(ctx, style))
+                data.tasks.isEmpty() -> Message(ctx.getString(R.string.widget_empty), p, style, openApp(ctx, style), R.drawable.ic_w_check)
                 else -> Column(GlanceModifier.fillMaxWidth().defaultWeight()) {
                     // Pas d'espaceurs : Glance limite une colonne à 10 enfants.
                     data.tasks.take(fit).forEach { t -> TaskRow(ctx, data, t, p, style) }
@@ -84,10 +84,10 @@ class LootyWidget : GlanceAppWidget() {
         Box(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) {
         Row(
             GlanceModifier.fillMaxWidth().height(40.dp).background(cp(p.chip)).cornerRadius(inner(style)).padding(start = 6.dp, end = 10.dp)
-                .clickable(openApp(ctx, "looty://w/${data.workspace}/task/${t.id}")),
+                .clickable(openApp(ctx, style, "looty://w/${data.workspace}/task/${t.id}")),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(GlanceModifier.size(32.dp).clickable(toggle(t.id)), contentAlignment = Alignment.Center) { Icon(R.drawable.ic_w_circle, p.accent, 22.dp) }
+            Box(GlanceModifier.size(32.dp).clickable(toggle(t.id, style)), contentAlignment = Alignment.Center) { Icon(R.drawable.ic_w_circle, p.accent, 22.dp) }
             Text(t.title, maxLines = 1, modifier = GlanceModifier.defaultWeight().padding(horizontal = 4.dp), style = TextStyle(color = cp(p.fg), fontSize = 14.sp, fontWeight = FontWeight.Medium))
             t.due?.let { d ->
                 Spacer(GlanceModifier.width(6.dp))

@@ -41,8 +41,8 @@ class AgendaWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = WidgetAgenda.load(context)
         val style = Widgets.styleOf(context, id)
+        val data = WidgetAgenda.load(context, style)
         provideContent { GlanceTheme { Content(context, data, style) } }
     }
 
@@ -66,20 +66,20 @@ class AgendaWidget : GlanceAppWidget() {
         }
         Column(GlanceModifier.fillMaxSize().background(cp(p.bg)).cornerRadius(outer(style)).padding(14.dp)) {
             Row(GlanceModifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(GlanceModifier.size(34.dp).background(cp(p.accent)).cornerRadius(100.dp).clickable(openApp(ctx, "looty://app/calendar")), contentAlignment = Alignment.Center) {
+                Box(GlanceModifier.size(34.dp).background(cp(p.accent)).cornerRadius(100.dp).clickable(openApp(ctx, style, "looty://app/calendar")), contentAlignment = Alignment.Center) {
                     Icon(R.drawable.ic_w_calendar, p.onAccent, 19.dp)
                 }
                 Spacer(GlanceModifier.width(10.dp))
-                Column(GlanceModifier.defaultWeight().clickable(openApp(ctx, "looty://app/calendar"))) {
+                Column(GlanceModifier.defaultWeight().clickable(openApp(ctx, style, "looty://app/calendar"))) {
                     Text(ctx.getString(R.string.widget_agenda_title), maxLines = 1, style = TextStyle(color = cp(p.fg), fontSize = 16.sp, fontWeight = FontWeight.Bold))
                     if (!compact) Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM")), maxLines = 1, style = TextStyle(color = cp(p.soft), fontSize = 12.sp))
                 }
-                PillButton(R.drawable.ic_w_add, null, p, openApp(ctx, "looty://app/quickadd"))
+                PillButton(R.drawable.ic_w_add, null, p, openApp(ctx, style, "looty://app/quickadd"))
             }
             when {
-                data.signedOut -> Message(ctx.getString(R.string.widget_sign_in), p, style, openApp(ctx))
-                data.failed && data.items.isEmpty() -> Message(ctx.getString(R.string.widget_offline), p, style, openApp(ctx))
-                data.items.isEmpty() -> Message(ctx.getString(R.string.widget_agenda_empty), p, style, openApp(ctx), R.drawable.ic_w_calendar)
+                data.signedOut -> Message(ctx.getString(R.string.widget_sign_in), p, style, openApp(ctx, style))
+                data.failed && data.items.isEmpty() -> Message(ctx.getString(R.string.widget_offline), p, style, openApp(ctx, style))
+                data.items.isEmpty() -> Message(ctx.getString(R.string.widget_agenda_empty), p, style, openApp(ctx, style), R.drawable.ic_w_calendar)
                 else -> Column(GlanceModifier.fillMaxWidth().defaultWeight()) {
                     // Un groupe par jour (une colonne par jour : Glance limite les enfants d'une colonne).
                     days.forEach { (day, rows) ->
@@ -98,12 +98,12 @@ class AgendaWidget : GlanceAppWidget() {
         val late = a.isTask && !a.done && a.day.isBefore(LocalDate.now())
         Box(GlanceModifier.fillMaxWidth().padding(bottom = 4.dp)) {
         Row(
-            GlanceModifier.fillMaxWidth().height(34.dp).background(cp(p.chip)).cornerRadius(inner(style)).clickable(openApp(ctx, "looty:/" + a.route)),
+            GlanceModifier.fillMaxWidth().height(34.dp).background(cp(p.chip)).cornerRadius(inner(style)).clickable(openApp(ctx, style, "looty:/" + a.route)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Barre de couleur : événement (couleur d'accent) ou échéance (case à cocher).
             if (a.isTask && a.taskId != null) {
-                Box(GlanceModifier.size(34.dp).clickable(toggle(a.taskId)), contentAlignment = Alignment.Center) { Icon(if (a.done) R.drawable.ic_w_tasks else R.drawable.ic_w_circle, if (late) p.warn else p.accent, 20.dp) }
+                Box(GlanceModifier.size(34.dp).clickable(toggle(a.taskId, style)), contentAlignment = Alignment.Center) { Icon(if (a.done) R.drawable.ic_w_tasks else R.drawable.ic_w_circle, if (late) p.warn else p.accent, 20.dp) }
             } else {
                 Spacer(GlanceModifier.width(8.dp))
                 Box(GlanceModifier.width(4.dp).height(18.dp).background(cp(p.accent)).cornerRadius(100.dp)) {}

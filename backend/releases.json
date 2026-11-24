@@ -331,6 +331,27 @@
     },
     {
       "platform": "android",
+      "version": "0.31.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Several Looty instances in one app",
+        "fr": "Plusieurs instances Looty dans une seule application"
+      },
+      "notes": {
+        "en": [
+          "**Several instances**: add your association's and your school's Looty to the same app and switch from *More → Instances*. Each instance keeps its own sign-in, offline copy, queued changes, notifications and widgets; signing out of or removing one never touches the others. Your current instance becomes the first one, with nothing lost.",
+          "**Links**: a link from an instance you have added switches to it; a link from an unknown instance offers to add it or to open it in the browser.",
+          "**Notifications and widgets**: each instance has its own notification channels (named after the instance when you have several) and each widget shows the instance chosen when it was added (changeable in the widget settings)."
+        ],
+        "fr": [
+          "**Plusieurs instances** : ajoutez le Looty de votre association et celui de votre école dans la même application et passez de l’un à l’autre depuis *Plus → Instances*. Chaque instance garde sa connexion, sa copie hors ligne, ses modifications en attente, ses notifications et ses widgets ; se déconnecter d’une instance ou la retirer ne touche jamais les autres. Votre instance actuelle devient la première, sans rien perdre.",
+          "**Liens** : un lien d’une instance ajoutée bascule sur elle ; un lien d’une instance inconnue propose de l’ajouter ou de l’ouvrir dans le navigateur.",
+          "**Notifications et widgets** : chaque instance a ses propres canaux de notification (nommés d’après l’instance quand il y en a plusieurs) et chaque widget montre l’instance choisie à son ajout (modifiable dans les réglages du widget)."
+        ]
+      }
+    },
+    {
+      "platform": "android",
       "version": "0.30.0",
       "date": "2026-11-24",
       "title": {

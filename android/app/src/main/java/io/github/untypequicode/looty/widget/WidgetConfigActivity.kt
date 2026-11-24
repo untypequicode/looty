@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import io.github.untypequicode.looty.R
+import io.github.untypequicode.looty.forWidget
 import io.github.untypequicode.looty.ui.LootyTheme
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,7 @@ import kotlinx.coroutines.launch
  * d'éléments, forme des coins et, pour le widget « Raccourcis », les boutons. Ouvert à
  * l'ajout du widget, puis par appui long sur le widget → Réglages.
  */
+@OptIn(ExperimentalLayoutApi::class)
 class WidgetConfigActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +51,11 @@ class WidgetConfigActivity : ComponentActivity() {
         val kind = AppWidgetManager.getInstance(this).getAppWidgetInfo(id)?.provider?.className.orEmpty()
         val isShortcuts = kind.endsWith("ShortcutsWidgetReceiver")
         val hasList = kind.endsWith("LootyWidgetReceiver") || kind.endsWith("AgendaWidgetReceiver")
-        val initial = WidgetPrefs.load(this, id)
+        val instances = io.github.untypequicode.looty.Instances.all(this)
+        // Nouveau widget : l'instance active. Widget déjà réglé sans choix d'instance : celle d'origine.
+        val initial = WidgetPrefs.load(this, id).let { s ->
+            if (s.instance != null) s else s.copy(instance = (if (WidgetPrefs.exists(this, id)) io.github.untypequicode.looty.Instances.forWidget(this, null)?.id else io.github.untypequicode.looty.Instances.activeId(this)))
+        }
 
         setContent {
             LootyTheme {
@@ -86,6 +92,11 @@ class WidgetConfigActivity : ComponentActivity() {
                         }
                         Section(stringResource(R.string.wc_opacity, style.opacity)) {
                             Slider(value = style.opacity.toFloat(), onValueChange = { style = style.copy(opacity = (it / 5).toInt() * 5) }, valueRange = 30f..100f)
+                        }
+                        if (instances.size > 1) Section(stringResource(R.string.wc_instance)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                instances.forEach { i -> FilterChip(selected = style.instance == i.id, onClick = { style = style.copy(instance = i.id) }, label = { Text(i.origin.substringAfter("://")) }) }
+                            }
                         }
                         if (hasList) Section(stringResource(R.string.wc_items, style.items)) {
                             Slider(value = style.items.toFloat(), onValueChange = { style = style.copy(items = it.toInt()) }, valueRange = 1f..9f, steps = 7)

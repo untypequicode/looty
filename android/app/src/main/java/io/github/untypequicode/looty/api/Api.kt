@@ -3,7 +3,7 @@ package io.github.untypequicode.looty.api
 import android.content.Context
 import android.webkit.CookieManager
 import io.github.untypequicode.looty.BuildConfig
-import io.github.untypequicode.looty.Config
+import io.github.untypequicode.looty.Instances
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -43,7 +43,7 @@ private object WebViewCookies : CookieJar {
 }
 
 /** Client de l'API du serveur choisi. */
-class Api(private val ctx: Context) {
+class Api(private val ctx: Context, val instanceId: String = Instances.activeId(ctx)) {
     val json = Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }
 
     private val client = OkHttpClient.Builder()
@@ -58,7 +58,7 @@ class Api(private val ctx: Context) {
     /** Client sans suivi des redirections (la WebView doit les voir) pour le cache web hors ligne. */
     val rawClient: OkHttpClient by lazy { client.newBuilder().followRedirects(false).followSslRedirects(false).build() }
 
-    val server: String get() = Config.server(ctx) ?: throw ApiException(0, "no_server")
+    val server: String get() = Instances.origin(ctx, instanceId) ?: throw ApiException(0, "no_server")
 
     suspend fun raw(method: String, path: String, body: String? = null): String = withContext(Dispatchers.IO) {
         val rb = body?.toRequestBody("application/json".toMediaType()) ?: if (method == "GET" || method == "DELETE") null else "".toRequestBody()
