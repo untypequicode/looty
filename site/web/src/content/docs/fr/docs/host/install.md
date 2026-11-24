@@ -20,6 +20,14 @@ curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.exa
 
 Les étiquettes ne fixent ni point d’entrée ni certificat : Traefik doit joindre le réseau de la pile et servir HTTPS sur ses points d’entrée, par exemple `--entrypoints.websecure.http.tls.certResolver=<résolveur>`. `APP_NAME` et `APP_DOMAIN` dans `.env` nomment les routeurs et la règle d’hôte.
 
+### Plusieurs piles Looty sur un même réseau Traefik
+
+Si Traefik joint vos piles par un réseau externe partagé (par exemple `traefik-public`) et que vous y rattachez les services de deux piles Looty, Docker répond au nom `backend` par les adresses de toutes les piles. Un service d’une pile peut alors joindre le backend de l’autre et recevoir des erreurs 401 (l’éditeur n’arrive plus à se connecter, par exemple). Les fichiers compose l’évitent : chaque pile joint ses services par des noms qui contiennent `APP_NAME`, `${APP_NAME}-backend` et `${APP_NAME}-collaboration`, déclarés comme alias réseau et utilisés par `BACKEND_URL` et `COLLAB_URL`.
+
+- Donnez à chaque pile son propre `APP_NAME` dans `.env` (par exemple `looty` et `looty-demo`) ; le fichier compose de la démo utilise `looty-demo`.
+- Ne rattachez au réseau partagé que les services que Traefik doit joindre (en général les trois), et n’y déclarez jamais d’alias générique comme `backend`.
+- Gardez `postgres` hors du réseau partagé.
+
 ## Derrière un autre reverse proxy
 
 Utilisez le fichier compose Traefik et routez, WebSockets activés :

@@ -177,12 +177,13 @@ fn base_url() -> String {
 /// Toutes les routes HTTP (API, fichiers, CalDAV) avec la session et les en-têtes de sécurité.
 /// La commande `seed-demo` l'appelle aussi, sans ouvrir de port, pour passer par l'API.
 fn app(state: state::AppState) -> Router {
+    let (slide_pool, slide_secure) = (state.pool.clone(), state.base_url.starts_with("https://"));
     let session_layer = SessionManagerLayer::new(session_store::PgSessionStore::new(state.pool.clone()))
         .with_name("looty_session")
         .with_secure(state.base_url.starts_with("https://"))
         .with_http_only(true)
         .with_same_site(tower_sessions::cookie::SameSite::Lax)
-        .with_expiry(Expiry::OnInactivity(Duration::days(14)));
+        .with_expiry(Expiry::OnInactivity(Duration::days(session_store::INACTIVITY_DAYS)));
 
     let api = Router::new()
         .route("/health", get(health_handler))
@@ -263,6 +264,10 @@ fn app(state: state::AppState) -> Router {
         .layer(axum::middleware::from_fn_with_state(state.clone(), demo_mode::guard))
         .with_state(state)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
+        .layer(axum::middleware::from_fn_with_state(
+            session_store::Slide { store: session_store::PgSessionStore::new(slide_pool), secure: slide_secure },
+            session_store::slide,
+        ))
         .layer(session_layer)
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
