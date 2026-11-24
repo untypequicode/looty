@@ -52,9 +52,6 @@ jobs:
       - name: Build and install
         working-directory: packaging/flatpak
         run: flatpak-builder --user --install --force-clean --disable-rofiles-fuse --repo=repo build io.github.untypequicode.looty.yml
-      - name: Lint the repository (flatpak-builder-lint repo)
-        working-directory: packaging/flatpak
-        run: flatpak run --user --filesystem="$PWD" --command=flatpak-builder-lint org.flatpak.Builder repo repo
       # Sans serveur Looty, l'application doit au moins démarrer et rester ouverte (timeout = code 124).
       - name: Launch
         run: |
@@ -63,6 +60,16 @@ jobs:
           code=$?
           echo "exit code: $code"
           [ "$code" = 124 ]
+      # Flathub copie les captures sur son miroir (--mirror-screenshots-url) : ces deux erreurs ne concernent pas une construction locale.
+      - name: Lint the repository (flatpak-builder-lint repo)
+        working-directory: packaging/flatpak
+        run: |
+          set +e
+          flatpak run --user --filesystem="$PWD" --command=flatpak-builder-lint org.flatpak.Builder repo repo | tee lint.json
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync('lint.json', 'utf8'))
+            const left = (r.errors || []).filter((e) => !['appstream-missing-screenshots', 'appstream-screenshots-not-mirrored-in-ostree'].includes(e))
+            if (left.length) { console.error('lint errors:', left); process.exit(1) }"
 
   winget:
     name: winget manifest
