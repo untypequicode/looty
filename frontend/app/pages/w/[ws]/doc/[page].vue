@@ -103,6 +103,7 @@ const editorInst = shallowRef<TEditor | null>(null)
 const headings = ref<HeadingInfo[]>([])
 const collaborators = ref<{ name: string; color: string }[]>([])
 const status = ref<'connecting' | 'synced' | 'offline' | 'denied'>('connecting')
+const sessionExpired = useCollabSessionExpired()
 const saving = ref(false)
 const PALETTE = ['#7170ff', '#4cb782', '#f2994a', '#eb5757', '#4ea7fc', '#b18cff', '#e06ba8', '#26b5ce']
 const cursorUser = computed(() => {
@@ -278,7 +279,8 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
     <AppPageHeader :crumbs="crumbs">
       <UiSegmented v-if="live" class="doc-views" :model-value="docView" :options="viewOptions" @update:model-value="setDocView" />
       <span v-if="live && !showProject" class="status">
-        <template v-if="status === 'denied' || !canEdit"><Lock :size="13" /> {{ t('editor.readOnly') }}</template>
+        <button v-if="sessionExpired" type="button" class="status-expired" @click="signInAgain"><Lock :size="13" /> {{ t('editor.sessionExpired') }}</button>
+        <template v-else-if="status === 'denied' || !canEdit"><Lock :size="13" /> {{ t('editor.readOnly') }}</template>
         <template v-else-if="status === 'offline'"><CloudOff :size="13" /> {{ t('editor.offline') }}</template>
         <template v-else-if="status === 'connecting' || saving"><Loader2 :size="13" class="spin" /> {{ status === 'connecting' ? t('editor.connecting') : t('editor.saving') }}</template>
         <template v-else><Check :size="13" /> {{ t('common.saved') }}</template>
@@ -425,6 +427,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 <style scoped>
 .doc-related { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
 .status { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-sm); color: var(--text-3); margin-right: 6px; white-space: nowrap; }
+.status-expired { display: inline-flex; align-items: center; gap: 5px; color: var(--red, #c0392b); background: none; border: 0; padding: 0; cursor: pointer; font: inherit; text-decoration: underline; }
 .spin { animation: spin 1s linear infinite; }
 .collabs { display: flex; margin-right: 4px; }
 .collab { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 0 0 2px var(--bg); margin-left: -4px; }

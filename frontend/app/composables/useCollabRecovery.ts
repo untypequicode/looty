@@ -16,9 +16,20 @@ const TRANSIENT_REASONS = ['auth-unavailable', 'restoring']
 /** Refus qui ne deviennent définitifs qu'après ce nombre de nouvelles tentatives sans succès. */
 const RETRIES_BEFORE_DENIED: Record<string, number> = { unauthorized: 4, forbidden: 1 }
 
-export type AuthVerdict = 'transient' | 'denied'
+/** 'expired' : la session n'est plus reconnue (refus répétés ou serveur qui abandonne) : se reconnecter. */
+export type AuthVerdict = 'transient' | 'denied' | 'expired'
+
+/** Vrai dès qu'un éditeur conclut que la session a expiré (affiché par les barres d'état). */
+export const useCollabSessionExpired = () => useState('collab-session-expired', () => false)
+
+/** Page de connexion avec retour sur la page courante. */
+export function signInAgain() {
+  const here = window.location.pathname + window.location.search + window.location.hash
+  window.location.href = `/login?redirect=${encodeURIComponent(here)}`
+}
 
 export function useCollabRecovery(provider: HocuspocusProvider, opts: { onLost?: () => void } = {}) {
+  const sessionExpired = useCollabSessionExpired()
   let timer: ReturnType<typeof setTimeout> | null = null
   let attempts = 0
   let synced = false
@@ -50,6 +61,7 @@ export function useCollabRecovery(provider: HocuspocusProvider, opts: { onLost?:
   /** Verdict d'un échec d'authentification : 'transient' (une reprise est planifiée) ou 'denied'. */
   function classify(reason?: string): AuthVerdict {
     const limit = reason ? RETRIES_BEFORE_DENIED[reason] : undefined
+    const wasUnauthorized = reason === 'unauthorized' || reason === 'session-expired'
     let transient = !!reason && TRANSIENT_REASONS.includes(reason)
     if (!transient && reason && limit !== undefined) {
       failures[reason] = (failures[reason] ?? 0) + 1
@@ -58,6 +70,8 @@ export function useCollabRecovery(provider: HocuspocusProvider, opts: { onLost?:
     if (transient) { schedule(); return 'transient' }
     halted = true
     clear()
+    // Refus répétés de la session (ou abandon décidé par le serveur) : plus aucune tentative.
+    if (wasUnauthorized) { sessionExpired.value = true; return 'expired' }
     return 'denied'
   }
 
@@ -73,6 +87,7 @@ export function useCollabRecovery(provider: HocuspocusProvider, opts: { onLost?:
     halted = false
     attempts = 0
     for (const k of Object.keys(failures)) delete failures[k]
+    sessionExpired.value = false
     clear()
   })
   provider.on('close', lost)

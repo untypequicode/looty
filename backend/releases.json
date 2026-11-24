@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.45.1",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Collaboration: clearer session-expired state and diagnostics for repeated refusals",
+        "fr": "Collaboration : état « session expirée » clair et diagnostic des refus répétés"
+      },
+      "notes": {
+        "en": [
+          "**Session expired**: when the session is no longer recognised, editors stop retrying and show \"Session expired. Sign in again\" with a button to sign in, instead of staying silently read-only.",
+          "**Stale clients**: the collaboration server slows down, then cuts short, clients that keep being refused (for example another device with an expired session), without querying the backend each time.",
+          "**Diagnostics**: refusals are logged with the number of session cookies, a short fingerprint of the session (never its value), the browser, origin and forwarding address."
+        ],
+        "fr": [
+          "**Session expirée** : quand la session n'est plus reconnue, les éditeurs cessent de réessayer et affichent « Session expirée. Se reconnecter » avec un bouton de connexion, au lieu de rester silencieusement en lecture seule.",
+          "**Clients périmés** : le serveur de collaboration ralentit, puis coupe court aux clients refusés en boucle (par exemple un autre appareil à la session expirée), sans interroger le backend à chaque fois.",
+          "**Diagnostic** : les refus sont journalisés avec le nombre de cookies de session, une courte empreinte de la session (jamais sa valeur), le navigateur, l'origine et l'adresse relayée."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.45.0",
       "date": "2026-11-24",
       "title": {
