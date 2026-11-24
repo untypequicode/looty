@@ -81,3 +81,24 @@ test('an unknown option is refused, nothing is written', () => {
   assert.throws(() => execFileSync('sh', [join(root, 'deploy/render.sh'), 'caddy', out, 'keycloak'], { stdio: 'pipe' }), { status: 2 })
   assert.deepEqual(readdirSync(out), [])
 })
+
+// Sur un réseau partagé (celui de Traefik), le nom de service « backend » désigne les backends de toutes les piles
+// (DNS à tour de rôle) : les appels entre services passent par un alias propre à la pile.
+test('no service reaches another by its bare service name, in any compose file', () => {
+  const composes = {
+    'docker-compose.yml': readFileSync(join(root, 'docker-compose.yml'), 'utf8'),
+    'docker-compose.prod.yml': readFileSync(join(root, 'docker-compose.prod.yml'), 'utf8'),
+    'docker-compose.demo.yml': readFileSync(join(root, 'docker-compose.demo.yml'), 'utf8'),
+    'caddy': render('caddy', 'pocket-id')['docker-compose.yml'],
+    'traefik': render('traefik')['docker-compose.yml'],
+  }
+  for (const [name, compose] of Object.entries(composes)) {
+    assert.doesNotMatch(compose, /https?:\/\/(backend|collaboration|frontend)[:/\s"]/, `${name}: bare service name in a URL`)
+    for (const service of ['backend', 'collaboration']) {
+      const block = compose.match(new RegExp(`^ {2}${service}:\\n(?: {4}.*\\n|\\n)*`, 'm'))[0]
+      assert.match(block, /aliases:\n {10}- \S+-(backend|collaboration)\n/, `${name}: ${service} has no stack-scoped alias`)
+    }
+    const alias = compose.match(/BACKEND_URL: http:\/\/(\S+):8080/)[1]
+    assert.match(compose, new RegExp(`- ${alias.replace(/[$.{}]/g, '\\$&')}\\n`), `${name}: BACKEND_URL points at no alias`)
+  }
+})
