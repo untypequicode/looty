@@ -56,3 +56,19 @@ test('ipynb export keeps metadata and attaches images to text cells only', () =>
   assert.equal(out.cells[1].execution_count, 1)
   assert.equal(out.nbformat, 4)
 })
+
+test('html export honours R Markdown chunk options and hides the YAML header', () => {
+  const out = [{ output_type: 'stream', name: 'stdout', text: ['RES\n'] }, { output_type: 'error', ename: 'E', evalue: 'ERR', traceback: [] }]
+  const html = notebookToHtml([
+    { type: 'raw', source: 'title: Secret', metadata: { looty: { rmd: { kind: 'yaml' } } } },
+    { type: 'code', source: 'SHOWN <- 1', outputs: [], metadata: { looty: { rmd: { header: 'r, echo=FALSE' } } } },
+    { type: 'code', source: 'HIDDEN <- 1', outputs: out, metadata: { looty: { rmd: { header: 'r, include=FALSE' } } } },
+    { type: 'code', source: 'quiet()', outputs: out, metadata: { looty: { rmd: { header: 'r, results="hide"' } } } },
+  ], { title: 'T', lang: 'en', renderMarkdown: (s) => s, sanitize: (h) => h })
+  assert.ok(!html.includes('Secret') && !html.includes('SHOWN') && !html.includes('HIDDEN'))
+  assert.ok(html.includes('quiet()') && html.includes('ERR') && !html.includes('RES'))
+})
+
+test('R export keeps lines starting with ! or %', () => {
+  assert.equal(notebookToPython([{ type: 'code', source: '!x\n' }], 'r'), '# %%\n!x\n')
+})

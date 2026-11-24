@@ -44,6 +44,7 @@ export default {
     compile: 'Compile', compiled: 'Compiled in {s} s', compiledWithErrors: { one: 'PDF produced, 1 error', other: 'PDF produced, {count} errors' }, failed: { one: 'Failed: 1 error', other: 'Failed: {count} errors' },
     compileHint: 'Compile to see the PDF (Ctrl+S).', autoCompile: 'Auto', log: 'Compilation log', downloadPdf: 'Download PDF',
     compileServer: 'Compile on the server', compileLocal: 'Compile on this computer', local: 'on this computer',
+    convertToNotebook: 'Open as notebook (.ipynb)', converted: 'Notebook {path} created from the document.', convertFailed: 'This document could not be converted.',
     downloadZip: 'Download project (zip)', zipParts: 'Large project: downloading {count} zip files (200 MB max each)', renameProject: 'Rename project', deleteProject: 'Delete project',
     deleteProjectTitle: 'Delete “{name}”?', deleteProjectHint: 'All files are deleted and the site, if any, is taken offline. This can’t be undone.',
   },
@@ -82,7 +83,11 @@ export default {
     },
     export: {
       title: 'Export', html: 'Web page (.html)', pdf: 'PDF (print)', py: 'Python script (.py)', ipynb: 'Notebook with its images (.ipynb)',
+      r: 'R script (.R)', rmd: 'R Markdown document (.Rmd)', qmd: 'Quarto document (.qmd)',
       failed: 'The notebook could not be exported.',
+    },
+    r: {
+      needsJupyter: 'R cells run on the project’s Jupyter server (IRkernel). Open the Engine button in the toolbar and pick the Jupyter server with an R kernel: the browser engine only runs Python.',
     },
     deps: {
       refreshFailed: 'Project files could not be refreshed: the code runs with the files already loaded.', saveFailed: '{pkg} is installed for this session but could not be saved to requirements.txt.',

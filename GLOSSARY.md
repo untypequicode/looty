@@ -93,6 +93,10 @@ _Avoid_: script, librairie locale
 Adresse secrète qui permet de lire une page sans compte, en lecture seule. Si la page porte un notebook, le visiteur le voit tel qu'il est enregistré (texte, code, sorties, images) sans pouvoir l'exécuter. Si elle porte un projet LaTeX, il voit le dernier PDF compilé. Il ne voit jamais les autres fichiers du projet.
 _Avoid_: lien de partage, page publiée, partage public
 
+**Document R Markdown**:
+Fichier `.Rmd` ou `.qmd` (Quarto) : en-tête YAML, texte Markdown et chunks de code ```{r}. Looty le convertit en notebook (et inversement) sans perte, mais ne l'exécute pas lui-même : les cellules R tournent sur le serveur Jupyter du projet (noyau IRkernel).
+_Avoid_: rapport R, knitr
+
 **Serveur Jupyter du projet**:
 Serveur Jupyter externe (Jupyter Server, JupyterLab, serveur utilisateur JupyterHub) déclaré dans un projet par une personne qui peut le modifier : adresse, jeton, noyau par défaut. Seul le serveur Looty le contacte ; le jeton n'est jamais montré.
 _Avoid_: kernel distant, Jupyter Hub (quand on parle de la configuration du projet)
