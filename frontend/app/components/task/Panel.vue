@@ -7,7 +7,7 @@ import { CalendarSync, CalendarRange, ExternalLink, Repeat } from 'lucide-vue-ne
 import type { CalEvent, EventDetail } from '~/composables/useCalendar'
 import { isTimed, timeOf } from '~/utils/dates'
 import { api, errorMessage } from '~/composables/api'
-import type { Board, Task, Priority, TaskRepeat } from '~/types'
+import type { Board, Task, Priority, TaskRepeat, TaskReminder } from '~/types'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useBoardActions, columnProgress, allTasks } from '~/composables/useBoard'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -122,6 +122,11 @@ function linkEvent(e: CalEvent | null) {
 const REPEATS: TaskRepeat[] = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']
 const repeatOpen = ref(false)
 const repeatItems = computed(() => [{ value: '', label: t('taskRepeat.none') }, ...REPEATS.map((r) => ({ value: r, label: t(`taskRepeat.${r}`) }))])
+function setReminders(r: TaskReminder[] | null) {
+  if (!task.value) return
+  if (r?.length && !task.value.due_date) { toast.error(t('taskReminder.needsDate')); return }
+  actions.updateTask(task.value.id, { reminders: r })
+}
 function setRepeat(v: string) {
   if (!task.value) return
   if (v && !task.value.due_date && !task.value.start_date) { toast.error(t('taskRepeat.needsDate')); return }
@@ -332,6 +337,10 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
                 <Repeat :size="14" class="faint" /> <span :class="{ faint: !task.repeat }">{{ task.repeat ? t(`taskRepeat.${task.repeat}`) : t('taskRepeat.none') }}</span>
               </button>
             </UiCombobox>
+          </div>
+          <div class="prop">
+            <span class="prop-label">{{ t('taskReminder.label') }}</span>
+            <TaskReminders :reminders="task.reminders" :can-write="canWrite" @update="setReminders" />
           </div>
 
           <div class="prop">

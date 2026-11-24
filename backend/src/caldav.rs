@@ -336,6 +336,8 @@ struct SyncTask {
     updated_at: DateTime<Utc>,
     workspace_id: Uuid,
     my_validation: bool,
+    reminders: Option<serde_json::Value>,
+    default_reminder_minutes: Option<i32>,
 }
 
 /// Une tâche « par personne » est terminée pour moi dès que je l'ai validée.
@@ -465,7 +467,8 @@ async fn sync_account_inner(state: &AppState, account_id: Uuid) -> ApiResult<Syn
         sqlx::query_as::<_, SyncTask>(
             "SELECT t.id, t.title, t.description, t.due_date, t.start_date, t.priority, t.is_completed, t.is_per_person,
                     t.created_at, t.updated_at, b.workspace_id,
-                    EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $1) AS my_validation
+                    EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $1) AS my_validation,
+                    t.reminders, (SELECT default_reminder_minutes FROM users WHERE id::text = $1) AS default_reminder_minutes
              FROM tasks t
              JOIN task_assignees ta ON ta.task_id = t.id AND ta.user_id = $1
              JOIN board_columns c ON c.id = t.column_id
@@ -543,7 +546,8 @@ async fn sync_account_inner(state: &AppState, account_id: Uuid) -> ApiResult<Syn
         let fields = fields_of(t);
         let uid = links.get(&t.id).map(|l| l.uid.clone()).unwrap_or_else(|| format!("looty-{}@{}", t.id, host));
         let url = format!("{}/w/{}/task/{}", state.base_url.trim_end_matches('/'), t.workspace_id, t.id);
-        let body = ical::build_vtodo(&fields, &TodoMeta { uid: &uid, url: &url, categories: &categories, last_modified: t.updated_at, created: t.created_at });
+        let alarms = crate::reminders::alarms(t.due_date, t.reminders.as_ref(), t.default_reminder_minutes);
+        let body = ical::build_vtodo(&fields, &TodoMeta { uid: &uid, url: &url, categories: &categories, last_modified: t.updated_at, created: t.created_at, alarms: &alarms });
         let h = hash(&body);
 
         match links.get(&t.id) {

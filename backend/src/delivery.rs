@@ -259,40 +259,63 @@ async fn process(state: &AppState) -> ApiResult<()> {
 // Rappels d'échéance
 // ---------------------------------------------------------------------------
 
+/// Une ligne candidate : tâche, personne assignée, échéance, titre, tableau, espace, rappels de la tâche
+/// et rappel par défaut de la personne.
+type ReminderRow = (Uuid, Uuid, DateTime<Utc>, String, Uuid, Uuid, Option<serde_json::Value>, Option<i32>);
+
 async fn due_reminders(state: &AppState) -> ApiResult<()> {
     let pool = &state.pool;
-    let rows: Vec<(Uuid, Uuid, DateTime<Utc>, String, Uuid, Uuid)> = sqlx::query_as(
-        "SELECT t.id, ta.user_id::uuid, t.due_date, t.title, b.id, b.workspace_id
+    let rows: Vec<ReminderRow> = sqlx::query_as(
+        "SELECT t.id, ta.user_id::uuid, t.due_date, t.title, b.id, b.workspace_id, t.reminders, u.default_reminder_minutes
          FROM tasks t
          JOIN task_assignees ta ON ta.task_id = t.id
+         JOIN users u ON u.id::text = ta.user_id
          JOIN board_columns c ON c.id = t.column_id
          JOIN boards b ON b.id = c.board_id
          JOIN workspace_members wm ON wm.workspace_id = b.workspace_id AND wm.user_id = ta.user_id
          WHERE NOT t.is_completed AND t.due_date IS NOT NULL
-           AND t.due_date > NOW() - interval '12 hours' AND t.due_date <= NOW() + interval '24 hours'
+           AND t.due_date > NOW() - interval '12 hours'
+           AND (t.due_date <= NOW() + make_interval(mins => $1::int) OR jsonb_path_exists(COALESCE(t.reminders, '[]'::jsonb), '$[*].at'))
            AND ta.user_id ~ '^[0-9a-fA-F-]{36}$'
            AND NOT (t.is_per_person AND EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = ta.user_id))
-           AND NOT EXISTS(SELECT 1 FROM task_due_reminders r WHERE r.task_id = t.id AND r.user_id = ta.user_id::uuid AND r.due_date = t.due_date)
-         LIMIT 500",
+         ORDER BY t.due_date
+         LIMIT 5000",
     )
+    .bind(crate::reminders::MAX_MINUTES as i32)
     .fetch_all(pool)
     .await?;
-    if rows.is_empty() {
+    let now = Utc::now();
+    // (tâche, personne, échéance, clé du rappel) à envoyer maintenant.
+    let mut due_now: Vec<(Uuid, Uuid, DateTime<Utc>, String)> = Vec::new();
+    for (task_id, user_id, due, _, _, _, reminders, default_minutes) in &rows {
+        for (key, at) in crate::reminders::fire_times(*due, reminders.as_ref(), *default_minutes) {
+            if at <= now {
+                due_now.push((*task_id, *user_id, *due, key));
+            }
+        }
+    }
+    if due_now.is_empty() {
         return Ok(());
     }
-    let task_ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
-    let user_ids: Vec<Uuid> = rows.iter().map(|r| r.1).collect();
-    let dues: Vec<DateTime<Utc>> = rows.iter().map(|r| r.2).collect();
-    let inserted: std::collections::HashSet<(Uuid, Uuid)> = sqlx::query_as::<_, (Uuid, Uuid)>(
-        "INSERT INTO task_due_reminders (task_id, user_id, due_date) SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::timestamptz[])
-         ON CONFLICT DO NOTHING RETURNING task_id, user_id",
+    let task_ids: Vec<Uuid> = due_now.iter().map(|r| r.0).collect();
+    let user_ids: Vec<Uuid> = due_now.iter().map(|r| r.1).collect();
+    let dues: Vec<DateTime<Utc>> = due_now.iter().map(|r| r.2).collect();
+    let keys: Vec<String> = due_now.iter().map(|r| r.3.clone()).collect();
+    let inserted: Vec<(Uuid, Uuid, DateTime<Utc>)> = sqlx::query_as(
+        "INSERT INTO task_due_reminders (task_id, user_id, due_date, reminder_key)
+         SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::timestamptz[], $4::text[])
+         ON CONFLICT DO NOTHING RETURNING task_id, user_id, due_date",
     )
-    .bind(&task_ids).bind(&user_ids).bind(&dues)
-    .fetch_all(pool).await?
-    .into_iter().collect();
-    for (task_id, user_id, due, title, board_id, ws) in rows {
-        if inserted.contains(&(task_id, user_id)) {
-            crate::notifications::notify(pool, &state.hub, ws, user_id, None, "due_soon", &format!("task:{task_id}"),
+    .bind(&task_ids).bind(&user_ids).bind(&dues).bind(&keys)
+    .fetch_all(pool).await?;
+    // Une seule notification par personne et par tâche, même si plusieurs rappels arrivent ensemble.
+    let mut seen: std::collections::HashSet<(Uuid, Uuid)> = std::collections::HashSet::new();
+    for (task_id, user_id, _) in inserted {
+        if !seen.insert((task_id, user_id)) {
+            continue;
+        }
+        if let Some((_, _, due, title, board_id, ws, _, _)) = rows.iter().find(|r| r.0 == task_id && r.1 == user_id) {
+            crate::notifications::notify(pool, &state.hub, *ws, user_id, None, "due_soon", &format!("task:{task_id}"),
                 serde_json::json!({ "title": title, "board_id": board_id, "due_date": due })).await;
         }
     }
@@ -471,5 +494,82 @@ mod tests {
         let d = Utc.with_ymd_and_hms(2026, 11, 3, 12, 0, 0).unwrap();
         assert_eq!(fmt_due(&d, true, Some("Pacific/Kiritimati")), "03/11/2026");
         assert_eq!(fmt_due(&d, false, Some("Pacific/Pago_Pago")), "Nov 3, 2026");
+    }
+}
+
+#[cfg(test)]
+mod reminder_tests {
+    use super::*;
+    use sqlx::PgPool;
+
+    /// Une tâche assignée à une personne, échéance dans `due_in` minutes.
+    async fn setup(pool: &PgPool, due_in: i64, reminders: Option<serde_json::Value>, default: Option<i32>) -> (Uuid, Uuid) {
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(pool).await.unwrap();
+        let uid: Uuid = sqlx::query_scalar("INSERT INTO users (email, name, default_reminder_minutes) VALUES ('a@example.org', 'a', $1) RETURNING id").bind(default).fetch_one(pool).await.unwrap();
+        sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')").bind(ws).bind(uid.to_string()).execute(pool).await.unwrap();
+        let board: Uuid = sqlx::query_scalar("INSERT INTO boards (workspace_id, name) VALUES ($1, 'B') RETURNING id").bind(ws).fetch_one(pool).await.unwrap();
+        let col: Uuid = sqlx::query_scalar("INSERT INTO board_columns (board_id, name, position) VALUES ($1, 'C', 1) RETURNING id").bind(board).fetch_one(pool).await.unwrap();
+        let task: Uuid = sqlx::query_scalar("INSERT INTO tasks (column_id, title, position, due_date, reminders) VALUES ($1, 'T', 1, NOW() + make_interval(mins => $2::int), $3) RETURNING id")
+            .bind(col).bind(due_in as i32).bind(reminders).fetch_one(pool).await.unwrap();
+        sqlx::query("INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2)").bind(task).bind(uid.to_string()).execute(pool).await.unwrap();
+        (task, uid)
+    }
+
+    async fn sent(pool: &PgPool, user: Uuid) -> i64 {
+        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND kind = 'due_soon'").bind(user).fetch_one(pool).await.unwrap()
+    }
+
+    fn state(pool: &PgPool) -> AppState {
+        AppState::new(pool.clone(), "http://localhost".into())
+    }
+
+    #[sqlx::test]
+    async fn the_default_reminder_fires_once(pool: PgPool) {
+        let (_, uid) = setup(&pool, 600, None, Some(1440)).await;
+        due_reminders(&state(&pool)).await.unwrap();
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 1);
+    }
+
+    #[sqlx::test]
+    async fn no_default_and_no_task_reminder_means_silence(pool: PgPool) {
+        let (_, uid) = setup(&pool, 600, None, None).await;
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 0);
+    }
+
+    #[sqlx::test]
+    async fn a_task_reminder_waits_for_its_time_and_replaces_the_default(pool: PgPool) {
+        // Échéance dans 3 h, rappel 1 h avant : rien pour l'instant malgré le défaut de 24 h.
+        let (task, uid) = setup(&pool, 180, Some(serde_json::json!([{ "before": 60 }])), Some(1440)).await;
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 0);
+        // L'heure du rappel arrive (échéance dans 30 min).
+        sqlx::query("UPDATE tasks SET due_date = NOW() + interval '30 minutes' WHERE id = $1").bind(task).execute(&pool).await.unwrap();
+        due_reminders(&state(&pool)).await.unwrap();
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 1);
+    }
+
+    #[sqlx::test]
+    async fn several_reminders_fire_separately_and_an_exact_date_works(pool: PgPool) {
+        let at = Utc::now() - chrono::Duration::minutes(5);
+        let (task, uid) = setup(&pool, 2 * 1440, Some(serde_json::json!([{ "at": at }])), None).await;
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 1);
+        // Un second rappel (1 jour avant) s'ajoute plus tard : un nouvel envoi.
+        sqlx::query("UPDATE tasks SET reminders = $2 WHERE id = $1").bind(task).bind(serde_json::json!([{ "at": at }, { "before": 3000 }])).execute(&pool).await.unwrap();
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 2);
+        let keys: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_due_reminders WHERE task_id = $1").bind(task).fetch_one(&pool).await.unwrap();
+        assert_eq!(keys, 2);
+    }
+
+    #[sqlx::test]
+    async fn completed_tasks_are_left_alone(pool: PgPool) {
+        let (task, uid) = setup(&pool, 600, None, Some(1440)).await;
+        sqlx::query("UPDATE tasks SET is_completed = true WHERE id = $1").bind(task).execute(&pool).await.unwrap();
+        due_reminders(&state(&pool)).await.unwrap();
+        assert_eq!(sent(&pool, uid).await, 0);
     }
 }

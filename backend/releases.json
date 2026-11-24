@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.41.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Reminders before a task is due",
+        "fr": "Rappels avant l'échéance d'une tâche"
+      },
+      "notes": {
+        "en": [
+          "**Tasks**: add one or more reminders to a task (at the due date, 1 hour, 1 day, 2 days or 1 week before, or at an exact date). The people assigned are notified, by email too if they enabled it, and recurring tasks keep their reminders on the next occurrence.",
+          "**Settings**: a default reminder (24 hours before, as before) now applies to every task assigned to you that has none of its own; it can be changed or turned off in Preferences.",
+          "**Calendar**: reminders are exported as alarms in CalDAV and in the subscription feed, so your phone calendar rings too."
+        ],
+        "fr": [
+          "**Tâches** : ajoutez un ou plusieurs rappels à une tâche (à l'échéance, 1 heure, 1 jour, 2 jours ou 1 semaine avant, ou à une date précise). Les personnes assignées sont notifiées, par e-mail aussi si elles l'ont activé, et les tâches récurrentes gardent leurs rappels à l'occurrence suivante.",
+          "**Réglages** : un rappel par défaut (24 heures avant, comme avant) s'applique désormais à toute tâche qui vous est assignée sans rappel propre ; il se change ou se désactive dans les Préférences.",
+          "**Agenda** : les rappels sont exportés en alarmes dans CalDAV et dans le flux d'abonnement, pour que l'agenda de votre téléphone sonne aussi."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.40.5",
       "date": "2026-11-23",
       "title": {

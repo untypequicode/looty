@@ -9,6 +9,8 @@ export interface User {
   locale?: 'fr' | 'en' | null
   /** Fuseau horaire IANA (heures des e-mails). */
   timezone?: string | null
+  /** Rappel par défaut des tâches : minutes avant l'échéance (null : aucun). */
+  default_reminder_minutes?: number | null
   is_super_admin?: boolean
   prefs?: Record<string, unknown>
 }
@@ -107,9 +109,13 @@ export interface Task {
   previous_column_id?: string | null
   /** Répétition : terminée, la tâche crée sa prochaine occurrence. */
   repeat?: TaskRepeat | null
+  /** Rappels avant l'échéance : absent = rappel par défaut de chaque personne, [] = aucun. */
+  reminders?: TaskReminder[] | null
   created_at?: string
   updated_at?: string
 }
+
+export interface TaskReminder { before?: number; at?: string }
 
 export type TaskRepeat = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
 

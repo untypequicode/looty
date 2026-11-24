@@ -51,6 +51,7 @@ mod releases;
 mod notifications;
 mod push;
 mod recurrence;
+mod reminders;
 mod page;
 mod personal;
 mod prefs;

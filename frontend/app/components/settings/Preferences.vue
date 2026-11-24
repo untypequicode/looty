@@ -9,6 +9,7 @@ import { shareLocation } from '~/composables/useRealtime'
 import { tabsEnabled } from '~/composables/useTabs'
 import { useUserPrefs } from '~/composables/usePrefs'
 import { useAuth } from '~/composables/useAuth'
+import { reminderLabel, REMINDER_PRESETS } from '~/utils/reminders'
 import { isAndroidBrowser, androidBannerHidden } from '~/composables/useAppHandoff'
 
 const { prefs, update: updatePrefs } = useUserPrefs()
@@ -21,7 +22,7 @@ const { sidebarCollapsed } = useUi()
 // Bannière « Ouvrir dans l'app Looty » : choix de cet appareil (navigateur Android seulement).
 const androidBanner = computed({ get: () => !androidBannerHidden.value, set: (v: boolean) => { androidBannerHidden.value = !v } })
 
-async function persist(body: Record<string, string>) {
+async function persist(body: Record<string, string | number | null>) {
   await api('/api/user/preferences', { method: 'PUT', body })
   toast.success(t('common.saved'))
 }
@@ -39,6 +40,14 @@ const tzItems = computed(() => {
 })
 async function onTimezone(z: string) {
   await persist({ timezone: z })
+  refresh()
+}
+// Rappel par défaut des tâches assignées (-1 : aucun).
+const remOpen = ref(false)
+const remItems = computed(() => [{ value: -1, label: t('taskReminder.none') }, ...REMINDER_PRESETS.map((m) => ({ value: m, label: reminderLabel(m, t) }))])
+const remValue = computed(() => user.value?.default_reminder_minutes ?? -1)
+async function onReminder(v: number) {
+  await persist({ default_reminder_minutes: v < 0 ? null : v })
   refresh()
 }
 const themes = computed(() => [
@@ -65,6 +74,11 @@ const themes = computed(() => [
       <UiButton v-if="timezone !== deviceTz" size="sm" variant="ghost" @click="onTimezone(deviceTz)">{{ t('settings.prefs.timezoneDetect') }}</UiButton>
       <UiCombobox v-model:open="tzOpen" :model-value="timezone" :items="tzItems" :width="280" placement="bottom-end" @update:model-value="(v) => onTimezone(String(v))">
         <button class="tz-select">{{ timezone.replace(/_/g, ' ') }}</button>
+      </UiCombobox>
+    </SettingsRow>
+    <SettingsRow :label="t('settings.prefs.defaultReminder')" :hint="t('settings.prefs.defaultReminderHint')">
+      <UiCombobox v-model:open="remOpen" :model-value="remValue" :items="remItems" :width="220" placement="bottom-end" @update:model-value="(v) => onReminder(Number(v))">
+        <button class="tz-select">{{ reminderLabel(user?.default_reminder_minutes ?? null, t) }}</button>
       </UiCombobox>
     </SettingsRow>
     <SettingsRow :label="t('settings.prefs.compactSidebar')" :hint="t('settings.prefs.compactSidebarHint')">

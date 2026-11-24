@@ -18,6 +18,7 @@ export default {
       languageHint: 'Langue de l’interface, enregistrée sur votre compte.', compactSidebar: 'Masquer la barre latérale',
       compactSidebarHint: 'Raccourci : [', notifications: 'Notifications', desktop: 'Notifications système',
       enabled: 'Activées', blocked: 'Bloquées par le navigateur',
+      defaultReminder: 'Rappel de tâche par défaut', defaultReminderHint: 'Utilisé pour les tâches qui vous sont assignées et n’ont pas de rappel propre, avant leur échéance.',
       timezone: 'Fuseau horaire', timezoneHint: 'Heures affichées dans les e-mails de notification.', timezoneDetect: 'Utiliser celui de cet appareil',
     },
     security: {

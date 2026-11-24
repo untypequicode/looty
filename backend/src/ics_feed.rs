@@ -61,11 +61,11 @@ pub async fn feed(State(state): State<AppState>, Path(file): Path<String>) -> Re
         .filter(|e| cal_spaces.contains(&e.workspace_id))
         .map(|e| e.dav_ics())
         .collect();
-    let tasks: Vec<(Uuid, String, DateTime<Utc>, DateTime<Utc>)> = if calendar.is_some() {
+    let tasks: Vec<FeedTask> = if calendar.is_some() {
         vec![]
     } else {
-        sqlx::query_as(
-            "SELECT t.id, t.title, t.due_date, t.updated_at
+        sqlx::query_as::<_, FeedRow>(
+            "SELECT t.id, t.title, t.due_date, t.updated_at, t.reminders, (SELECT default_reminder_minutes FROM users WHERE id::text = $1) AS default_reminder_minutes
              FROM tasks t
              JOIN board_columns c ON c.id = t.column_id
              JOIN boards b ON b.id = c.board_id
@@ -79,6 +79,9 @@ pub async fn feed(State(state): State<AppState>, Path(file): Path<String>) -> Re
         .bind(&board_spaces)
         .fetch_all(&state.pool)
         .await?
+            .into_iter()
+            .map(|r| (r.id, r.title, r.due_date, r.updated_at, crate::reminders::alarms(Some(r.due_date), r.reminders.as_ref(), r.default_reminder_minutes)))
+            .collect()
     };
 
     let body = build(&name, &events, &tasks);
@@ -91,8 +94,21 @@ pub async fn feed(State(state): State<AppState>, Path(file): Path<String>) -> Re
         .unwrap())
 }
 
+/// Une échéance de tâche du flux : id, titre, échéance, modification, heures de rappel.
+type FeedTask = (Uuid, String, DateTime<Utc>, DateTime<Utc>, Vec<DateTime<Utc>>);
+
+#[derive(sqlx::FromRow)]
+struct FeedRow {
+    id: Uuid,
+    title: String,
+    due_date: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    reminders: Option<serde_json::Value>,
+    default_reminder_minutes: Option<i32>,
+}
+
 /// Assemble le flux : les objets iCalendar des événements, puis une journée par échéance de tâche.
-fn build(name: &str, events: &[String], tasks: &[(Uuid, String, DateTime<Utc>, DateTime<Utc>)]) -> String {
+fn build(name: &str, events: &[String], tasks: &[FeedTask]) -> String {
     let mut lines: Vec<String> = vec![
         "BEGIN:VCALENDAR".into(),
         "VERSION:2.0".into(),
@@ -115,7 +131,7 @@ fn build(name: &str, events: &[String], tasks: &[(Uuid, String, DateTime<Utc>, D
             lines.extend(block);
         }
     }
-    for (id, title, due, updated) in tasks {
+    for (id, title, due, updated, alarms) in tasks {
         let day = due.date_naive();
         lines.extend([
             "BEGIN:VEVENT".into(),
@@ -125,8 +141,9 @@ fn build(name: &str, events: &[String], tasks: &[(Uuid, String, DateTime<Utc>, D
             format!("DTEND;VALUE=DATE:{}", (day + Duration::days(1)).format("%Y%m%d")),
             format!("SUMMARY:{}", escape_text(&format!("✓ {title}"))),
             "TRANSP:TRANSPARENT".into(),
-            "END:VEVENT".into(),
         ]);
+        lines.extend(crate::ical::valarms(alarms, title));
+        lines.push("END:VEVENT".into());
     }
     lines.push("END:VCALENDAR".into());
     let mut out = lines.iter().map(|l| fold(l)).collect::<Vec<_>>().join("\r\n");
@@ -199,8 +216,9 @@ mod tests {
     fn task_due_date_becomes_all_day_event() {
         let due = DateTime::parse_from_rfc3339("2026-10-22T12:00:00Z").unwrap().with_timezone(&Utc);
         let id = Uuid::nil();
-        let out = build("Looty", &[], &[(id, "Rendre, le TP".into(), due, due)]);
+        let out = build("Looty", &[], &[(id, "Rendre, le TP".into(), due, due, vec![due - Duration::hours(24)])]);
         assert!(out.contains("DTSTART;VALUE=DATE:20261022\r\n") && out.contains("DTEND;VALUE=DATE:20261023\r\n"));
         assert!(out.contains("SUMMARY:✓ Rendre\\, le TP"));
+        assert!(out.contains("BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Rendre\\, le TP\r\nTRIGGER;VALUE=DATE-TIME:20261021T120000Z\r\nEND:VALARM\r\nEND:VEVENT"));
     }
 }
