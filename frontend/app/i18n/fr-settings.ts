@@ -24,7 +24,7 @@ export default {
     security: {
       accounts: 'Comptes connectés', accountsHint: 'Fournisseurs avec lesquels vous pouvez vous connecter.', unknownProvider: 'Fournisseur supprimé',
       linkedOn: 'Lié le {date}', unlink: 'Délier', unlinkTitle: 'Délier ce compte ?', tokens: 'Jetons d’API',
-      tokensHint: 'Accédez à l’API avec « Authorization: Bearer <jeton> ». Un jeton a les mêmes droits que vous.', newToken: 'Nouveau jeton',
+      tokensHint: 'Accédez à l’API avec « Authorization: Bearer <jeton> ». Un jeton agit en votre nom sans jamais avoir plus de droits : il peut aussi être en lecture seule, limité à certains espaces, et expirer.', newToken: 'Nouveau jeton',
       createdOn: 'Créé le {date}', lastUsed: 'utilisé {time}', neverUsed: 'jamais utilisé', noTokens: 'Aucun jeton',
       revokeTitle: 'Révoquer « {name} » ?', revokeMessage: 'Les intégrations qui l’utilisent cesseront de fonctionner immédiatement.',
       tokenName: 'Nom du jeton', tokenPlaceholder: 'Ex. Script de sauvegarde', copyNow: 'Copiez ce jeton maintenant : il ne sera plus jamais affiché.',

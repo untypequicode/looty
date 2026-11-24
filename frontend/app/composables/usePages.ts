@@ -74,10 +74,10 @@ export function usePages() {
     qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, ...patch } : old))
   }
 
-  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas'; personal?: boolean } = {}) {
+  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas'; personal?: boolean; templateId?: string } = {}) {
     const page = await api<Page>(`/api/workspaces/${wsId.value}/pages`, {
       method: 'POST',
-      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView, personal: opts.personal ?? false },
+      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView, personal: opts.personal ?? false, template_id: opts.templateId },
     })
     qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => (old && !old.some((p) => p.id === page.id) ? [...old, { ...page, content: null, can_edit: true }] : old))
     // Droits calculés par le serveur (sous-pages permises par un partage…).

@@ -57,6 +57,7 @@ impl AppState {
         let owner = ["task", "page", "board", "project", "file", "study"]
             .iter()
             .find_map(|k| event.get(*k).and_then(|o| o.get("private_to")).and_then(|v| v.as_str()).and_then(|v| Uuid::parse_str(v).ok()));
+        crate::webhooks::from_realtime(self, workspace_id, &event);
         match owner {
             Some(user) => self.hub.send_to(workspace_id, user, event).await,
             None => self.hub.broadcast(workspace_id, event).await,

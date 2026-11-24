@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users, LayoutTemplate } from 'lucide-vue-next'
+import { saveAsTemplate } from '~/composables/useTemplates'
 import { usePersonal } from '~/composables/usePersonalItems'
 import { openMovePage } from '~/composables/useMovePage'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
@@ -28,7 +29,7 @@ const route = useRoute()
 const qc = useQueryClient()
 const { t, relativeTime } = useI18n()
 const { openInAppItems } = useAppHandoff()
-const { wsId, pages, member, isGuest, workspace } = useWorkspace()
+const { wsId, pages, member, isGuest, workspace, isAdmin } = useWorkspace()
 const { setPersonal } = usePersonal()
 /** Bascule Partagé / Personnel : l'autrice la rend personnelle, la propriétaire la repartage (pas sous une page personnelle). */
 const personalToggle = computed<MenuItem[]>(() => {
@@ -243,6 +244,7 @@ const menu = computed<MenuItem[]>(() => {
       : p.can_edit !== false ? [{ divider: true }, { heading: t('projects.makeProject') }, ...projectKinds.value.map((k) => ({ label: k.label, icon: k.icon, onSelect: () => makeProject(k.kind, k.template) }))] : []),
     { divider: true },
     ...(canManage.value ? [{ label: t('common.duplicate'), icon: Copy, onSelect: () => duplicatePage(p.id) }] : []),
+    ...(isAdmin.value && !p.private_to && !workspace.data.value?.personal ? [{ label: t('tpl.saveAs'), icon: LayoutTemplate, onSelect: () => saveAsTemplate(wsId.value, 'page', p.id, title.value || p.title) }] : []),
     ...(canManage.value ? [{ label: t('move.action'), icon: FolderInput, onSelect: () => openMovePage(wsId.value, p) }] : []),
     ...personalToggle.value,
     { label: t('editor.exportMarkdown'), icon: Download, onSelect: () => exportMarkdown(title.value, editorInst.value?.getHTML() ?? p.content ?? '') },

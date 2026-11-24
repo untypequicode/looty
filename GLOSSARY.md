@@ -271,3 +271,17 @@ _Avoid_: diagnostic, monitoring
 
 **Rapport d'import**:
 Liste, affichée à la fin d'un import depuis Notion, Obsidian, Trello ou Outline, de ce qui n'a pas pu être repris tel quel (cartes archivées, liens vers des pages absentes, images introuvables, membres sans correspondance).
+
+## Intégrations
+
+**Jeton d'accès**:
+Clé personnelle (`looty_…`) qui permet à un script, n8n ou un bot d'agir au nom d'une personne par l'API, sans jamais avoir plus de droits qu'elle. Elle peut être en lecture seule, limitée à certains espaces, et expirer. Distinct du mot de passe d'application (CalDAV) et du lien d'abonnement à un calendrier.
+_Avoid_: clé d'API, token (seul)
+
+**Webhook**:
+Adresse qui reçoit, pour un espace, un message signé (HMAC) à chaque événement choisi (tâche créée, modifiée ou terminée ; document modifié ; événement créé ; annonce publiée). Géré par les administrateurs de l'espace ; les éléments personnels n'y sont jamais envoyés. Chaque livraison est journalisée et réessayée en cas d'échec.
+_Avoid_: callback, notification (réservé aux notifications de la boîte de réception)
+
+**Modèle**:
+Tableau (colonnes, étiquettes, tâches types) ou document enregistré par un administrateur d'un espace, proposé aux membres qui peuvent créer. Looty en fournit quelques-uns (suivi de projet, rétrospective, compte rendu de réunion, notes de cours, compte rendu de TP). Un élément personnel ne devient jamais un modèle.
+_Avoid_: gabarit, template (en français)

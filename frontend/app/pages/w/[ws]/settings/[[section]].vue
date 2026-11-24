@@ -28,6 +28,8 @@ import AdminAuth from '~/components/settings/AdminAuth.vue'
 import AdminInstance from '~/components/settings/AdminInstance.vue'
 import AccountData from '~/components/settings/AccountData.vue'
 import AdminStatus from '~/components/settings/AdminStatus.vue'
+import Webhooks from '~/components/settings/Webhooks.vue'
+import Templates from '~/components/settings/Templates.vue'
 
 definePageMeta({ layout: 'settings' })
 
@@ -46,6 +48,8 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   members: { comp: Members, title: 'settings.nav.members' },
   groups: { comp: Groups, title: 'memberGroups.title' },
   roles: { comp: Roles, title: 'rolesUi.title' },
+  templates: { comp: Templates, title: 'tpl.title' },
+  webhooks: { comp: Webhooks, title: 'integ.hooks.title' },
   'my-space': { comp: MySpace, title: 'access.mySpace' },
   'space-overview': { comp: SpaceOverview, title: 'insights.spaceOverview' },
   'admin-analytics': { comp: AdminInsightsPage, title: 'insights.title', admin: true },

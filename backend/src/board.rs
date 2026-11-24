@@ -501,6 +501,8 @@ pub struct CreateBoardReq {
     /// Tableau personnel (visible de son auteur seulement).
     #[serde(default)]
     pub personal: bool,
+    /// Modèle (GLOSSARY) : identifiant d'un modèle de l'espace, ou nom d'un modèle fourni.
+    pub template_id: Option<String>,
 }
 
 async fn create_board(
@@ -522,7 +524,19 @@ async fn create_board(
     .bind(req.personal.then_some(user.id))
     .fetch_one(&mut *tx)
     .await?;
-    if req.with_default_columns.unwrap_or(true) {
+    let template = match req.template_id.as_deref() {
+        Some(id) => match crate::templates::resolve(&state, user.id, workspace_id, id, "board").await? {
+            crate::templates::Chosen::Board(b) => Some(b),
+            _ => None,
+        },
+        None => None,
+    };
+    if let Some(tpl) = &template {
+        if let Some(done) = crate::templates::apply_board(&mut tx, board.id, tpl).await? {
+            board.automations = serde_json::json!({ "on_complete_move_to": done.to_string(), "apply_to_subtasks": false, "auto_validate_on_move": true });
+            sqlx::query("UPDATE boards SET automations = $1 WHERE id = $2").bind(&board.automations).bind(board.id).execute(&mut *tx).await?;
+        }
+    } else if req.with_default_columns.unwrap_or(true) {
         let mut done_id = None;
         for (i, col) in ["Backlog", "À faire", "En cours", "Terminé"].iter().enumerate() {
             let id: Uuid = sqlx::query_scalar(

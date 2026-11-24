@@ -59,6 +59,7 @@ where
                     "UPDATE api_tokens t SET last_used_at = NOW()
                      FROM users u
                      WHERE t.token_hash = $1 AND t.scope = 'api' AND u.id = t.user_id
+                       AND (t.expires_at IS NULL OR t.expires_at > NOW())
                      RETURNING u.id, u.is_super_admin, u.is_suspended",
                 )
                 .bind(hash_token(raw.trim()))

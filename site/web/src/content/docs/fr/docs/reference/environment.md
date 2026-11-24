@@ -52,6 +52,7 @@ Cette page est générée à partir de `docs/env-vars.json` et vérifiée en CI 
 | `AI_ALLOW_PRIVATE` | backend | Autoriser les fournisseurs d'IA en réseau privé ou en http (par exemple Ollama sur la même machine). Aussi autorisé quand CALDAV_ALLOW_PRIVATE vaut true. | `false` | non | `true` | 0.34.1 | non |
 | `PUSH_ALLOW_PRIVATE` | backend | Tests seulement : accepte un service de push local (http, réseau privé). | `false` | non | `false` | 0.1.0 | non |
 | `LOOTY_METRICS_TOKEN` | backend | Active le point /metrics pour Prometheus (aussi /api/metrics), lu avec l'en-tête Authorization: Bearer <jeton>. 16 caractères au moins ; sans lui le point n'existe pas. | – | non | `a-long-random-secret` | 0.43.0 | non |
+| `WEBHOOKS_ALLOW_PRIVATE` | backend | Autorise les webhooks d'espace à appeler des adresses du réseau privé (localhost, 10.x, 192.168.x…) et http simple, par exemple un n8n sur le même réseau. Par défaut les webhooks n'atteignent que des adresses https publiques. | `false` | non | `true` | 0.44.0 | non |
 
 ## E-mails
 

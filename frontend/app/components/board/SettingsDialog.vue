@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { Trash2, Plus } from 'lucide-vue-next'
+import { Trash2, Plus, LayoutTemplate } from 'lucide-vue-next'
 import type { Board, Label } from '~/types'
+import { useWorkspace } from '~/composables/useWorkspace'
+import { saveAsTemplate } from '~/composables/useTemplates'
 import { useBoardActions, LABEL_COLORS } from '~/composables/useBoard'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
@@ -9,6 +11,9 @@ const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{ board: Board }>()
 const { t } = useI18n()
 const boardId = computed(() => props.board.id)
+const { isAdmin, workspace } = useWorkspace()
+/** Un tableau personnel ne devient jamais un modèle ; seuls les administrateurs de l'espace en enregistrent. */
+const canSaveTemplate = computed(() => isAdmin.value && !props.board.private_to && !workspace.data.value?.personal)
 const { saveAutomations, createLabel, updateLabel, deleteLabel } = useBoardActions(boardId)
 
 const tab = ref<'automations' | 'labels'>('automations')
@@ -74,6 +79,11 @@ const colorOpen = ref<Record<string, boolean>>({})
         <span><span class="opt-title">{{ t('board.applySubtasks') }}</span><span class="opt-hint">{{ t('board.applySubtasksHint') }}</span></span>
       </label>
       <div class="actions"><UiButton variant="primary" @click="save">{{ t('common.save') }}</UiButton></div>
+      <div v-if="canSaveTemplate" class="field">
+        <label class="field-label">{{ t('tpl.nav') }}</label>
+        <div><UiButton size="sm" :icon="LayoutTemplate" @click="saveAsTemplate(board.workspace_id, 'board', board.id, board.name)">{{ t('tpl.saveAs') }}</UiButton></div>
+        <p class="field-hint">{{ t('tpl.saveBoardHint') }}</p>
+      </div>
     </div>
 
     <div v-else class="pane">

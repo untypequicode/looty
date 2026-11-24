@@ -24,7 +24,7 @@ export default {
     security: {
       accounts: 'Connected accounts', accountsHint: 'Providers you can sign in with.', unknownProvider: 'Deleted provider',
       linkedOn: 'Linked {date}', unlink: 'Unlink', unlinkTitle: 'Unlink this account?', tokens: 'API tokens',
-      tokensHint: 'Use the API with “Authorization: Bearer <token>”. A token has the same rights as you.', newToken: 'New token',
+      tokensHint: 'Use the API with “Authorization: Bearer <token>”. A token acts as you and never has more rights: it can also be read-only, limited to some workspaces, and expire.', newToken: 'New token',
       createdOn: 'Created {date}', lastUsed: 'used {time}', neverUsed: 'never used', noTokens: 'No tokens',
       revokeTitle: 'Revoke “{name}”?', revokeMessage: 'Integrations using it will stop working immediately.',
       tokenName: 'Token name', tokenPlaceholder: 'e.g. Backup script', copyNow: 'Copy this token now: it will never be shown again.',

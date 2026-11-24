@@ -277,6 +277,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
         .await?;
 
     notify_recipients(&state, ws, id, &title, user.id, &[]).await?;
+    crate::webhooks::dispatch(&state, ws, "announcement.published", serde_json::json!({ "id": id, "title": title }));
     changed(&state, ws).await;
     Ok(Json(load(&state, id, user.id).await?))
 }
