@@ -71,6 +71,9 @@ jobs:
           export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
           ./gradlew --no-daemon --no-build-cache -Plooty.unsigned assembleFdroidRelease
           mkdir -p ../unsigned && cp app/build/outputs/apk/fdroid/release/*.apk ../unsigned/fdroid-unsigned.apk
+      - name: Install fdroidserver
+        if: steps.keys.outputs.ready == 'true'
+        run: scripts/fdroid-install.sh
       - name: Build and sign the repository
         if: steps.keys.outputs.ready == 'true'
         env:
@@ -82,7 +85,6 @@ jobs:
           REPO_KEY_PASSWORD: ${{ secrets.FDROID_KEY_PASSWORD }}
           FDROID_REPO_URL: ${{ vars.SITE_URL && format('{0}/fdroid/repo', vars.SITE_URL) || '' }}
         run: |
-          scripts/fdroid-install.sh
           export APK_KEYSTORE="$RUNNER_TEMP/keys/apk.jks" REPO_KEYSTORE="$RUNNER_TEMP/keys/repo.jks"
           [ -n "$FDROID_REPO_URL" ] || unset FDROID_REPO_URL
           scripts/fdroid-repo.sh unsigned/fdroid-unsigned.apk "$RUNNER_TEMP/fdroid"

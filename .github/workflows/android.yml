@@ -127,9 +127,10 @@ jobs:
           aapt2="$(ls "$sdk"/build-tools/*/aapt2 | sort -V | tail -1)"
           "$aapt2" dump permissions fdroid-unsigned.apk | tee perms.txt
           ! grep -E 'REQUEST_INSTALL_PACKAGES|UPDATE_PACKAGES_WITHOUT_USER_ACTION' perms.txt
+      - name: Install fdroidserver
+        run: scripts/fdroid-install.sh
       - name: Repository dry run (throwaway keys)
         run: |
-          scripts/fdroid-install.sh
           d="$RUNNER_TEMP/keys"; mkdir -p "$d"
           pw="$(openssl rand -hex 16)"
           for k in apk repo; do
