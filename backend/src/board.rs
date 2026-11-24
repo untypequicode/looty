@@ -44,7 +44,7 @@ pub struct BoardColumn {
 }
 
 pub const TASK_COLUMNS: &str = "id, column_id, parent_id, title, description, position, previous_column_id, \
-    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start, repeat, private_to";
+    is_per_person, is_completed, require_all_validations, start_date, due_date, priority, created_at, updated_at, event_id, event_start, repeat, private_to, reminders";
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Task {
@@ -75,6 +75,10 @@ pub struct Task {
     /// Élément personnel : seule cette personne voit la tâche (GLOSSARY).
     #[sqlx(default)]
     pub private_to: Option<Uuid>,
+    /// Rappels avant l'échéance : absent = rappel par défaut de chaque personne assignée,
+    /// `[]` = aucun, sinon `{"before": minutes}` ou `{"at": date}` (voir reminders.rs).
+    #[sqlx(default)]
+    pub reminders: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -385,6 +389,8 @@ async fn spawn_next_occurrence(state: &AppState, task_id: Uuid, actor: Uuid) -> 
         .bind(next_id)
         .execute(&mut *tx)
         .await?;
+    let next_reminders = crate::reminders::shifted(task.reminders.as_ref(), task.due_date, shift(task.due_date));
+    sqlx::query("UPDATE tasks SET reminders = $2 WHERE id = $1").bind(next_id).bind(&next_reminders).execute(&mut *tx).await?;
     tx.commit().await?;
 
     log_activity(pool, next_id, actor, "create", None, Some(serde_json::json!({ "title": task.title, "repeat_of": task_id }))).await;
@@ -893,6 +899,8 @@ pub struct CreateTaskReq {
     pub event_start: Option<DateTime<Utc>>,
     /// Répétition (`daily`, `weekly`…), validée comme à la modification.
     pub repeat: Option<String>,
+    /// Rappels (voir `reminders.rs`), absent = rappel par défaut.
+    pub reminders: Option<serde_json::Value>,
 }
 
 async fn get_task(
@@ -929,6 +937,8 @@ async fn create_task(
         }
     }
 
+    let reminders = req.reminders.as_ref().filter(|v| !v.is_null()).map(crate::reminders::validate).transpose()?;
+
     let position: f64 = if req.at_top.unwrap_or(false) {
         sqlx::query_scalar("SELECT COALESCE(MIN(position), 131072) / 2 FROM tasks WHERE column_id = $1")
             .bind(column_id)
@@ -940,9 +950,9 @@ async fn create_task(
 
     let mut tx = pool.begin().await?;
     let task_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations, event_id, event_start, repeat)
+        "INSERT INTO tasks (id, column_id, title, description, position, start_date, due_date, priority, is_per_person, require_all_validations, event_id, event_start, repeat, reminders)
          VALUES (COALESCE($10, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), COALESCE($9, true),
-                 (SELECT id FROM workspace_events WHERE id = $11 AND workspace_id = $13), CASE WHEN $11 IS NULL THEN NULL ELSE $12 END, $14) RETURNING id",
+                 (SELECT id FROM workspace_events WHERE id = $11 AND workspace_id = $13), CASE WHEN $11 IS NULL THEN NULL ELSE $12 END, $14, $15) RETURNING id",
     )
     .bind(column_id)
     .bind(&title)
@@ -958,6 +968,7 @@ async fn create_task(
     .bind(req.event_start)
     .bind(ctx.workspace_id)
     .bind(&req.repeat)
+    .bind(&reminders)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1041,6 +1052,9 @@ pub struct UpdateTaskReq {
     pub event_start: Option<Option<DateTime<Utc>>>,
     #[serde(default, deserialize_with = "double_option")]
     pub repeat: Option<Option<String>>,
+    /// `null` : retour au rappel par défaut ; `[]` : aucun rappel.
+    #[serde(default, deserialize_with = "double_option")]
+    pub reminders: Option<Option<serde_json::Value>>,
 }
 
 async fn update_task(
@@ -1065,6 +1079,8 @@ async fn update_task(
         }
     }
 
+    let reminders = req.reminders.clone().flatten().as_ref().map(crate::reminders::validate).transpose()?;
+
     let task: Task = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "UPDATE tasks SET
             title = COALESCE($1, title),
@@ -1078,6 +1094,7 @@ async fn update_task(
             event_id = CASE WHEN $13 THEN (SELECT id FROM workspace_events WHERE id = $14 AND workspace_id = $17) ELSE event_id END,
             event_start = CASE WHEN $15 THEN $16 WHEN $13 AND $14 IS NULL THEN NULL ELSE event_start END,
             repeat = CASE WHEN $18 THEN $19 ELSE repeat END,
+            reminders = CASE WHEN $20 THEN $21 ELSE reminders END,
             updated_at = NOW()
          WHERE id = $12 RETURNING {TASK_COLUMNS}"
     )))
@@ -1100,6 +1117,8 @@ async fn update_task(
     .bind(ctx.workspace_id)
     .bind(req.repeat.is_some())
     .bind(req.repeat.clone().flatten())
+    .bind(req.reminders.is_some())
+    .bind(&reminders)
     .fetch_one(pool)
     .await?;
 

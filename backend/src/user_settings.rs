@@ -62,6 +62,9 @@ struct PreferencesRequest {
     locale: Option<String>,
     /// Fuseau horaire IANA (« Europe/Paris »).
     timezone: Option<String>,
+    /// Rappel par défaut avant l'échéance des tâches, en minutes (`null` : aucun).
+    #[serde(default, deserialize_with = "crate::board::double_option")]
+    default_reminder_minutes: Option<Option<i32>>,
 }
 
 async fn update_preferences(
@@ -79,16 +82,23 @@ async fn update_preferences(
             return Err(ApiError::bad_request("invalid_locale"));
         }
     }
+    if let Some(Some(m)) = p.default_reminder_minutes {
+        if !(0..=crate::reminders::MAX_MINUTES as i32).contains(&m) {
+            return Err(ApiError::bad_request("invalid_reminder"));
+        }
+    }
     if let Some(tz) = &p.timezone {
         if tz.len() > 64 || tz.parse::<chrono_tz::Tz>().is_err() {
             return Err(ApiError::bad_request("invalid_timezone"));
         }
     }
-    sqlx::query("UPDATE users SET theme = COALESCE($1, theme), locale = COALESCE($2, locale), timezone = COALESCE($4, timezone), updated_at = NOW() WHERE id = $3")
+    sqlx::query("UPDATE users SET theme = COALESCE($1, theme), locale = COALESCE($2, locale), timezone = COALESCE($4, timezone), default_reminder_minutes = CASE WHEN $5 THEN $6 ELSE default_reminder_minutes END, updated_at = NOW() WHERE id = $3")
         .bind(p.theme)
         .bind(p.locale)
         .bind(user.id)
         .bind(p.timezone)
+        .bind(p.default_reminder_minutes.is_some())
+        .bind(p.default_reminder_minutes.flatten())
         .execute(&pool)
         .await?;
     Ok(StatusCode::NO_CONTENT)

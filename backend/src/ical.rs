@@ -23,6 +23,8 @@ pub struct TodoMeta<'a> {
     pub categories: &'a [String],
     pub last_modified: DateTime<Utc>,
     pub created: DateTime<Utc>,
+    /// Heures de rappel (VALARM absolus), déjà calculées pour la personne.
+    pub alarms: &'a [DateTime<Utc>],
 }
 
 /// Les dates « jour » de Looty sont stockées à midi UTC : on les exporte en VALUE=DATE.
@@ -103,6 +105,22 @@ pub fn priority_from_ical(p: u8) -> i32 {
     }
 }
 
+/// Rappels VALARM (affichage) à des heures absolues, reconnus par les agendas de téléphone.
+pub fn valarms(alarms: &[DateTime<Utc>], summary: &str) -> Vec<String> {
+    alarms
+        .iter()
+        .flat_map(|a| {
+            [
+                "BEGIN:VALARM".to_string(),
+                "ACTION:DISPLAY".to_string(),
+                format!("DESCRIPTION:{}", escape(summary)),
+                format!("TRIGGER;VALUE=DATE-TIME:{}", fmt_dt(a)),
+                "END:VALARM".to_string(),
+            ]
+        })
+        .collect()
+}
+
 /// Construit un VCALENDAR contenant un unique VTODO.
 pub fn build_vtodo(f: &TodoFields, m: &TodoMeta) -> String {
     let mut lines = vec![
@@ -149,6 +167,7 @@ pub fn build_vtodo(f: &TodoFields, m: &TodoMeta) -> String {
     if !m.url.is_empty() {
         lines.push(format!("URL:{}", m.url));
     }
+    lines.extend(valarms(m.alarms, &f.summary));
     lines.push("END:VTODO".into());
     lines.push("END:VCALENDAR".into());
     lines.iter().map(|l| fold(l)).collect::<Vec<_>>().join("\r\n") + "\r\n"
@@ -314,7 +333,7 @@ mod tests {
             completed: false,
         };
         let now = Utc::now();
-        let ics = build_vtodo(&f, &TodoMeta { uid: "abc@looty", url: "https://x/y", categories: &["Bug".into()], last_modified: now, created: now });
+        let ics = build_vtodo(&f, &TodoMeta { uid: "abc@looty", url: "https://x/y", categories: &["Bug".into()], last_modified: now, created: now, alarms: &[] });
         assert!(ics.contains("DUE;VALUE=DATE:20261005"));
         assert!(ics.lines().all(|l| l.len() <= 76));
         let p = parse_vtodo(&ics).unwrap();
@@ -325,6 +344,16 @@ mod tests {
         assert_eq!(p.fields.start, f.start);
         assert_eq!(p.fields.priority, 2);
         assert!(!p.fields.completed);
+    }
+
+    #[test]
+    fn vtodo_carries_alarms() {
+        let due = Utc.with_ymd_and_hms(2026, 10, 5, 9, 0, 0).unwrap();
+        let alarm = Utc.with_ymd_and_hms(2026, 10, 4, 9, 0, 0).unwrap();
+        let f = TodoFields { summary: "A".into(), due: Some(due), ..Default::default() };
+        let ics = build_vtodo(&f, &TodoMeta { uid: "u", url: "", categories: &[], last_modified: due, created: due, alarms: &[alarm] });
+        assert!(ics.contains("BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:A\r\nTRIGGER;VALUE=DATE-TIME:20261004T090000Z\r\nEND:VALARM\r\nEND:VTODO"));
+        assert!(parse_vtodo(&ics).is_some());
     }
 
     #[test]

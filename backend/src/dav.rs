@@ -163,6 +163,8 @@ struct Item {
     categories: Vec<String>,
     dav_uid: Option<String>,
     dav_name: Option<String>,
+    reminders: Option<serde_json::Value>,
+    default_reminder_minutes: Option<i32>,
 }
 
 impl Item {
@@ -183,7 +185,7 @@ impl Item {
         let host = reqwest::Url::parse(&state.base_url).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_else(|| "looty".into());
         let uid = self.dav_uid.clone().unwrap_or_else(|| format!("looty-{}@{}", self.id, host));
         let url = format!("{}/w/{}/task/{}", state.base_url.trim_end_matches('/'), self.workspace_id, self.id);
-        ical::build_vtodo(&self.fields(), &TodoMeta { uid: &uid, url: &url, categories: &self.categories, last_modified: self.updated_at, created: self.created_at })
+        { let alarms = crate::reminders::alarms(self.due_date, self.reminders.as_ref(), self.default_reminder_minutes); ical::build_vtodo(&self.fields(), &TodoMeta { uid: &uid, url: &url, categories: &self.categories, last_modified: self.updated_at, created: self.created_at, alarms: &alarms }) }
     }
 }
 
@@ -328,7 +330,8 @@ async fn items(state: &AppState, user: &DavUser, kind: CalKind, only: Option<Uui
                 t.created_at, t.updated_at, b.workspace_id,
                 EXISTS(SELECT 1 FROM task_validations v WHERE v.task_id = t.id AND v.user_id = $1) AS my_validation,
                 COALESCE((SELECT array_agg(l.name::text ORDER BY l.name) FROM labels l JOIN task_labels tl ON tl.label_id = l.id WHERE tl.task_id = t.id), '{}') AS categories,
-                r.uid AS dav_uid, r.name AS dav_name
+                r.uid AS dav_uid, r.name AS dav_name,
+                t.reminders, (SELECT default_reminder_minutes FROM users WHERE id::text = $1) AS default_reminder_minutes
          FROM tasks t
          JOIN board_columns c ON c.id = t.column_id
          JOIN boards b ON b.id = c.board_id

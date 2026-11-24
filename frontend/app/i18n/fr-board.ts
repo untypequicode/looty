@@ -57,4 +57,10 @@ export default {
     monthly: 'Chaque mois', yearly: 'Chaque année', needsDate: 'Donnez d’abord une échéance à la tâche.',
     hint: 'Une fois terminée, la tâche revient avec ses dates décalées.',
   },
+  taskReminder: {
+    label: 'Rappels', default: 'Mon rappel par défaut', defaultShort: 'Par défaut ({when})', none: 'Aucun rappel', atDue: 'À l’échéance',
+    hoursBefore: { one: '{count} heure avant', other: '{count} heures avant' }, daysBefore: { one: '{count} jour avant', other: '{count} jours avant' },
+    weeksBefore: { one: '{count} semaine avant', other: '{count} semaines avant' }, minutesBefore: { one: '{count} minute avant', other: '{count} minutes avant' },
+    addDate: 'Ajouter une date précise', needsDate: 'Donnez d’abord une échéance à la tâche.', hint: 'Les personnes assignées sont notifiées (et par e-mail si activé), et votre agenda sonne aussi.',
+  },
 }

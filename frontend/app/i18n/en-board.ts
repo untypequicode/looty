@@ -57,4 +57,10 @@ export default {
     monthly: 'Every month', yearly: 'Every year', needsDate: 'Give the task a due date first.',
     hint: 'Once done, the task comes back with its dates moved forward.',
   },
+  taskReminder: {
+    label: 'Reminders', default: 'My default reminder', defaultShort: 'Default ({when})', none: 'No reminder', atDue: 'At the due date',
+    hoursBefore: { one: '{count} hour before', other: '{count} hours before' }, daysBefore: { one: '{count} day before', other: '{count} days before' },
+    weeksBefore: { one: '{count} week before', other: '{count} weeks before' }, minutesBefore: { one: '{count} minute before', other: '{count} minutes before' },
+    addDate: 'Add an exact date', needsDate: 'Give the task a due date first.', hint: 'You and the other assignees are notified (and by email if enabled), and your calendar app rings too.',
+  },
 }

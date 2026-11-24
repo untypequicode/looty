@@ -18,6 +18,7 @@ export default {
       languageHint: 'Interface language, saved to your account.', compactSidebar: 'Hide sidebar',
       compactSidebarHint: 'Shortcut: [', notifications: 'Notifications', desktop: 'Desktop notifications',
       enabled: 'Enabled', blocked: 'Blocked by the browser',
+      defaultReminder: 'Default task reminder', defaultReminderHint: 'Used for tasks assigned to you that have no reminder of their own, before their due date.',
       timezone: 'Time zone', timezoneHint: 'Times shown in notification emails.', timezoneDetect: 'Use this device’s',
     },
     security: {
