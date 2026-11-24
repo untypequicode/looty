@@ -1,6 +1,9 @@
 package io.github.untypequicode.looty.widget
 
 import android.content.Context
+import io.github.untypequicode.looty.InstanceStore
+import io.github.untypequicode.looty.Instances
+import io.github.untypequicode.looty.forWidget
 import io.github.untypequicode.looty.api.Api
 import io.github.untypequicode.looty.api.ApiException
 import io.github.untypequicode.looty.api.CalEvents
@@ -31,10 +34,12 @@ class WidgetAgenda(val workspace: String?, val items: List<AgendaItem>, val sign
     companion object {
         private const val DAYS = 7L
 
-        suspend fun load(ctx: Context): WidgetAgenda {
-            val prefs = ctx.getSharedPreferences("looty", 0)
-            val cache = ctx.getSharedPreferences("looty.widget", 0)
-            val api = Api(ctx)
+        suspend fun load(ctx: Context, style: WidgetStyle): WidgetAgenda {
+            // Instance retirée depuis l'ajout du widget : affiché comme déconnecté, jamais avec les données d'une autre.
+            val inst = Instances.forWidget(ctx, style.instance) ?: return WidgetAgenda(null, emptyList(), signedOut = true)
+            val prefs = Instances.prefs(ctx, inst.id)
+            val cache = ctx.getSharedPreferences(InstanceStore.scoped("looty.widget", inst.id), 0)
+            val api = Api(ctx, inst.id)
             return try {
                 withTimeoutOrNull(10_000) {
                     val ws = prefs.getString("workspace", null) ?: api.get<io.github.untypequicode.looty.api.Workspaces>("/api/workspaces").workspaces.firstOrNull()?.id

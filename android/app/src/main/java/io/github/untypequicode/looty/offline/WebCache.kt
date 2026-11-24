@@ -114,7 +114,7 @@ class WebCache(private val ctx: Context, private val api: Api) {
         fun get(path: String): okhttp3.Response? = runCatching { client.newCall(Request.Builder().url(api.server + path).header("Accept", "*/*").build()).execute() }.getOrNull()
         val manifest = get("/asset-manifest.json")?.use { r -> if (r.isSuccessful) runCatching { JSONObject(r.body.string()) }.getOrNull() else null } ?: return
         val version = manifest.optString("version")
-        val prefs = ctx.getSharedPreferences("looty", 0)
+        val prefs = io.github.untypequicode.looty.Instances.prefs(ctx, api.instanceId)
         if (version.isNotEmpty() && prefs.getString("assetVersion", null) == version) return
         val files = manifest.optJSONArray("files") ?: return
         // Page d'accueil (coquille de l'application, identique pour toutes les routes).

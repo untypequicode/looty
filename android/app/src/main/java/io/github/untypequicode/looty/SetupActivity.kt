@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.concurrent.thread
 
-/** Premier lancement (ou « Changer de serveur ») : adresse du serveur Looty. */
+/** Premier lancement (ou « Ajouter une instance ») : adresse du serveur Looty. */
 class SetupActivity : ComponentActivity() {
     companion object {
         /** Instance d'où vient un lien reçu (adresse préremplie). */
@@ -35,7 +35,7 @@ class SetupActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val fromLink = intent.getStringExtra(EXTRA_INSTANCE)
-        val current = fromLink ?: Config.server(this) ?: ""
+        val current = fromLink ?: ""
         setContent {
             val dark = isSystemInDarkTheme()
             val accent = Color(0xFF5E6AD2)
@@ -46,8 +46,9 @@ class SetupActivity : ComponentActivity() {
     }
 
     private fun done(origin: String) {
+        // Ajoute l'instance (ou retrouve celle qui existe) et l'active ; l'app repart d'un état neuf sur elle.
         Config.setServer(this, origin)
-        val main = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(MainActivity.EXTRA_RELOAD, true)
+        val main = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
         // La page du lien, si l'on s'est bien connecté à son instance (pas à une autre adresse saisie).
         val path = intent.getStringExtra(EXTRA_PATH)
         val server = intent.getStringExtra(EXTRA_INSTANCE)

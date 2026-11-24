@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
                     foreign?.let { f ->
                         BackHandler { foreign = null }
                         Surface(Modifier.fillMaxSize()) {
-                            ForeignLink(f, onBrowser = { openInBrowser(f.webUrl); foreign = null }, onClose = { foreign = null })
+                            ForeignLink(f, onBrowser = { openInBrowser(f.webUrl); foreign = null }, onAdd = { addInstance(f); foreign = null }, onClose = { foreign = null })
                         }
                     }
                 }
@@ -107,18 +107,33 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun linkAction(intent: Intent?): InstanceLinks.LinkAction? =
-        intent?.data?.let { InstanceLinks.resolve(it.toString(), Config.server(this)) }
+        intent?.data?.let { InstanceLinks.resolve(it.toString(), Config.server(this), Instances.all(this)) }
 
     /** looty://w/… : la page, si le lien est de l'instance de l'app ; sinon l'écran « autre instance ». */
     private fun handleLink(intent: Intent?) {
         val uri = intent?.data ?: return
+        // looty://app/… d'un widget : l'instance du widget passe d'abord (paramètre server).
+        if (uri.scheme == "looty" && uri.host == "app") {
+            val target = uri.getQueryParameter("server")?.let { InstanceLinks.origin(it) }?.let { o -> Instances.all(this).firstOrNull { InstanceLinks.origin(it.origin) == o } }
+            if (target != null && target.id != Instances.activeId(this)) {
+                Instances.switchTo(this, target.id, uri.buildUpon().clearQuery().build().toString())
+                return
+            }
+        }
         if (uri.scheme == "looty" && uri.host == "app") { state.pendingLink = "/app" + (uri.encodedPath ?: ""); return }
         when (val a = linkAction(intent)) {
             // Ouvert par l'application dès que la session est prête (écran natif quand il existe).
             is InstanceLinks.LinkAction.Open -> { foreign = null; state.pendingLink = a.path }
             is InstanceLinks.LinkAction.Foreign -> foreign = a
+            is InstanceLinks.LinkAction.Switch -> Instances.switchTo(this, a.id, InstanceLinks.appLink(a.path))
             is InstanceLinks.LinkAction.Connect, null -> {}
         }
+    }
+
+    /** Lien d'une instance inconnue : l'ajouter à l'app (adresse préremplie), puis ouvrir la page. */
+    private fun addInstance(f: InstanceLinks.LinkAction.Foreign) {
+        val path = f.webUrl.removePrefix(f.linkInstance)
+        startActivity(Intent(this, SetupActivity::class.java).putExtra(SetupActivity.EXTRA_INSTANCE, f.linkInstance).putExtra(SetupActivity.EXTRA_PATH, path))
     }
 
     private fun openInBrowser(url: String) {
@@ -153,7 +168,7 @@ private fun displayOrigin(origin: String, other: String): String =
 
 /** Lien d'une autre instance : l'app ne l'ouvre pas, le navigateur le peut (ADR 0004). */
 @Composable
-private fun ForeignLink(link: InstanceLinks.LinkAction.Foreign, onBrowser: () -> Unit, onClose: () -> Unit) {
+private fun ForeignLink(link: InstanceLinks.LinkAction.Foreign, onBrowser: () -> Unit, onAdd: () -> Unit, onClose: () -> Unit) {
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(Icons.Outlined.LinkOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(12.dp))
@@ -164,7 +179,9 @@ private fun ForeignLink(link: InstanceLinks.LinkAction.Foreign, onBrowser: () ->
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onBrowser, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.link_open_browser)) }
+        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.link_add_instance)) }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onBrowser, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.link_open_browser)) }
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
     }

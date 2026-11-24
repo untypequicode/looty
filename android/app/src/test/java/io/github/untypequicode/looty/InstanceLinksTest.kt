@@ -145,4 +145,32 @@ class InstanceLinksTest {
             InstanceLinks.resolve("looty://w/ws1?server=https%3A%2F%2Flooty.mon-asso.fr%3A8443", app),
         )
     }
+
+    private val school = Instance("a1b2c3d4", "https://looty.ecole.fr")
+
+    @Test fun linkFromAConnectedButInactiveInstanceSwitchesToIt() {
+        assertEquals(
+            LinkAction.Switch("a1b2c3d4", "/w/ws9/doc/p1"),
+            InstanceLinks.resolve("looty://w/ws9/doc/p1?server=https%3A%2F%2Flooty.ecole.fr", app, listOf(Instance("default", app), school)),
+        )
+    }
+
+    @Test fun linkFromAnUnknownInstanceIsStillOfferedWhenOthersAreKnown() {
+        assertEquals(
+            LinkAction.Foreign("https://autre.fr", app, "https://autre.fr/w/ws1"),
+            InstanceLinks.resolve("looty://w/ws1?server=https%3A%2F%2Fautre.fr", app, listOf(school)),
+        )
+    }
+
+    @Test fun appLinkCarriesTheInstanceItsOriginAndResolvesBack() {
+        val link = InstanceLinks.appLink("/w/ws9/board/b1?task=t1", school.origin)
+        assertEquals("looty://w/ws9/board/b1?task=t1&server=https%3A%2F%2Flooty.ecole.fr", link)
+        assertEquals(LinkAction.Switch("a1b2c3d4", "/w/ws9/board/b1?task=t1"), InstanceLinks.resolve(link, app, listOf(school)))
+        assertEquals(LinkAction.Open("/w/ws9/board/b1?task=t1"), InstanceLinks.resolve(link, school.origin, listOf(school)))
+        assertEquals("looty://w/ws9", InstanceLinks.appLink("/w/ws9"))
+    }
+
+    @Test fun widgetLinksGetTheServerParameter() {
+        assertEquals("looty://app/tasks?server=https%3A%2F%2Flooty.ecole.fr", InstanceLinks.withServer("looty://app/tasks", school.origin))
+    }
 }

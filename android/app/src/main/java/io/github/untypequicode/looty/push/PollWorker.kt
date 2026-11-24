@@ -3,7 +3,8 @@ package io.github.untypequicode.looty.push
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import io.github.untypequicode.looty.Config
+import io.github.untypequicode.looty.InstanceStore
+import io.github.untypequicode.looty.Instances
 import io.github.untypequicode.looty.api.Api
 import io.github.untypequicode.looty.api.ApiException
 import io.github.untypequicode.looty.api.Notification
@@ -17,10 +18,11 @@ import java.time.Instant
 class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         val ctx = applicationContext
-        if (PushStore.mode(ctx) != PushMode.POLLING || Config.server(ctx) == null) return Result.success()
-        val api = Api(ctx)
-        val since = PushStore.lastPoll(ctx)
-        val shown = PushStore.shown(ctx).toMutableSet()
+        val inst = inputData.getString("instance") ?: InstanceStore.DEFAULT
+        if (PushStore.mode(ctx, inst) != PushMode.POLLING || Instances.origin(ctx, inst) == null) return Result.success()
+        val api = Api(ctx, inst)
+        val since = PushStore.lastPoll(ctx, inst)
+        val shown = PushStore.shown(ctx, inst).toMutableSet()
         var latest = since
         return try {
             val workspaces = api.get<Workspaces>("/api/workspaces").workspaces
@@ -32,12 +34,12 @@ class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
                     latest = maxOf(latest, at)
                     if (n.read_at != null || at <= since || !shown.add(n.id) || count >= 8) continue
                     count++
-                    Notifier.show(ctx, w.name, Notifier.line(ctx, n), Notifier.path(n), n.id, Notifier.Kind.of(n.kind))
+                    Notifier.show(ctx, w.name, Notifier.line(ctx, n), Notifier.path(n), n.id, Notifier.Kind.of(n.kind), inst)
                 }
             }
-            PushStore.setLastPoll(ctx, maxOf(latest, since))
+            PushStore.setLastPoll(ctx, maxOf(latest, since), inst)
             // Mémoire bornée : seuls les identifiants récents servent à éviter les doublons.
-            PushStore.setShown(ctx, shown.toList().takeLast(200).toSet())
+            PushStore.setShown(ctx, shown.toList().takeLast(200).toSet(), inst)
             Result.success()
         } catch (e: ApiException) {
             // Session expirée : rien à faire avant la prochaine connexion.

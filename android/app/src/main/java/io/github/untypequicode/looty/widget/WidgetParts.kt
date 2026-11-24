@@ -36,6 +36,9 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import io.github.untypequicode.looty.InstanceLinks
+import io.github.untypequicode.looty.Instances
+import io.github.untypequicode.looty.forWidget
 import io.github.untypequicode.looty.MainActivity
 import io.github.untypequicode.looty.R
 import io.github.untypequicode.looty.api.Api
@@ -64,10 +67,13 @@ fun outer(style: WidgetStyle): Dp = if (style.round) 36.dp else 22.dp
 fun inner(style: WidgetStyle): Dp = if (style.round) 22.dp else 14.dp
 
 val TaskKey = ActionParameters.Key<String>("task")
+val InstanceKey = ActionParameters.Key<String>("instance")
 
 /** Lien ouvert dans l'application : looty://app/<écran> ou looty://w/…. */
-fun openApp(ctx: Context, link: String? = null): Action {
-    val intent = if (link == null) Intent(ctx, MainActivity::class.java) else Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(ctx.packageName)
+/** [style] porte l'instance du widget : l'app bascule dessus si une autre est active. */
+fun openApp(ctx: Context, style: WidgetStyle, link: String? = null): Action {
+    val origin = Instances.forWidget(ctx, style.instance)?.origin
+    val intent = if (link == null) Intent(ctx, MainActivity::class.java) else Intent(Intent.ACTION_VIEW, Uri.parse(if (origin == null) link else InstanceLinks.withServer(link, origin))).setPackage(ctx.packageName)
     return actionStartActivity(intent)
 }
 
@@ -116,9 +122,10 @@ object Widgets {
 class ToggleTaskAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: androidx.glance.GlanceId, parameters: ActionParameters) {
         val id = parameters[TaskKey] ?: return
-        runCatching { Api(context).send("PUT", "/api/boards/tasks/$id/toggle_validation") }
+        val inst = Instances.forWidget(context, parameters[InstanceKey]?.takeIf { it.isNotEmpty() })?.id ?: return
+        runCatching { Api(context, inst).send("PUT", "/api/boards/tasks/$id/toggle_validation") }
         Widgets.updateAll(context)
     }
 }
 
-fun toggle(taskId: String): Action = actionRunCallback<ToggleTaskAction>(actionParametersOf(TaskKey to taskId))
+fun toggle(taskId: String, style: WidgetStyle): Action = actionRunCallback<ToggleTaskAction>(actionParametersOf(TaskKey to taskId, InstanceKey to (style.instance ?: "")))

@@ -40,10 +40,10 @@ class TodayWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = WidgetAgenda.load(context)
-        // Tâches à faire (échéances en retard comprises) : l'agenda ne remonte que les prochains jours.
-        val tasks = WidgetData.load(context)
         val style = Widgets.styleOf(context, id)
+        val data = WidgetAgenda.load(context, style)
+        // Tâches à faire (échéances en retard comprises) : l'agenda ne remonte que les prochains jours.
+        val tasks = WidgetData.load(context, style)
         provideContent { GlanceTheme { Content(context, data, tasks, style) } }
     }
 
@@ -56,10 +56,10 @@ class TodayWidget : GlanceAppWidget() {
         val n = tasks.tasks.count { it.due != null && !it.due.isAfter(today) }
         val overdue = tasks.tasks.count { it.due != null && it.due.isBefore(today) }
         val next = data.nextEvent()
-        Column(GlanceModifier.fillMaxSize().background(cp(p.bg)).cornerRadius(outer(style)).padding(14.dp).clickable(openApp(ctx, "looty://app/tasks"))) {
+        Column(GlanceModifier.fillMaxSize().background(cp(p.bg)).cornerRadius(outer(style)).padding(14.dp).clickable(openApp(ctx, style, "looty://app/tasks"))) {
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(ctx.getString(R.string.today), maxLines = 1, modifier = GlanceModifier.defaultWeight(), style = TextStyle(color = cp(p.soft), fontSize = 14.sp, fontWeight = FontWeight.Medium))
-                PillButton(R.drawable.ic_w_add, null, p, openApp(ctx, "looty://app/quickadd"))
+                PillButton(R.drawable.ic_w_add, null, p, openApp(ctx, style, "looty://app/quickadd"))
             }
             when {
                 data.signedOut -> Text(ctx.getString(R.string.widget_sign_in), style = TextStyle(color = cp(p.fg), fontSize = 14.sp), modifier = GlanceModifier.padding(top = 8.dp))
@@ -75,7 +75,7 @@ class TodayWidget : GlanceAppWidget() {
                         }
                     }
                     Spacer(GlanceModifier.height(8.dp))
-                    Row(GlanceModifier.fillMaxWidth().background(cp(p.chip)).cornerRadius(inner(style)).padding(horizontal = 10.dp, vertical = 7.dp).clickable(openApp(ctx, "looty://app/calendar")), verticalAlignment = Alignment.CenterVertically) {
+                    Row(GlanceModifier.fillMaxWidth().background(cp(p.chip)).cornerRadius(inner(style)).padding(horizontal = 10.dp, vertical = 7.dp).clickable(openApp(ctx, style, "looty://app/calendar")), verticalAlignment = Alignment.CenterVertically) {
                         Icon(R.drawable.ic_w_calendar, p.accent, 16.dp)
                         Spacer(GlanceModifier.width(6.dp))
                         Text(

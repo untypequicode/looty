@@ -10,11 +10,13 @@ import java.net.URL
 object Config {
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("looty", Context.MODE_PRIVATE)
 
-    /** Origine du serveur (https://looty.example.org), sans barre finale. */
-    fun server(ctx: Context): String? = prefs(ctx).getString("server", null)
+    /** Origine de l'instance active (https://looty.example.org), sans barre finale. */
+    fun server(ctx: Context): String? = Instances.active(ctx)?.origin
 
-    fun setServer(ctx: Context, origin: String) {
-        prefs(ctx).edit().putString("server", origin).remove("sso").apply()
+    /** Ajoute l'instance [origin] (ou retrouve celle qui existe) et la rend active. */
+    fun setServer(ctx: Context, origin: String): Instance {
+        prefs(ctx).edit().remove("sso").apply()
+        return Instances.store(ctx).add(origin)
     }
 
     /** Connexion en cours dans le navigateur (survit à l'arrêt de l'application). */

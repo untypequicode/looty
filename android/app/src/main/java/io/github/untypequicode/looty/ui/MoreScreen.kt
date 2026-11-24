@@ -103,8 +103,8 @@ fun MoreScreen(state: AppState, padding: PaddingValues, onSignedOut: () -> Unit)
         }
         item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
         item {
-            ListItem(headlineContent = { Text(stringResource(R.string.change_server)) }, leadingContent = { Icon(Icons.Outlined.Dns, null) },
-                modifier = Modifier.clickable { ctx.startActivity(Intent(ctx, SetupActivity::class.java)) })
+            ListItem(headlineContent = { Text(stringResource(R.string.instances_title)) }, supportingContent = { Text(io.github.untypequicode.looty.Instances.active(ctx)?.origin?.substringAfter("://").orEmpty()) }, leadingContent = { Icon(Icons.Outlined.Dns, null) },
+                modifier = Modifier.clickable { opener.route("instances") })
         }
         item {
             ListItem(headlineContent = { Text(stringResource(R.string.sign_out)) }, leadingContent = { Icon(Icons.AutoMirrored.Outlined.Logout, null) },

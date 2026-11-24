@@ -14,6 +14,8 @@ data class WidgetStyle(
     val round: Boolean = true,
     /** Boutons de raccourcis affichés (widget « Raccourcis »), dans l'ordre. */
     val shortcuts: List<String> = listOf("task", "inbox", "calendar", "docs"),
+    /** Instance montrée par le widget (identifiant) ; null pour un widget posé avant les instances multiples : l'instance d'origine. */
+    val instance: String? = null,
 ) {
     companion object {
         val LOOKS = listOf("tonal", "surface", "accent", "contrast")
@@ -37,6 +39,7 @@ object WidgetPrefs {
             items = p.getInt("$id.items", d.items).coerceIn(1, WidgetStyle.MAX_ITEMS),
             round = p.getBoolean("$id.round", d.round),
             shortcuts = p.getString("$id.shortcuts", null)?.split(',')?.filter { it in WidgetStyle.SHORTCUTS }?.take(WidgetStyle.MAX_SHORTCUTS)?.takeIf { it.isNotEmpty() } ?: d.shortcuts,
+            instance = p.getString("$id.instance", null),
         )
     }
 
@@ -44,8 +47,12 @@ object WidgetPrefs {
         prefs(ctx).edit()
             .putString("$id.look", s.look).putInt("$id.opacity", s.opacity).putInt("$id.items", s.items)
             .putBoolean("$id.round", s.round).putString("$id.shortcuts", s.shortcuts.joinToString(","))
+            .apply { if (s.instance == null) remove("$id.instance") else putString("$id.instance", s.instance) }
             .apply()
     }
+
+    /** Le widget a déjà été réglé (donc pas un ajout). */
+    fun exists(ctx: Context, id: Int) = prefs(ctx).all.keys.any { it.startsWith("$id.") }
 
     fun forget(ctx: Context, ids: IntArray) {
         val e = prefs(ctx).edit()

@@ -53,19 +53,21 @@ sealed interface Session {
  * Les écritures passent par l'API, puis les listes concernées sont rechargées.
  */
 class AppState(app: Application) : AndroidViewModel(app) {
-    val api = Api(app)
+    /** Instance de cette session : l'écran d'instances en change en relançant l'activité (nouvel état, rien ne se mélange). */
+    val instanceId = Instances.activeId(app)
+    val api = Api(app, instanceId)
     /** Lien (« /w/<espace>/… ») à ouvrir dès que la session est prête : notification, « Ouvrir dans l'application ». */
     var pendingLink by mutableStateOf<String?>(null)
-    private val prefs = app.getSharedPreferences("looty", 0)
+    private val prefs = Instances.prefs(app, instanceId)
 
     // -----------------------------------------------------------------------
     // Hors ligne : les écrans s'affichent depuis une copie gardée sur l'appareil ; les
     // modifications faites sans serveur sont mises en file d'attente puis rejouées dans l'ordre.
     // -----------------------------------------------------------------------
 
-    val cache = OfflineCache(app)
+    val cache = OfflineCache(app, instanceId)
     private val webCache = io.github.untypequicode.looty.offline.WebCache(app, api)
-    private val outbox = Outbox.get(app, api.json)
+    private val outbox = Outbox.get(app, api.json, instanceId)
     /** Le dernier appel n'a pas atteint le serveur : données gardées affichées, modifications en attente. */
     var offline by mutableStateOf(false); private set
     /** Modifications faites hors ligne, pas encore envoyées. */
@@ -79,7 +81,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     init {
         cache.trim()
-        if (outbox.size() > 0) OutboxWorker.schedule(app)
+        if (outbox.size() > 0) OutboxWorker.schedule(app, instanceId)
         // Refus constatés par la tâche de fond pendant que l'application était fermée.
         prefs.getStringSet("refusedChanges", null)?.takeIf { it.isNotEmpty() }?.let { refused = refused + it; prefs.edit().remove("refusedChanges").apply() }
         viewModelScope.launch {
@@ -142,7 +144,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     private fun enqueue(method: String, path: String, body: JsonElement?, label: String) {
         outbox.add(Pending(java.util.UUID.randomUUID().toString(), method, path, body?.toString(), label))
         pendingChanges = outbox.size()
-        OutboxWorker.schedule(getApplication())
+        OutboxWorker.schedule(getApplication(), instanceId)
     }
 
     /** Lecture avec copie locale : affiche la copie tout de suite, la remplace par la réponse du serveur. */
@@ -185,7 +187,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     val isPersonalSpace: Boolean get() = (session as? Session.Ready)?.let { r -> r.workspaces.firstOrNull { it.id == r.workspaceId }?.personal } ?: false
 
     fun start() {
-        if (Config.server(getApplication()) == null) { session = Session.NeedServer; return }
+        if (Instances.origin(getApplication(), instanceId) == null) { session = Session.NeedServer; return }
         viewModelScope.launch {
             session = Session.Loading
             session = try {
@@ -401,7 +403,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) { outbox.files.mkdirs(); java.io.File(outbox.files, id).writeBytes(f.bytes) }
         outbox.add(Pending(id, "UPLOAD", path, buildJsonObject { put("name", f.name); put("mime", f.mime) }.toString(), f.name))
         pendingChanges = outbox.size()
-        OutboxWorker.schedule(getApplication())
+        OutboxWorker.schedule(getApplication(), instanceId)
     }
 
     private var lastPrefetch = 0L
@@ -1411,16 +1413,11 @@ class AppState(app: Application) : AndroidViewModel(app) {
             if (it) { if (mailAccount == id) { mailAccount = null; prefs.edit().remove("mailAccount").apply(); mailList = Loadable(); mailFolders = null }; loadMailAccounts() }
         }
 
+    /** Déconnecte l'instance de cette session seulement (les autres restent connectées avec leurs données). */
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
-            // Cet appareil ne doit plus recevoir les notifications de ce compte.
-            PushStore.subscriptionId(getApplication())?.let { sub -> runCatching { api.send("DELETE", "/api/user/push/subscriptions/$sub") }; PushStore.setSubscriptionId(getApplication(), null) }
-            Push.disable(getApplication())
-            runCatching { api.send("POST", "/api/auth/logout") }
-            android.webkit.CookieManager.getInstance().removeAllCookies(null)
-            withContext(Dispatchers.IO) { cache.clear() }
-            prefs.edit().remove("assetVersion").also { e -> prefs.all.keys.filter { it.startsWith("studyRead-") }.forEach { e.remove(it) } }.apply()
-            outbox.clear(); pendingChanges = 0; offline = false
+            InstanceActions.signOut(getApplication(), instanceId)
+            pendingChanges = 0; offline = false
             session = Session.NeedLogin
             onDone()
         }

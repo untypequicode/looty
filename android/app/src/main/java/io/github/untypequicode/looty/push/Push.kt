@@ -7,6 +7,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import io.github.untypequicode.looty.InstanceStore
+import io.github.untypequicode.looty.Instances
 import io.github.untypequicode.looty.api.Api
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +27,7 @@ import java.util.concurrent.TimeUnit
  */
 object Push {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private const val POLL_WORK = "looty-poll"
+    private fun pollWork(inst: String) = InstanceStore.scoped("looty-poll", inst)
 
     /** Applications de distribution UnifiedPush installées. */
     fun distributors(ctx: Context): List<String> = runCatching { UnifiedPush.getDistributors(ctx) }.getOrDefault(emptyList())
@@ -40,68 +42,71 @@ object Push {
      * puis enregistrement. `done(true)` = demande envoyée ; l'adresse arrive ensuite au service.
      */
     fun enableUnifiedPush(activity: Activity, done: (Boolean) -> Unit) {
-        PushStore.setError(activity, null)
+        val inst = Instances.activeId(activity)
+        PushStore.setError(activity, null, inst)
         UnifiedPush.tryUseCurrentOrDefaultDistributor(activity) { ok ->
             if (!ok) return@tryUseCurrentOrDefaultDistributor done(false)
-            registerNow(activity.applicationContext, done)
+            registerNow(activity.applicationContext, inst, done)
         }
     }
 
     /** Autre application de distribution. */
     fun pickDistributor(activity: Activity, done: (Boolean) -> Unit) {
+        val inst = Instances.activeId(activity)
         UnifiedPush.tryPickDistributor(activity) { ok ->
             if (!ok) return@tryPickDistributor done(false)
-            registerNow(activity.applicationContext, done)
+            registerNow(activity.applicationContext, inst, done)
         }
     }
 
     /** Enregistrement auprès du distributeur, limité à la clé VAPID de ce serveur. */
-    private fun registerNow(ctx: Context, done: (Boolean) -> Unit) {
+    private fun registerNow(ctx: Context, inst: String, done: (Boolean) -> Unit) {
         scope.launch {
-            val vapid = runCatching { Api(ctx).get<JsonObject>("/api/user/push/key")["key"]?.jsonPrimitive?.content }.getOrNull()
+            val vapid = runCatching { Api(ctx, inst).get<JsonObject>("/api/user/push/key")["key"]?.jsonPrimitive?.content }.getOrNull()
             if (vapid == null) {
-                PushStore.setError(ctx, "server")
+                PushStore.setError(ctx, "server", inst)
                 return@launch kotlinx.coroutines.withContext(Dispatchers.Main) { done(false) }
             }
-            val ok = runCatching { UnifiedPush.register(ctx, messageForDistributor = "Looty", vapid = vapid) }.isSuccess
+            val ok = runCatching { UnifiedPush.register(ctx, instance = inst, messageForDistributor = "Looty", vapid = vapid) }.isSuccess
             if (ok) {
-                PushStore.setMode(ctx, PushMode.UNIFIED_PUSH)
-                stopPolling(ctx)
-            } else PushStore.setError(ctx, "vapid")
+                PushStore.setMode(ctx, PushMode.UNIFIED_PUSH, inst)
+                stopPolling(ctx, inst)
+            } else PushStore.setError(ctx, "vapid", inst)
             kotlinx.coroutines.withContext(Dispatchers.Main) { done(ok) }
         }
     }
 
     /** Vérification périodique (plus tôt que 15 minutes n'est pas permis par Android). */
-    fun enablePolling(ctx: Context) {
-        runCatching { UnifiedPush.unregister(ctx) }
-        removeSubscription(ctx)
-        PushStore.setMode(ctx, PushMode.POLLING)
-        PushStore.setError(ctx, null)
-        PushStore.setLastPoll(ctx, System.currentTimeMillis())
+    fun enablePolling(ctx: Context, inst: String = Instances.activeId(ctx)) {
+        runCatching { UnifiedPush.unregister(ctx, inst) }
+        removeSubscription(ctx, inst)
+        PushStore.setMode(ctx, PushMode.POLLING, inst)
+        PushStore.setError(ctx, null, inst)
+        PushStore.setLastPoll(ctx, System.currentTimeMillis(), inst)
         val req = PeriodicWorkRequestBuilder<PollWorker>(15, TimeUnit.MINUTES)
+            .setInputData(androidx.work.workDataOf("instance" to inst))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(POLL_WORK, ExistingPeriodicWorkPolicy.UPDATE, req)
+        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(pollWork(inst), ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 
-    private fun stopPolling(ctx: Context) {
-        runCatching { WorkManager.getInstance(ctx).cancelUniqueWork(POLL_WORK) }
+    private fun stopPolling(ctx: Context, inst: String) {
+        runCatching { WorkManager.getInstance(ctx).cancelUniqueWork(pollWork(inst)) }
     }
 
-    fun disable(ctx: Context) {
-        runCatching { UnifiedPush.unregister(ctx) }
-        stopPolling(ctx)
-        removeSubscription(ctx)
-        PushStore.setMode(ctx, PushMode.OFF)
-        PushStore.setError(ctx, null)
+    fun disable(ctx: Context, inst: String = Instances.activeId(ctx)) {
+        runCatching { UnifiedPush.unregister(ctx, inst) }
+        stopPolling(ctx, inst)
+        removeSubscription(ctx, inst)
+        PushStore.setMode(ctx, PushMode.OFF, inst)
+        PushStore.setError(ctx, null, inst)
     }
 
     /** Retire l'abonnement de cet appareil côté serveur (déconnexion, changement de mode). */
-    fun removeSubscription(ctx: Context) {
-        val id = PushStore.subscriptionId(ctx) ?: return
-        PushStore.setSubscriptionId(ctx, null)
-        scope.launch { runCatching { Api(ctx).send("DELETE", "/api/user/push/subscriptions/$id") } }
+    fun removeSubscription(ctx: Context, inst: String = Instances.activeId(ctx)) {
+        val id = PushStore.subscriptionId(ctx, inst) ?: return
+        PushStore.setSubscriptionId(ctx, null, inst)
+        scope.launch { runCatching { Api(ctx, inst).send("DELETE", "/api/user/push/subscriptions/$id") } }
     }
 
     /** Notification d'essai envoyée par le serveur (vérifie toute la chaîne). */
@@ -110,10 +115,10 @@ object Push {
 
     /** Remet en place la vérification périodique après un redémarrage de l'application. */
     fun restore(ctx: Context) {
-        when (PushStore.mode(ctx)) {
-            PushMode.POLLING -> enablePolling(ctx)
+        for (i in Instances.all(ctx)) when (PushStore.mode(ctx, i.id)) {
+            PushMode.POLLING -> enablePolling(ctx, i.id)
             // UnifiedPush actif : la vérification périodique est inutile (économie de batterie et de réseau).
-            PushMode.UNIFIED_PUSH -> stopPolling(ctx)
+            PushMode.UNIFIED_PUSH -> stopPolling(ctx, i.id)
             PushMode.OFF -> {}
         }
     }

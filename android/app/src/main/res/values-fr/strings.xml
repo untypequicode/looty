@@ -7,6 +7,15 @@
     <string name="link_foreign_title">Lien d’une autre instance</string>
     <string name="link_foreign_body">Ce lien vient de %1$s, pas de votre instance (%2$s).</string>
     <string name="link_open_browser">Ouvrir dans le navigateur</string>
+    <string name="link_add_instance">Ajouter cette instance</string>
+    <string name="instances_title">Instances</string>
+    <string name="instances_hint">Chaque instance garde sa propre connexion, sa copie hors ligne, ses notifications et ses widgets. Touchez une instance pour la sélectionner.</string>
+    <string name="instances_active">Active</string>
+    <string name="instances_add">Ajouter une instance</string>
+    <string name="instances_remove">Retirer</string>
+    <string name="instances_remove_title">Retirer %1$s ?</string>
+    <string name="instances_remove_body">Vous serez déconnecté de cette instance, et sa copie hors ligne, ses modifications en attente, ses réglages de notifications et ses widgets seront effacés de cet appareil. Rien n’est supprimé sur le serveur.</string>
+    <string name="wc_instance">Instance</string>
     <string name="setup_url">Adresse du serveur</string>
     <string name="setup_connect">Continuer</string>
     <string name="setup_checking">Vérification…</string>

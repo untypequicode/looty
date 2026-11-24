@@ -10,6 +10,8 @@ object InstanceLinks {
         data class Open(val path: String) : LinkAction
         /** Lien d'une autre instance que celle de l'app : proposé dans le navigateur ([webUrl]). */
         data class Foreign(val linkInstance: String, val appInstance: String, val webUrl: String) : LinkAction
+        /** Lien d'une instance déjà connectée mais inactive : l'app bascule dessus ([id]), puis ouvre [path]. */
+        data class Switch(val id: String, val path: String) : LinkAction
         /** L'app n'a pas d'instance : se connecter à [instance] (adresse préremplie), puis ouvrir [path]. */
         data class Connect(val instance: String, val path: String) : LinkAction
     }
@@ -33,8 +35,14 @@ object InstanceLinks {
     /** Décodage d'une valeur de requête ; null si un échappement est invalide (« %zz »), sans exception. */
     private fun decode(s: String): String? = runCatching { URLDecoder.decode(s.replace("+", "%2B"), "UTF-8") }.getOrNull()
 
-    /** Lien de l'app (looty://w/…) vers la page [path] (/w/…), sans instance : celle de l'app. */
-    fun appLink(path: String) = "looty:/$path"
+    /** Lien de l'app (looty://w/…) vers la page [path] (/w/…) ; sans [server], l'instance active de l'app. */
+    fun appLink(path: String, server: String? = null): String {
+        return if (server == null) "looty:/$path" else withServer("looty:/$path", server)
+    }
+
+    /** Ajoute l'instance de destination à un lien looty:// (l'app bascule dessus si elle est connue). */
+    fun withServer(link: String, server: String): String =
+        link + (if (link.contains('?')) "&" else "?") + "server=" + java.net.URLEncoder.encode(server, "UTF-8")
 
     fun screen(path: String): Screen {
         // Découpage à la main : java.net.URI refuse des liens que le navigateur laisse passer.
@@ -66,7 +74,11 @@ object InstanceLinks {
         return if (route != null) Screen.Native(ws, route) else Screen.Web(path)
     }
 
-    fun resolve(link: String, appInstance: String?): LinkAction? {
+    /**
+     * [appInstance] : instance active ; [known] : adresses des autres instances connectées (un lien d'une
+     * instance connue bascule dessus, un lien inconnu est proposé dans le navigateur ou à l'ajout).
+     */
+    fun resolve(link: String, appInstance: String?, known: List<Instance> = emptyList()): LinkAction? {
         if (!link.startsWith("looty://w")) return null
         val tail = link.removePrefix("looty://w").substringBefore('#')
         if (tail.isNotEmpty() && tail[0] != '/' && tail[0] != '?') return null
@@ -80,6 +92,7 @@ object InstanceLinks {
         val from = origin(server) ?: return null
         if (app == null) return LinkAction.Connect(from, path)
         if (from == app) return LinkAction.Open(path)
+        known.firstOrNull { origin(it.origin) == from }?.let { return LinkAction.Switch(it.id, path) }
         return LinkAction.Foreign(from, app, from + path)
     }
 

@@ -68,7 +68,7 @@ class ShortcutsWidget : GlanceAppWidget() {
                 if (i > 0) Spacer(GlanceModifier.width(6.dp))
                 val first = i == 0
                 Column(
-                    GlanceModifier.defaultWeight().fillMaxHeight().background(cp(if (first) p.accent else p.chip)).cornerRadius(inner(style) + 4.dp).clickable(openApp(ctx, s.link)),
+                    GlanceModifier.defaultWeight().fillMaxHeight().background(cp(if (first) p.accent else p.chip)).cornerRadius(inner(style) + 4.dp).clickable(openApp(ctx, style, s.link)),
                     verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(s.icon, if (first) p.onAccent else p.accent, 26.dp)
