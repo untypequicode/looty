@@ -1198,10 +1198,12 @@ mod tests {
         let (s, _) = login.call("POST", "/api/auth/local/totp", Some(json!({ "code": "000000" }))).await;
         assert_eq!(s, 400);
         // Le pas courant a déjà servi à l'inscription : le même code est refusé, le suivant passe.
-        let replay = code_for(&secret);
+        let used: i64 = sqlx::query_scalar("SELECT totp_last_step FROM users WHERE email = 'root@example.org'").fetch_one(&pool).await.unwrap();
+        let key = base32_decode(&secret).unwrap();
+        let replay = format!("{:06}", hotp(&key, used as u64, 6));
         let (s, e) = login.call("POST", "/api/auth/local/totp", Some(json!({ "code": replay }))).await;
         assert_eq!((s, code(&e)), (400, "invalid_code"));
-        let next = format!("{:06}", hotp(&base32_decode(&secret).unwrap(), (Utc::now().timestamp() / 30) as u64 + 1, 6));
+        let next = format!("{:06}", hotp(&key, used as u64 + 1, 6));
         let (s, r) = login.call("POST", "/api/auth/local/totp", Some(json!({ "code": next }))).await;
         assert_eq!((s, r["status"].as_str()), (200, Some("ok")), "{r}");
         assert_eq!(login.me().await["authenticated"], true);
