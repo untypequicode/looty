@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import * as Y from 'yjs'
-import { Play, Loader2, ArrowUp, ArrowDown, Trash2, Eraser, Type, Code2, Plus, Copy, GripVertical, ChevronDown, ChevronRight, MoreHorizontal, Download } from 'lucide-vue-next'
+import { Play, Loader2, ArrowUp, ArrowDown, Trash2, Eraser, Type, Code2, Plus, Copy, GripVertical, ChevronDown, ChevronRight, MoreHorizontal, Download, Bold, Italic, Link2, ImagePlus, Sigma, List } from 'lucide-vue-next'
 import { EditorState, Prec } from '@codemirror/state'
 import { EditorView, keymap, drawSelection, highlightSpecialChars } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language'
-import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
+import { closeBrackets, closeBracketsKeymap, completionKeymap, autocompletion, type CompletionContext } from '@codemirror/autocomplete'
 import { python } from '@codemirror/lang-python'
 import { markdown } from '@codemirror/lang-markdown'
 import { yCollab } from 'y-codemirror.next'
@@ -14,6 +14,8 @@ import { renderMarkdown, type NbAttachments } from '~/editor/notebookMarkdown'
 import { hasFiles, markNotebookDrop } from '~/editor/notebookFiles'
 import { useI18n } from '~/composables/useI18n'
 import { formatDuration } from '~/editor/notebookCells'
+import { markdownEdit, type MdAction } from '~/editor/notebookToolbar'
+import type { CompletionOut } from '~/editor/notebookComplete'
 
 /**
  * Une cellule de notebook : le texte est un Y.Text partagé (édition à plusieurs, curseurs),
@@ -43,6 +45,8 @@ const props = defineProps<{
   /** Bibliothèque Python manquante (erreur ModuleNotFoundError) que le moteur peut installer. */
   missing?: { module: string; pkg: string } | null
   installing?: boolean
+  /** Complétions du noyau au curseur (position UTF-16) ; null : aucune. */
+  complete?: ((code: string, pos: number) => Promise<CompletionOut | null>) | null
   dragging?: boolean
   dropEdge?: 'before' | 'after' | null
 }>()
@@ -86,6 +90,16 @@ const theme = EditorView.theme({
   '.cm-ySelectionInfo': { fontFamily: 'var(--font)', fontSize: '10.5px', padding: '1px 4px', borderRadius: '3px', opacity: '1', top: '-1.4em' },
 })
 
+/** Source de complétion du code : le noyau répond à la demande (frappe d'un mot ou d'un « . », Ctrl+Espace). */
+async function completeCode(ctx: CompletionContext) {
+  if (!props.complete) return null
+  const word = ctx.matchBefore(/[\w.]*/)
+  if (!ctx.explicit && (!word || word.from === word.to)) return null
+  const code = ctx.state.doc.toString()
+  const res = await props.complete(code, ctx.pos)
+  return ctx.aborted ? null : res
+}
+
 function mount() {
   if (view || !host.value) return
   undo = new Y.UndoManager(props.ytext)
@@ -102,6 +116,7 @@ function mount() {
           { key: 'Escape', run: (v) => { v.contentDOM.blur(); if (props.type === 'markdown' && src.value.trim()) editing.value = false; emit('escape'); return true } },
         ])),
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...completionKeymap, indentWithTab]),
+        ...(props.type === 'code' && props.complete ? [autocompletion({ override: [completeCode], icons: true })] : []),
         ...(props.type === 'code' ? [python()] : props.type === 'markdown' ? [markdown()] : []),
         yCollab(props.ytext, props.awareness, { undoManager: undo }),
         EditorState.readOnly.of(props.readOnly), EditorView.editable.of(!props.readOnly),
@@ -120,6 +135,22 @@ function mount() {
     }),
   })
 }
+/** Barre d'outils Markdown : applique l'action à la sélection de l'éditeur. */
+function mdAction(action: MdAction) {
+  if (!view || props.readOnly) return
+  const { from, to } = view.state.selection.main
+  const e = markdownEdit(action, view.state.doc.toString(), from, to, {
+    text: t('notebook.md.text'), link: t('notebook.md.linkText'), alt: t('notebook.md.alt'), url: t('notebook.md.url'), path: t('notebook.md.path'), formula: t('notebook.md.formula'),
+  })
+  view.dispatch({ changes: { from: e.from, to: e.to, insert: e.insert }, selection: { anchor: e.anchor, head: e.head }, scrollIntoView: true, userEvent: 'input' })
+  view.focus()
+}
+const mdTools: { action: MdAction; icon: any; label: string; keys?: string }[] = [
+  { action: 'bold', icon: Bold, label: 'notebook.md.bold' }, { action: 'italic', icon: Italic, label: 'notebook.md.italic' },
+  { action: 'link', icon: Link2, label: 'notebook.md.link' }, { action: 'image', icon: ImagePlus, label: 'notebook.md.image' },
+  { action: 'math', icon: Sigma, label: 'notebook.md.math' }, { action: 'list', icon: List, label: 'notebook.md.list' },
+]
+
 function unmount() { view?.destroy(); view = null; undo?.destroy(); undo = null }
 
 onMounted(() => { if (editing.value) nextTick(mount) })
@@ -252,6 +283,9 @@ const hasOutputs = computed(() => props.outputs.length > 0)
     <div class="cell-main">
       <button v-if="sourceHidden" class="cell-hidden" :title="t('notebook.showInput')" @click.stop="emit('toggle', 'source_hidden')"><MoreHorizontal :size="14" /> <span class="truncate">{{ firstLine }}</span></button>
       <template v-else>
+        <div v-if="editing && type === 'markdown' && !readOnly" class="md-bar" role="toolbar" :aria-label="t('notebook.md.toolbar')" data-testid="md-toolbar" @mousedown.prevent>
+          <button v-for="b in mdTools" :key="b.action" type="button" :aria-label="t(b.label)" :title="t(b.label)" :data-action="b.action" @click.stop="mdAction(b.action)"><component :is="b.icon" :size="14" /></button>
+        </div>
         <div v-if="editing" class="cell-input" :class="{ md: type === 'markdown' }"><div ref="host" class="cell-editor" /></div>
         <div v-else class="cell-md prose" @dblclick="startEdit" v-html="html" />
       </template>
@@ -296,6 +330,9 @@ const hasOutputs = computed(() => props.outputs.length > 0)
 .cell.selected .cell-input { box-shadow: inset 0 0 0 1.5px var(--border-focus); }
 .cell-input.md { background: transparent; }
 .cell-editor { min-width: 0; }
+.md-bar { display: flex; gap: 1px; align-self: flex-start; padding: 2px; border-radius: var(--r-md); background: var(--bg-elevated); box-shadow: 0 0 0 1px var(--border); }
+.md-bar button { display: grid; place-items: center; width: 26px; height: 24px; border-radius: var(--r-sm); color: var(--text-2); }
+.md-bar button:hover { background: var(--bg-hover); color: var(--text); }
 .cell-md { padding: 6px 4px; min-height: 28px; cursor: text; }
 .cell-md :deep(h1) { font-size: 1.6em; margin: .4em 0 .3em; }
 .cell-md :deep(h2) { font-size: 1.3em; margin: .5em 0 .3em; }

@@ -6,11 +6,11 @@ import { parsePipArgs, parseRequirements, pipMagic, isWasmImpossible } from '/no
  * reste de l'application ; rien ne s'exécute sur le serveur.
  *
  * Messages reçus  : { type: 'boot', cdn? } · { type: 'sync', files: [{ path, data }], removed: [path] }
- *                   { type: 'run', id, code } · { type: 'install', id, specs }
+ *                   { type: 'run', id, code } · { type: 'install', id, specs } · { type: 'complete', id, code, pos }
  * Messages émis   : { type: 'status', text | key, params } · { type: 'ready', version }
  *                   { type: 'stream', id, name, text } · { type: 'done', id, value, error, figures }
  *                   { type: 'synced' } · { type: 'installed', specs } · { type: 'warn', pkg, error, wasm }
- *                   { type: 'install-done', id, ok, error, wasm }
+ *                   { type: 'install-done', id, ok, error, wasm } · { type: 'completed', id, prefix, items }
  */
 let pyodide = null
 let booting = null
@@ -116,6 +116,18 @@ def __purge():
         if any(str(x).startswith(root) and 'site-packages' not in str(x) for x in files):
             sys.modules.pop(name, None)
     importlib.invalidate_caches()
+
+def __complete(code, pos):
+    # Complétion Jedi dans l'espace des cellules ; pos en points de code.
+    import jedi
+    before = code[:pos]
+    line = before.count(chr(10)) + 1
+    col = len(before) - (before.rfind(chr(10)) + 1)
+    items, prefix = [], 0
+    for c in jedi.Interpreter(code, [__ns]).complete(line, col)[:200]:
+        items.append({'label': c.name_with_symbols, 'type': c.type})
+        prefix = len(c.name) - len(c.complete or '')
+    return json.dumps({'prefix': prefix, 'items': items})
 
 async def __run(code):
     result = {'value': None, 'error': None}
@@ -276,6 +288,21 @@ function syncFiles(files, removed) {
   return code
 }
 
+let jediState = 'idle'
+/** Complétions Jedi (chargé au premier appel) ; vide si Jedi est indisponible. */
+async function complete(id, code, pos) {
+  let reply = { prefix: 0, items: [] }
+  try {
+    if (jediState === 'idle') {
+      try { await pyodide.loadPackage('jedi'); jediState = 'ok' } catch (e) { jediState = 'failed' }
+    }
+    if (jediState === 'ok') reply = JSON.parse(pyodide.globals.get('__complete')(code, pos))
+  } catch (e) {
+    // code incomplet ou erreur de Jedi : aucune suggestion
+  }
+  post({ type: 'completed', id, prefix: reply.prefix, items: reply.items })
+}
+
 let queue = Promise.resolve()
 self.onmessage = (e) => {
   const d = e.data
@@ -297,6 +324,8 @@ self.onmessage = (e) => {
       const r = pyodide ? await pipInstall(d.specs || []) : { ok: false, error: 'Python indisponible' }
       post({ type: 'install-done', id: d.id, ok: !!r.ok, error: r.error, wasm: !!r.wasm })
     })
+  } else if (d.type === 'complete') {
+    queue = queue.then(async () => { await booting; if (pyodide) await complete(d.id, d.code, d.pos); else post({ type: 'completed', id: d.id, prefix: 0, items: [] }) })
   } else if (d.type === 'run') {
     queue = queue.then(async () => { await booting; if (pyodide) await run(d.id, d.code) })
   }

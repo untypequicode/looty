@@ -76,6 +76,14 @@ export default {
     starting: 'Starting Python…', busy: 'Running…', ready: 'Python ready', off: 'Python (starts on first run)', download: 'Download the notebook (.ipynb)',
     pyodideHint: 'Python runs in your browser (Pyodide), not on the server. Libraries such as NumPy, pandas and Matplotlib load automatically on first import; use %pip install for others. Project files can be read directly. Outputs are shared with everyone editing.',
     deleteTitle: 'Delete this cell?', deleteHint: 'Its text and output are removed for everyone.', tooBig: 'too large to be saved',
+    md: {
+      toolbar: 'Text formatting', bold: 'Bold', italic: 'Italic', link: 'Link', image: 'Image', math: 'Formula', list: 'Bulleted list',
+      text: 'text', linkText: 'link text', alt: 'description', url: 'address', path: 'images/file.png', formula: 'x',
+    },
+    export: {
+      title: 'Export', html: 'Web page (.html)', pdf: 'PDF (print)', py: 'Python script (.py)', ipynb: 'Notebook with its images (.ipynb)',
+      failed: 'The notebook could not be exported.',
+    },
     deps: {
       refreshFailed: 'Project files could not be refreshed: the code runs with the files already loaded.', saveFailed: '{pkg} is installed for this session but could not be saved to requirements.txt.',
       install: 'Install {pkg}', installing: 'Installing {pkg}…', warn: 'Could not install {pkg} from requirements.txt.',
