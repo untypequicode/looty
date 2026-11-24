@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
-import { Plus, Play, RotateCcw, Eraser, Type, Code2, CircleDot, Info, ListEnd, Square, Cpu, Server, ListTree, X } from 'lucide-vue-next'
+import { Plus, Play, RotateCcw, Eraser, Type, Code2, CircleDot, Info, ListEnd, Square, Cpu, Server, ListTree, X, Download, FileText, Printer, FileCode2, Package } from 'lucide-vue-next'
 import 'katex/dist/katex.min.css'
 import { socketBase } from '~/composables/useRealtime'
 import { useNotebookKernel, type NbOutput } from '~/composables/useNotebookKernel'
@@ -9,7 +9,8 @@ import { useJupyterKernel } from '~/composables/useJupyterKernel'
 import type { KernelSpec } from '~/components/notebook/EngineDialog.vue'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
-import { projectResolver, type NbAttachments } from '~/editor/notebookMarkdown'
+import { projectResolver, renderMarkdown, sanitizeOutputHtml, type NbAttachments } from '~/editor/notebookMarkdown'
+import { notebookToPython, notebookToHtml, notebookToIpynb, embedImages, type ExportCell, type FetchedImage } from '~/editor/notebookExport'
 import { planUploads, insertionText } from '~/editor/notebookFiles'
 import { useProjectActions, type ProjectDetail } from '~/composables/useProjects'
 import { api } from '~/composables/api'
@@ -42,7 +43,7 @@ const emit = defineEmits<{
   (e: 'change', text: string): void
   (e: 'collaborators', users: { name: string; color: string }[]): void
 }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // --- Document partagé ---
 const config = useRuntimeConfig()
@@ -536,6 +537,90 @@ async function runCell(c: CellVM): Promise<boolean> {
   }
   return res.ok
 }
+// --- Export (HTML, PDF, script Python, .ipynb autonome) ---
+const exportOpen = ref(false)
+const exporting = ref(false)
+const baseName = computed(() => (props.path.split('/').pop() || 'notebook').replace(/\.ipynb$/i, ''))
+const IMAGE_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+const MAX_EMBED = 10_000_000
+const toBase64 = (b: Blob) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader()
+  r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
+  r.onerror = () => reject(r.error)
+  r.readAsDataURL(b)
+})
+/** Image du projet (chemin écrit dans une cellule) → pièce jointe ; null si elle n'existe pas ou est trop grosse. */
+async function fetchImage(path: string): Promise<FetchedImage | null> {
+  const url = resolveLink.value(path)
+  if (!url) return null
+  try {
+    const r = await fetch(url, { credentials: 'same-origin' })
+    if (!r.ok) return null
+    const b = await r.blob()
+    if (b.size > MAX_EMBED) return null
+    const mime = b.type.startsWith('image/') ? b.type : IMAGE_MIME[path.split('.').pop()?.toLowerCase() ?? '']
+    return mime ? { mime, base64: await toBase64(b) } : null
+  } catch { return null }
+}
+/** Cellules à jour (sorties affichées comprises) ; `images` : images du projet jointes aux cellules Markdown. */
+async function exportCells(images: boolean): Promise<ExportCell[]> {
+  const cache = new Map<string, Promise<FetchedImage | null>>()
+  const cached = (p: string) => cache.get(p) ?? cache.set(p, fetchImage(p)).get(p)!
+  const out: ExportCell[] = []
+  for (const c of cells.value) {
+    const cell: ExportCell = { type: c.type, source: c.ytext.toString(), attachments: c.attachments, metadata: c.meta }
+    if (c.type === 'code') { cell.outputs = shown(c); cell.count = shownCount(c) }
+    if (images && c.type === 'markdown') {
+      const r = await embedImages(cell.source, c.attachments, cached)
+      cell.source = r.source
+      cell.attachments = r.attachments
+    }
+    out.push(cell)
+  }
+  return out
+}
+function saveAs(content: string, name: string, mime: string) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([content], { type: `${mime};charset=utf-8` }))
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+const htmlPage = (list: ExportCell[]) => notebookToHtml(list, {
+  title: baseName.value, lang: locale.value,
+  renderMarkdown: (src, attachments) => renderMarkdown(src, { attachments }), sanitize: sanitizeOutputHtml,
+})
+/** PDF : la page HTML s'imprime depuis un cadre invisible (« Enregistrer au format PDF » du navigateur). */
+function printPage(html: string) {
+  const f = document.createElement('iframe')
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  f.srcdoc = html
+  f.onload = () => setTimeout(() => { f.contentWindow?.focus(); f.contentWindow?.print() }, 300)
+  document.body.appendChild(f)
+  setTimeout(() => f.remove(), 120_000)
+}
+async function exportAs(kind: 'html' | 'pdf' | 'py' | 'ipynb') {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const list = await exportCells(kind !== 'py')
+    if (kind === 'py') saveAs(notebookToPython(list), `${baseName.value}.py`, 'text/x-python')
+    else if (kind === 'html') saveAs(htmlPage(list), `${baseName.value}.html`, 'text/html')
+    else if (kind === 'pdf') printPage(htmlPage(list))
+    else saveAs(notebookToIpynb(nbMeta.value ?? {}, list, cells.value.map((c) => c.id)), `${baseName.value}.ipynb`, 'application/x-ipynb+json')
+  } catch {
+    toast(t('notebook.export.failed'), { kind: 'error' })
+  } finally {
+    exporting.value = false
+  }
+}
+const exportItems = computed(() => [
+  { label: t('notebook.export.html'), icon: FileText, onSelect: () => exportAs('html') },
+  { label: t('notebook.export.pdf'), icon: Printer, onSelect: () => exportAs('pdf') },
+  { label: t('notebook.export.py'), icon: FileCode2, onSelect: () => exportAs('py') },
+  { label: t('notebook.export.ipynb'), icon: Package, onSelect: () => exportAs('ipynb') },
+])
+
 /** Bibliothèque manquante d'une cellule (Pyodide, modification permise) : { module, pkg } pour le bouton « Installer ». */
 function missingOf(c: CellVM): { module: string; pkg: string } | null {
   if (c.type !== 'code' || remote.value || ro.value) return null
@@ -629,6 +714,9 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
       <UiButton v-if="remote" size="xs" variant="ghost" :icon="Square" :disabled="kernelState !== 'busy' && !running && queued.size === 0" @click="interrupt">{{ t('notebook.jupyter.interrupt') }}</UiButton>
       <UiButton size="xs" variant="ghost" :icon="RotateCcw" :disabled="kernelState === 'off'" @click="restart">{{ remote ? t('notebook.jupyter.restart') : t('notebook.restart') }}</UiButton>
       <UiButton v-if="!ro" size="xs" variant="ghost" :icon="Eraser" @click="clearAll">{{ t('notebook.clearAll') }}</UiButton>
+      <UiMenu v-model:open="exportOpen" :items="exportItems" placement="bottom-end" :width="300">
+        <UiButton size="xs" variant="ghost" :icon="Download" :disabled="exporting || !synced" data-testid="nb-export">{{ t('notebook.export.title') }}</UiButton>
+      </UiMenu>
       <span class="nb-spacer" />
       <UiTooltip :text="t('notebook.shortcutsHint')"><span class="nb-mode" :class="{ edit: !!editingId }" data-testid="nb-mode">{{ editingId ? t('notebook.modeEdit') : t('notebook.modeCommand') }}</span></UiTooltip>
       <UiButton size="xs" variant="ghost" class="nb-engine" :icon="remote ? Server : Cpu" :title="t('notebook.jupyter.title')" data-testid="nb-engine" @click="engineOpen = true">{{ remote ? t('notebook.jupyter.remoteShort') : t('notebook.jupyter.pyodideShort') }}</UiButton>
@@ -654,6 +742,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
             :selected="selectedId === c.id" :read-only="ro" :awareness="provider.awareness"
             :resolve="resolveLink" :on-files="ro ? null : (fl: File[], pasted: boolean) => uploadForCell(c, fl, pasted)"
             :source-hidden="isSourceHidden(c.meta)" :outputs-hidden="isOutputsHidden(c.meta)" :duration-ms="c.type === 'code' ? shownMs(c) : null"
+            :complete="ro ? null : (code: string, pos: number) => kernel.complete(code, pos)"
             :missing="missingOf(c)" :installing="installing === c.id" @install="installMissing(c)"
             :dragging="dragId === c.id" :drop-edge="dropAt?.id === c.id ? (dropAt.after ? 'after' : 'before') : null"
             @select="select(c.id)" @run="(m) => runAt(i, m)" @add="(w, ty) => addAt(w === 'above' ? i : i + 1, ty)" @remove="removeAt(i)" @move="(d) => moveAt(i, d)" @clear="clearOutput(c)" @retype="(ty) => retype(c, ty)"

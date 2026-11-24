@@ -3,6 +3,7 @@ import { api, errorMessage } from '~/composables/api'
 import { socketBase } from '~/composables/useRealtime'
 import { translate } from '~/composables/useI18n'
 import type { NbOutput } from '~/composables/useNotebookKernel'
+import { fromCompleteReply, toCodePoints, type CompletionOut } from '~/editor/notebookComplete'
 
 /**
  * Noyau distant d'un notebook : serveur Jupyter du projet, joint à travers le backend
@@ -38,6 +39,7 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
   let epoch = 0
   const session = msgId()
   const pending = new Map<string, Pending>()
+  const completions = new Map<string, (content: any) => void>()
   let chain: Promise<unknown> = Promise.resolve()
   const base = () => `/api/projects/${opts.projectId()}/jupyter/kernels`
 
@@ -52,6 +54,8 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
     pending.clear()
   }
 
+  function flushCompletions() { for (const [, done] of completions) done(null); completions.clear() }
+
   function onMessage(raw: string) {
     let m: any
     try { m = JSON.parse(raw) } catch { return }
@@ -64,6 +68,7 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
       else if (c.execution_state === 'restarting' || c.execution_state === 'starting') state.value = 'starting'
       else if (c.execution_state === 'dead') setError(translate('notebook.jupyter.dead'))
     }
+    if (type === 'complete_reply' && parent && completions.has(parent)) { completions.get(parent)!(c); completions.delete(parent); return }
     const p = parent ? pending.get(parent) : undefined
     if (!p) return
     const push = (o: NbOutput) => {
@@ -169,6 +174,7 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
     const text = message.value || (await explain())
     setError(text)
     abortPending(text)
+    flushCompletions()
   }
 
   async function start(): Promise<void> {
@@ -220,6 +226,25 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
     return job
   }
 
+  /**
+   * Complétions du noyau (`complete_request`, ADR 0003 : même relais que l'exécution). Rien
+   * n'est demandé tant que le noyau n'est pas connecté et libre : taper ne démarre pas de noyau.
+   */
+  async function complete(code: string, offset: number): Promise<CompletionOut | null> {
+    if (!ws || ws.readyState !== WebSocket.OPEN || state.value !== 'idle') return null
+    const id = msgId()
+    const content = await new Promise<any>((resolve) => {
+      completions.set(id, resolve)
+      ws!.send(JSON.stringify({
+        header: { msg_id: id, msg_type: 'complete_request', session, username: 'looty', date: new Date().toISOString(), version: '5.3' },
+        parent_header: {}, metadata: {}, channel: 'shell', buffers: [],
+        content: { code, cursor_pos: toCodePoints(code, offset) },
+      }))
+      setTimeout(() => { if (completions.delete(id)) resolve(null) }, 4000)
+    })
+    return fromCompleteReply(code, content)
+  }
+
   /** Interrompt le calcul en cours (le noyau garde ses variables) et vide la file. */
   async function interrupt() {
     epoch++
@@ -263,6 +288,7 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
     ws?.close()
     ws = null
     connectP = null
+    flushCompletions()
     if (kernelId) fetch(`${base()}/${kernelId}`, { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {})
     kernelId = null
     state.value = 'off'
@@ -270,5 +296,5 @@ export function useJupyterKernel(opts: { projectId: () => string; kernel: () => 
   }
 
   onBeforeUnmount(shutdown)
-  return { state, message, kernelName, run, restart, interrupt, start, shutdown }
+  return { state, message, kernelName, run, restart, interrupt, start, shutdown, complete }
 }

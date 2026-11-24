@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.46.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Notebooks: text toolbar, export to HTML, PDF and Python, code completion",
+        "fr": "Notebooks : barre d'outils de texte, export HTML, PDF et Python, complétion du code"
+      },
+      "notes": {
+        "en": [
+          "**Text toolbar**: editing a text cell, buttons insert bold, italic, a link, an image, a formula or a list around the selection.",
+          "**Export**: the new Export menu saves a notebook as a web page, a PDF, a Python script (.py) or a standalone .ipynb in which the project's images are attached to their cells.",
+          "**Code completion**: suggestions while typing in code cells, from Jedi with Pyodide (once Python has started) and from the kernel itself with the project's Jupyter server."
+        ],
+        "fr": [
+          "**Barre d'outils de texte** : en éditant une cellule de texte, des boutons insèrent du gras, de l'italique, un lien, une image, une formule ou une liste autour de la sélection.",
+          "**Export** : le nouveau menu Exporter enregistre un notebook en page web, en PDF, en script Python (.py) ou en .ipynb autonome dont les images du projet sont jointes à leurs cellules.",
+          "**Complétion du code** : suggestions en tapant dans les cellules de code, via Jedi avec Pyodide (une fois Python démarré) et via le noyau lui-même avec le serveur Jupyter du projet."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.45.1",
       "date": "2026-11-24",
       "title": {

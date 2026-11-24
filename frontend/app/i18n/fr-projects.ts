@@ -76,8 +76,16 @@ export default {
     starting: 'Démarrage de Python…', busy: 'Exécution…', ready: 'Python prêt', off: 'Python (démarre à la première exécution)', download: 'Télécharger le notebook (.ipynb)',
     pyodideHint: 'Python s’exécute dans votre navigateur (Pyodide), pas sur le serveur. Les bibliothèques comme NumPy, pandas et Matplotlib se chargent toutes seules au premier import ; utilisez %pip install pour les autres. Les fichiers du projet se lisent directement. Les sorties sont partagées avec toutes les personnes qui modifient.',
     deleteTitle: 'Supprimer cette cellule ?', deleteHint: 'Son texte et sa sortie sont supprimés pour tout le monde.', tooBig: 'trop volumineux pour être enregistré',
+    md: {
+      toolbar: 'Mise en forme du texte', bold: 'Gras', italic: 'Italique', link: 'Lien', image: 'Image', math: 'Formule', list: 'Liste à puces',
+      text: 'texte', linkText: 'texte du lien', alt: 'description', url: 'adresse', path: 'images/fichier.png', formula: 'x',
+    },
+    export: {
+      title: 'Exporter', html: 'Page web (.html)', pdf: 'PDF (impression)', py: 'Script Python (.py)', ipynb: 'Notebook avec ses images (.ipynb)',
+      failed: 'Le notebook n’a pas pu être exporté.',
+    },
     deps: {
-      refreshFailed: 'Impossible d’actualiser les fichiers du projet : le code s’exécute avec les fichiers déjà chargés.', saveFailed: '{pkg} est installé pour cette session mais n’a pas pu être enregistré dans requirements.txt.',
+      refreshFailed:'Impossible d’actualiser les fichiers du projet : le code s’exécute avec les fichiers déjà chargés.', saveFailed: '{pkg} est installé pour cette session mais n’a pas pu être enregistré dans requirements.txt.',
       install: 'Installer {pkg}', installing: 'Installation de {pkg}…', warn: 'Impossible d’installer {pkg} depuis requirements.txt.',
       wasm: 'Cette bibliothèque ne peut pas fonctionner dans le navigateur : il n’existe aucune version pur Python ou WebAssembly. Passez ce notebook sur le moteur « serveur Jupyter » du projet (bouton Moteur de la barre) pour l’utiliser.',
     },

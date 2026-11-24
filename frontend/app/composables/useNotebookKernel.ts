@@ -1,6 +1,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { translate } from './useI18n'
 import { toast } from './useToast'
+import { fromJedi, toCodePoints, type CompletionOut } from '~/editor/notebookComplete'
 
 /**
  * Noyau Python d'un notebook : Pyodide dans un Worker (`public/notebook-worker.js`).
@@ -50,6 +51,7 @@ export function useNotebookKernel(opts: {
   let installedP: Promise<void> = Promise.resolve()
   const installs = new Map<string, (r: InstallResult) => void>()
   const pending = new Map<string, Pending>()
+  const completions = new Map<string, (r: { prefix: number; items: { label: string; type?: string }[] }) => void>()
   let seq = 0
   /** Premier envoi des fichiers fait (le Worker installe alors requirements.txt avant la première cellule). */
   let synchronized = false
@@ -75,6 +77,7 @@ export function useNotebookKernel(opts: {
             installedP.then(() => done?.({ ok: d.ok, error: d.error, wasm: d.wasm }))
             break
           }
+          case 'completed': { const done = completions.get(d.id); completions.delete(d.id); done?.({ prefix: d.prefix, items: d.items }); break }
           case 'ready': state.value = 'idle'; message.value = ''; resolve(); break
           case 'fatal': state.value = 'off'; message.value = d.text; reject(new Error(d.text)); break
           case 'stream': {
@@ -189,6 +192,22 @@ export function useNotebookKernel(opts: {
     return job
   }
 
+  /**
+   * Complétions Jedi au curseur. Seulement quand Python est déjà démarré et libre : taper ne
+   * lance pas Pyodide et ne se met pas en file derrière un calcul.
+   */
+  async function complete(code: string, offset: number): Promise<CompletionOut | null> {
+    if (!worker || state.value !== 'idle') return null
+    const id = `c${++seq}`
+    const pos = toCodePoints(code, offset)
+    const reply = await new Promise<{ prefix: number; items: { label: string; type?: string }[] } | null>((resolve) => {
+      completions.set(id, resolve)
+      worker!.postMessage({ type: 'complete', id, code, pos })
+      setTimeout(() => { if (completions.delete(id)) resolve(null) }, 4000)
+    })
+    return fromJedi(code, pos, reply)
+  }
+
   /** Arrête le calcul en cours (ou remet à zéro) : le noyau repart de rien. */
   function restart() {
     worker?.terminate()
@@ -203,11 +222,13 @@ export function useNotebookKernel(opts: {
     installs.clear()
     for (const [, p] of pending) p.resolve({ ok: false, outputs: [...p.outputs, { output_type: 'error', ename: 'KeyboardInterrupt', evalue: 'Exécution interrompue', traceback: ['Exécution interrompue'] }] })
     pending.clear()
+    for (const [, done] of completions) done({ prefix: 0, items: [] })
+    completions.clear()
     chain = Promise.resolve()
     state.value = 'off'
     message.value = ''
   }
 
   onBeforeUnmount(() => { worker?.terminate(); worker = null })
-  return { state, message, run, restart, start, install }
+  return { state, message, run, restart, start, install, complete }
 }
