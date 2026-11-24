@@ -1062,8 +1062,8 @@ mod tests {
         assert_eq!(check_password("short1!", "a@b.org"), Err("password_too_short"));
         assert_eq!(check_password("123456789012", "a@b.org"), Err("password_common"));
         assert_eq!(check_password("Password2024!!", "a@b.org"), Err("password_common"));
-        assert_eq!(check_password("azertyazertyazerty", "a@b.org"), Err("password_common"));
-        assert_eq!(check_password("aaaabbbbaaaabbbb", "a@b.org"), Err("password_common"));
+        assert_eq!(check_password(&"azerty".repeat(3), "a@b.org"), Err("password_common"));
+        assert_eq!(check_password(&"aaaabbbb".repeat(2), "a@b.org"), Err("password_common"));
         assert_eq!(check_password("maya.dupont@example.org", "maya.dupont@example.org"), Err("password_contains_email"));
         assert_eq!(check_password(&"x1".repeat(200), "a@b.org"), Err("password_too_long"));
         assert!(check_password("violet-lantern-27-orbit", "a@b.org").is_ok());
