@@ -62,28 +62,15 @@ const htmlOnly = ref(false)
 const denied = ref(false)
 /** Accès refusé de façon définitive avant la première synchronisation : HTML enregistré, en lecture seule. */
 const deniedReadonly = ref(false)
-// Refus transitoire (serveur qui redémarre, restauration...) : nouvelles tentatives, délais croissants.
-const RETRY_DELAYS = [2000, 5000, 10000, 15000]
-const TRANSIENT_REASONS = ['auth-unavailable', 'restoring']
-let retryTimer: ReturnType<typeof setTimeout> | null = null
-let retryCount = 0
+// Coupure ou refus transitoire (serveur qui redémarre, session non reconnue...) : reprise automatique.
 let unmounted = false
-function clearRetry() { if (retryTimer) clearTimeout(retryTimer); retryTimer = null }
-function scheduleRetry() {
-  if (retryTimer || unmounted) return
-  const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]!
-  retryCount++
-  retryTimer = setTimeout(async () => {
-    retryTimer = null
-    if (unmounted || serverSynced.value) return
-    try {
-      await provider.sendToken()
-      provider.startSync()
-    } catch { /* nouvelle tentative ci-dessous */ }
-    // Sans réponse (connexion coupée) : on réessaie tant que la synchronisation n'a pas abouti.
-    if (!unmounted && !serverSynced.value) scheduleRetry()
-  }, delay)
-}
+const recovery = useCollabRecovery(provider, {
+  onLost: () => {
+    // Plus synchronisé : l'édition continue localement (Yjs fusionnera au retour), le statut le signale.
+    serverSynced.value = false
+    if (!unmounted) emit('status', 'offline')
+  },
+})
 const wrapper = ref<HTMLElement | null>(null)
 
 // Sélecteur de document (lien interne inséré depuis « / »)
@@ -106,7 +93,7 @@ const docItems = computed(() => (pages.data.value ?? []).filter((p) => p.id !== 
 
 // Avant useEditor : ses propres crochets de démontage détruisent l'éditeur. La dernière
 // modification est envoyée avant la fermeture (sinon perdue avec le délai).
-onBeforeUnmount(() => { unmounted = true; clearRetry(); if (htmlDirty && props.canEdit && !denied.value) flushHtml() })
+onBeforeUnmount(() => { unmounted = true; recovery.stop(); if (htmlDirty && props.canEdit && !denied.value) flushHtml() })
 const editor = useEditor({
   editable: false,
   extensions: docExtensions({
@@ -258,8 +245,6 @@ provider.on('synced', () => {
   deniedReadonly.value = false
   // Synchronisation réussie = accès accepté : l'édition redevient possible.
   denied.value = false
-  retryCount = 0
-  clearRetry()
   sessionStorage.removeItem(`looty-reloaded:${props.pageId}`)
   emit('status', 'synced')
   const e = editor.value
@@ -281,10 +266,9 @@ provider.on('authenticationFailed', ({ reason }: { reason?: string }) => {
   if (unmounted || !e || e.isDestroyed) return
   // Jamais d'écriture dans le document Yjs ici : le HTML enregistré s'affiche par la vue en
   // lecture seule (sinon il fusionnerait avec le document du serveur au retour = doublons).
-  if (reason && TRANSIENT_REASONS.includes(reason)) {
+  if (recovery.classify(reason) === 'transient') {
     emit('status', 'offline')
     if (!synced.value && props.initialHtml && props.initialHtml !== '<p></p>') offlineReadonly.value = true
-    scheduleRetry()
     return
   }
   // Interface plus ancienne que le serveur (onglet ouvert avant une mise à jour) : un

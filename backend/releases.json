@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.44.1",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Live editing: fewer disconnections, and pages become editable again on their own",
+        "fr": "Édition en direct : moins de déconnexions, et les pages redeviennent modifiables d'elles-mêmes"
+      },
+      "notes": {
+        "en": [
+          "**Reconnection**: when the live connection drops or the server briefly refuses it, pages, code files, notebooks and whiteboards now reconnect on their own with growing delays and become editable again, instead of staying read-only until you reload.",
+          "**Access checks**: a lost session is only treated as removed access after repeated refusals, and a temporary server error is never taken for one.",
+          "**Keepalive**: the collaboration server pings every 15 seconds so proxies do not cut idle connections. The hosting guide now lists the timeouts to raise for Traefik, nginx and Cloudflare."
+        ],
+        "fr": [
+          "**Reconnexion** : quand la connexion en direct tombe ou que le serveur la refuse brièvement, les pages, fichiers de code, notebooks et tableaux blancs se reconnectent d'eux-mêmes avec des délais croissants et redeviennent modifiables, au lieu de rester en lecture seule jusqu'au rechargement.",
+          "**Vérification des droits** : une session perdue n'est considérée comme un accès retiré qu'après plusieurs refus, et une erreur temporaire du serveur n'est jamais prise pour tel.",
+          "**Maintien de la connexion** : le serveur de collaboration envoie un ping toutes les 15 secondes pour que les proxys ne coupent pas les connexions inactives. Le guide d'hébergement liste les délais à relever pour Traefik, nginx et Cloudflare."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.44.0",
       "date": "2026-11-24",
       "title": {
