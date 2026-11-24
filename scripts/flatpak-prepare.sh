@@ -7,7 +7,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="$root/packaging/flatpak"
 # Révisions épinglées (changer ici pour monter de version).
-TOOLS_REF="${FLATPAK_BUILDER_TOOLS_REF:-79327416609af08178ad73b352877e51450790b3}"
+TOOLS_REF="${FLATPAK_BUILDER_TOOLS_REF:-9d86d336a39b9af38b86f114b6ce5820fe260f91}"
 SHARED_REF="${FLATHUB_SHARED_MODULES_REF:-34add58f536223b780a3c9f077980cdaa51fc81f}"
 fetch() { # dépôt, révision, dossier
   [ -d "$3/.git" ] || git clone --quiet "$1" "$3"
