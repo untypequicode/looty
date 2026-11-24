@@ -33,7 +33,7 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder xvfb dbus-x11
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils xvfb dbus-x11
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet aiohttp tomlkit PyYAML
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
