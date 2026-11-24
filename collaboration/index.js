@@ -2,7 +2,7 @@ const { Server } = require('@hocuspocus/server')
 const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
 const Y = require('yjs')
-const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal } = require('./resilience')
+const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal, nextRevalidation } = require('./resilience')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/looty_db',
@@ -145,6 +145,17 @@ const accessUrl = (documentName) => {
  * Appelé quand le backend signale un changement de droits (NOTIFY looty_access), et
  * régulièrement en filet de sécurité.
  */
+const revalFailures = new WeakMap()
+/** Ferme le WebSocket de la connexion (code 4403) : le client se reconnecte et se ré-authentifie. */
+function closeSocket(conn) {
+  try {
+    const ws = conn.webSocket
+    if (ws && ws.readyState === 1) ws.close(4403, 'forbidden')
+    else conn.close({ code: 4403, reason: 'forbidden' })
+  } catch (e) {
+    console.error('Close failed', e.message)
+  }
+}
 let revalidating = null
 let revalidateAgain = false
 async function revalidate() {
@@ -162,14 +173,29 @@ async function revalidate() {
             try {
               res = await fetch(accessUrl(name), { headers: auth, signal: AbortSignal.timeout(5_000) })
             } catch {
-              return // Backend injoignable : on garde la connexion, on réessaiera.
+              return // Backend injoignable : on garde la connexion (et le compteur d'échecs), on réessaiera.
             }
-            if (res.status === 401 || res.status === 403 || res.status === 404) {
-              conn.close({ code: 4403, reason: 'forbidden' })
-            } else if (res.ok) {
-              const access = await res.json().catch(() => null)
-              if (access) conn.readOnly = !access.can_write
+            // 5xx, 429… : panne du backend, jamais un retrait de droits.
+            const step = nextRevalidation(revalFailures.get(conn) || 0, res.status)
+            if (step.action === 'keep') return
+            if (step.action === 'recheck') {
+              revalFailures.set(conn, step.failures)
+              console.warn(`revalidation: backend answered ${res.status} for ${name.slice(0, 64)}, rechecking soon`)
+              setTimeout(scheduleRevalidate, 5_000).unref()
+              return
             }
+            revalFailures.delete(conn)
+            if (step.action === 'forbid') {
+              // Deux refus consécutifs : on ferme le WebSocket entier (et non un simple CLOSE au niveau du
+              // document, que le client ignorait en restant « synchronisé »). Le client se reconnecte, repasse
+              // par onAuthenticate et affiche lui-même le refus si l'accès est vraiment retiré.
+              const body = await res.text().catch(() => '')
+              console.warn(`revalidation: closing ${name.slice(0, 64)} status=${res.status} body=${body.slice(0, 120).replace(/\s+/g, ' ')}`)
+              closeSocket(conn)
+              return
+            }
+            const access = await res.json().catch(() => null)
+            if (access) conn.readOnly = !access.can_write
           })
         }
       }
@@ -188,6 +214,22 @@ function scheduleRevalidate() {
   revalidateTimer = setTimeout(() => revalidate().catch((e) => console.error('Access revalidation failed', e.message)), 500)
 }
 setInterval(scheduleRevalidate, 120_000).unref()
+
+/**
+ * Ping WebSocket toutes les 15 s : le trafic reste bien en dessous du délai d'inactivité des proxys
+ * (Traefik 120 s, nginx 60 s, Cloudflare 100 s). Le pong remet à zéro le délai d'inactivité de Hocuspocus.
+ */
+setInterval(() => {
+  try {
+    for (const peers of server.crossws.peers.values()) {
+      for (const peer of peers) {
+        try { peer.websocket.ping?.() } catch {}
+      }
+    }
+  } catch (e) {
+    console.error('Ping failed', e.message)
+  }
+}, 15_000).unref()
 
 /**
  * Refus d'authentification : Hocuspocus ne transmet au client que `error.reason` (sinon
@@ -287,7 +329,10 @@ const server = new Server({
     // Seuls 401/403/404 sont des refus définitifs ; 5xx/429 (backend qui redémarre) sont transitoires.
     const refusal = authErrorForStatus(res.status)
     if (refusal) {
-      if (refusal !== 'forbidden') console.error('Backend auth check failed', res.status)
+      if (refusal === 'auth-unavailable') console.error('Backend auth check failed', res.status)
+      // Corps de la réponse du backend dans le journal : distingue session expirée, droits retirés…
+      const body = await res.text().catch(() => '')
+      console.warn(`backend refusal status=${res.status} doc=${documentName.slice(0, 64)} body=${body.slice(0, 120).replace(/\s+/g, ' ')}`)
       throw refuse(refusal, res.status)
     }
     const access = await res.json()

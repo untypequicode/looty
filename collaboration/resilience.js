@@ -28,7 +28,10 @@ async function withRetry(fn, { delays = RETRY_DELAYS_MS, onRetry = () => {}, wai
  */
 function authErrorForStatus(status) {
   if (status >= 200 && status < 300) return null
-  if (status === 401 || status === 403 || status === 404) return 'forbidden'
+  // 401 : session non reconnue (expirée, ou lecture momentanément impossible) : le client réessaie
+  // quelques fois avant de conclure ; 403/404 : droits retirés ou page supprimée, refus définitif.
+  if (status === 401) return 'unauthorized'
+  if (status === 403 || status === 404) return 'forbidden'
   return 'auth-unavailable'
 }
 
@@ -44,7 +47,20 @@ function describeRefusal({ reason, status, documentName, hasToken, hasCookie, us
   return `refused reason=${reason}${status ? ` status=${status}` : ''} doc=${doc} via=${via} ua="${ua}"`
 }
 
-module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal }
+/**
+ * Revérification périodique des droits : un refus (401/403/404) n'est suivi d'effet qu'à la deuxième
+ * réponse consécutive ; toute autre réponse (succès, 5xx, 429…) remet le compteur à zéro sans fermer.
+ * Renvoie { action: 'ok' | 'keep' | 'recheck' | 'forbid', failures }.
+ */
+function nextRevalidation(failures, status) {
+  if (status >= 200 && status < 300) return { action: 'ok', failures: 0 }
+  if (status === 401 || status === 403 || status === 404) {
+    return failures + 1 >= 2 ? { action: 'forbid', failures: 0 } : { action: 'recheck', failures: failures + 1 }
+  }
+  return { action: 'keep', failures: 0 }
+}
+
+module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal, nextRevalidation }
 
 /**
  * Relance l'enregistrement des documents dont l'enregistrement a échoué et qui sont encore

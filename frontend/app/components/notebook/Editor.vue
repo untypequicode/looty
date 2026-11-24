@@ -76,12 +76,19 @@ sync()
 const synced = ref(false)
 provider.on('synced', () => {
   synced.value = true
+  denied.value = false
   sync()
   // Notebook jamais ouvert (fichier vide) : le serveur en construit un ; en dernier recours, une cellule vide.
   if (!ycells.length && !ro.value) ydoc.transact(() => ycells.push([makeCell('code', '')]))
   emit('status', 'synced')
 })
-provider.on('authenticationFailed', () => { denied.value = true; emit('status', 'denied') })
+// Coupure ou refus passager : reprise automatique ; « denied » seulement si l'accès est réellement retiré.
+const recovery = useCollabRecovery(provider, { onLost: () => emit('status', 'offline') })
+provider.on('authenticationFailed', ({ reason }: { reason?: string }) => {
+  if (recovery.classify(reason) === 'transient') { emit('status', 'offline'); return }
+  denied.value = true
+  emit('status', 'denied')
+})
 provider.on('status', ({ status }: { status: string }) => { if (status === 'disconnected') emit('status', 'offline'); else if (status === 'connected' && provider.isSynced) emit('status', 'synced') })
 provider.on('awarenessUpdate', ({ states }: { states: { user?: { name: string; color: string } }[] }) => {
   emit('collaborators', states.map((s) => s.user).filter((u): u is { name: string; color: string } => !!u && u.name !== props.user.name))
@@ -604,7 +611,7 @@ const statusText = computed(() => {
   return k.message.value || t('notebook.off')
 })
 
-onBeforeUnmount(() => { clearTimeout(tocTimer); provider.destroy(); ydoc.destroy() })
+onBeforeUnmount(() => { clearTimeout(tocTimer); recovery.stop(); provider.destroy(); ydoc.destroy() })
 defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} })
 </script>
 

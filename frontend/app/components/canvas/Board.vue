@@ -246,11 +246,18 @@ function renderApp() {
 watch(() => props.canEdit, renderApp)
 
 provider.on('synced', () => { emit('status', 'synced'); mount() })
-provider.on('authenticationFailed', () => { emit('status', 'denied'); loading.value = false })
+// Coupure ou refus passager : reprise automatique ; « denied » seulement si l'accès est réellement retiré.
+const recovery = useCollabRecovery(provider, { onLost: () => emit('status', 'offline') })
+provider.on('authenticationFailed', ({ reason }: { reason?: string }) => {
+  if (recovery.classify(reason) === 'transient') { emit('status', 'offline'); return }
+  emit('status', 'denied')
+  loading.value = false
+})
 provider.on('status', ({ status }: { status: string }) => { if (status === 'disconnected') emit('status', 'offline') })
 onMounted(() => emit('status', 'connecting'))
 onBeforeUnmount(() => {
   alive = false
+  recovery.stop()
   if (frame) { cancelAnimationFrame(frame); flushLocal() }
   if (remoteFrame) cancelAnimationFrame(remoteFrame)
   root?.unmount()

@@ -32,6 +32,14 @@ Utilisez le fichier compose Traefik et routez, WebSockets activés :
 
 Le `Caddyfile` en est un exemple qui fonctionne. Transmettez les en-têtes `Host` et `X-Forwarded-*`.
 
+### Délais et connexions longues
+
+L'édition en direct (`/collab`) et les notifications (`/api/ws`) sont des WebSockets qui restent ouverts des heures. Le serveur de collaboration envoie un ping toutes les 15 secondes, mais un proxy qui coupe les connexions sur sa propre minuterie provoque des déconnexions périodiques (souvent toutes les une à deux minutes) qui laissent les pages en lecture seule jusqu'à la reconnexion. Relevez ces limites :
+
+- **Traefik** : réglez les délais du point d'entrée, par exemple `--entrypoints.websecure.transport.respondingTimeouts.readTimeout=0` et `--entrypoints.websecure.transport.respondingTimeouts.idleTimeout=300s` (un délai de lecture de 60 s et un délai d'inactivité de 120 s coupent les WebSockets inactifs).
+- **nginx** : `proxy_read_timeout 3600s;` et `proxy_send_timeout 3600s;` sur les emplacements `/collab` et `/api/ws`, avec `proxy_http_version 1.1` et les en-têtes `Upgrade` / `Connection`.
+- **Cloudflare** : une connexion sans trafic pendant 100 secondes est fermée. Le ping de 15 secondes la maintient, mais ne placez pas les chemins WebSocket derrière une règle qui les met en tampon ou les réécrit.
+
 ## NixOS
 
 Il n’y a pas de module NixOS pour le serveur. Lancez les fichiers compose avec Docker activé sous NixOS (voir [prérequis](/fr/docs/host/requirements/)). Seule l’*app de bureau* est empaquetée en flake.

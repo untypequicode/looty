@@ -75,7 +75,9 @@ onMounted(() => {
 })
 
 provider.on('synced', () => { emit('status', 'synced'); emit('change', ytext.toString()) })
-provider.on('authenticationFailed', () => emit('status', 'denied'))
+// Coupure ou refus passager : reprise automatique ; « denied » seulement si l'accès est réellement retiré.
+const recovery = useCollabRecovery(provider, { onLost: () => emit('status', 'offline') })
+provider.on('authenticationFailed', ({ reason }: { reason?: string }) => emit('status', recovery.classify(reason) === 'transient' ? 'offline' : 'denied'))
 provider.on('status', ({ status }: { status: string }) => { if (status === 'disconnected') emit('status', 'offline'); else if (status === 'connected' && provider.isSynced) emit('status', 'synced') })
 provider.on('awarenessUpdate', ({ states }: { states: { clientId?: number; user?: { name: string; color: string } }[] }) => {
   emit('collaborators', states.map((s) => s.user).filter((u): u is { name: string; color: string } => !!u && u.name !== props.user.name))
@@ -83,6 +85,7 @@ provider.on('awarenessUpdate', ({ states }: { states: { clientId?: number; user?
 watch(() => props.readOnly, (ro) => view?.dispatch({ effects: editable.reconfigure([EditorState.readOnly.of(!!ro), EditorView.editable.of(!ro)]) }))
 
 onBeforeUnmount(() => {
+  recovery.stop()
   view?.destroy()
   provider.destroy()
   ydoc.destroy()

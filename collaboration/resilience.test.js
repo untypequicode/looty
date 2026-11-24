@@ -4,7 +4,8 @@ const { withRetry, authErrorForStatus } = require('./resilience')
 
 test('authErrorForStatus', () => {
   for (const s of [200, 204]) assert.equal(authErrorForStatus(s), null)
-  for (const s of [401, 403, 404]) assert.equal(authErrorForStatus(s), 'forbidden')
+  assert.equal(authErrorForStatus(401), 'unauthorized')
+  for (const s of [403, 404]) assert.equal(authErrorForStatus(s), 'forbidden')
   for (const s of [429, 408, 500, 502, 503, 504, 400]) assert.equal(authErrorForStatus(s), 'auth-unavailable')
 })
 
@@ -43,4 +44,13 @@ test('describeRefusal ne contient ni cookie ni jeton', () => {
   const line = describeRefusal({ reason: 'forbidden', status: 403, documentName: 'abc', hasToken: false, hasCookie: true, userAgent: 'Mozilla/5.0 (Android)' })
   assert.equal(line, 'refused reason=forbidden status=403 doc=abc via=cookie ua="Mozilla/5.0 (Android)"')
   assert.match(describeRefusal({ reason: 'unauthenticated', documentName: 'x'.repeat(200), userAgent: 'u'.repeat(300) }), /^refused reason=unauthenticated doc=x{64} via=none ua="u{80}"$/)
+})
+
+test('nextRevalidation : deux refus consécutifs avant de fermer, les pannes ne comptent pas', () => {
+  const { nextRevalidation } = require('./resilience')
+  assert.deepEqual(nextRevalidation(0, 200), { action: 'ok', failures: 0 })
+  assert.deepEqual(nextRevalidation(0, 401), { action: 'recheck', failures: 1 })
+  assert.deepEqual(nextRevalidation(1, 403), { action: 'forbid', failures: 0 })
+  assert.deepEqual(nextRevalidation(1, 503), { action: 'keep', failures: 0 })
+  assert.deepEqual(nextRevalidation(1, 200), { action: 'ok', failures: 0 })
 })

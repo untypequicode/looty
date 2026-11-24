@@ -76,11 +76,12 @@ where
         let session = Session::from_request_parts(parts, state)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
+        // Erreur de lecture de la session (base indisponible…) : panne passagère (5xx), jamais un 401
+        // qui passerait pour une session expirée (le client de collaboration abandonnerait).
         let user_id: Uuid = session
             .get(SESSION_USER_KEY)
             .await
-            .ok()
-            .flatten()
+            .map_err(|e| ApiError::Internal(format!("session read: {e}")))?
             .ok_or(ApiError::Unauthorized)?;
 
         let row: Option<(bool, bool)> =
