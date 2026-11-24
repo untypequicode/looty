@@ -129,7 +129,7 @@ jobs:
           ! grep -E 'REQUEST_INSTALL_PACKAGES|UPDATE_PACKAGES_WITHOUT_USER_ACTION' perms.txt
       - name: Repository dry run (throwaway keys)
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq fdroidserver
+          scripts/fdroid-install.sh
           d="$RUNNER_TEMP/keys"; mkdir -p "$d"
           pw="$(openssl rand -hex 16)"
           for k in apk repo; do

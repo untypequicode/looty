@@ -82,7 +82,7 @@ jobs:
           REPO_KEY_PASSWORD: ${{ secrets.FDROID_KEY_PASSWORD }}
           FDROID_REPO_URL: ${{ vars.SITE_URL && format('{0}/fdroid/repo', vars.SITE_URL) || '' }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq fdroidserver
+          scripts/fdroid-install.sh
           export APK_KEYSTORE="$RUNNER_TEMP/keys/apk.jks" REPO_KEYSTORE="$RUNNER_TEMP/keys/repo.jks"
           [ -n "$FDROID_REPO_URL" ] || unset FDROID_REPO_URL
           scripts/fdroid-repo.sh unsigned/fdroid-unsigned.apk "$RUNNER_TEMP/fdroid"
