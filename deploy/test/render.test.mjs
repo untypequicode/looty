@@ -95,7 +95,7 @@ test('no service reaches another by its bare service name, in any compose file',
   for (const [name, compose] of Object.entries(composes)) {
     assert.doesNotMatch(compose, /https?:\/\/(backend|collaboration|frontend)[:/\s"]/, `${name}: bare service name in a URL`)
     for (const service of ['backend', 'collaboration']) {
-      const block = compose.match(new RegExp(`^ {2}${service}:\\n(?: {4}.*\\n|\\n)*`, 'm'))[0]
+      const block = compose.match(new RegExp(`^ {2}(?:demo-)?${service}:\\n(?: {4}.*\\n|\\n)*`, 'm'))[0]
       assert.match(block, /aliases:\n {10}- \S+-(backend|collaboration)\n/, `${name}: ${service} has no stack-scoped alias`)
     }
     const alias = compose.match(/BACKEND_URL: http:\/\/(\S+):8080/)[1]

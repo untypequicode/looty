@@ -29,4 +29,8 @@ Run an update every night, after the reset, for example with a cron entry in the
 30 3 * * * cd /srv/looty-demo && docker compose -f docker-compose.demo.yml pull -q && docker compose -f docker-compose.demo.yml up -d
 ```
 
+## Sharing a Docker network with your real instance
+
+The demo services are named `demo-postgres`, `demo-backend`, `demo-collaboration` and `demo-frontend` (with `looty-demo-*` aliases) so they never collide with the `postgres` or `backend` of another stack on a shared network such as `traefik-public`. Keep that rule for any stack you add: give services unique names or aliases on a shared network. Run `up` without `--remove-orphans`, unless you pass both `-f` files, or the containers of the other stack are removed.
+
 Watch `https://<DEMO_DOMAIN>/api/health` from an uptime monitor, and the free disk space of the volume that holds `/var/lib/docker`.

@@ -8,10 +8,14 @@
 # et ses volumes (demo_postgres, demo_uploads) ne se mélangent donc pas à ceux de votre instance. Rien n'y est
 # conservé : pas de connexion, pas de comptes réels, chaque visiteur a sa copie jetable (supprimée après 24 h).
 # Aucun fournisseur OIDC, aucun SMTP : la démo n'en a pas besoin.
+#
+# Les services s'appellent demo-* (et gardent des alias looty-demo-*) : sur un réseau Docker partagé avec une autre pile
+# (ex. traefik-public), « postgres » ou « backend » seraient ambigus. Ne lancez pas « up --remove-orphans » sans donner les
+# deux fichiers -f (le vôtre et celui-ci), sinon les conteneurs de l'autre pile sont supprimés.
 name: looty-demo
 
 services:
-  postgres:
+  demo-postgres:
     image: postgres:18-alpine
     environment:
       POSTGRES_DB: looty_demo
@@ -51,10 +55,10 @@ services:
     mem_limit: 256m
     restart: unless-stopped
 
-  backend:
+  demo-backend:
     image: ghcr.io/untypequicode/looty-backend:${LOOTY_VERSION:-latest}
     environment:
-      DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@postgres:5432/looty_demo
+      DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@demo-postgres:5432/looty_demo
       PORT: 8080
       BASE_URL: https://${DEMO_DOMAIN:-demo.looty.untypequicode.fr}
       LOOTY_DEMO: "true"
@@ -67,7 +71,7 @@ services:
     volumes:
       - demo_uploads:/app/uploads
     depends_on:
-      postgres:
+      demo-postgres:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
@@ -82,13 +86,13 @@ services:
     mem_limit: 512m
     restart: unless-stopped
 
-  collaboration:
+  demo-collaboration:
     image: ghcr.io/untypequicode/looty-collaboration:${LOOTY_VERSION:-latest}
     environment:
-      DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@postgres:5432/looty_demo
+      DATABASE_URL: postgres://looty:${DB_PASSWORD:?mot de passe de la base, ex. openssl rand -hex 16}@demo-postgres:5432/looty_demo
       BACKEND_URL: http://looty-demo-backend:8080
     depends_on:
-      postgres:
+      demo-postgres:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
@@ -104,7 +108,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
-  frontend:
+  demo-frontend:
     image: ghcr.io/untypequicode/looty-frontend:${LOOTY_VERSION:-latest}
     environment:
       BACKEND_URL: http://looty-demo-backend:8080
