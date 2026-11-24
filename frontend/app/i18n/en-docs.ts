@@ -11,7 +11,7 @@ export default {
     removeLink: 'Remove link', language: 'Language…', alignLeft: 'Align left', alignCenter: 'Center', fullWidth: 'Full width',
     contents: 'Contents', findInPage: 'Find in page', findPlaceholder: 'Find in page…',
     fullWidthPage: 'Full width', normalWidth: 'Normal width', exportMarkdown: 'Export as Markdown',
-    readOnly: 'Read only', offline: 'Offline', connecting: 'Connecting…', saving: 'Saving…',
+    readOnly: 'Read only', sessionExpired: 'Session expired. Sign in again', offline: 'Offline', connecting: 'Connecting…', saving: 'Saving…',
     lastEdited: 'Edited by {name} · {time}', subDocuments: 'Sub-documents', searchDocs: 'Search documents…',
     slash: {
       basic: 'Text', blocks: 'Blocks', media: 'Media', advanced: 'Advanced', empty: 'No commands',

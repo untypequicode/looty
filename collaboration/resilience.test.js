@@ -54,3 +54,30 @@ test('nextRevalidation : deux refus consécutifs avant de fermer, les pannes ne 
   assert.deepEqual(nextRevalidation(1, 503), { action: 'keep', failures: 0 })
   assert.deepEqual(nextRevalidation(1, 200), { action: 'ok', failures: 0 })
 })
+
+test('describeRefusal ajoute cookies, empreinte, origine et adresse relayée', () => {
+  const { describeRefusal, sessionCookieInfo } = require('./resilience')
+  const info = sessionCookieInfo('a=1; looty_session=abc; looty_session=def', (v) => `${v}0000000000`)
+  assert.deepEqual(info, { count: 2, hash: 'abc00000' })
+  const line = describeRefusal({ reason: 'unauthorized', status: 401, documentName: 'd', hasCookie: true, userAgent: 'ua', cookieCount: 2, cookieHash: info.hash, origin: 'https://x.test', forwardedFor: '1.2.3.4', client: 'abc00000' })
+  assert.match(line, /session_cookies=2 session_sha=abc00000 origin="https:\/\/x.test" xff="1.2.3.4" client=abc00000$/)
+  assert.deepEqual(sessionCookieInfo('', (v) => v), { count: 0, hash: '' })
+})
+
+test('createRefusalLimiter : délai croissant puis abandon, fenêtre glissante, succès remet à zéro', () => {
+  const { createRefusalLimiter } = require('./resilience')
+  let t = 0
+  const l = createRefusalLimiter({ windowMs: 1000, freeAttempts: 2, giveUpAfter: 4, now: () => t })
+  assert.deepEqual(l.check('a'), { delayMs: 0, giveUp: false })
+  l.note('a'); l.note('a')
+  assert.deepEqual(l.check('a'), { delayMs: 500, giveUp: false })
+  l.note('a')
+  assert.deepEqual(l.check('a'), { delayMs: 1000, giveUp: false })
+  l.note('a')
+  assert.equal(l.check('a').giveUp, true)
+  assert.equal(l.check('b').giveUp, false)
+  t = 2000
+  assert.equal(l.check('a').giveUp, false)
+  l.note('a'); l.success('a')
+  assert.deepEqual(l.check('a'), { delayMs: 0, giveUp: false })
+})

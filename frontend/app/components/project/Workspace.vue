@@ -79,6 +79,7 @@ function closeTab(fid: string) {
 const tabFiles = computed(() => tabs.value.map((tid) => files.value.find((f) => f.id === tid)).filter((f): f is NonNullable<typeof f> => !!f))
 const editorRef = ref<{ getText: () => string; goToLine: (n: number) => void } | null>(null)
 const status = ref<'connecting' | 'synced' | 'offline' | 'denied'>('connecting')
+const sessionExpired = useCollabSessionExpired()
 const collaborators = ref<{ name: string; color: string }[]>([])
 const userColor = computed(() => {
   const palette = ['#e2a03f', '#4c9ad4', '#d4544c', '#56a85c', '#9c5cd4', '#d45c9c', '#3fb3a8']
@@ -369,7 +370,8 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
             </div>
             <span class="pj-status">
               <template v-if="current?.text">
-                <template v-if="status === 'synced'">{{ t('common.saved') }}</template>
+                <button v-if="sessionExpired" type="button" class="status-expired" @click="signInAgain">{{ t('editor.sessionExpired') }}</button>
+                <template v-else-if="status === 'synced'">{{ t('common.saved') }}</template>
                 <template v-else-if="status === 'offline'">{{ t('projects.offline') }}</template>
                 <template v-else-if="status === 'denied'">{{ t('editor.readOnly') }}</template>
                 <template v-else>{{ t('editor.connecting') }}</template>
@@ -493,6 +495,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
 .pj-tab-x { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 3px; font-size: 14px; line-height: 1; color: var(--text-3); }
 .pj-tab-x:hover { background: var(--bg-active); color: var(--text); }
 .pj-status { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+.status-expired { color: var(--red, #c0392b); background: none; border: 0; padding: 0; cursor: pointer; font: inherit; text-decoration: underline; }
 .pj-editor { flex: 1; min-height: 0; }
 .pj-binary { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-3); padding: 20px; text-align: center; }
 .pj-binary img { max-width: 100%; max-height: 100%; object-fit: contain; background: repeating-conic-gradient(#0000000d 0 25%, transparent 0 50%) 0 0 / 16px 16px; }

@@ -40,11 +40,49 @@ function authErrorForStatus(status) {
  * type de client, pour retrouver d'où vient une reconnexion en boucle. Jamais de cookie, de jeton
  * ni d'adresse : le navigateur et le document suffisent.
  */
-function describeRefusal({ reason, status, documentName, hasToken, hasCookie, userAgent }) {
+function describeRefusal({ reason, status, documentName, hasToken, hasCookie, userAgent, cookieCount, cookieHash, origin, forwardedFor, client }) {
   const ua = String(userAgent || '-').replace(/\s+/g, ' ').slice(0, 80)
   const doc = String(documentName || '-').slice(0, 64)
   const via = hasToken ? 'token' : hasCookie ? 'cookie' : 'none'
-  return `refused reason=${reason}${status ? ` status=${status}` : ''} doc=${doc} via=${via} ua="${ua}"`
+  const clean = (v, n) => String(v || '-').replace(/[\s"]+/g, ' ').slice(0, n)
+  let line = `refused reason=${reason}${status ? ` status=${status}` : ''} doc=${doc} via=${via} ua="${ua}"`
+  if (cookieCount !== undefined) line += ` session_cookies=${cookieCount} session_sha=${cookieHash || '-'} origin="${clean(origin, 80)}" xff="${clean(forwardedFor, 80)}"`
+  if (client) line += ` client=${client}`
+  return line
+}
+
+/** Cookies `looty_session` d'un en-tête Cookie : nombre et préfixe sha256 (jamais la valeur) du premier. */
+function sessionCookieInfo(cookieHeader, sha256) {
+  const values = String(cookieHeader || '').split(';').map((p) => p.trim()).filter((p) => p.startsWith('looty_session='))
+  return { count: values.length, hash: values.length ? sha256(values[0].slice('looty_session='.length)).slice(0, 8) : '' }
+}
+
+/**
+ * Freine les clients refusés en boucle (session périmée sur un autre appareil…).
+ * `note(key)` compte un refus ; `check(key)` renvoie { delayMs, giveUp } selon les refus récents
+ * (fenêtre glissante) : d'abord un délai croissant avant de questionner le backend, puis, au-delà
+ * de `giveUpAfter`, une réponse immédiate « session-expired » que le client traite comme définitive.
+ * `success(key)` oublie le client.
+ */
+function createRefusalLimiter({ windowMs = 120_000, freeAttempts = 3, giveUpAfter = 8, maxDelayMs = 10_000, now = Date.now, maxClients = 5000 } = {}) {
+  const clients = new Map()
+  const recent = (key) => (clients.get(key) || []).filter((t) => now() - t < windowMs)
+  return {
+    note(key) {
+      const list = recent(key)
+      list.push(now())
+      clients.delete(key)
+      clients.set(key, list)
+      if (clients.size > maxClients) clients.delete(clients.keys().next().value)
+    },
+    check(key) {
+      const n = recent(key).length
+      if (n >= giveUpAfter) return { delayMs: 0, giveUp: true }
+      if (n < freeAttempts) return { delayMs: 0, giveUp: false }
+      return { delayMs: Math.min(maxDelayMs, 500 * 2 ** (n - freeAttempts)), giveUp: false }
+    },
+    success(key) { clients.delete(key) },
+  }
 }
 
 /**
@@ -60,7 +98,7 @@ function nextRevalidation(failures, status) {
   return { action: 'keep', failures: 0 }
 }
 
-module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal, nextRevalidation }
+module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal, nextRevalidation, sessionCookieInfo, createRefusalLimiter }
 
 /**
  * Relance l'enregistrement des documents dont l'enregistrement a échoué et qui sont encore
