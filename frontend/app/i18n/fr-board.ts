@@ -44,7 +44,7 @@ export default {
     moveToBoard: 'Déplacer vers un tableau', movedToBoard: 'Tâche déplacée dans « {name} »', boardHasNoColumn: 'Ce tableau n’a encore aucune colonne',
     addSubtask: 'Ajouter une sous-tâche', subtasks: 'Sous-tâches', subtaskPlaceholder: 'Titre de la sous-tâche… (Entrée)',
     assignees: 'Assignés', copyId: 'Copier l’identifiant', createdAgo: 'Créée {time}', updatedAgo: 'Modifiée {time}', noDate: 'Aucune date',
-    pending: 'En attente', validated: 'Validé', perPerson: 'Validation par personne', perPersonHint: 'Chaque assigné valide de son côté.',
+    wontDo: 'Je ne ferai pas', wontDoState: 'Ne fera pas', wontDoAll: 'Ne sera pas faite', pending: 'En attente', validated: 'Validé', perPerson: 'Validation par personne', perPersonHint: 'Chaque assigné valide de son côté.',
     priority: 'Priorité', reopen: 'Rouvrir', requireAll: 'Tous doivent valider', startDate: 'Début', status: 'Statut', unassigned: 'Non assignée',
     fullForm: 'Formulaire complet', quickForm: 'Création rapide',
   },

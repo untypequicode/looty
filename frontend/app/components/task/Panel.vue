@@ -145,7 +145,9 @@ async function createLabel(name: string, color: string) {
 function setPerPerson(v: boolean) { if (task.value) actions.updateTask(task.value.id, { is_per_person: v }) }
 function setRequireAll(v: boolean) { if (task.value) actions.updateTask(task.value.id, { require_all_validations: v }) }
 
-const myValidated = computed(() => !!task.value?.is_per_person && !!user.value && task.value.validations.includes(user.value.id))
+const myWontDo = computed(() => !!task.value?.is_per_person && !!user.value && !!task.value.wont_do?.includes(user.value.id))
+const myValidated = computed(() => !!task.value?.is_per_person && !!user.value && task.value.validations.includes(user.value.id) && !myWontDo.value)
+const allWontDo = computed(() => !!task.value?.is_per_person && !!task.value.assignees.length && task.value.assignees.every((a) => task.value!.wont_do?.includes(a)))
 const checkEl = ref<HTMLElement | null>(null)
 function toggleDone() {
   if (!task.value || !(props.canValidate ?? props.canWrite)) return
@@ -379,8 +381,10 @@ watch(() => props.taskId, () => nextTick(() => body.value && motion.stagger(body
             <div v-for="a in task.assignees" :key="a" class="validation">
               <UiAvatar :name="member(a)?.name" :src="member(a)?.avatar_url" :size="18" />
               <span class="truncate">{{ member(a)?.name }}</span>
-              <span class="v-state" :class="{ ok: task.validations.includes(a) }">{{ task.validations.includes(a) ? t('task.validated') : t('task.pending') }}</span>
+              <span class="v-state" :class="{ ok: task.validations.includes(a) && !task.wont_do?.includes(a) }">{{ task.wont_do?.includes(a) ? t('task.wontDoState') : task.validations.includes(a) ? t('task.validated') : t('task.pending') }}</span>
             </div>
+            <p v-if="allWontDo" class="prop-hint">{{ t('task.wontDoAll') }}</p>
+            <UiButton v-if="assignedToMe && (canValidate ?? canWrite)" size="sm" :variant="myWontDo ? 'primary' : 'ghost'" @click="actions.toggleWontDo(task.id)">{{ t('task.wontDo') }}</UiButton>
           </div>
 
           <div class="prop-sep" />

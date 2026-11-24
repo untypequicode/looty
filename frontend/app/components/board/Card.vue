@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, ListTree, Check, Users, Repeat, LockKeyhole } from 'lucide-vue-next'
+import { CalendarDays, ListTree, Check, X, Users, Repeat, LockKeyhole } from 'lucide-vue-next'
 import type { Task } from '~/types'
 import { useWorkspace } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
@@ -36,11 +36,14 @@ const due = computed(() => {
   return { label: formatDate(d), tone }
 })
 const subDone = computed(() => props.subtasks.filter((s) => s.is_completed).length)
-const myValidation = computed(() => props.task.is_per_person && !!user.value && props.task.validations.includes(user.value.id))
+const myWontDo = computed(() => props.task.is_per_person && !!user.value && !!props.task.wont_do?.includes(user.value.id))
+const myValidation = computed(() => props.task.is_per_person && !!user.value && props.task.validations.includes(user.value.id) && !myWontDo.value)
+const allWontDo = computed(() => props.task.is_per_person && props.task.assignees.length > 0 && props.task.assignees.every((a) => props.task.wont_do?.includes(a)))
 const validationText = computed(() => {
   if (!props.task.is_per_person) return null
   const total = props.task.assignees.length || 1
-  return `${props.task.validations.length}/${total}`
+  const wont = props.task.wont_do?.length ?? 0
+  return `${props.task.validations.length - wont}/${total}${wont ? ` · ${wont}✕` : ''}`
 })
 </script>
 
@@ -57,11 +60,13 @@ const validationText = computed(() => {
       <button
         v-if="canValidate ?? canWrite"
         class="card-check"
-        :class="{ on: task.is_completed, partial: myValidation && !task.is_completed }"
+        :class="{ on: task.is_completed, partial: myValidation && !task.is_completed, wont: (myWontDo || allWontDo) && !task.is_completed }"
         :aria-label="$t('task.markDone')"
+        :title="allWontDo ? $t('task.wontDoAll') : myWontDo ? $t('task.wontDoState') : undefined"
         @click.stop="emit('toggle', task, $event)"
       >
         <Check v-if="task.is_completed || myValidation" :size="11" :stroke-width="3" />
+        <X v-else-if="myWontDo || allWontDo" :size="11" :stroke-width="3" />
       </button>
       <h4 class="card-title">{{ task.title }}</h4>
       <span v-if="task.assignees.length" class="card-avatars">
@@ -72,7 +77,7 @@ const validationText = computed(() => {
           :src="member(a)?.avatar_url"
           :size="18"
           ring
-          :class="{ validated: task.is_per_person && task.validations.includes(a) }"
+          :class="{ validated: task.is_per_person && task.validations.includes(a) && !task.wont_do?.includes(a) }"
         />
       </span>
     </div>
@@ -133,6 +138,7 @@ const validationText = computed(() => {
 .card-check:hover { border-color: var(--accent); transform: scale(1.1); }
 .card-check.on { background: var(--accent); border-color: var(--accent); }
 .card-check.partial { border-color: var(--accent); color: var(--accent); border-style: dashed; }
+.card-check.wont { border-color: var(--text-3); color: var(--text-3); border-style: dotted; }
 .card-avatars { display: flex; flex: none; }
 .card-avatars > * + * { margin-left: -5px; }
 .card-avatars .validated { box-shadow: 0 0 0 2px var(--green); }
