@@ -59,7 +59,7 @@ pre { background: #f5f5f7; padding: 12px 14px; border-radius: 8px; overflow-x: a
 code { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: .9em; background: #f2f2f5; padding: 1px 4px; border-radius: 4px; }
 pre code { background: none; padding: 0; }
 blockquote { margin: 1em 0; padding: 2px 16px; border-left: 3px solid #d0d0d8; color: #4a4a55; }
-table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: fixed; }
 td, th { border: 1px solid #dcdce2; padding: 6px 10px; vertical-align: top; text-align: left; }
 th { background: #f5f5f7; }
 ul[data-type="taskList"] { list-style: none; padding-left: 4px; }

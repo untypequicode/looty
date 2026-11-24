@@ -361,6 +361,7 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
 .doc-editor :deep(.ProseMirror .selectedCell::after) { content: ''; position: absolute; inset: 0; background: var(--accent-soft); pointer-events: none; }
 .doc-editor :deep(.column-resize-handle) { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--accent); pointer-events: none; }
 .doc-editor :deep(.tableWrapper) { overflow-x: auto; }
+.doc-editor :deep(.ProseMirror.row-resize-ready) { cursor: row-resize; }
 .doc-editor :deep(a) { cursor: text; }
 .doc-editor :deep(.ProseMirror[contenteditable='false'] a) { cursor: pointer; }
 </style>

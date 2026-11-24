@@ -3,7 +3,8 @@ import Highlight from '@tiptap/extension-highlight'
 import Typography from '@tiptap/extension-typography'
 import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
-import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
+import { Table } from '@tiptap/extension-table'
+import { ResizableTableRow, DirectionalCell, DirectionalHeader } from './tableSizing'
 import { Placeholder, TrailingNode } from '@tiptap/extensions'
 import Mention from '@tiptap/extension-mention'
 import { Collaboration } from '@tiptap/extension-collaboration'
@@ -53,9 +54,9 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
     TaskList,
     TaskItem.configure({ nested: true }),
     Table.configure({ resizable: true, lastColumnResizable: false }),
-    TableRow,
-    TableHeader,
-    TableCell,
+    ResizableTableRow,
+    DirectionalHeader,
+    DirectionalCell,
     ResizableImage,
     MathBlock,
     MathInline,

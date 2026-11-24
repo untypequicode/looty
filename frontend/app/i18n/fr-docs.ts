@@ -24,6 +24,7 @@ export default {
     table: {
       rowAbove: 'Ligne au-dessus', rowBelow: 'Ligne en dessous', deleteRow: 'Supprimer la ligne', colLeft: 'Colonne à gauche',
       colRight: 'Colonne à droite', deleteCol: 'Supprimer la colonne', toggleHeader: 'Ligne d’en-tête', delete: 'Supprimer le tableau',
+      textHorizontal: 'Texte horizontal', textUp: 'Texte tourné de 90° vers la gauche', textDown: 'Texte tourné de 90° vers la droite',
     },
   },
   share: {
