@@ -29,4 +29,8 @@ Lancez une mise à jour chaque nuit, après la remise à zéro, par exemple avec
 30 3 * * * cd /srv/looty-demo && docker compose -f docker-compose.demo.yml pull -q && docker compose -f docker-compose.demo.yml up -d
 ```
 
+## Partager un réseau Docker avec votre vraie instance
+
+Les services de la démo s’appellent `demo-postgres`, `demo-backend`, `demo-collaboration` et `demo-frontend` (avec des alias `looty-demo-*`) pour ne jamais entrer en collision avec le `postgres` ou le `backend` d’une autre pile sur un réseau partagé comme `traefik-public`. Gardez cette règle pour toute pile ajoutée : des noms ou alias uniques sur un réseau partagé. Lancez `up` sans `--remove-orphans`, sauf si vous donnez les deux fichiers `-f`, sinon les conteneurs de l’autre pile sont supprimés.
+
 Surveillez `https://<DEMO_DOMAIN>/api/health` depuis un moniteur de disponibilité, et l’espace disque libre du volume qui contient `/var/lib/docker`.
