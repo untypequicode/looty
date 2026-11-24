@@ -340,6 +340,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
         <span v-if="collaborators.length" class="pj-people" :title="collaborators.map((c) => c.name).join(', ')">
           <Users :size="13" /> <span v-for="c in collaborators.slice(0, 4)" :key="c.name" class="pj-dot" :style="{ background: c.color }" />
         </span>
+        <AppCallButton v-if="!embedded" kind="project" :id="project.id" :label="project.name" />
         <span v-if="!canWrite" class="pj-ro"><Lock :size="12" /> {{ t('editor.readOnly') }}</span>
         <template v-if="isSite">
           <UiTooltip :text="t('projects.reload')" :shortcut="['mod', 'S']"><UiButton size="sm" variant="ghost" :icon="RefreshCw" :aria-label="t('projects.reload')" @click="previewNonce++" /></UiTooltip>

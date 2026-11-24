@@ -2,6 +2,7 @@ const { Server } = require('@hocuspocus/server')
 const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
 const Y = require('yjs')
+const { CallRooms, isCallRoom, parseRoom } = require('./calls')
 const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal, nextRevalidation, sessionCookieInfo, createRefusalLimiter } = require('./resilience')
 
 const pool = new Pool({
@@ -133,6 +134,8 @@ async function recordRevision(pageId, state, userId) {
  * refuse brièvement les connexions pour laisser les pages ouvertes se recharger.
  */
 const accessUrl = (documentName) => {
+  const room = parseRoom(documentName)
+  if (room) return `${BACKEND_URL}/api/calls/${room.kind}/${room.id}/access`
   const fid = fileId(documentName)
   // Canevas : les droits de sa page.
   const page = canvasId(documentName) ?? documentName
@@ -276,6 +279,17 @@ const onStopSignal = () => {
 }
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGQUIT']) process.on(sig, onStopSignal)
 
+/** Salles d'appel (signalisation WebRTC en mémoire, voir calls.js et docs/adr/0019). */
+const calls = new CallRooms(
+  { maxParticipants: Number(process.env.LOOTY_CALL_MAX_PARTICIPANTS || 6) },
+  { log: (m) => console.log(m) },
+)
+function attachCall(name, connection, context) {
+  const user = context?.user
+  if (!user) return
+  calls.attach(name, connection.socketId, (m) => connection.sendStateless(m), user)
+}
+
 const server = new Server({
   port: Number(process.env.PORT || 8082),
   // Ferme les connexions non authentifiées rapidement
@@ -301,12 +315,13 @@ const server = new Server({
     }
     const fid = fileId(documentName)
     const cid = canvasId(documentName)
-    if (!fid && !cid && !UUID_RE.test(documentName)) {
+    const call = isCallRoom(documentName)
+    if (!fid && !cid && !call && !UUID_RE.test(documentName)) {
       throw authError('invalid-document')
     }
     // Interface d'avant la version du format (onglet ouvert avant une mise à jour…) : elle ne
     // sait pas lire les formules et diagrammes convertis et les supprimerait du document.
-    if (!fid && !cid && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
+    if (!fid && !cid && !call && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
       throw authError('outdated-client')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
@@ -355,15 +370,34 @@ const server = new Server({
     }
     refusals.success(clientKey)
     const access = await res.json()
-    connectionConfig.readOnly = !access.can_write
+    // Salle d'appel : aucun document partagé, uniquement des messages de signalisation.
+    connectionConfig.readOnly = call ? true : !access.can_write
     // Les en-têtes d'authentification restent dans le contexte pour revérifier les droits
     // pendant la connexion (voir revalidate).
     return { user: { id: access.user_id, name: access.name }, auth: headers }
   },
 
+  /** Salles d'appel : la connexion devient observatrice (liste des participants). */
+  async connected({ documentName, connection, context }) {
+    if (!isCallRoom(documentName)) return
+    attachCall(documentName, connection, context)
+  },
+
+  /** Messages de signalisation : join, leave, state, signal. */
+  async onStateless({ documentName, connection, payload }) {
+    if (!isCallRoom(documentName)) return
+    attachCall(documentName, connection, connection.context ?? {})
+    calls.handle(documentName, connection.socketId, payload)
+  },
+
+  async onDisconnect({ documentName, socketId }) {
+    if (isCallRoom(documentName)) calls.detach(documentName, socketId)
+  },
+
   extensions: [
     new Database({
       fetch: async ({ documentName }) => {
+        if (isCallRoom(documentName)) return null
         loadedAt.set(documentName, Date.now())
         const cid = canvasId(documentName)
         if (cid) {
@@ -450,6 +484,7 @@ const server = new Server({
 })
 
 async function storeDocument({ documentName, state, context, lastContext }) {
+  if (isCallRoom(documentName)) return
   // Hocuspocus 4 : contexte de la dernière connexion ayant modifié le document.
   const userId = lastContext?.user?.id || context?.user?.id || null
   // Document chargé avant une restauration : ne jamais écraser les données restaurées.

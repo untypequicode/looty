@@ -158,6 +158,20 @@ in
       };
     };
 
+    turn = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Run a TURN relay (services.coturn) so voice calls work behind restrictive firewalls. Off by default. Opens 3478 (UDP and TCP) and the relay range 49160-49200 (UDP). Put the same secret in the environment file as LOOTY_TURN_SECRET.";
+      };
+      secretFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        example = "/run/secrets/looty-turn";
+        description = "File containing the shared secret (a long random string, no trailing newline needed), read by coturn. The same value goes in the environment file as LOOTY_TURN_SECRET.";
+      };
+    };
+
     imageFiles = mkOption {
       type = types.attrsOf types.path;
       default = { };
@@ -189,6 +203,9 @@ in
           // optionalAttrs bundled {
             OIDC_ISSUER = "https://${authDomain}";
             OIDC_CLIENT_ID = "looty";
+          }
+          // optionalAttrs cfg.turn.enable {
+            LOOTY_TURN_URLS = "turn:${cfg.domain}:3478?transport=udp,turn:${cfg.domain}:3478?transport=tcp";
           };
           environmentFiles = envFiles;
           volumes = [
@@ -278,6 +295,41 @@ in
           ${pkgs.util-linux}/bin/runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"${cfg.database.user}\" PASSWORD '$DB_PASSWORD'"
           printf 'DATABASE_URL=%s\n' "${dbUrl}" > ${runDir}/database.env
         '';
+      };
+    })
+
+    (mkIf cfg.turn.enable {
+      assertions = [
+        {
+          assertion = cfg.turn.secretFile != null;
+          message = "services.looty.turn.secretFile must be set with services.looty.turn.enable.";
+        }
+      ];
+      services.coturn = {
+        enable = true;
+        realm = cfg.domain;
+        use-auth-secret = true;
+        static-auth-secret-file = cfg.turn.secretFile;
+        no-cli = true;
+        no-tls = true;
+        no-dtls = true;
+        min-port = 49160;
+        max-port = 49200;
+        extraConfig = ''
+          fingerprint
+          no-multicast-peers
+          denied-peer-ip=0.0.0.0-0.255.255.255
+          denied-peer-ip=10.0.0.0-10.255.255.255
+          denied-peer-ip=127.0.0.0-127.255.255.255
+          denied-peer-ip=169.254.0.0-169.254.255.255
+          denied-peer-ip=172.16.0.0-172.31.255.255
+          denied-peer-ip=192.168.0.0-192.168.255.255
+        '';
+      };
+      networking.firewall = {
+        allowedTCPPorts = [ 3478 ];
+        allowedUDPPorts = [ 3478 ];
+        allowedUDPPortRanges = [ { from = 49160; to = 49200; } ];
       };
     })
 
