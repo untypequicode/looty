@@ -97,6 +97,10 @@ _Avoid_: lien de partage, page publiée, partage public
 Fichier `.Rmd` ou `.qmd` (Quarto) : en-tête YAML, texte Markdown et chunks de code ```{r}. Looty le convertit en notebook (et inversement) sans perte, mais ne l'exécute pas lui-même : les cellules R tournent sur le serveur Jupyter du projet (noyau IRkernel).
 _Avoid_: rapport R, knitr
 
+**Requête silencieuse**:
+Code envoyé au noyau Jupyter d'un notebook hors de toute cellule (panneaux R : variables, aide, console) : sans historique, sans numéro d'exécution, le résultat revient au panneau et n'est jamais enregistré dans le notebook.
+_Avoid_: cellule cachée
+
 **Serveur Jupyter du projet**:
 Serveur Jupyter externe (Jupyter Server, JupyterLab, serveur utilisateur JupyterHub) déclaré dans un projet par une personne qui peut le modifier : adresse, jeton, noyau par défaut. Seul le serveur Looty le contacte ; le jeton n'est jamais montré.
 _Avoid_: kernel distant, Jupyter Hub (quand on parle de la configuration du projet)

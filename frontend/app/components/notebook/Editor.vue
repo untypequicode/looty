@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
-import { Plus, Play, RotateCcw, Eraser, Type, Code2, CircleDot, Info, ListEnd, Square, Cpu, Server, ListTree, X, Download, FileText, Printer, FileCode2, Package } from 'lucide-vue-next'
+import { Plus, Play, RotateCcw, Eraser, Type, Code2, CircleDot, Info, ListEnd, Square, Cpu, Server, ListTree, X, Download, FileText, Printer, FileCode2, Package, PanelRight } from 'lucide-vue-next'
 import 'katex/dist/katex.min.css'
 import { socketBase } from '~/composables/useRealtime'
 import { useNotebookKernel, type NbOutput } from '~/composables/useNotebookKernel'
@@ -13,6 +13,7 @@ import { projectResolver, renderMarkdown, sanitizeOutputHtml, type NbAttachments
 import { notebookToPython, notebookToHtml, notebookToIpynb, embedImages, type ExportCell, type FetchedImage } from '~/editor/notebookExport'
 import { notebookToRmd, notebookLanguage } from '~/editor/rmarkdown'
 import { planUploads, insertionText } from '~/editor/notebookFiles'
+import { plotsOf } from '~/editor/rPanels'
 import { useProjectActions, type ProjectDetail } from '~/composables/useProjects'
 import { api } from '~/composables/api'
 import { toast } from '~/composables/useToast'
@@ -691,6 +692,20 @@ function restart() {
 }
 const kernelLabel = computed(() => nbKernelName.value || jupyter.kernelName.value || t('notebook.jupyter.projectKernel'))
 const kernelState = computed(() => kernel.value.state.value)
+// --- Panneaux type RStudio (notebook R) : environnement, graphiques, aide, console ---
+const rPanelOpen = useLocalStorage('looty.notebook.rpanels', false)
+const rPanelRef = ref<{ send: (code: string) => Promise<void> } | null>(null)
+const rPanelOn = computed(() => rPanelOpen.value && language.value === 'r')
+const cellPlots = computed(() => (rPanelOn.value ? cells.value.flatMap((c) => (c.type === 'code' ? plotsOf(`cell-${c.id}`, shown(c)) : [])) : []))
+/** Requêtes des panneaux : seulement vers le noyau Jupyter (jamais de démarrage pour un autre moteur). */
+const rQuery: typeof jupyter.query = async (code, o) => (remote.value ? jupyter.query(code, o) : null)
+/** Ctrl+Alt+Entrée : la ligne du curseur (ou la sélection) part dans la console. */
+async function runLine(text: string) {
+  if (!text.trim() || ro.value || language.value !== 'r') return
+  rPanelOpen.value = true
+  await nextTick()
+  await rPanelRef.value?.send(text)
+}
 const statusText = computed(() => {
   const k = kernel.value
   if (remote.value) {
@@ -715,6 +730,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
 <template>
   <div class="nb" :class="{ ro }">
     <div class="nb-bar">
+      <UiTooltip v-if="language === 'r'" :text="t('notebook.r.panel.toggle')"><UiButton size="xs" variant="ghost" :icon="PanelRight" :aria-label="t('notebook.r.panel.toggle')" :aria-pressed="rPanelOpen" :class="{ on: rPanelOpen }" data-testid="nb-r-panels-toggle" @click="rPanelOpen = !rPanelOpen" /></UiTooltip>
       <UiTooltip :text="t('notebook.toc')"><UiButton size="xs" variant="ghost" :icon="ListTree" :aria-label="t('notebook.toc')" :aria-pressed="tocOpen" :class="{ on: tocOpen }" data-testid="nb-toc-toggle" @click="tocOpen = !tocOpen" /></UiTooltip>
       <span class="nb-sep" />
       <template v-if="!ro">
@@ -757,7 +773,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
             :complete="ro ? null : (code: string, pos: number) => kernel.complete(code, pos)"
             :missing="missingOf(c)" :installing="installing === c.id" @install="installMissing(c)"
             :dragging="dragId === c.id" :drop-edge="dropAt?.id === c.id ? (dropAt.after ? 'after' : 'before') : null"
-            @select="select(c.id)" @run="(m) => runAt(i, m)" @add="(w, ty) => addAt(w === 'above' ? i : i + 1, ty)" @remove="removeAt(i)" @move="(d) => moveAt(i, d)" @clear="clearOutput(c)" @retype="(ty) => retype(c, ty)"
+            @select="select(c.id)" @run="(m) => runAt(i, m)" @run-line="runLine" @add="(w, ty) => addAt(w === 'above' ? i : i + 1, ty)" @remove="removeAt(i)" @move="(d) => moveAt(i, d)" @clear="clearOutput(c)" @retype="(ty) => retype(c, ty)"
             @duplicate="duplicate(i)" @split="(pos) => splitAt(i, pos)" @escape="commandMode" @toggle="(k) => toggleHidden(c, k)"
             @drag-start="dragId = c.id" @drag-over="(after) => { if (dragId) dropAt = { id: c.id, after } }" @drag-drop="dropCell" @drag-end="dragId = null; dropAt = null"
           />
@@ -767,6 +783,10 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
           </div>
         </template>
       </div>
+      <NotebookRPanels
+        v-if="rPanelOn" ref="rPanelRef" :query="rQuery" :kernel-state="jupyter.state.value" :cell-plots="cellPlots" :read-only="ro"
+        @close="rPanelOpen = false"
+      />
     </div>
     <NotebookEngineDialog v-model:open="engineOpen" :project-id="projectId" :engine="engine" :kernel="nbKernelName" :read-only="ro" @apply="setEngine" />
   </div>
