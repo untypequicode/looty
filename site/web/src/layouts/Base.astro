@@ -67,6 +67,7 @@ const ld = JSON.stringify({
           <a class="link" href={`${base}#features`}>{l.nav.features}</a>
           <a class="link" href={`${base}#apps`}>{l.nav.apps}</a>
           <a class="link" href={`${base}#host`}>{l.nav.host}</a>
+          <a class="link" href={`${base}docs/`}>{l.nav.docs}</a>
         </nav>
         <div class="tools">
           <a class="icon-btn lang" href={l.other.href} hreflang={l.other.code} lang={l.other.code} title={l.other.name} aria-label={l.other.name}>{l.other.label}</a>
@@ -81,6 +82,7 @@ const ld = JSON.stringify({
               <a href={`${base}#features`}>{l.nav.features}</a>
               <a href={`${base}#apps`}>{l.nav.apps}</a>
               <a href={`${base}#host`}>{l.nav.host}</a>
+              <a href={`${base}docs/`}>{l.nav.docs}</a>
               <a href={`${base}#download`}>{l.nav.download}</a>
               <a href={REPO}>GitHub</a>
             </div>
@@ -93,7 +95,7 @@ const ld = JSON.stringify({
       <div class="wrap">
         <div><a class="brand" href={base}><img src="/favicon.svg" alt="" width="24" height="24" />Looty</a><p style="margin:12px 0 0;max-width:300px">{l.footer.tag}</p></div>
         <div class="cols">
-          <div><h4>{l.footer.product}</h4><a href={`${base}#features`}>{l.nav.features}</a><a href={`${base}#apps`}>{l.nav.apps}</a><a href={`${base}#download`}>{l.nav.download}</a></div>
+          <div><h4>{l.footer.product}</h4><a href={`${base}#features`}>{l.nav.features}</a><a href={`${base}#apps`}>{l.nav.apps}</a><a href={`${base}#download`}>{l.nav.download}</a><a href={`${base}docs/`}>{l.nav.docs}</a><a href={`${base}docs/faq/`}>{l.footer.faq}</a><a href={`${base}docs/compare/`}>{l.footer.compare}</a></div>
           <div><h4>{l.footer.project}</h4><a href={REPO}>{l.footer.source}</a><a href={`${REPO}/releases`}>{l.footer.releases}</a><a href={`${REPO}/issues`}>{l.footer.issues}</a><a href={`${REPO}/blob/main/LICENSE`}>{l.footer.license}</a></div>
           <div><h4>{l.footer.language}</h4><a href="/" lang="en">English</a><a href="/fr/" lang="fr">Français</a></div>
         </div>

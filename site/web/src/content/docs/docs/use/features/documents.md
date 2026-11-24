@@ -1,0 +1,19 @@
+---
+title: "Documents"
+description: "Collaborative editing, LaTeX, diagrams, graphs, drawings and sharing."
+---
+
+Documents are pages you write together, with live cursors and the same content on every device.
+
+<img class="shot shot-dark" src="/shots/doc-dark-en.webp" alt="A document with a callout and a diagram" loading="lazy" />
+<img class="shot shot-light" src="/shots/doc-light-en.webp" alt="A document with a callout and a diagram" loading="lazy" />
+
+- **Collaborative editing** with presence and cursors; offline edits in the apps merge when you reconnect.
+- **Rich blocks**: formulas, tables, code, embeds, callouts.
+- **Diagrams**: write a description (flowchart, sequence, Gantt…) and the diagram is laid out for you. Apply a **diagram style** with one click, per block or as the **workspace default**.
+- **Graph block**: nodes and edges, directed or not, with labels (weights, flow, capacity); highlight a path or a cut.
+- **Drawing**: freehand shapes and arrows.
+- **LaTeX projects** compile to PDF (the instance must provide a LaTeX compiler).
+- **Sharing**: with the people you choose, or with a **public link**, a secret read-only address that needs no account. A public link never shows other files of a project.
+
+[Try it in the demo](https://demo.looty.untypequicode.fr)

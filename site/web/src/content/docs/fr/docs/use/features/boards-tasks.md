@@ -1,0 +1,17 @@
+---
+title: "Tableaux et tâches"
+description: "Tableaux kanban, vues liste, frise et agenda, tri, tâches récurrentes et export CSV."
+---
+
+Un **tableau** range des tâches dans des colonnes. Les mêmes tâches s’affichent en tableau kanban, en liste, en frise ou dans l’agenda.
+
+<img class="shot shot-dark" src="/shots/board-dark-fr.webp" alt="Un tableau kanban à quatre colonnes" loading="lazy" />
+<img class="shot shot-light" src="/shots/board-light-fr.webp" alt="Un tableau kanban à quatre colonnes" loading="lazy" />
+
+- Les **tâches** ont des personnes ou groupes assignés, des étiquettes colorées, une priorité, une échéance, des sous-tâches et une validation personne par personne.
+- **Vues et tri** : changez de vue en haut du tableau et triez par le champ voulu. **Mes tâches** rassemble ce qui vous est assigné dans l’espace, avec le panneau de tâche à droite.
+- **Tâches récurrentes** : donnez une répétition à une tâche (chaque jour, semaine, deux semaines, mois ou année). Quand vous la terminez, Looty crée l’**occurrence suivante** (même tableau, contenu, étiquettes et personnes, dates décalées dans le futur) ; la tâche terminée reste terminée.
+- **Export CSV** : exportez un tableau depuis son menu pour l’ouvrir dans un tableur.
+- Les tâches datées apparaissent dans l’[agenda](/fr/docs/use/features/calendar/).
+
+[Essayer dans la démo](https://demo.looty.untypequicode.fr)

@@ -58,86 +58,14 @@ Elsewhere, put the same two lines in `/etc/nix/nix.conf`. Without this, Nix warn
 
 ## Self-hosting
 
-Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 and arm64):
+Looty is three small services plus PostgreSQL, shipped as Docker images (amd64 and arm64): `backend` (Rust API), `frontend` (Nuxt web interface) and `collaboration` (Hocuspocus real-time editing).
 
-| Service | Role | Stack |
-|---|---|---|
-| `backend` | API, files, CalDAV, mail | Rust (axum) |
-| `frontend` | Web interface | Nuxt 3 |
-| `collaboration` | Real-time document editing | Hocuspocus (Yjs) |
+The full guide lives in the documentation, in English and French:
 
-1. Get the files of the latest release and create a `.env` next to them. **Without a reverse proxy**, take the variant with [Caddy](https://caddyserver.com) included (automatic HTTPS with Let's Encrypt; ports 80 and 443 must be free and the domain must point to the machine):
+- **[Host Looty](https://looty.untypequicode.fr/docs/host/)**: requirements, quick and detailed install (Caddy, Traefik, another proxy), sign-in (OpenID Connect providers, bundled Pocket ID), email, push, Moodle, Jupyter, backups, updates, PostgreSQL upgrades, troubleshooting and security.
+- **[Environment variables reference](https://looty.untypequicode.fr/docs/reference/environment/)**, generated from `docs/env-vars.json` (which also generates `.env.example`; `node scripts/env-reference.mjs --write` regenerates them and CI checks them against the code).
 
-   ```sh
-   curl -L -o docker-compose.yml https://github.com/untypequicode/looty/releases/latest/download/docker-compose.caddy.yml
-   curl -LO https://github.com/untypequicode/looty/releases/latest/download/Caddyfile
-   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
-   ```
-
-   **Behind an existing [Traefik](https://traefik.io)**, take only the compose file (routing is in its labels). The labels set no entry point or certificate: Traefik must reach the stack's network and serve HTTPS on its entry points (for example `--entrypoints.websecure.http.tls.certResolver=<resolver>`); `deploy/test/stack.sh traefik` shows a working setup.
-
-   ```sh
-   curl -LO https://github.com/untypequicode/looty/releases/latest/download/docker-compose.yml
-   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
-   ```
-
-2. Edit `.env`: the domain (`APP_DOMAIN`, and `BASE_URL=https://<domain>`), database password, `LOOTY_SECRET_KEY` (`openssl rand -base64 32`) and your OpenID Connect provider (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`). Optionally set `OIDC_PROVIDER_ID` to a UUID (`uuidgen`) to know the redirect URL, `<BASE_URL>/api/auth/callback/<UUID>`, before the first start.
-3. `docker compose up -d`.
-
-**No identity provider? Bundled Pocket ID.** The `*.pocket-id.*` files add [Pocket ID](https://pocket-id.org) (sign-in with passkeys) on its own subdomain, `auth.<domain>`, already linked to Looty: on every start, the one-shot `pocket-id-init` service creates Looty's OIDC client in Pocket ID (and changes nothing if it exists).
-
-1. Point the DNS of `auth.<domain>` to the server too, then take the files (with Caddy; behind Traefik, `docker-compose.pocket-id.yml` and no Caddyfile):
-
-   ```sh
-   curl -L -o docker-compose.yml https://github.com/untypequicode/looty/releases/latest/download/docker-compose.caddy.pocket-id.yml
-   curl -L -o Caddyfile https://github.com/untypequicode/looty/releases/latest/download/Caddyfile.pocket-id
-   curl -LO https://github.com/untypequicode/looty/releases/latest/download/pocket-id-init.sh
-   curl -o .env https://raw.githubusercontent.com/untypequicode/looty/main/.env.example
-   ```
-
-2. In `.env`, besides the domain, database and `LOOTY_SECRET_KEY`, replace the OIDC block with:
-
-   ```sh
-   AUTH_DOMAIN=auth.<domain>
-   OIDC_ISSUER=https://auth.<domain>
-   OIDC_CLIENT_ID=looty
-   OIDC_CLIENT_SECRET=<openssl rand -hex 32>
-   OIDC_PROVIDER_ID=<uuidgen>
-   POCKET_ID_ENCRYPTION_KEY=<openssl rand -base64 32>
-   POCKET_ID_STATIC_API_KEY=<openssl rand -hex 32>
-   ```
-
-3. `docker compose up -d`, then `docker compose logs pocket-id-init` should end with `prêt`.
-4. **Right away**, open `https://auth.<domain>/setup` and create your account, **with your email address** (Looty needs it), then add a passkey. Until this account exists, whoever opens that page first becomes the Pocket ID administrator.
-5. Sign in to Looty with « Continuer avec SSO »: as the first account, you are Looty's administrator. Add other people in Pocket ID (Administration > Users).
-
-Behind Traefik, Looty reaches `https://auth.<domain>` through the host (`extra_hosts: host-gateway` in the compose file): Traefik must listen on port 443 of the host (with Caddy, the compose file routes this internally). `POCKET_ID_STATIC_API_KEY` is an admin key for Pocket ID: once the client exists you may remove it from `.env` (`pocket-id-init` then does nothing). A provider whose certificate comes from an internal authority needs `OIDC_CA_FILE` (PEM file, mounted into the backend).
-
-**If the automatic setup fails** (Looty's sign-in page says the provider can't be reached or rejected Looty, or `pocket-id-init` exited with an error), read `docker compose logs pocket-id-init backend`, fix the cause and run `docker compose up -d` again. Or create the client by hand, as for any provider:
-
-1. In Pocket ID (after `/setup`): Administration > OIDC Clients > Add. Name `Looty`, callback URL `<BASE_URL>/api/auth/callback/<OIDC_PROVIDER_ID>` (exactly), PKCE on. Save, and copy the client ID and secret.
-2. Give them to Looty: `docker compose exec postgres psql -U <DB_USER> -d <DB_NAME> -c "UPDATE oauth_providers SET client_id = '<client ID>', client_secret = '<secret>' WHERE id = '<OIDC_PROVIDER_ID>'"`, then `docker compose restart backend`. (Looty reads the `OIDC_*` variables only on its very first start; afterwards, the provider is edited in Administration > Authentication providers.)
-
-Behind another proxy, use the Traefik compose file and send `/api`, `/uploads`, `/pages`, `/dav` and `/.well-known/caldav` to the backend (8080), `/collab` to the collaboration service (8082, prefix stripped) and everything else to the frontend (3000), WebSockets included; the `Caddyfile` is a working example. Pin a version with `LOOTY_VERSION=<x.y.z>`. These files are rendered from `deploy/templates/` by `deploy/render.sh` (`docker-compose.prod.yml` is the Traefik output); edit the templates, not the rendered files.
-
-Backups: `scripts/backup.sh` and `scripts/restore.sh`.
-
-**Where the database lives.** PostgreSQL's data is stored in the folder `./data/postgres`, next to the compose file (set `LOOTY_DB_DATA` in `.env` to an absolute path to put it elsewhere). Back it up by stopping the stack and copying that folder, or with `pg_dump`.
-
-**Move the database** (installations that still use the old Docker volume `postgres_data_18`: **do not just pull**, the new compose file would start on an empty database). From the folder of your compose file:
-
-```sh
-docker compose exec -T postgres pg_dump -U "$DB_USER" -Fc "$DB_NAME" > looty-backup.dump   # safety net
-docker compose down                                                                          # never with -v
-VOL=$(docker volume ls -q | grep postgres_data_18)                                           # e.g. looty_postgres_data_18
-mkdir -p data/postgres
-docker run --rm -v "$VOL":/from -v "$PWD/data/postgres":/to alpine cp -a /from/. /to/
-docker compose up -d
-```
-
-The old volume is left untouched: delete it (`docker volume rm "$VOL"`) once everything works. To put the data in another folder, set `LOOTY_DB_DATA=/that/folder` in `.env` and copy into it instead.
-
-**Public demo.** To run a demo (visitors pick a character and get a throwaway copy of the « Looty Demo » workspace, deleted after 24 h), use `docker-compose.demo.yml` and `.env.demo.example` in their own folder: a separate stack (`looty-demo`, own database and volumes) that can run next to a real instance. It needs no OIDC provider and no SMTP.
+The compose files are rendered from `deploy/templates/` by `deploy/render.sh`: edit the templates, not the rendered files. A public demo uses `docker-compose.demo.yml` and `.env.demo.example` in a separate stack. The documentation sources are in `site/web/src/content/docs/`.
 
 ## Repository
 

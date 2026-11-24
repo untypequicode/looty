@@ -1,0 +1,18 @@
+/* Documentation (Starlight) : couleurs et police du site. */
+:root {
+  --sl-font: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sl-color-accent-low: #1d1d4a; --sl-color-accent: #5e6ad2; --sl-color-accent-high: #a5a4ff;
+  --sl-color-bg: #0b0b0d; --sl-color-bg-nav: #0b0b0d; --sl-color-bg-sidebar: #0e0e11;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #dcdffa; --sl-color-accent: #4f5bc4; --sl-color-accent-high: #2f3a94;
+  --sl-color-bg: #fcfcfd; --sl-color-bg-nav: #fcfcfd; --sl-color-bg-sidebar: #f5f5f7;
+}
+.paths { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.paths a { display: block; padding: 1.2rem; border: 1px solid var(--sl-color-hairline); border-radius: .75rem; text-decoration: none; background: var(--sl-color-bg-sidebar); }
+.paths a:hover { border-color: var(--sl-color-accent); }
+.paths strong { display: block; font-size: var(--sl-text-lg); color: var(--sl-color-white); margin-bottom: .3rem; }
+.paths span { color: var(--sl-color-gray-2); font-size: var(--sl-text-sm); }
+/* Captures : la variante qui correspond au thème. */
+.shot { width: 100%; height: auto; border-radius: .6rem; border: 1px solid var(--sl-color-hairline); margin: 1rem 0; }
+:root[data-theme='light'] .shot-dark, :root:not([data-theme='light']) .shot-light { display: none; }

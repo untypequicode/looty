@@ -1,0 +1,17 @@
+---
+title: "Boards and tasks"
+description: "Kanban boards, list, timeline and calendar views, sorting, recurring tasks and CSV export."
+---
+
+A **board** holds tasks in columns. The same tasks can be shown as a kanban board, a list, a timeline or in the calendar.
+
+<img class="shot shot-dark" src="/shots/board-dark-en.webp" alt="A kanban board with four columns" loading="lazy" />
+<img class="shot shot-light" src="/shots/board-light-en.webp" alt="A kanban board with four columns" loading="lazy" />
+
+- **Tasks** have assignees (people or groups), colored labels, priority, due date, sub-tasks and validation person by person.
+- **Views and sorting**: switch views at the top of the board and sort a board by the field you need. **My tasks** gathers what is assigned to you across the workspace, with the task panel on the right.
+- **Recurring tasks**: give a task a repetition (every day, week, two weeks, month or year). When you finish it, Looty creates the **next occurrence** (same board, content, labels and people, dates moved into the future); the finished task stays finished.
+- **CSV export**: export a board from its menu to open it in a spreadsheet.
+- Tasks with a date appear in the [calendar](/docs/use/features/calendar/).
+
+[Try it in the demo](https://demo.looty.untypequicode.fr)

@@ -1,0 +1,21 @@
+---
+title: "Calendar"
+description: "Events, subscription feeds, CalDAV and the phone calendar."
+---
+
+<img class="shot shot-dark" src="/shots/calendar-dark-en.webp" alt="Week view of the calendar" loading="lazy" />
+<img class="shot shot-light" src="/shots/calendar-light-en.webp" alt="Week view of the calendar" loading="lazy" />
+
+The calendar shows week, month and agenda views, recurring events, a calendar per board, and the due dates of your tasks.
+
+## Use Looty events in another calendar app
+
+- **Subscription feed**: a secret, read-only address of your Looty calendar that you paste into Google, Apple, Outlook, Infomaniak… The *subscribe button* opens the subscription directly in some apps, or copies the address. You can revoke the feed without touching the rest of your account.
+- **CalDAV**: generate an **app password** for a device or app to read **and edit** your tasks and events. It gives access to nothing else and is revoked device by device.
+- **Phone calendar (Android)**: in the Looty app, the *phone calendar connection* makes your Looty calendars appear in the phone's Calendar app, read and write, using an app password.
+
+## Subscribe to other calendars
+
+You can also subscribe to your school or work calendars (CalDAV, ICS feeds) and see them next to your Looty events.
+
+[Try it in the demo](https://demo.looty.untypequicode.fr)

@@ -4,7 +4,7 @@ export const REPO = 'https://github.com/untypequicode/looty'
 const en = {
   title: 'Looty — tasks, documents and calendar for your team',
   description: 'Looty is a free, self-hosted workspace: kanban boards, collaborative documents, a calendar, your mailbox and projects, with apps for Android, Linux and Windows that work offline.',
-  nav: { features: 'Features', apps: 'Apps', host: 'Self-host', download: 'Download' },
+  nav: { features: 'Features', apps: 'Apps', host: 'Self-host', docs: 'Docs', download: 'Download' },
   hero: {
     eyebrow: 'Free and open source', eyebrow2: 'self-hosted',
     pre: 'Run your team’s work in', em: 'one calm place', post: '.',
@@ -59,7 +59,7 @@ const en = {
     aptH: 'Debian and Ubuntu with apt', aptP: 'Add the repository by hand if you prefer, then install and update like any package:',
     nixH: 'NixOS and Nix', nixP: 'Run it, or install it in your profile:',
   },
-  footer: { product: 'Product', project: 'Project', releases: 'All releases', source: 'Source code', license: 'Licence GPL-3.0', issues: 'Report an issue', language: 'Language', tag: 'Free software, made to be hosted by you.' },
+  footer: { faq: 'FAQ', compare: 'Compare', product: 'Product', project: 'Project', releases: 'All releases', source: 'Source code', license: 'Licence GPL-3.0', issues: 'Report an issue', language: 'Language', tag: 'Free software, made to be hosted by you.' },
   notFound: 'Page not found', home: 'Back to the home page',
   other: { code: 'fr', label: 'FR', href: '/fr/', name: 'Français' }, homeHref: '/', theme: 'Toggle light and dark theme', menu: 'Menu', skip: 'Skip to content',
   copy: 'Copy', copied: 'Copied', recommended: 'For this device',
@@ -68,7 +68,7 @@ const en = {
 const fr: typeof en = {
   title: 'Looty — tâches, documents et agenda pour votre équipe',
   description: 'Looty est un espace de travail libre et auto-hébergé : tableaux kanban, documents collaboratifs, calendrier, boîte mail et projets, avec des applications Android, Linux et Windows qui fonctionnent hors ligne.',
-  nav: { features: 'Fonctionnalités', apps: 'Applications', host: 'Héberger', download: 'Télécharger' },
+  nav: { features: 'Fonctionnalités', apps: 'Applications', host: 'Héberger', docs: 'Documentation', download: 'Télécharger' },
   hero: {
     eyebrow: 'Libre et open source', eyebrow2: 'auto-hébergé',
     pre: 'Le travail de votre équipe dans', em: 'un seul endroit calme', post: '.',
@@ -123,7 +123,7 @@ const fr: typeof en = {
     aptH: 'Debian et Ubuntu avec apt', aptP: 'Ajoutez le dépôt à la main si vous préférez, puis installez et mettez à jour comme n’importe quel paquet :',
     nixH: 'NixOS et Nix', nixP: 'Lancez-le, ou installez-le dans votre profil :',
   },
-  footer: { product: 'Produit', project: 'Projet', releases: 'Toutes les versions', source: 'Code source', license: 'Licence GPL-3.0', issues: 'Signaler un problème', language: 'Langue', tag: 'Logiciel libre, fait pour être hébergé par vous.' },
+  footer: { faq: 'FAQ', compare: 'Comparer', product: 'Produit', project: 'Projet', releases: 'Toutes les versions', source: 'Code source', license: 'Licence GPL-3.0', issues: 'Signaler un problème', language: 'Langue', tag: 'Logiciel libre, fait pour être hébergé par vous.' },
   notFound: 'Page introuvable', home: 'Retour à l’accueil',
   other: { code: 'en', label: 'EN', href: '/', name: 'English' }, homeHref: '/fr/', theme: 'Basculer entre thème clair et sombre', menu: 'Menu', skip: 'Aller au contenu',
   copy: 'Copier', copied: 'Copié', recommended: 'Pour cet appareil',
