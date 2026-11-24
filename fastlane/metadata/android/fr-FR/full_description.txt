@@ -1,0 +1,13 @@
+Looty est l'application d'un serveur Looty (une « instance ») tenu par votre association, votre école ou votre entreprise. Connectez-vous avec votre compte pour retrouver vos tâches, tableaux, documents, agenda, annonces, drive, messagerie et révisions sur votre téléphone.
+
+Il faut l'adresse d'une instance Looty : l'application la demande au premier lancement. Looty est un logiciel libre et n'a pas de service officiel hébergé.
+
+• Écrans natifs pour les tâches, tableaux, documents, boîte de réception, agenda et réglages ; l'éditeur collaboratif s'ouvre dans l'application.
+• Notifications sans Google : UnifiedPush (ntfy, Gotify, NextPush…), ou vérification périodique.
+• Widgets d'écran d'accueil : à faire, agenda, aujourd'hui, raccourcis.
+• Partagez un lien, un texte ou un fichier depuis n'importe quelle application pour créer une tâche ou un document.
+• Les liens de votre instance s'ouvrent dans l'application.
+• Lecture hors ligne des documents récents et des cours Moodle.
+• Synchronisation de l'agenda du téléphone avec DAVx5.
+
+Aucun service Google, aucun traqueur, aucune publicité. Cette version F-Droid ne contient aucun code de mise à jour : les mises à jour viennent de F-Droid.

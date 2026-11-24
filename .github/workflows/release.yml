@@ -5,7 +5,7 @@
 #              docker-compose.caddy.yml + Caddyfile épinglés
 #   desktop  → paquet .deb et installateur Windows ; le paquet Nix est épinglé dans le cache binaire
 #              puis vérifié (job nix-pin, workflow « Nix cache check »)
-#   android  → APK
+#   android  → APK (et le dépôt F-Droid de Looty sur le site, workflow « F-Droid »)
 # puis le site de téléchargement et le dépôt apt (scripts/publish-apps.sh).
 # Les notes viennent de releases.json (anglais, français dépliable).
 # Lancement manuel : republier une plateforme avec « force ».
@@ -163,6 +163,16 @@ jobs:
     needs: [plan, tests]
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && needs.plan.outputs.android != '' }}
     uses: ./.github/workflows/android.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+    secrets: inherit
+
+  # Dépôt F-Droid de Looty (APK sans mise à jour intégrée) : ne bloque pas la publication GitHub.
+  fdroid:
+    name: F-Droid repository
+    needs: [plan, android]
+    if: ${{ !cancelled() && needs.android.result == 'success' && needs.plan.outputs.android != '' }}
+    uses: ./.github/workflows/fdroid.yml
     with:
       ref: ${{ needs.plan.outputs.sha }}
     secrets: inherit

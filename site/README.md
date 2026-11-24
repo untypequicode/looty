@@ -23,7 +23,8 @@ Deux morceaux, tous deux très légers :
 | `/download/android`, `/download/linux`, `/download/windows` | Liens stables : redirigent vers le dernier fichier |
 | `/releases/<plateforme>/…` | Les fichiers (APK, .deb, installateur Windows), avec reprise de téléchargement |
 | `/apt/…` | Dépôt apt signé (`stable main`) |
-| `PUT/DELETE /_upload/<chemin>`, `GET /_ls/<dossier>` | Dépôt de fichiers par l'intégration continue, avec le jeton (`Authorization: Bearer …`). Seuls les dossiers `releases/` et `apt/` sont acceptés. Désactivé si `UPLOAD_TOKEN` n'est pas défini. |
+| `/fdroid/repo/…`, `/fdroid/fingerprint.txt` | Dépôt F-Droid de Looty (APK sans mise à jour intégrée, index signé) et empreinte de sa clé ; voir `docs/adr/0016-android-fdroid-variant-and-repository.md` |
+| `PUT/DELETE /_upload/<chemin>`, `GET /_ls/<dossier>` | Dépôt de fichiers par l'intégration continue, avec le jeton (`Authorization: Bearer …`). Seuls les dossiers `releases/`, `apt/` et `fdroid/` sont acceptés. Désactivé si `UPLOAD_TOKEN` n'est pas défini. |
 
 ## Installer le site (Traefik)
 

@@ -5,9 +5,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Notifications (Android 13+ : à accorder). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Mises à jour de l'application sans boutique : installation de l'APK téléchargé. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- Téléchargements sur Android 8–9 (ensuite : MediaStore, sans permission). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
@@ -91,9 +88,6 @@
                 <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
             </intent-filter>
         </service>
-
-        <!-- Résultat de l'installation d'une mise à jour (reçu de l'installateur du système). -->
-        <receiver android:name=".update.InstallReceiver" android:exported="false" />
 
         <!-- Widgets : à faire, agenda, aujourd'hui, raccourcis (réglables : appui long → Réglages). -->
         <receiver android:name=".widget.LootyWidgetReceiver" android:exported="true" android:label="@string/widget_title">

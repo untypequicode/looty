@@ -7,7 +7,7 @@ Tous les téléchargements sont sur le [site de Looty](/fr/#download). Chaque ap
 
 ## Android
 
-- Téléchargez l’APK depuis le site (Android 8 ou plus) et autorisez l’installation depuis cette source la première fois. L’app n’utilise aucun service Google et se met à jour depuis l’app.
+- Téléchargez l’APK depuis le site (Android 8 ou plus) et autorisez l’installation depuis cette source la première fois. L’app n’utilise aucun service Google et se met à jour depuis l’app. Vous préférez F-Droid ? Ajoutez le [dépôt F-Droid de Looty](/fr/docs/use/android-fdroid/) : cette version est mise à jour par F-Droid.
 - **Les liens s’ouvrent dans l’app** : un lien `looty://` ou un lien vers votre instance propose de s’ouvrir dans l’app.
 - **Widgets** sur l’écran d’accueil, et **partage** : partagez un texte ou un fichier depuis n’importe quelle app vers Looty.
 - Les notifications passent par UnifiedPush (voir [notifications](/fr/docs/use/features/notifications/)).

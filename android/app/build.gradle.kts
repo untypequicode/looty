@@ -21,12 +21,21 @@ android {
     compileSdk = 37
     buildToolsVersion = "37.0.0"
 
+    // Deux variantes : « direct » (mise à jour intégrée depuis le site ou GitHub) et « fdroid » (sans le code de
+    // mise à jour ni les permissions d'installation, pour F-Droid). Même identifiant : on passe de l'une à l'autre
+    // quand elles sont signées avec la même clé (dépôt F-Droid de Looty).
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("direct") { dimension = "distribution" }
+        create("fdroid") { dimension = "distribution" }
+    }
+
     defaultConfig {
         applicationId = "io.github.untypequicode.looty"
         minSdk = 26
         targetSdk = 37
-        versionCode = 34
-        versionName = "0.29.1"
+        versionCode = 35
+        versionName = "0.30.0"
     }
 
     signingConfigs {
@@ -45,7 +54,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.findByName("release")
+            // -Plooty.unsigned : APK non signé (variante fdroid, signé ensuite par le dépôt ; build reproductible).
+            signingConfig = if (providers.gradleProperty("looty.unsigned").isPresent) null else signingConfigs.findByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"

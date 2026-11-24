@@ -1,0 +1,2 @@
+• F-Droid : une seconde version, sans mise à jour intégrée (ni permission d’installer des applications), est publiée dans le dépôt F-Droid de Looty : ajoutez-le dans F-Droid ou Droid-ify depuis la page Android de la documentation. Même identifiant et même clé de signature ; F-Droid la met à jour.
+• Nouveautés : dans cette version, l’écran *Mises à jour de l’application* affiche les notes des dernières versions à la place du programme de mise à jour.

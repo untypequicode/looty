@@ -112,3 +112,21 @@ async fn pages_headers_and_listing() {
     assert_eq!(call(&app, del).await.0, StatusCode::NO_CONTENT);
     assert!(!d.join("data/releases/android/a.apk").exists());
 }
+
+#[tokio::test]
+async fn fdroid_repository_upload_and_serving() {
+    let d = tmp();
+    let app = app(cfg(&d));
+    assert_eq!(call(&app, put("/_upload/fdroid/repo/index-v1.json", Some("secret"), "{}")).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&app, put("/_upload/fdroid/repo/icons-640/io.github.untypequicode.looty.35.png", Some("secret"), "png")).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&app, put("/_upload/fdroid/fingerprint.txt", Some("secret"), "ABCD")).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&app, put("/_upload/fdroid/repo/index-v1.json", None, "{}")).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(call(&app, put("/_upload/fdroid/repo/..%2Fx", Some("secret"), "x")).await.0, StatusCode::BAD_REQUEST);
+    let (s, _, body) = call(&app, Request::builder().uri("/fdroid/repo/index-v1.json").body(Body::empty()).unwrap()).await;
+    assert_eq!((s, body.as_str()), (StatusCode::OK, "{}"));
+    let (s, _, body) = call(&app, Request::builder().uri("/fdroid/fingerprint.txt").body(Body::empty()).unwrap()).await;
+    assert_eq!((s, body.as_str()), (StatusCode::OK, "ABCD"));
+    // _ls : l'intégration continue retire les anciens fichiers du dossier.
+    let ls = Request::builder().uri("/_ls/fdroid/repo").header("authorization", "Bearer secret").body(Body::empty()).unwrap();
+    assert_eq!(call(&app, ls).await.2, "[\"index-v1.json\"]");
+}

@@ -61,6 +61,8 @@ pub fn app(cfg: Config) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .nest_service("/releases", ServeDir::new(cfg.data.join("releases")).precompressed_gzip().layer_files_cache(files_cache.clone()))
         .nest_service("/apt", ServeDir::new(cfg.data.join("apt")).layer_files_cache(files_cache))
+        // Dépôt F-Droid de Looty (index et APK) : cache court, l'index change à chaque version.
+        .nest_service("/fdroid", ServeDir::new(cfg.data.join("fdroid")))
         // Fichiers dont le nom change avec le contenu (CSS, polices) : cache d’un an ; captures d’écran : un jour.
         .nest_service("/_astro", ServeDir::new(cfg.web.join("_astro")).layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"))))
         .nest_service("/shots", ServeDir::new(cfg.web.join("shots")).layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"))))
@@ -88,7 +90,7 @@ impl<S> LayerFilesCache for S {
 // Chemins et jeton
 // ---------------------------------------------------------------------------------------------
 
-/// Chemin relatif sûr dans `DATA_DIR` : sous `releases/` ou `apt/`, composants simples uniquement.
+/// Chemin relatif sûr dans `DATA_DIR` : sous `releases/`, `apt/` ou `fdroid/` (dépôt F-Droid), composants simples uniquement.
 pub fn safe_rel(path: &str) -> Option<PathBuf> {
     if path.is_empty() || path.len() > 240 || path.contains("//") || path.ends_with('/') {
         return None;
@@ -102,7 +104,7 @@ pub fn safe_rel(path: &str) -> Option<PathBuf> {
                 if n.starts_with('.') || n.is_empty() || !n.chars().all(|ch| ch.is_ascii_alphanumeric() || "._+~-".contains(ch)) {
                     return None;
                 }
-                if i == 0 && n != "releases" && n != "apt" {
+                if i == 0 && !["releases", "apt", "fdroid"].contains(&n) {
                     return None;
                 }
                 depth += 1;

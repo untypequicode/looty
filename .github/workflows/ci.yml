@@ -102,6 +102,8 @@ jobs:
         run: node scripts/env-reference.mjs --check
       - name: Translations (French and English)
         run: node scripts/check-i18n.mjs
+      - name: Android store metadata (fastlane) matches releases.json
+        run: node scripts/fastlane-metadata.mjs --check
       - working-directory: frontend
         run: npm ci --no-audit --no-fund
       - name: Type check
