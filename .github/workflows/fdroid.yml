@@ -1,0 +1,97 @@
+# Dépôt F-Droid de Looty (https://looty.untypequicode.fr/fdroid/repo) : à chaque release Android, l'APK « fdroid »
+# (sans mise à jour intégrée, construit et vérifié par le workflow « Android ») est signé avec la clé de l'application,
+# puis « fdroid update » fabrique l'index signé avec la clé du dépôt, et le tout est déposé sur le site de téléchargement.
+# Appelé par « Release » après le job Android (même exécution : l'APK vient de l'artefact « fdroid-unsigned »).
+# Lancement manuel : reconstruit le dépôt depuis le commit choisi.
+#
+# Secrets (Settings → Secrets and variables → Actions) :
+#   ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD   clé de l'application (déjà utilisée par Android)
+#   FDROID_KEYSTORE_B64, FDROID_KEYSTORE_PASSWORD, FDROID_KEY_ALIAS, FDROID_KEY_PASSWORD       clé du dépôt F-Droid (distincte ; voir RELEASING.md)
+#   SITE_UPLOAD_TOKEN et variable SITE_URL                                                      site de téléchargement (/_upload/fdroid/…)
+# Sans la clé du dépôt ou celle de l'application : rien n'est publié (avertissement).
+name: F-Droid
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit à construire (par défaut celui de l'appelant)
+        type: string
+        required: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fdroid
+  cancel-in-progress: false
+
+jobs:
+  repo:
+    name: Repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Keys
+        id: keys
+        env:
+          APK_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          REPO_B64: ${{ secrets.FDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$APK_B64" ] || [ -z "$REPO_B64" ]; then
+            echo "::warning title=F-Droid::ANDROID_KEYSTORE_B64 or FDROID_KEYSTORE_B64 is missing: the F-Droid repository is not published"
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$APK_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > "$RUNNER_TEMP/keys/apk.jks"
+          printf '%s' "$REPO_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > "$RUNNER_TEMP/keys/repo.jks"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      # Appelé par Release : l'APK non signé a été construit par le job Android de la même exécution.
+      - name: Unsigned APK from this run
+        if: steps.keys.outputs.ready == 'true' && github.event_name != 'workflow_dispatch'
+        uses: actions/download-artifact@v8
+        with:
+          name: fdroid-unsigned
+          path: unsigned
+      # Lancement manuel : construction ici (mêmes options que le workflow « Android »).
+      - name: Build the unsigned APK
+        if: steps.keys.outputs.ready == 'true' && github.event_name == 'workflow_dispatch'
+        working-directory: android
+        run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          ./gradlew --no-daemon --no-build-cache -Plooty.unsigned assembleFdroidRelease
+          mkdir -p ../unsigned && cp app/build/outputs/apk/fdroid/release/*.apk ../unsigned/fdroid-unsigned.apk
+      - name: Install fdroidserver
+        if: steps.keys.outputs.ready == 'true'
+        run: scripts/fdroid-install.sh
+      - name: Build and sign the repository
+        if: steps.keys.outputs.ready == 'true'
+        env:
+          APK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          APK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          APK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          REPO_KEYSTORE_PASSWORD: ${{ secrets.FDROID_KEYSTORE_PASSWORD }}
+          REPO_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+          REPO_KEY_PASSWORD: ${{ secrets.FDROID_KEY_PASSWORD }}
+          FDROID_REPO_URL: ${{ vars.SITE_URL && format('{0}/fdroid/repo', vars.SITE_URL) || '' }}
+        run: |
+          export APK_KEYSTORE="$RUNNER_TEMP/keys/apk.jks" REPO_KEYSTORE="$RUNNER_TEMP/keys/repo.jks"
+          [ -n "$FDROID_REPO_URL" ] || unset FDROID_REPO_URL
+          scripts/fdroid-repo.sh unsigned/fdroid-unsigned.apk "$RUNNER_TEMP/fdroid"
+          echo "Repository key fingerprint: $(cat "$RUNNER_TEMP/fdroid/fingerprint.txt")" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to the download site
+        if: steps.keys.outputs.ready == 'true'
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_UPLOAD_TOKEN: ${{ secrets.SITE_UPLOAD_TOKEN }}
+        run: ./scripts/fdroid-publish.sh "$RUNNER_TEMP/fdroid"

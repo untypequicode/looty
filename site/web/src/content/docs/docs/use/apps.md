@@ -7,7 +7,7 @@ All downloads are on the [Looty website](/#download). Each app connects to your 
 
 ## Android
 
-- Download the APK from the website (Android 8 or later) and allow installing from this source the first time. The app has no Google services and updates itself from within the app.
+- Download the APK from the website (Android 8 or later) and allow installing from this source the first time. The app has no Google services and updates itself from within the app. Prefer F-Droid? Add the [Looty F-Droid repository](/docs/use/android-fdroid/): that build is updated by F-Droid.
 - **Links open in the app**: a `looty://` link or a link to your instance offers to open in the app.
 - **Widgets** on the home screen, and **sharing**: share text or a file from any app to Looty.
 - Notifications use UnifiedPush (see [notifications](/docs/use/features/notifications/)).

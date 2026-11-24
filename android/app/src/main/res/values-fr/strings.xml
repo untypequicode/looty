@@ -334,6 +334,9 @@
     <string name="update_auto">Vérifier automatiquement</string>
     <string name="update_auto_hint">Cherche une nouvelle version une fois par jour et vous prévient.</string>
     <string name="update_no_source">Ce serveur n’indique pas où Looty est publié : il n’y a rien à vérifier. Demandez à son administrateur.</string>
+    <string name="update_store_managed">Les mises à jour de cette version viennent de F-Droid (ou de la boutique d’où vous l’avez installée), pas de Looty.</string>
+    <string name="update_whats_new">Nouveautés</string>
+    <string name="update_news_unavailable">Les notes de version n’ont pas pu être chargées depuis le serveur.</string>
     <!-- N1 : tableaux et tâches -->
     <string name="add">Ajouter</string>
     <string name="rename">Renommer</string>

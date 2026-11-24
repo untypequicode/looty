@@ -2,6 +2,9 @@
 # (backend/releases.json), qui appelle ce workflow.
 # Secrets : ANDROID_KEYSTORE_B64 (keystore en base64), ANDROID_KEYSTORE_PASSWORD,
 # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Sans eux : APK de debug seulement.
+# Deux variantes (android/app/build.gradle.kts) : « direct » (APK publié, avec mise à jour intégrée) et « fdroid » (sans
+# mise à jour intégrée) ; cette dernière est vérifiée ici (build reproductible, aucune dépendance propriétaire, dépôt
+# F-Droid à blanc avec des clés jetables) et publiée par le workflow « F-Droid » (fdroid.yml).
 name: Android
 
 on:
@@ -61,20 +64,84 @@ jobs:
             printf 'keyAlias=%s\n' "${KEY_ALIAS//\\/\\\\}"
             printf 'keyPassword=%s\n' "${KEY_PASSWORD//\\/\\\\}"
           } > keystore.properties
-      - run: ./gradlew --no-daemon assembleDebug assembleRelease
+      - run: ./gradlew --no-daemon assembleDirectDebug assembleDirectRelease
       - name: Collect
         run: |
           mkdir -p ../dist
           v=$(grep -m1 'versionName =' app/build.gradle.kts | cut -d'"' -f2)
           # APK signé si le keystore est configuré, sinon APK de debug (installable, mais pas
           # en mise à jour d'une version signée).
-          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk "../dist/looty-$v.apk"
+          if [ -f app/build/outputs/apk/direct/release/app-direct-release.apk ]; then
+            cp app/build/outputs/apk/direct/release/app-direct-release.apk "../dist/looty-$v.apk"
           else
-            cp app/build/outputs/apk/debug/app-debug.apk "../dist/looty-$v-debug.apk"
+            cp app/build/outputs/apk/direct/debug/app-direct-debug.apk "../dist/looty-$v-debug.apk"
           fi
           ls -la ../dist
       - uses: actions/upload-artifact@v7
         with:
           name: looty-android
           path: dist/*.apk
+
+  # Variante F-Droid : sans code de mise à jour, sans dépendance propriétaire, et reproductible
+  # (deux builds successifs donnent le même APK non signé). Aucune clé de Looty n'est utilisée ici.
+  fdroid:
+    name: F-Droid build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Fastlane metadata is up to date
+        run: node scripts/fastlane-metadata.mjs --check
+      - name: No proprietary dependency
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon -q :app:dependencies --configuration fdroidReleaseRuntimeClasspath > deps.txt
+          wc -l deps.txt
+          if grep -E 'com\.google\.(android\.gms|android\.play|firebase|mlkit)|com\.android\.vending|crashlytics|play-services' deps.txt; then
+            echo "::error title=F-Droid::a proprietary dependency is in the fdroid build"; exit 1
+          fi
+      - name: Two builds, same APK
+        working-directory: android
+        run: |
+          # Commit construit : date fixe pour les outils qui lisent SOURCE_DATE_EPOCH.
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          build() { ./gradlew --no-daemon --no-build-cache -Plooty.unsigned clean assembleFdroidRelease && cp app/build/outputs/apk/fdroid/release/*.apk "$1"; }
+          build "$RUNNER_TEMP/first.apk"
+          build "$RUNNER_TEMP/second.apk"
+          ls -l "$RUNNER_TEMP"/*.apk
+          sha256sum "$RUNNER_TEMP/first.apk" "$RUNNER_TEMP/second.apk"
+          cmp "$RUNNER_TEMP/first.apk" "$RUNNER_TEMP/second.apk" || { echo "::error title=F-Droid::the two fdroid builds differ (not reproducible)"; exit 1; }
+          cp "$RUNNER_TEMP/first.apk" ../fdroid-unsigned.apk
+      - name: The APK has no installer
+        run: |
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          aapt2="$(ls "$sdk"/build-tools/*/aapt2 | sort -V | tail -1)"
+          "$aapt2" dump permissions fdroid-unsigned.apk | tee perms.txt
+          ! grep -E 'REQUEST_INSTALL_PACKAGES|UPDATE_PACKAGES_WITHOUT_USER_ACTION' perms.txt
+      - name: Install fdroidserver
+        run: scripts/fdroid-install.sh
+      - name: Repository dry run (throwaway keys)
+        run: |
+          d="$RUNNER_TEMP/keys"; mkdir -p "$d"
+          pw="$(openssl rand -hex 16)"
+          for k in apk repo; do
+            keytool -genkeypair -keystore "$d/$k.jks" -storepass "$pw" -keypass "$pw" -alias "$k" -keyalg RSA -keysize 3072 -validity 30 -dname "CN=Looty dry run $k" > /dev/null 2>&1
+          done
+          APK_KEYSTORE="$d/apk.jks" APK_KEYSTORE_PASSWORD="$pw" APK_KEY_ALIAS=apk APK_KEY_PASSWORD="$pw" \
+          REPO_KEYSTORE="$d/repo.jks" REPO_KEYSTORE_PASSWORD="$pw" REPO_KEY_ALIAS=repo REPO_KEY_PASSWORD="$pw" \
+            scripts/fdroid-repo.sh fdroid-unsigned.apk "$RUNNER_TEMP/fdroid"
+          find "$RUNNER_TEMP/fdroid/repo" -maxdepth 1 | sort
+      # Pour le workflow « F-Droid » (même exécution de « Release »). Nom hors « looty-* » : la release GitHub n'en veut pas.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fdroid-unsigned
+          path: fdroid-unsigned.apk

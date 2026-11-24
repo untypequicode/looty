@@ -59,9 +59,9 @@ the phone (allow installing from your browser or file manager). Android 8.0+.
 ```sh
 nix develop .#android          # SDK 36–37, JDK 17, Gradle 9, emulator
 cd android
-gradle assembleDebug           # app/build/outputs/apk/debug/app-debug.apk
+gradle assembleDirectDebug     # app/build/outputs/apk/direct/debug/app-direct-debug.apk
 gradle assembleQa              # like the release (R8) but debuggable, for end-to-end tests
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/direct/debug/app-direct-debug.apk
 ```
 
 Outside Nix: `./gradlew assembleDebug` with `ANDROID_HOME` pointing to an SDK.
@@ -86,10 +86,22 @@ keyAlias=looty
 keyPassword=…
 ```
 
-`gradle assembleRelease` then produces `app/build/outputs/apk/release/app-release.apk`
+`gradle assembleDirectRelease` then produces `app/build/outputs/apk/direct/release/app-direct-release.apk`
 (about 1 MB). In CI, the same values come from the `ANDROID_KEYSTORE_B64`,
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` secrets; a new
 `android` entry in `backend/releases.json` merged into `main` publishes the APK (see [RELEASING.md](../RELEASING.md)).
+
+### Two builds: `direct` and `fdroid`
+
+`direct` is the APK published on GitHub and the download site, with the built-in updater. `fdroid` has no update code and
+not the `REQUEST_INSTALL_PACKAGES` / `UPDATE_PACKAGES_WITHOUT_USER_ACTION` permissions (sources in `app/src/fdroid` and
+`app/src/direct`); its *App updates* screen only shows the release notes. It is published in Looty's own F-Droid repository
+(see [ADR 0016](../docs/adr/0016-android-fdroid-variant-and-repository.md)).
+
+```sh
+gradle -Plooty.unsigned assembleFdroidRelease   # app/build/outputs/apk/fdroid/release/*.apk, unsigned and reproducible
+node ../scripts/fastlane-metadata.mjs           # store metadata, from backend/releases.json
+```
 
 ### Emulator
 

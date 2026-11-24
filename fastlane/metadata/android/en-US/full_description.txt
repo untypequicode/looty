@@ -1,0 +1,13 @@
+Looty is the app for a Looty server (an "instance") run by your association, school or company. Sign in with your account to find your tasks, boards, documents, calendar, announcements, drive, mail and study sets on your phone.
+
+You need the address of a Looty instance: the app asks for it the first time. Looty is free software and has no official hosted service.
+
+• Native screens for tasks, boards, documents, inbox, calendar and settings; the collaborative editor opens inside the app.
+• Notifications without Google: UnifiedPush (ntfy, Gotify, NextPush…), or a periodic check.
+• Home screen widgets: to-do list, agenda, today, shortcuts.
+• Share a link, text or file from any app to create a task or a document.
+• Links of your instance open in the app.
+• Offline reading of recent documents and Moodle courses.
+• Phone calendar sync through DAVx5.
+
+No Google services, no tracker, no advertising. This F-Droid build contains no self-update code: updates come from F-Droid.

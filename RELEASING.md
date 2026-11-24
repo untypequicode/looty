@@ -24,7 +24,7 @@ after the next green CI on `main`, or by hand.
 |---|---|---|
 | web | `backend/Cargo.toml` | Docker images `ghcr.io/untypequicode/looty-{backend,frontend,collaboration}:<version>` (and `:latest`), for amd64 and arm64; the release has `docker-compose.yml` (behind Traefik) and `docker-compose.caddy.yml` with its `Caddyfile` (Caddy included), the same two with the bundled Pocket ID (`docker-compose.pocket-id.yml`, `docker-compose.caddy.pocket-id.yml`, `Caddyfile.pocket-id`, `pocket-id-init.sh`), rendered from `deploy/templates/` with images pinned to that version |
 | desktop | `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json` | `.deb` (Debian 12 / Ubuntu 22.04+, install-tested on a clean Debian) and the Windows installer (`*-setup.exe`, unsigned); Nix package pushed to the binary cache for x86_64 and aarch64 |
-| android | `versionName` and `versionCode` in `android/app/build.gradle.kts` | APK, signed when the keystore secrets are set (otherwise a debug APK) |
+| android | `versionName` and `versionCode` in `android/app/build.gradle.kts` | APK, signed when the keystore secrets are set (otherwise a debug APK); also the unsigned `fdroid` build, signed and published in Looty's F-Droid repository on the download site (see below)  |
 
 Releasing only one platform is fine: the others are skipped because their tag already exists.
 To rebuild a release (for example after fixing CI), run **Release** by hand with
@@ -65,6 +65,14 @@ The apt repository is signed: run `desktop/scripts/apt-key.sh` once, commit the 
 
 - **Android signing:** secrets `ANDROID_KEYSTORE_B64` (keystore in base64),
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+- **Looty F-Droid repository** (`https://<site>/fdroid/repo`, workflow **F-Droid**, run by **Release** after the Android job): a
+  repository key *different* from the app key. Create it once and keep it safe (losing it means users must re-add the repository):
+  `keytool -genkeypair -keystore fdroid-repo.jks -alias repo -keyalg RSA -keysize 4096 -validity 10000`, then
+  `base64 -w0 fdroid-repo.jks | gh secret set FDROID_KEYSTORE_B64` and the secrets `FDROID_KEYSTORE_PASSWORD`,
+  `FDROID_KEY_ALIAS`, `FDROID_KEY_PASSWORD`. It also needs `SITE_URL` and `SITE_UPLOAD_TOKEN` (below) and the app key above
+  (the repository APK is signed with it, like the direct APK). Without these secrets the step only warns. The repository holds the
+  latest version only; the key fingerprint is published at `/fdroid/fingerprint.txt`. Pull requests that touch `android/` run a dry
+  run with throwaway keys. See [ADR 0016](docs/adr/0016-android-fdroid-variant-and-repository.md).
 - **Nix binary cache (Cachix):** create a cache on [cachix.org](https://app.cachix.org)
   (for example `looty`; names are global, so pick another one if it is taken), then add the repository variable `CACHIX_CACHE` (the cache name)
   and the secret `CACHIX_AUTH_TOKEN` (a write token). The **Nix cache** workflow pushes
@@ -99,7 +107,7 @@ The apt repository is signed: run `desktop/scripts/apt-key.sh` once, commit the 
 - Docker images: **Docker** workflow (manual run, tags `latest` and `sha-<commit>`), or
   `docker build ./backend` (add `--build-arg WITH_LATEX=0` for an image without TeX Live).
 - Desktop: `./desktop/scripts/build-deb.sh`, or `nix build .#looty-desktop`.
-- Android: `cd android && ./gradlew assembleRelease`.
+- Android: `cd android && ./gradlew assembleDirectRelease` (direct APK) or `./gradlew -Plooty.unsigned assembleFdroidRelease` (F-Droid build, unsigned).
 
 Pushing a tag by hand publishes nothing: releases always go through `releases.json` and the **Release**
 workflow (run it by hand with `force` to rebuild one).

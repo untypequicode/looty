@@ -1,0 +1,12 @@
+# Fiche de l'application dans le dépôt F-Droid de Looty (lue par « fdroid update »).
+# Titre, descriptions et journal des changements : fastlane/metadata/android (scripts/fastlane-metadata.mjs).
+Categories:
+  - Office
+  - Science & Education
+License: GPL-3.0-only
+AuthorName: Looty
+WebSite: https://looty.untypequicode.fr
+SourceCode: https://github.com/untypequicode/looty
+IssueTracker: https://github.com/untypequicode/looty/issues
+Changelog: https://github.com/untypequicode/looty/releases
+AutoName: Looty

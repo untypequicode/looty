@@ -25,10 +25,10 @@ export default defineConfig({
       // Plan du site : src/pages/sitemap.xml.ts (accueil et documentation).
       lastUpdated: false,
       pagination: true,
-      plugins: [starlightLinksValidator({ errorOnInvalidHashes: true, exclude: ['/', '/fr/', '/#download', '/fr/#download'] })],
+      plugins: [starlightLinksValidator({ errorOnInvalidHashes: true, exclude: ['/', '/fdroid/**', '/fr/', '/#download', '/fr/#download'] })],
       sidebar: [
         { label: 'Use an existing instance', translations: { fr: 'J’utilise une instance existante' }, items: [
-          { slug: 'docs/use' }, { slug: 'docs/use/apps' }, { slug: 'docs/use/flathub-winget' },
+          { slug: 'docs/use' }, { slug: 'docs/use/apps' }, { slug: 'docs/use/android-fdroid' }, { slug: 'docs/use/flathub-winget' },
           { label: 'Features', translations: { fr: 'Fonctions' }, items: [{ autogenerate: { directory: 'docs/use/features' } }] },
         ] },
         { label: 'Host Looty', translations: { fr: 'J’héberge Looty' }, items: [

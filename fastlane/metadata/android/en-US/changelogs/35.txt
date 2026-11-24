@@ -1,0 +1,2 @@
+• F-Droid: a second build, without the built-in updater (and without the permission to install apps), is published in Looty's own F-Droid repository: add it in F-Droid or Droid-ify from the Android page of the documentation. It has the same identifier and signing key, and F-Droid updates it.
+• What's new: in that build the *App updates* screen shows the release notes of the latest versions instead of the updater.

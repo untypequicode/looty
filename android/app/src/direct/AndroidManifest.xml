@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Variante « direct » : mise à jour intégrée (APK téléchargé puis installé). Absente de la variante « fdroid ». -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
+    <application>
+        <!-- Résultat de l'installation d'une mise à jour (reçu de l'installateur du système). -->
+        <receiver android:name=".update.InstallReceiver" android:exported="false" />
+    </application>
+</manifest>
