@@ -1,0 +1,19 @@
+---
+title: "Documents"
+description: "Édition collaborative, LaTeX, diagrammes, graphes, dessins et partage."
+---
+
+Les documents sont des pages que l’on écrit à plusieurs, avec des curseurs en direct et le même contenu sur chaque appareil.
+
+<img class="shot shot-dark" src="/shots/doc-dark-fr.webp" alt="Un document avec un encadré et un diagramme" loading="lazy" />
+<img class="shot shot-light" src="/shots/doc-light-fr.webp" alt="Un document avec un encadré et un diagramme" loading="lazy" />
+
+- **Édition collaborative** avec présence et curseurs ; les modifications hors ligne dans les apps fusionnent à la reconnexion.
+- **Blocs riches** : formules, tableaux, code, contenus intégrés, encadrés.
+- **Diagrammes** : écrivez une description (organigramme, séquence, Gantt…) et le schéma est disposé pour vous. Appliquez un **style de diagramme** d’un clic, par bloc ou comme **style par défaut de l’espace**.
+- **Bloc graphe** : nœuds et arcs, orientés ou non, avec des étiquettes (poids, flot, capacité) ; mettez en avant un chemin ou une coupe.
+- **Dessin** : formes et flèches à main levée.
+- Les **projets LaTeX** se compilent en PDF (l’instance doit fournir un compilateur LaTeX).
+- **Partage** : avec les personnes de votre choix, ou par **lien public**, une adresse secrète en lecture seule qui ne demande aucun compte. Un lien public ne montre jamais les autres fichiers d’un projet.
+
+[Essayer dans la démo](https://demo.looty.untypequicode.fr)

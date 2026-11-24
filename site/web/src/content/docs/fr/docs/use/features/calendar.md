@@ -1,0 +1,21 @@
+---
+title: "Agenda"
+description: "Événements, flux d’abonnement, CalDAV et agenda du téléphone."
+---
+
+<img class="shot shot-dark" src="/shots/calendar-dark-fr.webp" alt="Vue semaine de l’agenda" loading="lazy" />
+<img class="shot shot-light" src="/shots/calendar-light-fr.webp" alt="Vue semaine de l’agenda" loading="lazy" />
+
+L’agenda propose les vues semaine, mois et liste, les événements récurrents, un agenda par tableau, et les échéances de vos tâches.
+
+## Utiliser les événements de Looty dans une autre app d’agenda
+
+- **Flux d’abonnement** : une adresse secrète en lecture seule de votre agenda Looty que vous collez dans Google, Apple, Outlook, Infomaniak… Le *bouton d’abonnement* ouvre l’abonnement directement dans certaines apps, ou copie l’adresse. Vous pouvez révoquer le flux sans toucher au reste de votre compte.
+- **CalDAV** : générez un **mot de passe d’application** pour qu’un appareil ou une app lise **et modifie** vos tâches et événements. Il ne donne accès à rien d’autre et se révoque appareil par appareil.
+- **Agenda du téléphone (Android)** : dans l’app Looty, la *connexion à l’agenda du téléphone* fait apparaître vos agendas Looty dans l’application Agenda du téléphone, en lecture et écriture, grâce à un mot de passe d’application.
+
+## S’abonner à d’autres agendas
+
+Vous pouvez aussi vous abonner aux agendas de votre établissement ou de votre travail (CalDAV, flux ICS) et les voir à côté de vos événements Looty.
+
+[Essayer dans la démo](https://demo.looty.untypequicode.fr)

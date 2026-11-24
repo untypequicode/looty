@@ -5,10 +5,10 @@ name: Site
 on:
   push:
     branches: [main]
-    paths: ['site/**', '.github/workflows/site.yml']
+    paths: ['site/**', 'docs/env-vars.json', '.github/workflows/site.yml']
     tags: ['site-v*']
   pull_request:
-    paths: ['site/**', '.github/workflows/site.yml']
+    paths: ['site/**', 'docs/env-vars.json', '.github/workflows/site.yml']
   workflow_dispatch:
 
 permissions:
@@ -29,12 +29,20 @@ jobs:
       - name: Server tests
         working-directory: site/server
         run: cargo test --locked
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Environment variables reference is up to date
+        working-directory: .
+        run: node scripts/env-reference.mjs --check
       - name: Pages build
         working-directory: site/web
         run: |
           npm ci --no-audit --no-fund
           npm run build
           test -f dist/index.html && test -f dist/fr/index.html
+          # La documentation (Starlight) et son index de recherche ; les liens internes sont vérifiés pendant le build.
+          test -f dist/docs/index.html && test -f dist/fr/docs/index.html && test -d dist/pagefind
 
   image:
     name: Docker image

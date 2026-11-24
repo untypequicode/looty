@@ -74,7 +74,7 @@ const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
           <h2>{l.host.h}</h2>
           <p class="sub" style="margin-bottom:18px">{l.host.p}</p>
           <ul class="ticks">{l.host.ticks.map((x) => <li>{x}</li>)}</ul>
-          <p style="margin-top:22px"><a class="btn" href={`${REPO}#readme`}>{l.host.docs}</a></p>
+          <p style="margin-top:22px"><a class="btn" href={`${l.homeHref}docs/host/`}>{l.host.docs}</a></p>
         </div>
         <pre data-copy><code><span class="c"># docker-compose.yml + .env</span>
 curl -LO {REPO}/releases/latest/download/docker-compose.yml

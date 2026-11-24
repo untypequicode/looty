@@ -18,6 +18,7 @@ Deux morceaux, tous deux très légers :
 | URL | Contenu |
 |---|---|
 | `/`, `/fr/` | Présentation, téléchargements |
+| `/docs/`, `/fr/docs/` | Documentation (Starlight : recherche Pagefind, mode sombre) |
 | `/latest.json` | Dernières versions de `android`, `linux` et `windows` : version, date, titre, notes, somme SHA-256, taille, adresse du fichier. Lu par l'application Android. |
 | `/download/android`, `/download/linux`, `/download/windows` | Liens stables : redirigent vers le dernier fichier |
 | `/releases/<plateforme>/…` | Les fichiers (APK, .deb, installateur Windows), avec reprise de téléchargement |
@@ -60,6 +61,8 @@ cd web && npm install && npm run dev            # pages avec rechargement
 cd web && npm run build                         # → web/dist
 WEB_DIR=web/dist DATA_DIR=/tmp/site UPLOAD_TOKEN=secret PORT=8080 server/target/debug/looty-site
 ```
+
+Documentation : les pages sont dans `web/src/content/docs/docs/` (anglais) et `web/src/content/docs/fr/docs/` (français), au format Markdown ; chaque page existe dans les deux langues. Le build vérifie les liens internes (`starlight-links-validator`). La page `reference/environment` est **générée** : sources dans `docs/env-vars.json`, commande `node scripts/env-reference.mjs --write` (la CI échoue avec `--check` si une variable du code n'y figure pas).
 
 Captures et aperçus (pile de développement en marche, voir `tools/`) :
 
