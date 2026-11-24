@@ -24,6 +24,7 @@ export default {
     table: {
       rowAbove: 'Row above', rowBelow: 'Row below', deleteRow: 'Delete row', colLeft: 'Column left',
       colRight: 'Column right', deleteCol: 'Delete column', toggleHeader: 'Header row', delete: 'Delete table',
+      textHorizontal: 'Horizontal text', textUp: 'Rotate text 90° counter-clockwise', textDown: 'Rotate text 90° clockwise',
     },
   },
   share: {

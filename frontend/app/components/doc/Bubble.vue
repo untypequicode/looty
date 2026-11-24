@@ -3,7 +3,7 @@ import type { Editor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2, Highlighter, Heading1, Heading2, Pilcrow, Quote, ChevronDown, Check, X,
-  FileText, ExternalLink, MessageSquarePlus, Rows3, Columns3, Trash2, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, TableCellsMerge,
+  FileText, ExternalLink, MessageSquarePlus, Rows3, Columns3, Trash2, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, TableCellsMerge, Type, RotateCcw, RotateCw,
 } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useI18n } from '~/composables/useI18n'
@@ -151,6 +151,11 @@ const isInternal = computed(() => (props.editor.getAttributes('link').href ?? ''
       <button :title="t('editor.table.deleteCol')" @click="editor.chain().focus().deleteColumn().run()"><Columns3 :size="15" /></button>
       <span class="sep" />
       <button :title="t('editor.table.toggleHeader')" @click="editor.chain().focus().toggleHeaderRow().run()"><TableCellsMerge :size="15" /></button>
+      <span class="sep" />
+      <button :title="t('editor.table.textHorizontal')" @click="editor.chain().focus().setCellAttribute('textDirection', null).run()"><Type :size="15" /></button>
+      <button :title="t('editor.table.textUp')" @click="editor.chain().focus().setCellAttribute('textDirection', 'up').run()"><RotateCcw :size="15" /></button>
+      <button :title="t('editor.table.textDown')" @click="editor.chain().focus().setCellAttribute('textDirection', 'down').run()"><RotateCw :size="15" /></button>
+      <span class="sep" />
       <button class="danger" :title="t('editor.table.delete')" @click="editor.chain().focus().deleteTable().run()"><Trash2 :size="15" /></button>
     </div>
   </BubbleMenu>

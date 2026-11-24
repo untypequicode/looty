@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.47.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Tables: row heights and rotated text",
+        "fr": "Tableaux : hauteur des lignes et texte tourné"
+      },
+      "notes": {
+        "en": [
+          "**Row height**: drag the bottom border of a row to resize it (double-click to reset). Column widths keep being set by dragging column borders. Sizes are saved in the page, shared in real time and kept in public pages, HTML exports and print; on a narrow screen a wide table scrolls sideways.",
+          "**Rotated text**: the table toolbar can turn the text of the selected cells, such as header cells, by 90° to the left or to the right, or bring it back to horizontal. Markdown exports keep the text only."
+        ],
+        "fr": [
+          "**Hauteur des lignes** : glissez le bord bas d'une ligne pour la redimensionner (double-clic pour revenir à l'automatique). La largeur des colonnes se règle toujours en glissant leurs bordures. Les tailles sont enregistrées dans la page, partagées en temps réel et conservées dans les pages publiques, les exports HTML et l'impression ; sur un petit écran, un tableau large défile horizontalement.",
+          "**Texte tourné** : la barre du tableau permet de tourner de 90° vers la gauche ou la droite le texte des cellules sélectionnées, par exemple les en-têtes, ou de le remettre à l'horizontale. Les exports Markdown ne gardent que le texte."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.46.1",
       "date": "2026-11-24",
       "title": {

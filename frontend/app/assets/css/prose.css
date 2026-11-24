@@ -247,3 +247,11 @@ html.light .hljs-function, html.light .hljs-title.function_ { color: #1e66f5; }
 
 /* Ancres de titres : lien « # » au survol */
 .doc-prose h1, .doc-prose h2, .doc-prose h3, .doc-prose h4 { position: relative; }
+
+/* Tableaux redimensionnés (largeurs de colonnes, hauteurs de lignes) : défilement horizontal si le tableau déborde. */
+.prose .tableWrapper { overflow-x: auto; max-width: 100%; }
+.doc-viewer.prose { overflow-x: auto; }
+@media print {
+  .prose table, .prose tr { break-inside: avoid; }
+  .prose .tableWrapper, .doc-viewer.prose { overflow: visible; }
+}
