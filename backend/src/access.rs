@@ -137,7 +137,9 @@ fn refuse(branch: &'static str, path: &str, sid: Option<tower_sessions::session:
     if quiet {
         return ApiError::UnauthorizedReason(branch);
     }
-    let instance = std::env::var("HOSTNAME").unwrap_or_default();
+    // Identifie le conteneur qui répond (utile si plusieurs backends sont joignables sous le même nom).
+    static INSTANCE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let instance = INSTANCE.get_or_init(|| std::fs::read_to_string("/etc/hostname").unwrap_or_default().trim().to_string());
     tracing::warn!(branch, path, session_sha = %session_tag(sid), instance = %instance, "401 unauthorized");
     ApiError::UnauthorizedReason(branch)
 }
