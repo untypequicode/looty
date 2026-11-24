@@ -119,7 +119,10 @@ pub struct TaskWithEnrichment {
     pub task: Task,
     pub labels: Vec<Label>,
     pub assignees: Vec<String>,
+    /// Personnes qui ont résolu leur part : fait ou « je ne ferai pas » (voir `wont_do`).
     pub validations: Vec<String>,
+    /// Sous-ensemble de `validations` : « je ne ferai pas » (assigné, mais ne valide pas).
+    pub wont_do: Vec<String>,
     /// Groupes reliés (GLOSSARY) : la tâche suit leurs membres.
     pub groups: Vec<Uuid>,
 }
@@ -192,6 +195,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tasks/{task_id}/groups/{group_id}", post(crate::group_links::add_task_group).delete(crate::group_links::remove_task_group))
         .route("/tasks/{task_id}/subtasks", post(create_subtask))
         .route("/tasks/{task_id}/toggle_validation", put(toggle_task_validation))
+        .route("/tasks/{task_id}/toggle_wont_do", put(toggle_task_wont_do))
         .route("/tasks/{task_id}/attachments", get(get_task_attachments).post(upload_attachment))
         .route("/tasks/{task_id}/attachments/{attachment_id}", delete(delete_attachment))
         .route("/tasks/{task_id}/activities", get(get_task_activities))
@@ -254,8 +258,12 @@ pub async fn load_task_enriched(pool: &PgPool, task_id: Uuid) -> ApiResult<TaskW
         .bind(task_id)
         .fetch_all(pool)
         .await?;
+    let wont_do: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1 AND wont_do")
+        .bind(task_id)
+        .fetch_all(pool)
+        .await?;
     let groups: Vec<Uuid> = sqlx::query_scalar("SELECT group_id FROM task_groups WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
-    Ok(TaskWithEnrichment { task, labels, assignees, validations, groups })
+    Ok(TaskWithEnrichment { task, labels, assignees, validations, wont_do, groups })
 }
 
 pub(crate) async fn emit_task(state: &AppState, workspace_id: Uuid, kind: &str, task_id: Uuid) {
@@ -600,8 +608,8 @@ async fn get_board(
     .bind(board_id)
     .fetch_all(&pool)
     .await?;
-    let validations: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT v.task_id, v.user_id FROM task_validations v JOIN tasks t ON v.task_id = t.id
+    let validations: Vec<(Uuid, String, bool)> = sqlx::query_as(
+        "SELECT v.task_id, v.user_id, v.wont_do FROM task_validations v JOIN tasks t ON v.task_id = t.id
          JOIN board_columns c ON t.column_id = c.id WHERE c.board_id = $1",
     )
     .bind(board_id)
@@ -631,7 +639,11 @@ async fn get_board(
         groups_of.entry(t).or_default().push(g);
     }
     let mut validations_of: HashMap<Uuid, Vec<String>> = HashMap::new();
-    for (t, u) in validations {
+    let mut wont_do_of: HashMap<Uuid, Vec<String>> = HashMap::new();
+    for (t, u, w) in validations {
+        if w {
+            wont_do_of.entry(t).or_default().push(u.clone());
+        }
         validations_of.entry(t).or_default().push(u);
     }
 
@@ -643,6 +655,7 @@ async fn get_board(
             labels: labels_of.remove(&id).unwrap_or_default(),
             assignees: assignees_of.remove(&id).unwrap_or_default(),
             validations: validations_of.remove(&id).unwrap_or_default(),
+            wont_do: wont_do_of.remove(&id).unwrap_or_default(),
             groups: groups_of.remove(&id).unwrap_or_default(),
         });
     }
@@ -1461,38 +1474,17 @@ async fn toggle_task_validation(
 
     let me = user.id.to_string();
     if task.is_per_person {
-        let removed = sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2")
+        // Déjà « fait » : on retire ; « je ne ferai pas » ou rien : on passe à « fait ».
+        let removed = sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2 AND NOT wont_do")
             .bind(task_id)
             .bind(&me)
             .execute(pool)
             .await?
             .rows_affected();
         if removed == 0 {
-            sqlx::query("INSERT INTO task_validations (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-                .bind(task_id)
-                .bind(&me)
-                .execute(pool)
-                .await?;
+            set_person_state(pool, task_id, &me, false).await?;
         }
-        // Membres qui ne participent pas aux validations collectives : leur validation n'est
-        // pas attendue (la tâche reste ouverte pour eux seuls, voir doneFor côté client).
-        let assignees: Vec<String> = sqlx::query_scalar(
-            "SELECT a.user_id FROM task_assignees a
-             JOIN tasks t ON t.id = a.task_id JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-             LEFT JOIN workspace_members m ON m.workspace_id = b.workspace_id AND m.user_id = a.user_id
-             WHERE a.task_id = $1 AND COALESCE(m.group_tasks, TRUE)")
-            .bind(task_id)
-            .fetch_all(pool)
-            .await?;
-        let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1")
-            .bind(task_id)
-            .fetch_all(pool)
-            .await?;
-        task.is_completed = if task.require_all_validations && !assignees.is_empty() {
-            assignees.iter().all(|a| validations.contains(a))
-        } else {
-            !validations.is_empty()
-        };
+        task.is_completed = per_person_completed(pool, &task).await?;
     } else {
         task.is_completed = !task.is_completed;
     }
@@ -1512,6 +1504,103 @@ async fn toggle_task_validation(
         }
     }
 
+    let t = load_task_enriched(pool, task_id).await?;
+    state.emit(ctx.workspace_id, serde_json::json!({ "type": "TASK_UPDATED", "task": &t })).await;
+    Ok(Json(t))
+}
+
+/// Pose mon état sur une tâche par personne : fait (`wont_do = false`) ou « je ne ferai pas ».
+async fn set_person_state(pool: &PgPool, task_id: Uuid, user_id: &str, wont_do: bool) -> ApiResult<()> {
+    sqlx::query(
+        "INSERT INTO task_validations (task_id, user_id, wont_do) VALUES ($1, $2, $3)
+         ON CONFLICT (task_id, user_id) DO UPDATE SET wont_do = EXCLUDED.wont_do")
+        .bind(task_id).bind(user_id).bind(wont_do).execute(pool).await?;
+    Ok(())
+}
+
+/// Une tâche par personne est terminée quand chaque assigné a fait ou refusé (« je ne ferai pas »)
+/// et qu'au moins une personne a fait ; sans « tout le monde », une seule validation suffit.
+/// Si tout le monde refuse, elle n'est pas terminée.
+async fn per_person_completed(pool: &PgPool, task: &Task) -> ApiResult<bool> {
+    // Membres qui ne participent pas aux validations collectives : leur validation n'est
+    // pas attendue (la tâche reste ouverte pour eux seuls, voir doneFor côté client).
+    let assignees: Vec<String> = sqlx::query_scalar(
+        "SELECT a.user_id FROM task_assignees a
+         JOIN tasks t ON t.id = a.task_id JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
+         LEFT JOIN workspace_members m ON m.workspace_id = b.workspace_id AND m.user_id = a.user_id
+         WHERE a.task_id = $1 AND COALESCE(m.group_tasks, TRUE)")
+        .bind(task.id).fetch_all(pool).await?;
+    let states: Vec<(String, bool)> = sqlx::query_as("SELECT user_id, wont_do FROM task_validations WHERE task_id = $1")
+        .bind(task.id).fetch_all(pool).await?;
+    Ok(per_person_done(task.require_all_validations, &assignees, &states))
+}
+
+/// `states` : (personne, « je ne ferai pas »). Voir `per_person_completed`.
+fn per_person_done(require_all: bool, assignees: &[String], states: &[(String, bool)]) -> bool {
+    let any_done = states.iter().any(|(_, w)| !w);
+    if require_all && !assignees.is_empty() {
+        any_done && assignees.iter().all(|a| states.iter().any(|(u, _)| u == a))
+    } else {
+        any_done
+    }
+}
+
+#[cfg(test)]
+mod wont_do_tests {
+    use super::per_person_done;
+
+    fn s(v: &[(&str, bool)]) -> Vec<(String, bool)> { v.iter().map(|(u, w)| (u.to_string(), *w)).collect() }
+    fn a(v: &[&str]) -> Vec<String> { v.iter().map(|u| u.to_string()).collect() }
+
+    #[test]
+    fn everyone_resolved_with_one_done_completes() {
+        assert!(per_person_done(true, &a(&["a", "b"]), &s(&[("a", false), ("b", true)])));
+    }
+
+    #[test]
+    fn all_wont_do_is_not_done() {
+        assert!(!per_person_done(true, &a(&["a", "b"]), &s(&[("a", true), ("b", true)])));
+        assert!(!per_person_done(false, &a(&["a"]), &s(&[("a", true)])));
+    }
+
+    #[test]
+    fn pending_assignee_keeps_it_open() {
+        assert!(!per_person_done(true, &a(&["a", "b"]), &s(&[("a", false)])));
+        assert!(per_person_done(false, &a(&["a", "b"]), &s(&[("a", false)])));
+    }
+}
+
+async fn toggle_task_wont_do(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(task_id): Path<Uuid>,
+) -> ApiResult<Json<TaskWithEnrichment>> {
+    let pool = &state.pool;
+    let ctx = crate::access::task_ctx_for(pool, &user, task_id).await?;
+    crate::access::require_perm(pool, &user, ctx.workspace_id, |p| p.boards >= crate::access::level::VALIDATE).await?;
+    let mut task = fetch_task(pool, task_id).await?;
+    if !task.is_per_person {
+        return Err(ApiError::bad_request("wont_do_requires_per_person"));
+    }
+    let was_completed = task.is_completed;
+    let me = user.id.to_string();
+    let removed = sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2 AND wont_do")
+        .bind(task_id).bind(&me).execute(pool).await?.rows_affected();
+    if removed == 0 {
+        set_person_state(pool, task_id, &me, true).await?;
+    }
+    task.is_completed = per_person_completed(pool, &task).await?;
+    if task.is_completed != was_completed {
+        sqlx::query("UPDATE tasks SET is_completed = $1, updated_at = NOW() WHERE id = $2")
+            .bind(task.is_completed).bind(task_id).execute(pool).await?;
+        log_activity(pool, task_id, user.id, "toggle_validation",
+            Some(serde_json::json!({ "is_completed": was_completed })),
+            Some(serde_json::json!({ "is_completed": task.is_completed }))).await;
+        apply_completion_automation(pool, ctx.board_id, &task).await?;
+        if task.is_completed {
+            task_completed(&state, task_id, user.id).await;
+        }
+    }
     let t = load_task_enriched(pool, task_id).await?;
     state.emit(ctx.workspace_id, serde_json::json!({ "type": "TASK_UPDATED", "task": &t })).await;
     Ok(Json(t))
@@ -1996,25 +2085,12 @@ pub async fn sync_apply_remote(state: &AppState, task_id: Uuid, user_id: Uuid, c
         if task.is_per_person {
             let me = user_id.to_string();
             if done {
-                sqlx::query("INSERT INTO task_validations (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-                    .bind(task_id).bind(&me).execute(pool).await?;
+                set_person_state(pool, task_id, &me, false).await?;
             } else {
-                sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2")
+                sqlx::query("DELETE FROM task_validations WHERE task_id = $1 AND user_id = $2 AND NOT wont_do")
                     .bind(task_id).bind(&me).execute(pool).await?;
             }
-            // Membres qui ne participent pas aux validations collectives : leur validation n'est
-        // pas attendue (la tâche reste ouverte pour eux seuls, voir doneFor côté client).
-        let assignees: Vec<String> = sqlx::query_scalar(
-            "SELECT a.user_id FROM task_assignees a
-             JOIN tasks t ON t.id = a.task_id JOIN board_columns c ON c.id = t.column_id JOIN boards b ON b.id = c.board_id
-             LEFT JOIN workspace_members m ON m.workspace_id = b.workspace_id AND m.user_id = a.user_id
-             WHERE a.task_id = $1 AND COALESCE(m.group_tasks, TRUE)").bind(task_id).fetch_all(pool).await?;
-            let validations: Vec<String> = sqlx::query_scalar("SELECT user_id FROM task_validations WHERE task_id = $1").bind(task_id).fetch_all(pool).await?;
-            task.is_completed = if task.require_all_validations && !assignees.is_empty() {
-                assignees.iter().all(|a| validations.contains(a))
-            } else {
-                !validations.is_empty()
-            };
+            task.is_completed = per_person_completed(pool, &task).await?;
         } else {
             task.is_completed = done;
         }

@@ -102,6 +102,8 @@ export interface Task {
   labels: Label[]
   assignees: string[]
   validations: string[]
+  /** Sous-ensemble de `validations` : assignés qui ne feront pas la tâche (résolue, pas validée). */
+  wont_do?: string[]
   /** Groupes reliés : la tâche suit leurs membres. */
   groups?: string[]
   /** Élément personnel : seule cette personne la voit (GLOSSARY). */

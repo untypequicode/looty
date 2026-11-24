@@ -142,12 +142,21 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
         for (const c of b.columns) for (const t of c.tasks) {
           if (t.id !== id) continue
           if (t.is_per_person && selfId) {
-            t.validations = t.validations.includes(selfId) ? t.validations.filter((v) => v !== selfId) : [...t.validations, selfId]
+            const wasWontDo = !!t.wont_do?.includes(selfId)
+            t.validations = t.validations.includes(selfId) && !wasWontDo ? t.validations.filter((v) => v !== selfId) : [...new Set([...t.validations, selfId])]
+            t.wont_do = (t.wont_do ?? []).filter((v) => v !== selfId)
           } else t.is_completed = !t.is_completed
         }
       }),
       () => api<Task>(`/api/boards/tasks/${id}/toggle_validation`, { method: 'PUT' }),
     )
+    upsertTaskInBoards(qc, t)
+    return t
+  }
+
+  /** « Je ne ferai pas » (tâche par personne) : je reste assigné mais je ne valide pas. */
+  async function toggleWontDo(id: string) {
+    const t = await api<Task>(`/api/boards/tasks/${id}/toggle_wont_do`, { method: 'PUT' })
     upsertTaskInBoards(qc, t)
     return t
   }
@@ -280,7 +289,7 @@ export function useBoardActions(boardId: Ref<string | null | undefined>) {
 
   return {
     board, findTask,
-    createTask, updateTask, moveTask, toggleDone, deleteTask, setLabel, setLabels, setAssignee, setAssignees, setGroups, createSubtask,
+    createTask, updateTask, moveTask, toggleDone, toggleWontDo, deleteTask, setLabel, setLabels, setAssignee, setAssignees, setGroups, createSubtask,
     createColumn, renameColumn, moveColumn, deleteColumn,
     createLabel, updateLabel, deleteLabel, saveAutomations,
   }

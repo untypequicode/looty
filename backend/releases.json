@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.42.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "\"I won't do this\" on a task",
+        "fr": "« Je ne ferai pas » sur une tâche"
+      },
+      "notes": {
+        "en": [
+          "**Tasks**: on a per-person task, an assignee can now mark \"I won't do this\" for themselves. They stay assigned and notified of changes, but do not validate.",
+          "**Completion**: the task is done once every assignee has done their part or declined, and at least one has done it. If everyone declines, it shows as \"won't be done\" instead of done."
+        ],
+        "fr": [
+          "**Tâches** : sur une tâche par personne, un assigné peut désormais indiquer « Je ne ferai pas » pour lui-même. Il reste assigné et notifié des changements, mais ne valide pas.",
+          "**Achèvement** : la tâche est terminée quand chaque assigné a fait sa part ou refusé, et qu'au moins un l'a faite. Si tout le monde refuse, elle s'affiche « ne sera pas faite » au lieu de terminée."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.41.0",
       "date": "2026-11-24",
       "title": {
