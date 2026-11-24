@@ -51,6 +51,7 @@ This page is generated from `docs/env-vars.json` and checked in CI against the c
 | `JUPYTER_ALLOW_PRIVATE` | backend | Allow project Jupyter servers on a private network or over http. | `false` | no | `true` | 0.29.0 | yes |
 | `AI_ALLOW_PRIVATE` | backend | Allow AI providers on a private network or over http (for example Ollama on the same machine). Also allowed when CALDAV_ALLOW_PRIVATE is true. | `false` | no | `true` | 0.34.1 | no |
 | `PUSH_ALLOW_PRIVATE` | backend | Tests only: accept a local push service (http, private network). | `false` | no | `false` | 0.1.0 | no |
+| `LOOTY_METRICS_TOKEN` | backend | Turns on the Prometheus endpoint /metrics (also /api/metrics), read with the header Authorization: Bearer <token>. At least 16 characters; without it the endpoint does not exist. | – | no | `a-long-random-secret` | 0.43.0 | no |
 
 ## Email
 
@@ -92,6 +93,8 @@ This page is generated from `docs/env-vars.json` and checked in CI against the c
 | Variable | Service | Role | Default | Required | Example | Since | Compose |
 |---|---|---|---|---|---|---|---|
 | `PORT` | backend, collaboration | Port the service listens on. Docker images already set it. | `8080 (backend), 8082 (collaboration)` | no | `8080` | 0.1.0 | no |
+| `LOOTY_UPDATE_CHECK` | backend | Lets the instance status page ask GitHub (at most every 6 hours) whether a newer web version exists. Off by default: the server makes no outgoing call for it. | `false` | no | `true` | 0.43.0 | no |
+| `ACCOUNT_DELETION_GRACE_DAYS` | backend | Days between a deletion request and the actual deletion of an account (1 to 90). Until then the person can cancel. | `14` | no | `30` | 0.43.0 | no |
 | `LOOTY_SITE_URL` | backend | Address of the site the apps ask for updates (/api/releases), instead of the official one. | `address in releases.json` | no | `https://looty.example.org` | 0.16.7 | no |
 | `BACKEND_URL` | web interface, collaboration | Internal address of the backend, for the web interface and the collaboration service. The compose files set it. | `http://backend:8080` | no | `http://backend:8080` | 0.1.0 | no |
 | `COLLAB_URL` | web interface | Internal address of the collaboration service, for the web interface (/collab). | `http://collaboration:8082` | no | `http://collaboration:8082` | 0.1.0 | no |

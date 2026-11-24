@@ -251,3 +251,23 @@ Facilité et prochaine échéance d'une fiche pour une personne (répétition es
 **Formule**:
 Expression mathématique écrite en LaTeX dans une page (dans le texte ou en bloc), rendue comme sur le web quel que soit l'appareil, hors-ligne compris.
 _Avoid_: équation, maths
+
+## Données
+
+**Archive d'export**:
+Fichier zip qui contient, par espace, les documents d'une personne (Markdown et HTML), ses tâches (CSV et JSON), ses événements (fichier d'agenda), ses fichiers et ses éléments personnels. Un administrateur d'espace peut aussi exporter tout ce qui est partagé dans l'espace, sans les éléments personnels des membres.
+_Avoid_: sauvegarde (réservé à la sauvegarde de toute l'instance), dump
+
+**Suppression de compte**:
+Demande faite par la personne, confirmée par son adresse e-mail, exécutée après un délai de grâce pendant lequel elle peut l'annuler. Ses éléments personnels et son espace perso disparaissent ; ce qu'elle a partagé reste dans les espaces. Impossible tant qu'elle est la seule propriétaire d'un espace qui a d'autres membres.
+_Avoid_: désinscription, désactivation (la suspension est autre chose : un administrateur bloque la connexion)
+
+**Compte supprimé**:
+Compte technique (« Deleted user ») qui apparaît comme auteur des éléments partagés d'une personne dont le compte a été supprimé. On ne peut pas s'y connecter et il n'est pas compté parmi les comptes de l'instance.
+
+**État de l'instance**:
+Page d'administration qui montre l'espace utilisé (base, fichiers, par espace), les comptes, espaces et sessions, les tâches de fond (dernier passage, erreurs), la dernière sauvegarde et la version. Le même état sort sur `/metrics` pour Prometheus quand un jeton est défini.
+_Avoid_: diagnostic, monitoring
+
+**Rapport d'import**:
+Liste, affichée à la fin d'un import depuis Notion, Obsidian, Trello ou Outline, de ce qui n'a pas pu être repris tel quel (cartes archivées, liens vers des pages absentes, images introuvables, membres sans correspondance).

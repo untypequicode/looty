@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot } from 'lucide-vue-next'
+import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity } from 'lucide-vue-next'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n } from '~/composables/useI18n'
@@ -23,6 +23,7 @@ const groups = computed(() => [
       { key: 'notifications', label: t('settings.nav.notifications'), icon: Bell },
       { key: 'calendars', label: t('settings.nav.calendars'), icon: CalendarSync },
       { key: 'ai', label: t('ai.settings.title'), icon: Bot },
+      { key: 'data', label: t('data.nav'), icon: DatabaseBackup },
     ],
   },
   {
@@ -52,6 +53,7 @@ const groups = computed(() => [
           { key: 'admin-links', label: t('links.title'), icon: Globe },
           { key: 'admin-backups', label: t('backups.title'), icon: Archive },
           { key: 'admin-storage', label: t('storage.title'), icon: HardDrive },
+          { key: 'admin-status', label: t('adminStatus.title'), icon: Activity },
           { key: 'admin-instance', label: t('settings.nav.instance'), icon: Server },
         ],
       }]

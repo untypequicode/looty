@@ -26,6 +26,8 @@ import AdminUsers from '~/components/settings/AdminUsers.vue'
 import AdminWorkspaces from '~/components/settings/AdminWorkspaces.vue'
 import AdminAuth from '~/components/settings/AdminAuth.vue'
 import AdminInstance from '~/components/settings/AdminInstance.vue'
+import AccountData from '~/components/settings/AccountData.vue'
+import AdminStatus from '~/components/settings/AdminStatus.vue'
 
 definePageMeta({ layout: 'settings' })
 
@@ -37,6 +39,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   preferences: { comp: Preferences, title: 'settings.nav.preferences' },
   security: { comp: Security, title: 'settings.nav.security' },
   notifications: { comp: Notifications, title: 'settings.nav.notifications' },
+  data: { comp: AccountData, title: 'data.nav' },
   calendars: { comp: Calendars, title: 'settings.nav.calendars' },
   ai: { comp: AiConnections, title: 'ai.settings.title' },
   workspace: { comp: Workspace, title: 'settings.nav.general' },
@@ -54,6 +57,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   'admin-auth': { comp: AdminAuth, title: 'settings.nav.auth', admin: true },
   'admin-email': { comp: AdminEmail, title: 'settings.nav.email', admin: true },
   'admin-storage': { comp: AdminStorage, title: 'storage.title', admin: true },
+  'admin-status': { comp: AdminStatus, title: 'adminStatus.title', admin: true },
   'admin-instance': { comp: AdminInstance, title: 'settings.nav.instance', admin: true },
 }
 // Sections qui chargent le serveur ou sortent vers l'extérieur : indisponibles dans la démo.

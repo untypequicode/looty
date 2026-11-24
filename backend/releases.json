@@ -4,6 +4,29 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.43.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Your data: export and delete, instance status, import from Notion, Obsidian and Trello",
+        "fr": "Vos données : export et suppression, état de l'instance, import depuis Notion, Obsidian et Trello"
+      },
+      "notes": {
+        "en": [
+          "**Export**: Settings > My data downloads a zip with your documents (Markdown and HTML), tasks (CSV and JSON), events (calendar file), files and personal items. Workspace admins can export a whole workspace the same way.",
+          "**Delete your account**: ask for it in Settings > My data, confirm with your email address, and it is deleted after a grace period (14 days by default) during which you can cancel. Your personal space and personal items are deleted; what you shared stays in its workspace under the name “Deleted user”. The only owner of a workspace with other members must hand it over first.",
+          "**Instance status** (administrators): space used by the database, files and each workspace, accounts and sessions, background jobs with their last run and errors, last backup, and the version. An optional /metrics endpoint for Prometheus is protected by a token (LOOTY_METRICS_TOKEN).",
+          "**Import**: bring in a Notion export (Markdown and CSV zip, with sub-pages and databases as tables), an Obsidian folder ([[links]], images and front matter) or a Trello board (JSON: lists, cards, labels, checklists as sub-tasks, due dates, members matched by name or email, comments). A report lists what could not be imported."
+        ],
+        "fr": [
+          "**Export** : Réglages > Mes données télécharge un zip avec vos documents (Markdown et HTML), vos tâches (CSV et JSON), vos événements (fichier d'agenda), vos fichiers et vos éléments personnels. Les administrateurs d'un espace peuvent exporter tout l'espace de la même façon.",
+          "**Supprimer son compte** : demandez-le dans Réglages > Mes données, confirmez avec votre adresse e-mail, et il est supprimé après un délai de grâce (14 jours par défaut) pendant lequel vous pouvez annuler. Votre espace perso et vos éléments personnels sont supprimés ; ce que vous avez partagé reste dans son espace sous le nom « Deleted user ». La seule propriétaire d'un espace qui a d'autres membres doit d'abord le transmettre.",
+          "**État de l'instance** (administrateurs) : espace utilisé par la base, les fichiers et chaque espace, comptes et sessions, tâches de fond avec leur dernier passage et leurs erreurs, dernière sauvegarde, et version. Un point /metrics facultatif pour Prometheus est protégé par un jeton (LOOTY_METRICS_TOKEN).",
+          "**Import** : reprenez un export de Notion (zip Markdown et CSV, sous-pages et bases en tableaux), un dossier Obsidian (liens [[…]], images et en-têtes) ou un tableau Trello (JSON : listes, cartes, étiquettes, listes de contrôle en sous-tâches, échéances, membres associés par nom ou e-mail, commentaires). Un rapport liste ce qui n'a pas pu être repris."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.42.0",
       "date": "2026-11-24",
       "title": {

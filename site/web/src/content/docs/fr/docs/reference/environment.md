@@ -51,6 +51,7 @@ Cette page est générée à partir de `docs/env-vars.json` et vérifiée en CI 
 | `JUPYTER_ALLOW_PRIVATE` | backend | Autoriser les serveurs Jupyter des notebooks en réseau privé ou en http. | `false` | non | `true` | 0.29.0 | oui |
 | `AI_ALLOW_PRIVATE` | backend | Autoriser les fournisseurs d'IA en réseau privé ou en http (par exemple Ollama sur la même machine). Aussi autorisé quand CALDAV_ALLOW_PRIVATE vaut true. | `false` | non | `true` | 0.34.1 | non |
 | `PUSH_ALLOW_PRIVATE` | backend | Tests seulement : accepte un service de push local (http, réseau privé). | `false` | non | `false` | 0.1.0 | non |
+| `LOOTY_METRICS_TOKEN` | backend | Active le point /metrics pour Prometheus (aussi /api/metrics), lu avec l'en-tête Authorization: Bearer <jeton>. 16 caractères au moins ; sans lui le point n'existe pas. | – | non | `a-long-random-secret` | 0.43.0 | non |
 
 ## E-mails
 
@@ -92,6 +93,8 @@ Cette page est générée à partir de `docs/env-vars.json` et vérifiée en CI 
 | Variable | Service | Rôle | Défaut | Obligatoire | Exemple | Depuis | Compose |
 |---|---|---|---|---|---|---|---|
 | `PORT` | backend, collaboration | Port d'écoute du service. Les images Docker le fixent déjà. | `8080 (backend), 8082 (collaboration)` | non | `8080` | 0.1.0 | non |
+| `LOOTY_UPDATE_CHECK` | backend | Laisse la page d'état de l'instance demander à GitHub (au plus toutes les 6 heures) s'il existe une version web plus récente. Désactivé par défaut : le serveur ne sort pas vers l'extérieur pour cela. | `false` | non | `true` | 0.43.0 | non |
+| `ACCOUNT_DELETION_GRACE_DAYS` | backend | Jours entre la demande de suppression d'un compte et sa suppression effective (1 à 90). D'ici là, la personne peut annuler. | `14` | non | `30` | 0.43.0 | non |
 | `LOOTY_SITE_URL` | backend | Adresse du site où les applications cherchent les mises à jour (/api/releases), à la place du site officiel. | `address in releases.json` | non | `https://looty.example.org` | 0.16.7 | non |
 | `BACKEND_URL` | interface web, collaboration | Adresse interne du backend, pour l'interface web et le service de collaboration. Les fichiers compose la fixent. | `http://backend:8080` | non | `http://backend:8080` | 0.1.0 | non |
 | `COLLAB_URL` | interface web | Adresse interne du service de collaboration, pour l'interface web (/collab). | `http://collaboration:8082` | non | `http://collaboration:8082` | 0.1.0 | non |

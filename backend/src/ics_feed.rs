@@ -108,7 +108,7 @@ struct FeedRow {
 }
 
 /// Assemble le flux : les objets iCalendar des événements, puis une journée par échéance de tâche.
-fn build(name: &str, events: &[String], tasks: &[FeedTask]) -> String {
+pub(crate) fn build(name: &str, events: &[String], tasks: &[FeedTask]) -> String {
     let mut lines: Vec<String> = vec![
         "BEGIN:VCALENDAR".into(),
         "VERSION:2.0".into(),

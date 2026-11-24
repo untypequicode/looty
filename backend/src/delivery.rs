@@ -157,11 +157,12 @@ pub fn start_worker(state: AppState) {
             }
             if last_due.elapsed() >= Duration::from_secs(600) {
                 last_due = std::time::Instant::now();
-                if let Some(Err(e)) = crate::bg::guard("due reminders", due_reminders(&state)).await {
+                if let Some(Err(e)) = crate::bg::guard_result("due reminders", due_reminders(&state)).await {
                     tracing::warn!("due reminders: {e:?}");
                 }
             }
-            if let Some(Err(e)) = crate::bg::guard("notification delivery", process(&state)).await {
+            crate::bg::tick("notification delivery");
+            if let Some(Err(e)) = crate::bg::guard_result("notification delivery", process(&state)).await {
                 tracing::warn!("notification delivery: {e:?}");
             }
         }
@@ -239,6 +240,9 @@ async fn process(state: &AppState) -> ApiResult<()> {
                 }
             }
             .await;
+            if p.channel == "email" && !result.as_ref().is_err_and(|e| e.starts_with("skipped")) {
+                crate::bg::record("email delivery", result.clone());
+            }
             match result {
                 Ok(()) => {
                     sqlx::query("UPDATE notification_deliveries SET sent_at = NOW(), error = NULL WHERE id = $1").bind(p.id).execute(pool).await?;
