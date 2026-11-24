@@ -8,6 +8,8 @@ use axum::{
 #[derive(Debug)]
 pub enum ApiError {
     Unauthorized,
+    /// 401 avec une raison lisible par machine (`reason` dans le corps), pour diagnostiquer les refus.
+    UnauthorizedReason(&'static str),
     Forbidden,
     /// Fonction indisponible dans la démo (GLOSSARY : *Démo*).
     DemoUnavailable,
@@ -27,8 +29,11 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        if let ApiError::UnauthorizedReason(reason) = self {
+            return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized", "reason": reason }))).into_response();
+        }
         let (status, msg) = match self {
-            ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
+            ApiError::Unauthorized | ApiError::UnauthorizedReason(_) => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
             ApiError::Forbidden => (StatusCode::FORBIDDEN, "forbidden".to_string()),
             ApiError::DemoUnavailable => (StatusCode::FORBIDDEN, "demo_unavailable".to_string()),
             ApiError::NotFound => (StatusCode::NOT_FOUND, "not_found".to_string()),

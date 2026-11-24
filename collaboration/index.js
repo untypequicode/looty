@@ -317,11 +317,11 @@ const server = new Server({
     const info = sessionCookieInfo(cookie, sha256)
     // Client = cookie de session (sinon adresse + navigateur) : un appareil resté avec une session périmée.
     const clientKey = info.hash || sha256(`${String(forwardedFor || '').split(',')[0].trim()}|${userAgent || ''}`).slice(0, 8)
-    const refuse = (reason, status) => {
+    const refuse = (reason, status, backendReason) => {
       if (reason === 'unauthorized' || reason === 'unauthenticated') refusals.note(clientKey)
       console.warn(describeRefusal({
         reason, status, documentName, hasToken: !!(token && token.startsWith('looty_')), hasCookie: !!cookie, userAgent,
-        cookieCount: info.count, cookieHash: info.hash, origin, forwardedFor, client: clientKey,
+        cookieCount: info.count, cookieHash: info.hash, origin, forwardedFor, client: clientKey, backendReason,
       }))
       return authError(reason)
     }
@@ -349,7 +349,9 @@ const server = new Server({
       // Corps de la réponse du backend dans le journal : distingue session expirée, droits retirés…
       const body = await res.text().catch(() => '')
       console.warn(`backend refusal status=${res.status} doc=${documentName.slice(0, 64)} body=${body.slice(0, 120).replace(/\s+/g, ' ')}`)
-      throw refuse(refusal, res.status)
+      let backendReason
+      try { backendReason = JSON.parse(body).reason } catch { /* corps non JSON */ }
+      throw refuse(refusal, res.status, backendReason)
     }
     refusals.success(clientKey)
     const access = await res.json()
