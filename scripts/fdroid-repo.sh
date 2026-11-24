@@ -36,19 +36,25 @@ for loc in "$root"/fastlane/metadata/android/*/; do
   cp -r "$loc" "$out/metadata/$appid/$(basename "$loc")"
 done
 
-# 3. Configuration de F-Droid ; les mots de passe passent par l'environnement
+# 3. Configuration de F-Droid (dossier de travail temporaire, droits 600, supprimée ensuite). Les mots de passe
+#    sont écrits en chaîne JSON, valide en YAML, quels que soient leurs caractères.
+yq() { node -e 'process.stdout.write(JSON.stringify(process.env[process.argv[1]]))' "$1"; }
+umask 077
 cat > "$out/config.yml" <<EOF
 repo_url: ${FDROID_REPO_URL:-https://looty.untypequicode.fr/fdroid/repo}
 repo_name: Looty
 repo_description: Looty releases without a built-in updater, signed by the Looty project.
-repo_keyalias: $REPO_KEY_ALIAS
+repo_keyalias: $(yq REPO_KEY_ALIAS)
 keystore: $(realpath "$REPO_KEYSTORE")
+keystorepass: $(yq REPO_KEYSTORE_PASSWORD)
+keypass: $(yq REPO_KEY_PASSWORD)
 archive_older: 0
 make_current_version_link: false
 sdk_path: $sdk
 EOF
 chmod 600 "$out/config.yml"
-( cd "$out" && FDROID_KEY_STORE_PASS="$REPO_KEYSTORE_PASSWORD" FDROID_KEY_PASS="$REPO_KEY_PASSWORD" fdroid update )
+trap 'rm -f "$out/config.yml"' EXIT
+( cd "$out" && fdroid update )
 rm -f "$out/config.yml"
 
 # 4. Empreinte de la clé du dépôt (SHA-256 du certificat, majuscules, sans « : »)
