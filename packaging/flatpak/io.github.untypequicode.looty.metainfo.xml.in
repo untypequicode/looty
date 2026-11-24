@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Modèle : scripts/flatpak-render.mjs écrit le fichier final en remplissant les captures et les notes de version ( de backend/releases.json). -->
+<component type="desktop-application">
+  <id>io.github.untypequicode.looty</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>Looty</name>
+  <summary>Boards, tasks and collaborative wiki</summary>
+  <summary xml:lang="fr">Tableaux, tâches et wiki collaboratif</summary>
+  <developer id="io.github.untypequicode">
+    <name>Looty contributors</name>
+  </developer>
+  <description>
+    <p>Looty is a self-hosted workspace for boards, tasks, calendars and a collaborative wiki. This is the desktop client for a Looty server that you or your organization host.</p>
+    <p xml:lang="fr">Looty est un espace de travail auto-hébergé : tableaux, tâches, agendas et wiki collaboratif. Voici le client de bureau d'un serveur Looty que vous ou votre organisation hébergez.</p>
+    <ul>
+      <li>Tray icon, desktop notifications and quick add from a global shortcut</li>
+      <li xml:lang="fr">Icône dans la barre système, notifications et ajout rapide par raccourci global</li>
+      <li>Keeps your data on the device for offline use</li>
+      <li xml:lang="fr">Garde vos données sur l'appareil pour travailler hors ligne</li>
+    </ul>
+    <p>It needs a Looty server to connect to. Updates come from Flathub.</p>
+    <p xml:lang="fr">Il faut un serveur Looty auquel se connecter. Les mises à jour viennent de Flathub.</p>
+  </description>
+  <launchable type="desktop-id">io.github.untypequicode.looty.desktop</launchable>
+  <url type="homepage">https://looty.untypequicode.fr</url>
+  <url type="bugtracker">https://github.com/untypequicode/looty/issues</url>
+  <url type="help">https://looty.untypequicode.fr/docs/use/apps/</url>
+  <url type="vcs-browser">https://github.com/untypequicode/looty</url>
+  <categories>
+    <category>Office</category>
+    <category>ProjectManagement</category>
+  </categories>
+  <keywords>
+    <keyword>tasks</keyword>
+    <keyword>wiki</keyword>
+    <keyword>kanban</keyword>
+    <keyword>notes</keyword>
+  </keywords>
+  <provides>
+    <binary>looty</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  <screenshots>
+    <!-- Captures : dépôt, site/web/public/shots (voir docs/packaging-flathub-winget.md). -->
+@SCREENSHOTS@
+  </screenshots>
+@RELEASES@
+</component>

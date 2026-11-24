@@ -1,0 +1,52 @@
+# Manifeste Flatpak de l'application de bureau (Flathub : io.github.untypequicode.looty).
+# Construction locale / CI : scripts/flatpak-prepare.sh puis flatpak-builder (voir docs/packaging-flathub-winget.md).
+# Pour Flathub, `node scripts/flatpak-render.mjs --flathub` remplace la source « dir » par le tag Git de la version.
+app-id: io.github.untypequicode.looty
+runtime: org.gnome.Platform
+runtime-version: '48'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: looty
+finish-args:
+  # Réseau (le serveur Looty), affichage Wayland avec repli X11, accélération graphique.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Notifications, icône de la barre système, trousseau (clé de chiffrement de la session).
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.secrets
+  # Téléchargements et « Enregistrer sous » passent par les portails : aucun accès aux dossiers de l'utilisateur.
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/looty/cargo
+modules:
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
+  - name: looty
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
+      - install -Dm755 desktop/src-tauri/target/release/looty /app/bin/looty
+      - install -Dm644 packaging/flatpak/io.github.untypequicode.looty.desktop /app/share/applications/io.github.untypequicode.looty.desktop
+      - install -Dm644 packaging/flatpak/io.github.untypequicode.looty.metainfo.xml /app/share/metainfo/io.github.untypequicode.looty.metainfo.xml
+      - install -Dm644 desktop/src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/io.github.untypequicode.looty.png
+      - install -Dm644 desktop/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.untypequicode.looty.png
+      - install -Dm644 desktop/src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.untypequicode.looty.png
+      - install -Dm644 desktop/src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/io.github.untypequicode.looty.png
+      - install -Dm644 desktop/src-tauri/icons/icon.svg /app/share/icons/hicolor/scalable/apps/io.github.untypequicode.looty.svg
+    sources:
+      # BEGIN looty-source
+      - type: dir
+        path: ../..
+        skip: [.git, target, node_modules]
+      # END looty-source
+      # Dépendances Rust hors ligne : généré par scripts/flatpak-prepare.sh (flatpak-cargo-generator).
+      - cargo-sources.json
+      # Métadonnées AppStream générées (notes de version de backend/releases.json) : scripts/flatpak-render.mjs.
+      - type: file
+        path: io.github.untypequicode.looty.metainfo.xml
+        dest: packaging/flatpak
