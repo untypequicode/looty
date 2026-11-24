@@ -1,0 +1,101 @@
+# Paquets Flathub et winget de l'application de bureau : vérifiés sur les pull requests qui y touchent.
+#   flatpak : construit le Flatpak depuis les sources (dépendances Cargo hors ligne), le lance, puis flatpak-builder-lint.
+#   winget  : génère les 3 fichiers YAML et les valide avec les schémas JSON publiés par Microsoft.
+# La soumission à Flathub et à microsoft/winget-pkgs est manuelle (docs/packaging-flathub-winget.md) ;
+# l'ouverture automatique de la PR winget est dans winget.yml.
+name: Packaging
+
+on:
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'scripts/flatpak-*'
+      - 'scripts/winget-manifest.mjs'
+      - 'desktop/src-tauri/Cargo.lock'
+      - 'backend/releases.json'
+      - '.github/workflows/packaging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packaging-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  flatpak:
+    name: Flatpak
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils xvfb dbus-x11
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet aiohttp tomlkit PyYAML
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.gnome.Platform//50 org.gnome.Sdk//50 org.freedesktop.Sdk.Extension.rust-stable//25.08 org.flatpak.Builder
+      - name: Offline sources and AppStream metadata
+        run: |
+          PATH="$RUNNER_TEMP/venv/bin:$PATH" ./scripts/flatpak-prepare.sh
+          ls -l packaging/flatpak
+      - name: Lint (AppStream, desktop file, manifest)
+        working-directory: packaging/flatpak
+        run: |
+          lint() { flatpak run --user --filesystem="$PWD" --command="$1" org.flatpak.Builder "${@:2}"; }
+          lint appstreamcli validate --no-net io.github.untypequicode.looty.metainfo.xml
+          lint desktop-file-validate io.github.untypequicode.looty.desktop
+          lint flatpak-builder-lint manifest io.github.untypequicode.looty.yml
+      - name: Build and install
+        working-directory: packaging/flatpak
+        run: flatpak-builder --user --install --force-clean --disable-rofiles-fuse --repo=repo build io.github.untypequicode.looty.yml
+      # Sans serveur Looty, l'application doit au moins démarrer et rester ouverte (timeout = code 124).
+      - name: Launch
+        run: |
+          set +e
+          xvfb-run -a dbus-run-session -- timeout 25 flatpak run --user io.github.untypequicode.looty
+          code=$?
+          echo "exit code: $code"
+          [ "$code" = 124 ]
+      # Flathub copie les captures sur son miroir (--mirror-screenshots-url) : ces deux erreurs ne concernent pas une construction locale.
+      - name: Lint the repository (flatpak-builder-lint repo)
+        working-directory: packaging/flatpak
+        run: |
+          set +e
+          flatpak run --user --filesystem="$PWD" --command=flatpak-builder-lint org.flatpak.Builder repo repo | tee lint.json
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync('lint.json', 'utf8'))
+            const left = (r.errors || []).filter((e) => !['appstream-missing-screenshots', 'appstream-screenshots-not-mirrored-in-ostree'].includes(e))
+            if (left.length) { console.error('lint errors:', left); process.exit(1) }"
+
+  winget:
+    name: winget manifest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Generate the manifest for the latest desktop release
+        run: |
+          v=$(node -e "const r=require('./backend/releases.json').releases.filter(x=>x.platform==='desktop');console.log(r[0].version)")
+          node scripts/winget-manifest.mjs "$v" out --sha256 "$(printf 'a%.0s' $(seq 64))"
+          find out -type f | sort
+      - name: Validate against the Microsoft JSON schemas
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet jsonschema PyYAML
+          for t in version installer defaultLocale; do curl -sfL "https://aka.ms/winget-manifest.$t.1.10.0.schema.json" -o "$RUNNER_TEMP/$t.json"; done
+          "$RUNNER_TEMP/venv/bin/python" - "$RUNNER_TEMP" <<'PY'
+          import glob, json, sys, yaml, jsonschema
+          tmp = sys.argv[1]
+          kinds = {'ManifestType: version': 'version', 'ManifestType: installer': 'installer', 'ManifestType: defaultLocale': 'defaultLocale'}
+          files = glob.glob('out/manifests/**/*.yaml', recursive=True)
+          assert len(files) == 3, files
+          for f in files:
+              text = open(f).read()
+              kind = next(v for k, v in kinds.items() if k in text)
+              doc = json.loads(json.dumps(yaml.safe_load(text), default=str))
+              jsonschema.validate(doc, json.load(open(f'{tmp}/{kind}.json')))
+              print(f, 'ok')
+          PY

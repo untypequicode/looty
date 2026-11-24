@@ -17,10 +17,11 @@ All downloads are on the [Looty website](/#download). Each app connects to your 
 
 - Debian and Ubuntu: install the `.deb`; it also adds the signed repository, so `sudo apt update && sudo apt upgrade` keeps Looty current.
 - NixOS and Nix: `nix run github:untypequicode/looty`.
+- Flatpak: see [Flathub and winget](/docs/use/flathub-winget/).
 
 ## Windows
 
-Windows 10 and 11. The installer is for your user only. Windows may warn about an unknown publisher: *More info*, then *Run anyway*. There is no automatic update yet.
+Windows 10 and 11. The installer is for your user only. Windows may warn about an unknown publisher: *More info*, then *Run anyway*. There is no automatic update yet. With winget: see [Flathub and winget](/docs/use/flathub-winget/).
 
 ## iPhone and iPad
 
