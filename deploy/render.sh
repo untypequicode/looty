@@ -8,13 +8,15 @@
 #   …lignes gardées seulement avec caddy…
 #   #@end
 #   #@if caddy pocket-id   (gardées seulement si caddy ET pocket-id sont choisis)
-# Options : pocket-id (fournisseur OIDC inclus, préconfiguré pour Looty).
+# Options : pocket-id (fournisseur OIDC inclus, préconfiguré pour Looty) ; backup (sauvegarde automatique de la base) ;
+# avec traefik : entrypoint, resolver (étiquettes du point d'entrée et du résolveur de certificats, valeurs dans .env),
+# network (réseau Docker externe de Traefik, nom dans .env).
 # Pas d'imbrication. Un modèle dont il ne reste rien n'est pas écrit (le Caddyfile, avec Traefik).
 # Le générateur du site (#159) aura le même rendu en JavaScript ; les deux doivent donner les mêmes fichiers.
 set -eu
 
 usage() {
-	echo "usage: $0 caddy|traefik <dossier> [pocket-id]" >&2
+	echo "usage: $0 caddy|traefik <dossier> [pocket-id] [backup] [entrypoint] [resolver] [network]" >&2
 	exit 2
 }
 
@@ -25,7 +27,7 @@ shift 2
 case $proxy in caddy | traefik) ;; *) usage ;; esac
 enabled=$proxy
 for option in "$@"; do
-	case $option in pocket-id) enabled="$enabled $option" ;; *) usage ;; esac
+	case $option in pocket-id | backup | entrypoint | resolver | network) enabled="$enabled $option" ;; *) usage ;; esac
 done
 
 templates=$(dirname "$0")/templates
@@ -44,7 +46,7 @@ for template in "$templates"/*; do
 			open = 1
 			keep = 1
 			for (i = 2; i <= NF; i++) {
-				if ($i != "caddy" && $i != "traefik" && $i != "pocket-id") fail("unknown condition " $i)
+				if ($i != "caddy" && $i != "traefik" && $i != "pocket-id" && $i != "backup" && $i != "entrypoint" && $i != "resolver" && $i != "network") fail("unknown condition " $i)
 				if (!($i in on)) keep = 0
 			}
 			next

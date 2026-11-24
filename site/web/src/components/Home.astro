@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro'
 import Icon from './Icon.astro'
 import Shot from './Shot.astro'
+import Clip from './Clip.astro'
 import Phone from './Phone.astro'
 import { t, REPO, DEMO, type Lang } from '../i18n'
 interface Props { lang: Lang }
@@ -12,6 +13,8 @@ const platforms = [['android', 'phone'], ['linux', 'monitor'], ['windows', 'moni
 const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released, checksum: l.dl.checksum, missing: l.dl.missing, recommended: l.recommended, lang, repo: REPO })
 // Hauteur affichée des captures (part de la largeur) : le vide sous le contenu est coupé.
 const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
+// Mini-vidéo (site/tools/videos.mjs) qui accompagne une capture, quand ses fichiers existent.
+const clipOf: Record<string, string> = { board: 'board', calendar: 'calendar', doc: 'latex' }
 ---
 <Base lang={lang} home>
   <main id="main">
@@ -59,7 +62,10 @@ const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
               <p>{s.p}</p>
               <ul class="ticks">{s.ticks.map((x) => <li>{x}</li>)}</ul>
             </div>
-            <Shot name={s.shot} lang={lang} alt={s.alt} url={s.url} crop={crops[s.shot]} />
+            <div class="media">
+              <Shot name={s.shot} lang={lang} alt={s.alt} url={s.url} crop={crops[s.shot]} />
+              {clipOf[s.shot] && <Clip name={clipOf[s.shot]} lang={lang} caption={s.alt} />}
+            </div>
           </div>
         ))}
         <div class="center" style="margin-top:80px">

@@ -5,7 +5,8 @@
 //
 // Les modèles (deploy/templates/*) sont passés en paramètre : { 'docker-compose.yml': '…', 'Caddyfile': '…', … }.
 
-const KNOWN = ['caddy', 'traefik', 'pocket-id']
+const KNOWN = ['caddy', 'traefik', 'pocket-id', 'backup', 'entrypoint', 'resolver', 'network']
+const OPTIONS = ['pocket-id', 'backup', 'entrypoint', 'resolver', 'network']
 
 /** Rendu d'un modèle : mêmes blocs « #@if … / #@end » que deploy/render.sh. Renvoie '' s'il ne reste rien. */
 export function renderTemplate(text, enabled, file = 'template') {
@@ -43,10 +44,10 @@ export function renderTemplate(text, enabled, file = 'template') {
   return /\S/.test(text2) ? text2 : ''
 }
 
-/** Fichiers rendus d'une installation Compose : { nom: contenu }, comme « render.sh <proxy> <dossier> [pocket-id] ». */
+/** Fichiers rendus d'une installation Compose : { nom: contenu }, comme « render.sh <proxy> <dossier> [options] ». */
 export function renderFiles(templates, proxy, options = []) {
   if (!['caddy', 'traefik'].includes(proxy)) throw new Error(`unknown proxy ${proxy}`)
-  for (const option of options) if (option !== 'pocket-id') throw new Error(`unknown option ${option}`)
+  for (const option of options) if (!OPTIONS.includes(option)) throw new Error(`unknown option ${option}`)
   const files = {}
   for (const name of Object.keys(templates).sort()) {
     const text = renderTemplate(templates[name], [proxy, ...options], name)
@@ -96,6 +97,9 @@ export function validate(o) {
     if (!o.oidc?.clientId) errors.clientId = 'required'
     if (!o.oidc?.clientSecret) errors.clientSecret = 'required'
   }
+  for (const [key, value] of Object.entries(o.proxy === 'traefik' ? (o.traefik ?? {}) : {})) {
+    if (value && !/^[A-Za-z0-9][A-Za-z0-9._@-]*$/.test(value)) errors[`traefik-${key}`] = 'traefik'
+  }
   if (o.smtp?.host && /[\n\r]/.test(Object.values(o.smtp).join(''))) errors.smtp = 'smtp'
   return errors
 }
@@ -107,6 +111,12 @@ export const redirectUrl = (domain, providerId) => `https://${domain}/api/auth/c
 export function installCommand(o, origin = 'https://looty.untypequicode.fr') {
   const parts = [`curl -fsSL ${origin}/install.sh | sh -s -- --domain ${o.domain} --proxy ${o.proxy} --name "${o.name || 'Looty'}" --auth ${o.auth}`]
   if (o.version) parts.push(`--version ${o.version}`)
+  if (o.proxy === 'traefik') {
+    if (o.traefik?.network) parts.push(`--traefik-network ${o.traefik.network}`)
+    if (o.traefik?.entrypoint) parts.push(`--traefik-entrypoint ${o.traefik.entrypoint}`)
+    if (o.traefik?.resolver) parts.push(`--traefik-resolver ${o.traefik.resolver}`)
+  }
+  if (o.dbBackup) parts.push('--backup')
   return parts.join(' ')
 }
 
@@ -141,8 +151,27 @@ export function buildEnv(o, rng = webRng()) {
     providerId = rng.uuid()
     lines.push(`OIDC_ISSUER=${o.oidc.issuer}`, `OIDC_CLIENT_ID=${o.oidc.clientId}`, `OIDC_CLIENT_SECRET=${o.oidc.clientSecret}`, `OIDC_PROVIDER_ID=${providerId}`)
   }
-  lines.push(...extraLines(o))
+  lines.push(...traefikLines(o), ...extraLines(o))
   return { env: lines.join('\n') + '\n', providerId }
+}
+
+/** Réglages de Traefik (valeurs lues par les étiquettes et le réseau du compose). */
+function traefikLines(o) {
+  if (o.proxy !== 'traefik') return []
+  const t = o.traefik ?? {}
+  return [t.network && `TRAEFIK_NETWORK=${t.network}`, t.entrypoint && `TRAEFIK_ENTRYPOINT=${t.entrypoint}`, t.resolver && `TRAEFIK_CERT_RESOLVER=${t.resolver}`].filter(Boolean)
+}
+
+/** Options de rendu des modèles, dans l'ordre de install.sh. */
+export function composeOptions(o) {
+  const options = o.auth === 'bundled-oidc' ? ['pocket-id'] : []
+  if (o.dbBackup) options.push('backup')
+  if (o.proxy === 'traefik') {
+    if (o.traefik?.entrypoint) options.push('entrypoint')
+    if (o.traefik?.resolver) options.push('resolver')
+    if (o.traefik?.network) options.push('network')
+  }
+  return options
 }
 
 /** Options qui s'ajoutent à .env : SMTP (le mot de passe va dans le zip seulement) et Jupyter en réseau privé. */
@@ -163,7 +192,7 @@ const text = {
     intro: (o) => `These files install Looty on \`${o.domain}\` with ${o.proxy === 'caddy' ? 'the bundled Caddy (automatic HTTPS)' : 'your Traefik'}. They were generated in your browser: nothing was sent anywhere, and the secrets in \`.env\` exist only on this machine.`,
     steps: 'Steps',
     dns: (o) => `Point the DNS record of \`${o.domain}\`${o.auth === 'bundled-oidc' ? ` and of \`auth.${o.domain}\`` : ''} to the machine that will run Looty${o.proxy === 'caddy' ? ' (ports 80 and 443 must be free)' : ''}.`,
-    traefik: 'Traefik must already run on this machine with the Docker provider, and see this stack (same network as in your other stacks: add it under `networks` in `docker-compose.yml` if needed). The entry point and certificate resolver are Traefik defaults.',
+    traefik: (o) => `Traefik must already run on this machine with the Docker provider and see this stack. ${o.traefik?.network ? `The services join its Docker network \`${o.traefik.network}\` (it must exist).` : 'Use the same network as in your other stacks: add it under `networks` in `docker-compose.yml` if needed.'} ${o.traefik?.entrypoint ? `The routers use the entry point \`${o.traefik.entrypoint}\`` : 'The routers use all the entry points'}${o.traefik?.resolver ? ` and the certificate resolver \`${o.traefik.resolver}\`.` : '; serve HTTPS on them (certificate resolver or default certificate).'}`,
     copy: (dir) => `Copy these files to the server, for example in \`${dir}\` (keep \`.env\` readable by its owner only: \`chmod 600 .env\`).`,
     up: 'Start it: `docker compose up -d`.',
     redirect: (url) => `Register this redirect URL at your OpenID Connect provider: \`${url}\` (scopes \`openid email profile\`, authorization code flow with PKCE).`,
@@ -171,6 +200,7 @@ const text = {
     local: 'Local accounts are not recommended. The sign-in page asks for a setup code printed in the backend logs: `docker compose logs backend | grep setup`. Administrators must set up two-step verification.',
     open: (d) => `Open \`https://${d}\` and sign in: the first account becomes the administrator.`,
     keep: 'Keep `.env`, and `LOOTY_SECRET_KEY` in particular, in your backups. Backups and updates: ',
+    dbBackup: 'A database dump is made every 24 hours in `data/db-backups` (the last 7 are kept) by the `db-backup` service. Uploaded files are in `backend/uploads`: copy both off this machine.',
     docs: 'Documentation',
     push: 'Notifications: Web Push works out of the box over HTTPS; for UnifiedPush on Android, people choose a distributor in the app.',
     nixIntro: (o) => `This configures Looty on NixOS for \`${o.domain}\`. It was generated in your browser: nothing was sent anywhere.`,
@@ -185,7 +215,7 @@ const text = {
     intro: (o) => `Ces fichiers installent Looty sur \`${o.domain}\` avec ${o.proxy === 'caddy' ? 'Caddy inclus (HTTPS automatique)' : 'votre Traefik'}. Ils ont été générés dans votre navigateur : rien n'a été envoyé nulle part, et les secrets de \`.env\` n'existent que sur cette machine.`,
     steps: 'Étapes',
     dns: (o) => `Faites pointer le DNS de \`${o.domain}\`${o.auth === 'bundled-oidc' ? ` et de \`auth.${o.domain}\`` : ''} vers la machine qui fera tourner Looty${o.proxy === 'caddy' ? ' (les ports 80 et 443 doivent être libres)' : ''}.`,
-    traefik: 'Traefik doit déjà tourner sur cette machine avec le fournisseur Docker, et voir cette pile (même réseau que vos autres piles : ajoutez-le sous `networks` dans `docker-compose.yml` si besoin). Le point d\'entrée et le résolveur de certificats sont ceux par défaut de Traefik.',
+    traefik: (o) => `Traefik doit déjà tourner sur cette machine avec le fournisseur Docker et voir cette pile. ${o.traefik?.network ? `Les services rejoignent son réseau Docker \`${o.traefik.network}\` (il doit exister).` : 'Utilisez le même réseau que vos autres piles : ajoutez-le sous `networks` dans `docker-compose.yml` si besoin.'} ${o.traefik?.entrypoint ? `Les routeurs utilisent le point d\'entrée \`${o.traefik.entrypoint}\`` : 'Les routeurs utilisent tous les points d\'entrée'}${o.traefik?.resolver ? ` et le résolveur de certificats \`${o.traefik.resolver}\`.` : ' ; servez-y HTTPS (résolveur de certificats ou certificat par défaut).'}`,
     copy: (dir) => `Copiez ces fichiers sur le serveur, par exemple dans \`${dir}\` (gardez \`.env\` lisible par son propriétaire seulement : \`chmod 600 .env\`).`,
     up: 'Démarrez : `docker compose up -d`.',
     redirect: (url) => `Déclarez cette URL de redirection chez votre fournisseur OpenID Connect : \`${url}\` (portées \`openid email profile\`, flux « authorization code » avec PKCE).`,
@@ -193,6 +223,7 @@ const text = {
     local: 'Les comptes locaux sont déconseillés. La page de connexion demande un code d\'installation affiché dans les journaux du serveur : `docker compose logs backend | grep setup`. Les administrateurs doivent activer la vérification en deux étapes.',
     open: (d) => `Ouvrez \`https://${d}\` et connectez-vous : le premier compte devient l'administrateur.`,
     keep: 'Gardez `.env`, et surtout `LOOTY_SECRET_KEY`, dans vos sauvegardes. Sauvegardes et mises à jour : ',
+    dbBackup: 'Un export de la base est fait toutes les 24 heures dans `data/db-backups` (les 7 derniers sont gardés) par le service `db-backup`. Les fichiers envoyés sont dans `backend/uploads` : copiez les deux hors de cette machine.',
     docs: 'Documentation',
     push: 'Notifications : le Web Push fonctionne sans réglage en HTTPS ; pour UnifiedPush sur Android, chaque personne choisit un distributeur dans l\'application.',
     nixIntro: (o) => `Ceci configure Looty sur NixOS pour \`${o.domain}\`. Généré dans votre navigateur : rien n'a été envoyé nulle part.`,
@@ -208,7 +239,7 @@ function readme(o, providerId, origin) {
   const x = text[o.lang === 'fr' ? 'fr' : 'en']
   const docs = `${origin}${o.lang === 'fr' ? '/fr' : ''}/docs/host/`
   const steps = [x.dns(o)]
-  if (o.proxy === 'traefik') steps.push(x.traefik)
+  if (o.proxy === 'traefik') steps.push(x.traefik(o))
   steps.push(x.copy('/opt/looty'), x.up)
   if (o.auth === 'oidc') steps.push(x.redirect(redirectUrl(o.domain, providerId)))
   if (o.auth === 'bundled-oidc') steps.push(x.pocket(o.domain))
@@ -225,6 +256,7 @@ function readme(o, providerId, origin) {
     '',
     x.push,
     '',
+    ...(o.dbBackup ? [x.dbBackup, ''] : []),
     `${x.keep}${docs}operate/backup/`,
     '',
     `${x.docs}: ${docs}`,
@@ -236,7 +268,7 @@ function readme(o, providerId, origin) {
 export function buildInstall(o, templates, { rng = webRng(), origin = 'https://looty.untypequicode.fr' } = {}) {
   const errors = validate(o)
   if (Object.keys(errors).length) throw new Error(`invalid parameters: ${Object.keys(errors).join(', ')}`)
-  const files = renderFiles(templates, o.proxy, o.auth === 'bundled-oidc' ? ['pocket-id'] : [])
+  const files = renderFiles(templates, o.proxy, composeOptions(o))
   const { env, providerId } = buildEnv(o, rng)
   files['.env'] = env
   files['README.md'] = readme(o, providerId, origin)

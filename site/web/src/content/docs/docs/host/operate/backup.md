@@ -3,8 +3,9 @@ title: "Backup and restore"
 description: "Back up the database and uploads with the provided scripts, and restore them."
 ---
 
-Two ways, which you can combine:
+Three ways, which you can combine:
 
+- **Automatic with Compose**: tick *Automatic database backup* in the [configuration generator](/install/) (or `install.sh --backup`). A `db-backup` service dumps the database every 24 hours into `data/db-backups` and keeps the last 7. Uploaded files (`backend/uploads`), `.env` and `LOOTY_SECRET_KEY` are not in it: copy them, and the dumps, off the machine.
 - **From the app**: *Administration > Backups* makes full and scheduled backups.
 - **With the scripts**, run from the folder of your compose file (where `.env` is):
 

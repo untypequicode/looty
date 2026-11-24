@@ -7,7 +7,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildEnv, buildInstall, buildNixos, crc32, installCommand, makeZip, maskSecrets, renderFiles, renderTemplate, SECRET_KEYS, validate, webRng } from '../generate.mjs'
+import { buildEnv, composeOptions, buildInstall, buildNixos, crc32, installCommand, makeZip, maskSecrets, renderFiles, renderTemplate, SECRET_KEYS, validate, webRng } from '../generate.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const dirs = []
@@ -25,7 +25,7 @@ const neutral = (env) => env.replace(new RegExp(`^(${[...SECRET_KEYS, 'OIDC_PROV
 
 test('render: every proxy and option gives the files of render.sh, byte for byte', () => {
   for (const proxy of ['caddy', 'traefik']) {
-    for (const options of [[], ['pocket-id']]) {
+    for (const options of [[], ['pocket-id'], ['backup'], ['pocket-id', 'backup', 'entrypoint', 'resolver', 'network'], ['entrypoint'], ['resolver', 'network']]) {
       const out = tempDir()
       execFileSync('sh', [join(root, 'deploy/render.sh'), proxy, out, ...options])
       assert.deepEqual(renderFiles(templates, proxy, options), readDir(out), `${proxy} ${options}`)
@@ -60,12 +60,19 @@ const cases = [
   { proxy: 'caddy', auth: 'bundled-oidc', name: 'Team' },
   { proxy: 'traefik', auth: 'bundled-oidc', name: 'Team', version: '0.47.1' },
   { proxy: 'caddy', auth: 'local', name: 'Local' },
+  { proxy: 'traefik', auth: 'oidc', name: 'Looty', traefik: { network: 'traefik-public', entrypoint: 'websecure', resolver: 'letsencrypt' } },
+  { proxy: 'traefik', auth: 'bundled-oidc', name: 'Team', dbBackup: true, traefik: { entrypoint: 'websecure', network: 'proxy_net' } },
+  { proxy: 'caddy', auth: 'local', name: 'Local', dbBackup: true },
 ]
 
 for (const c of cases) {
-  test(`same files as install.sh: ${c.proxy} ${c.auth}`, () => {
+  test(`same files as install.sh: ${c.proxy} ${c.auth} ${JSON.stringify(c.traefik ?? '')} ${c.dbBackup ?? ''}`, () => {
     const o = { ...c, domain: 'looty.example.org', oidc, lang: 'en' }
-    const args = ['--domain', o.domain, '--proxy', o.proxy, '--name', o.name, '--auth', o.auth, ...(o.version ? ['--version', o.version] : [])]
+    const args = ['--domain', o.domain, '--proxy', o.proxy, '--name', o.name, '--auth', o.auth, ...(o.version ? ['--version', o.version] : []),
+      ...(o.traefik?.network ? ['--traefik-network', o.traefik.network] : []),
+      ...(o.traefik?.entrypoint ? ['--traefik-entrypoint', o.traefik.entrypoint] : []),
+      ...(o.traefik?.resolver ? ['--traefik-resolver', o.traefik.resolver] : []),
+      ...(o.dbBackup ? ['--backup'] : [])]
     const real = cli(args, { OIDC_ISSUER: oidc.issuer, OIDC_CLIENT_ID: oidc.clientId, OIDC_CLIENT_SECRET: oidc.clientSecret })
     const { files } = buildInstall(o, templates)
     const { 'README.md': readme, '.env': env, ...rendered } = files
@@ -76,6 +83,29 @@ for (const c of cases) {
     assert.ok(installCommand(o).includes(`--domain ${o.domain} --proxy ${o.proxy}`))
   })
 }
+
+test('traefik options: labels, network and .env, nothing when not chosen', () => {
+  const base = { proxy: 'traefik', auth: 'local', domain: 'looty.example.org', name: 'T', lang: 'en' }
+  const plain = buildInstall(base, templates).files
+  assert.doesNotMatch(plain['docker-compose.yml'], /entrypoints|certresolver|docker\.network|^networks:|db-backup/m)
+  const t = { network: 'traefik-public', entrypoint: 'websecure', resolver: 'letsencrypt' }
+  const { files } = buildInstall({ ...base, traefik: t, dbBackup: true }, templates)
+  const compose = files['docker-compose.yml']
+  for (const router of ['api', 'collab', 'web']) {
+    assert.ok(compose.includes(`routers.${"$"}{APP_NAME}-${router}.entrypoints=${"$"}{TRAEFIK_ENTRYPOINT`))
+    assert.ok(compose.includes(`routers.${"$"}{APP_NAME}-${router}.tls.certresolver=${"$"}{TRAEFIK_CERT_RESOLVER`))
+  }
+  assert.match(compose, /^networks:\n {2}proxy:\n {4}name: \$\{TRAEFIK_NETWORK/m)
+  assert.match(compose, /^ {2}db-backup:\n {4}image: postgres:18-alpine/m)
+  assert.match(files['.env'], /\nTRAEFIK_NETWORK=traefik-public\nTRAEFIK_ENTRYPOINT=websecure\nTRAEFIK_CERT_RESOLVER=letsencrypt\n/)
+  assert.match(files['README.md'], /traefik-public/)
+  assert.match(files['README.md'], /data\/db-backups/)
+  assert.deepEqual(composeOptions({ ...base, auth: 'bundled-oidc', traefik: t, dbBackup: true }), ['pocket-id', 'backup', 'entrypoint', 'resolver', 'network'])
+  assert.ok(installCommand({ ...base, traefik: t, dbBackup: true }).endsWith('--traefik-network traefik-public --traefik-entrypoint websecure --traefik-resolver letsencrypt --backup'))
+  // Caddy ignore les réglages de Traefik.
+  assert.deepEqual(composeOptions({ ...base, proxy: 'caddy', traefik: t }), [])
+  assert.deepEqual(validate({ ...base, traefik: { network: 'a b' } }), { 'traefik-network': 'traefik' })
+})
 
 test('secrets: same formats as install.sh, different on every run, only in .env', () => {
   const o = { proxy: 'caddy', auth: 'bundled-oidc', domain: 'looty.example.org', name: 'T', lang: 'en' }

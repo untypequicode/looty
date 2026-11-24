@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.49.0",
+      "date": "2026-11-24",
+      "title": {
+        "en": "Demo instance: nightly full reset",
+        "fr": "Instance de démo : remise à zéro complète chaque nuit"
+      },
+      "notes": {
+        "en": [
+          "**Demo reset**: on a demo instance (`LOOTY_DEMO=true`), every visitor copy is now deleted each night, expired or not, at the hour set by `LOOTY_DEMO_RESET_HOUR` (3 by default; `off` turns it off). Real instances are not affected."
+        ],
+        "fr": [
+          "**Remise à zéro de la démo** : sur une instance de démo (`LOOTY_DEMO=true`), toutes les copies des visiteurs sont désormais supprimées chaque nuit, expirées ou non, à l'heure de `LOOTY_DEMO_RESET_HOUR` (3 par défaut ; `off` la désactive). Les vraies instances ne sont pas concernées."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.48.0",
       "date": "2026-11-24",
       "title": {

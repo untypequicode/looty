@@ -1,0 +1,66 @@
+---
+// Mini-vidéo d'une fonction (voir site/tools/videos.mjs, #156) : muette, en boucle, lue seulement quand elle est à
+// l'écran. Ne télécharge rien avant le défilement (preload="none", les sources ne sont lues qu'au premier play).
+// Se replie sans erreur quand les fichiers manquent (ils ne sont pas versionnés) : rien n'est rendu sans vidéo, et
+// l'affiche seule s'il n'y a que l'affiche. Variante choisie selon la langue de la page et son thème (sombre par
+// défaut ; si un seul thème a été enregistré, il sert aux deux).
+// `prefers-reduced-motion` : l'affiche seule, avec un bouton de lecture.
+import fs from 'node:fs'
+import path from 'node:path'
+interface Props { name: string; lang: string; caption: string; play?: string }
+const { name, lang, caption, play = lang === 'fr' ? 'Lire la vidéo' : 'Play the video' } = Astro.props
+// Le build tourne depuis site/web (le chemin de ce fichier n'est plus celui des sources une fois empaqueté).
+const dir = path.join(process.cwd(), 'public', 'clips')
+const has = (file: string) => fs.existsSync(path.join(dir, file))
+const themes = (['dark', 'light'] as const).filter((t) => has(`${name}-${t}-${lang}.webm`) || has(`${name}-${t}-${lang}.mp4`) || has(`${name}-${t}-${lang}.webp`))
+const variants = themes.map((theme) => {
+  const base = `${name}-${theme}-${lang}`
+  return { theme, webm: has(`${base}.webm`) && `/clips/${base}.webm`, mp4: has(`${base}.mp4`) && `/clips/${base}.mp4`, poster: has(`${base}.webp`) && `/clips/${base}.webp` }
+})
+// Le thème manquant prend la variante de l'autre (affichée par les deux classes only-dark / only-light).
+const shown = variants.length === 1 ? [{ ...variants[0], cls: 'only-dark only-light' }] : variants.map((v) => ({ ...v, cls: `only-${v.theme}` }))
+---
+{shown.length > 0 && (
+  <figure class="clip">
+    {shown.map((v) => (v.webm || v.mp4) ? (
+      <video class={v.cls} muted loop playsinline preload="none" poster={v.poster || undefined} aria-label={caption} width="1024" height="640">
+        {v.webm && <source src={v.webm} type="video/webm" />}
+        {v.mp4 && <source src={v.mp4} type="video/mp4" />}
+      </video>
+    ) : (
+      <img class={v.cls} src={v.poster || ''} alt={caption} width="1024" height="640" loading="lazy" decoding="async" />
+    ))}
+    <button class="clip-play" type="button" hidden aria-label={play}>▶</button>
+    <figcaption>{caption}</figcaption>
+  </figure>
+)}
+<script>
+  // Quelques lignes, sans bibliothèque : lecture à l'entrée dans l'écran, pause à la sortie.
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const io = 'IntersectionObserver' in window && !reduced
+    ? new IntersectionObserver((entries) => entries.forEach((e) => {
+        const v = e.target as HTMLVideoElement
+        if (e.isIntersecting) v.play().catch(() => {})
+        else v.pause()
+      }), { threshold: 0.4 })
+    : null
+  document.querySelectorAll<HTMLElement>('figure.clip').forEach((fig) => {
+    const button = fig.querySelector<HTMLButtonElement>('.clip-play')
+    fig.querySelectorAll<HTMLVideoElement>('video').forEach((v) => {
+      if (io) io.observe(v)
+      else if (button) {
+        // Mouvement réduit (ou pas d'observateur) : l'affiche seule, la lecture à la demande.
+        button.hidden = false
+        button.addEventListener('click', () => {
+          if (v.paused) { v.play().catch(() => {}); button.textContent = '❚❚' } else { v.pause(); button.textContent = '▶' }
+        })
+      }
+    })
+  })
+</script>
+<style>
+  .clip { position: relative; margin: 0; border-radius: 14px; overflow: hidden; background: var(--bg-card); box-shadow: var(--shadow); }
+  .clip video, .clip img { width: 100%; height: auto; display: block; }
+  .clip figcaption { padding: 8px 14px; font-size: 13px; color: var(--text-3); }
+  .clip-play { position: absolute; right: 12px; top: 12px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .65); color: #fff; font-size: 14px; cursor: pointer; }
+</style>

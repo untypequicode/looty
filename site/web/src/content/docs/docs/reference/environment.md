@@ -15,6 +15,9 @@ This page is generated from `docs/env-vars.json` and checked in CI against the c
 |---|---|---|---|---|---|---|---|
 | `APP_NAME` | docker compose | Name of the stack in Traefik (router names). Any short word. | – | Traefik only | `looty` | 0.1.0 | yes |
 | `APP_DOMAIN` | docker compose | Domain name of the instance. Its DNS must point to the machine. | – | yes | `looty.example.org` | 0.1.0 | yes |
+| `TRAEFIK_NETWORK` | docker compose | Traefik only, with the generator or install.sh --traefik-network: name of the existing external Docker network Traefik uses to reach the stack. The services are attached to it. | – | no | `traefik-public` | 0.49.0 | yes |
+| `TRAEFIK_ENTRYPOINT` | docker compose | Traefik only, with the generator or install.sh --traefik-entrypoint: entry point of your Traefik that serves the routers (usually the HTTPS one). | – | no | `websecure` | 0.49.0 | yes |
+| `TRAEFIK_CERT_RESOLVER` | docker compose | Traefik only, with the generator or install.sh --traefik-resolver: certificate resolver of your Traefik for the routers. | – | no | `letsencrypt` | 0.49.0 | yes |
 | `LOOTY_VERSION` | docker compose | Version of the Docker images. Set a version number to stay on it. | `latest` | no | `0.33.0` | 0.10.0 | yes |
 | `BASE_URL` | backend | Public address of the instance (https://domain, no trailing slash). Used in sign-in redirects, emails and links. | `http://localhost:3000` | yes | `https://looty.example.org` | 0.1.0 | yes |
 
@@ -90,6 +93,7 @@ This page is generated from `docs/env-vars.json` and checked in CI against the c
 | `LOOTY_DEMO_COPIES_PER_IP_HOUR` | backend | Demo: copies per address and per hour (the reverse proxy must send X-Forwarded-For). | `5` | no | `5` | 0.30.0 | yes |
 | `LOOTY_DEMO_MAX_FILE_MB` | backend | Demo: size of one upload, in MB. | `2` | no | `2` | 0.30.0 | yes |
 | `LOOTY_DEMO_MAX_COPY_MB` | backend | Demo: total size per copy, in MB. | `20` | no | `20` | 0.30.0 | yes |
+| `LOOTY_DEMO_RESET_HOUR` | backend | Demo: hour (0 to 23, in CALENDAR_DEFAULT_TZ, UTC otherwise) of the nightly full reset, which deletes every copy even if it is not expired. Any other value, such as off, turns it off. | `3` | no | `3` | 0.49.0 | yes |
 
 ## Advanced
 

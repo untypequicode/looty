@@ -12,6 +12,10 @@
 #   --auth A        oidc (votre fournisseur), bundled-oidc (Pocket ID inclus) ou local (comptes locaux, déconseillé)
 #   --name N        nom de l'instance (e-mails)
 #   --version X.Y.Z version des images (défaut : latest)
+#   --traefik-network N     (traefik) réseau Docker externe de Traefik, auquel les services sont rattachés
+#   --traefik-entrypoint E  (traefik) point d'entrée de Traefik qui sert les routeurs (ex. websecure)
+#   --traefik-resolver R    (traefik) résolveur de certificats de Traefik (ex. letsencrypt)
+#   --backup        sauvegarde automatique de la base : un export toutes les 24 h dans data/db-backups (7 gardés)
 #   --dir D         dossier d'installation (défaut : /opt/looty)
 #   --force         écrase une installation existante (le .env est sauvegardé en .env.bak)
 #   --upgrade       met à jour les fichiers (modèles) d'une installation en gardant .env
@@ -30,6 +34,10 @@ proxy=
 auth=
 name=
 version=
+t_network=
+t_entrypoint=
+t_resolver=
+backup=0
 dir=/opt/looty
 force=0
 upgrade=0
@@ -52,7 +60,7 @@ note() { echo "==> $*"; }
 
 while [ $# -gt 0 ]; do
 	case $1 in
-	--domain | --proxy | --auth | --name | --version | --dir)
+	--domain | --proxy | --auth | --name | --version | --dir | --traefik-network | --traefik-entrypoint | --traefik-resolver)
 		[ $# -ge 2 ] || die "$1 needs a value"
 		case $1 in
 		--domain) domain=$2 ;;
@@ -61,9 +69,13 @@ while [ $# -gt 0 ]; do
 		--name) name=$2 ;;
 		--version) version=$2 ;;
 		--dir) dir=$2 ;;
+		--traefik-network) t_network=$2 ;;
+		--traefik-entrypoint) t_entrypoint=$2 ;;
+		--traefik-resolver) t_resolver=$2 ;;
 		esac
 		shift 2
 		;;
+	--backup) backup=1; shift ;;
 	--force) force=1; shift ;;
 	--upgrade) upgrade=1; shift ;;
 	--start) start=yes; shift ;;
@@ -122,6 +134,11 @@ if [ "$upgrade" = 1 ]; then
 	if [ ! -f "$dir/.env" ] || [ ! -f "$dir/docker-compose.yml" ]; then die "$dir is not a Looty installation (no .env or docker-compose.yml)"; fi
 	if grep -q 'traefik\.enable' "$dir/docker-compose.yml"; then proxy=traefik; else proxy=caddy; fi
 	[ -z "$(env_get AUTH_DOMAIN)" ] || auth=bundled-oidc
+	# Les options du rendu précédent se lisent dans les fichiers installés.
+	if grep -q '^  db-backup:' "$dir/docker-compose.yml"; then backup=1; fi
+	t_network=$(env_get TRAEFIK_NETWORK)
+	t_entrypoint=$(env_get TRAEFIK_ENTRYPOINT)
+	t_resolver=$(env_get TRAEFIK_CERT_RESOLVER)
 fi
 
 # --- Questions -------------------------------------------------------------------------------------------------
@@ -141,6 +158,11 @@ if [ "$upgrade" = 0 ]; then
 	case $domain in *[!A-Za-z0-9.-]* | .* | *. | '') die "invalid domain: $domain" ;; esac
 	case $version in '' | [0-9]*.[0-9]*.[0-9]*) ;; *) die "--version must look like 1.2.3" ;; esac
 	case $name in *[\"\'\\\$\`]*) die "the name must not contain quotes, backslashes, \$ or backticks" ;; esac
+	for value in "$t_network" "$t_entrypoint" "$t_resolver"; do
+		case $value in '' | [A-Za-z0-9]*) ;; *) die "invalid Traefik value: $value" ;; esac
+		case $value in *[!A-Za-z0-9._@-]*) die "invalid Traefik value: $value" ;; esac
+	done
+	if [ "$proxy" != traefik ] && [ -n "$t_network$t_entrypoint$t_resolver" ]; then die "--traefik-* options need --proxy traefik"; fi
 fi
 
 # --- Prérequis -------------------------------------------------------------------------------------------------
@@ -188,12 +210,18 @@ else
 fi
 option=
 [ "$auth" != bundled-oidc ] || option=pocket-id
+[ "$backup" = 0 ] || option="$option backup"
+if [ "$proxy" = traefik ]; then
+	[ -z "$t_entrypoint" ] || option="$option entrypoint"
+	[ -z "$t_resolver" ] || option="$option resolver"
+	[ -z "$t_network" ] || option="$option network"
+fi
 
 # --- Fichiers --------------------------------------------------------------------------------------------------
 mkdir -p "$dir"
 chmod 750 "$dir"
 rendered="$work/out"
-# shellcheck disable=SC2086 # $option : aucun ou un mot
+# shellcheck disable=SC2086 # $option : zéro, un ou plusieurs mots
 sh "$work/render.sh" "$proxy" "$rendered" $option
 
 if [ "$upgrade" = 1 ]; then
@@ -257,6 +285,9 @@ else
 			echo "OIDC_CLIENT_SECRET=$OIDC_CLIENT_SECRET"
 			echo "OIDC_PROVIDER_ID=$provider_id"
 		fi
+		[ -z "$t_network" ] || echo "TRAEFIK_NETWORK=$t_network"
+		[ -z "$t_entrypoint" ] || echo "TRAEFIK_ENTRYPOINT=$t_entrypoint"
+		[ -z "$t_resolver" ] || echo "TRAEFIK_CERT_RESOLVER=$t_resolver"
 	} > "$dir/.env"
 	chmod 600 "$dir/.env"
 	umask 022

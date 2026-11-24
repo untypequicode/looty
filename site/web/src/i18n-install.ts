@@ -8,6 +8,7 @@ const en = {
   before: 'Before you start', beforeP: 'You need a machine with Docker (or NixOS), a domain name, and ports 80 and 443 for HTTPS.', requirements: 'Requirements',
   target: { legend: 'Where will it run?', compose: 'Docker Compose', nixos: 'NixOS' },
   proxy: { legend: 'Reverse proxy', caddy: 'Caddy: included, HTTPS automatic', traefik: 'Traefik: you already run it', nginx: 'nginx: configured by NixOS' },
+  traefik: { legend: 'Your Traefik', hint: 'Optional: the names used in your Traefik so that the generated labels work as they are. Left empty, the routers use every entry point and the network is yours to attach.', network: 'External Docker network', networkHint: 'Existing network that Traefik joins (for example traefik-public); the services are attached to it.', entrypoint: 'Entry point', entrypointHint: 'For example websecure.', resolver: 'Certificate resolver', resolverHint: 'For example letsencrypt. Empty if Traefik serves a default certificate.' },
   basics: { legend: 'Your instance', domain: 'Domain', domainHint: 'Its DNS record must point to your machine, for example looty.example.org.', name: 'Name of the instance', nameHint: 'Used as the sender name of e-mails.', version: 'Version', versionHint: 'Empty for the latest; pin a version such as 0.47.1 for reproducible installs.', lang: 'Language of the README' },
   auth: {
     legend: 'How do people sign in?',
@@ -24,6 +25,7 @@ const en = {
     smtpHint: 'You can also set this later in Administration > E-mail. The password goes into the zip only.',
     jupyter: 'Allow Jupyter servers on a private network', jupyterHint: 'Lets projects reach a Jupyter server on your local network or over http (JUPYTER_ALLOW_PRIVATE).',
     backup: 'Daily database backup', backupHint: 'NixOS: a dump in /var/backup/postgresql. With Compose, see the backup guide.',
+    dbBackup: 'Automatic database backup', dbBackupHint: 'Adds a service that dumps the database every 24 hours into data/db-backups and keeps the last 7. Uploaded files and .env are yours to copy.',
     push: 'Notifications need nothing here: Web Push works over HTTPS, and UnifiedPush is chosen by each person in the Android app.',
   },
   out: {
@@ -31,7 +33,7 @@ const en = {
     command: 'Or run one command on the server', commandNote: 'It carries only non-secret settings; the script generates the secrets on the machine. Read the script before running it.', copy: 'Copy', copied: 'Copied', readScript: 'Read install.sh',
     preview: 'Preview', previewNote: 'Secrets are hidden here; the zip contains real ones, new at each download.',
     invalid: 'Fix the highlighted fields to get your files.', next: 'Next steps', nextP: 'The README in the zip lists the remaining steps. Full guide:', guide: 'Hosting guide',
-    errors: { domain: 'Letters, digits, dots and dashes only (no https://).', version: 'Three numbers, like 0.47.1.', name: 'No quotes, backslash, $ or backtick.', required: 'Required.', issuer: 'Must start with https://.', smtp: 'No line breaks.' },
+    errors: { traefik: 'Letters, digits, dots, dashes and underscores only.', domain: 'Letters, digits, dots and dashes only (no https://).', version: 'Three numbers, like 0.47.1.', name: 'No quotes, backslash, $ or backtick.', required: 'Required.', issuer: 'Must start with https://.', smtp: 'No line breaks.' },
   },
   noscript: 'This page needs JavaScript: it builds your files in the browser, so that nothing is sent to a server.',
 }
@@ -45,6 +47,7 @@ const fr: typeof en = {
   before: 'Avant de commencer', beforeP: 'Il vous faut une machine avec Docker (ou NixOS), un nom de domaine, et les ports 80 et 443 pour le HTTPS.', requirements: 'Prérequis',
   target: { legend: 'Où va-t-il tourner ?', compose: 'Docker Compose', nixos: 'NixOS' },
   proxy: { legend: 'Proxy inverse', caddy: 'Caddy : inclus, HTTPS automatique', traefik: 'Traefik : vous en avez déjà un', nginx: 'nginx : configuré par NixOS' },
+  traefik: { legend: 'Votre Traefik', hint: 'Facultatif : les noms utilisés dans votre Traefik, pour que les étiquettes générées marchent telles quelles. Laissés vides, les routeurs utilisent tous les points d’entrée et le réseau est à rattacher vous-même.', network: 'Réseau Docker externe', networkHint: 'Réseau existant que Traefik rejoint (par exemple traefik-public) ; les services y sont rattachés.', entrypoint: 'Point d’entrée', entrypointHint: 'Par exemple websecure.', resolver: 'Résolveur de certificats', resolverHint: 'Par exemple letsencrypt. Vide si Traefik sert un certificat par défaut.' },
   basics: { legend: 'Votre instance', domain: 'Domaine', domainHint: 'Son DNS doit pointer vers votre machine, par exemple looty.exemple.fr.', name: 'Nom de l’instance', nameHint: 'Utilisé comme nom d’expéditeur des e-mails.', version: 'Version', versionHint: 'Vide pour la dernière ; figez une version comme 0.47.1 pour une installation reproductible.', lang: 'Langue du README' },
   auth: {
     legend: 'Comment se connecte-t-on ?',
@@ -61,6 +64,7 @@ const fr: typeof en = {
     smtpHint: 'Vous pouvez aussi le régler plus tard dans Administration > E-mail. Le mot de passe va dans le zip seulement.',
     jupyter: 'Autoriser les serveurs Jupyter en réseau privé', jupyterHint: 'Permet aux projets de joindre un serveur Jupyter de votre réseau local ou en http (JUPYTER_ALLOW_PRIVATE).',
     backup: 'Sauvegarde quotidienne de la base', backupHint: 'NixOS : un export dans /var/backup/postgresql. Avec Compose, voir le guide des sauvegardes.',
+    dbBackup: 'Sauvegarde automatique de la base', dbBackupHint: 'Ajoute un service qui exporte la base toutes les 24 heures dans data/db-backups et garde les 7 derniers. Les fichiers envoyés et .env sont à copier vous-même.',
     push: 'Les notifications ne demandent rien ici : le Web Push fonctionne en HTTPS, et UnifiedPush se choisit dans l’application Android.',
   },
   out: {
@@ -68,7 +72,7 @@ const fr: typeof en = {
     command: 'Ou lancez une commande sur le serveur', commandNote: 'Elle ne porte que des réglages non secrets ; le script génère les secrets sur la machine. Lisez le script avant de l’exécuter.', copy: 'Copier', copied: 'Copié', readScript: 'Lire install.sh',
     preview: 'Aperçu', previewNote: 'Les secrets sont masqués ici ; le zip contient les vrais, nouveaux à chaque téléchargement.',
     invalid: 'Corrigez les champs signalés pour obtenir vos fichiers.', next: 'Et ensuite', nextP: 'Le README du zip liste les étapes restantes. Guide complet :', guide: 'Guide d’hébergement',
-    errors: { domain: 'Lettres, chiffres, points et tirets seulement (sans https://).', version: 'Trois nombres, comme 0.47.1.', name: 'Ni guillemets, ni antislash, ni $, ni accent grave.', required: 'Obligatoire.', issuer: 'Doit commencer par https://.', smtp: 'Pas de retour à la ligne.' },
+    errors: { traefik: 'Lettres, chiffres, points, tirets et tirets bas seulement.', domain: 'Lettres, chiffres, points et tirets seulement (sans https://).', version: 'Trois nombres, comme 0.47.1.', name: 'Ni guillemets, ni antislash, ni $, ni accent grave.', required: 'Obligatoire.', issuer: 'Doit commencer par https://.', smtp: 'Pas de retour à la ligne.' },
   },
   noscript: 'Cette page demande JavaScript : elle fabrique vos fichiers dans le navigateur, pour que rien ne soit envoyé à un serveur.',
 }

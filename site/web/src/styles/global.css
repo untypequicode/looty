@@ -96,6 +96,7 @@ h3 { font-size: 17px; margin: 0 0 6px; letter-spacing: -.01em; font-weight: 600;
 
 .row { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; align-items: center; padding: 34px 0; }
 .row.flip { grid-template-columns: 7fr 5fr; } .row.flip .copy { order: 2; }
+.media { display: grid; gap: 14px; min-width: 0; }
 .row .copy p { color: var(--text-2); margin: 0 0 18px; }
 ul.ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 ul.ticks li { display: flex; gap: 10px; color: var(--text-2); font-size: 15px; }

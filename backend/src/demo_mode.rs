@@ -301,9 +301,8 @@ async fn remove_copy(state: &AppState, copy: Uuid) -> Result<(), String> {
     Ok(())
 }
 
-/// Supprime les copies expirées (24 h après leur création) ; renvoie leur nombre.
-pub async fn purge_expired(state: &AppState) -> Result<usize, sqlx::Error> {
-    let copies: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM demo_copies WHERE expires_at <= now()").fetch_all(&state.pool).await?;
+/// Retire des copies une à une ; renvoie combien l'ont été (une copie qui résiste est journalisée et laissée).
+async fn remove_copies(state: &AppState, copies: Vec<Uuid>) -> usize {
     let mut removed = 0;
     for copy in copies {
         match remove_copy(state, copy).await {
@@ -311,17 +310,53 @@ pub async fn purge_expired(state: &AppState) -> Result<usize, sqlx::Error> {
             Err(e) => tracing::warn!("demo: copy {copy} not removed: {e}"),
         }
     }
-    Ok(removed)
+    removed
 }
 
-/// Tâche de fond : ménage des copies expirées, toutes les 10 minutes.
+/// Supprime les copies expirées (24 h après leur création) ; renvoie leur nombre.
+pub async fn purge_expired(state: &AppState) -> Result<usize, sqlx::Error> {
+    let copies: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM demo_copies WHERE expires_at <= now()").fetch_all(&state.pool).await?;
+    Ok(remove_copies(state, copies).await)
+}
+
+/// Remise à zéro complète : supprime toutes les copies, expirées ou non (comptes, espaces, fichiers). Les visiteurs
+/// en cours repartent d'une copie neuve à leur prochaine entrée dans la démo.
+pub async fn reset_all(state: &AppState) -> Result<usize, sqlx::Error> {
+    let copies: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM demo_copies").fetch_all(&state.pool).await?;
+    Ok(remove_copies(state, copies).await)
+}
+
+/// Heure locale de la remise à zéro nocturne : `LOOTY_DEMO_RESET_HOUR` (0 à 23, défaut 3 ; `off` la désactive).
+fn reset_hour() -> Option<u32> {
+    match std::env::var("LOOTY_DEMO_RESET_HOUR") {
+        Err(_) => Some(3),
+        Ok(v) => v.trim().parse::<u32>().ok().filter(|h| *h < 24),
+    }
+}
+
+/// La remise à zéro est due quand l'heure locale est l'heure choisie et qu'elle n'a pas déjà eu lieu ce jour-là.
+fn reset_due(hour: Option<u32>, now_hour: u32, today: chrono::NaiveDate, last: Option<chrono::NaiveDate>) -> bool {
+    hour == Some(now_hour) && last != Some(today)
+}
+
+/// Tâche de fond : ménage des copies expirées toutes les 10 minutes, et remise à zéro complète chaque nuit.
 pub fn start_purge_loop(state: AppState) {
     tokio::spawn(async move {
+        let mut last_reset: Option<chrono::NaiveDate> = None;
         loop {
             match purge_expired(&state).await {
                 Ok(n) if n > 0 => tracing::info!("demo: {n} expired cop(ies) deleted"),
                 Err(e) => tracing::warn!("demo purge: {e}"),
                 _ => {}
+            }
+            let tz: chrono_tz::Tz = std::env::var("CALENDAR_DEFAULT_TZ").ok().and_then(|z| z.parse().ok()).unwrap_or(chrono_tz::UTC);
+            let local = chrono::Utc::now().with_timezone(&tz);
+            if reset_due(reset_hour(), chrono::Timelike::hour(&local), local.date_naive(), last_reset) {
+                last_reset = Some(local.date_naive());
+                match reset_all(&state).await {
+                    Ok(n) => tracing::info!("demo: nightly reset, {n} cop(ies) deleted"),
+                    Err(e) => tracing::warn!("demo reset: {e}"),
+                }
             }
             tokio::time::sleep(std::time::Duration::from_secs(600)).await;
         }
@@ -360,6 +395,16 @@ impl DemoLimits {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nightly_reset_runs_once_per_day_at_the_chosen_hour() {
+        let d = |day| chrono::NaiveDate::from_ymd_opt(2026, 11, day).unwrap();
+        assert!(reset_due(Some(3), 3, d(24), None));
+        assert!(reset_due(Some(3), 3, d(25), Some(d(24))));
+        assert!(!reset_due(Some(3), 3, d(24), Some(d(24))), "already done today");
+        assert!(!reset_due(Some(3), 4, d(24), None), "not the hour");
+        assert!(!reset_due(None, 3, d(24), None), "disabled");
+    }
 
     #[test]
     fn outgoing_routes_are_unavailable_in_the_demo() {
