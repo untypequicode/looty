@@ -38,6 +38,8 @@ mod moodle_cache;
 mod projects;
 mod public_project;
 mod jupyter;
+mod tunnel;
+mod tunnel_relay;
 mod latex;
 mod drive;
 mod extract;
@@ -223,6 +225,7 @@ fn app(state: state::AppState) -> Router {
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
         .nest("/calls", calls::routes())
+        .nest("/tunnels", tunnel::routes())
         .nest("/pages", page::access_routes().merge(revisions::routes()))
         .nest("/ai", ai::routes())
         .nest("/comments", comments::routes())

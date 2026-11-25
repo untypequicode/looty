@@ -348,3 +348,21 @@ _Avoid_: push-to-talk (en français)
 **Qualité de liaison**:
 Mesure continue (latence, perte de paquets, gigue, débit, par `getStats`) de la connexion directe avec chaque participant, résumée par un indicateur bon / moyen / mauvais. Le débit vidéo s'y adapte ; l'audio reste prioritaire. En cas de coupure, la liaison redémarre seule (*ICE restart*).
 _Avoid_: ping, signal
+
+## Tunnel PC
+
+**Tunnel**:
+Connexion sortante qu'une personne ouvre depuis son PC vers une instance pour que celle-ci puisse utiliser ce PC (comme serveur Jupyter, de compilation LaTeX…) tant que la connexion dure. Aucun port à ouvrir ; elle se coupe quand l'agent s'arrête, et les projets reviennent alors à leur moteur par défaut. Voir ADR 0020.
+_Avoid_: VPN, accès à distance, pont
+
+**Agent**:
+Petit programme (`looty-bridge`) lancé sur le PC, qui ouvre le tunnel et ne joint que les services qu'on lui a déclarés. Il s'authentifie avec un jeton de tunnel.
+_Avoid_: client, démon, connecteur
+
+**Service tunnelé**:
+Service local du PC (serveur Jupyter, compilation LaTeX, service HTTP) que l'agent déclare à l'instance sous un nom et un type. L'instance ne peut joindre que les services déclarés, jamais un autre port du PC. Un projet cible un service d'un tunnel au lieu d'une adresse.
+_Avoid_: port, application locale
+
+**Jeton de tunnel**:
+Secret qui authentifie un agent. Lié à une personne et à un espace (éventuellement un projet), à durée limitée, révocable, montré une seule fois. Il ne donne aucun accès à l'API de Looty, à ne pas confondre avec un *Jeton d'accès*.
+_Avoid_: clé, mot de passe d'agent

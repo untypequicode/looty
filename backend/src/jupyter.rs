@@ -144,6 +144,29 @@ struct Server {
     base: Url,
     token: Option<String>,
     hub: Option<Hub>,
+    /// Serveur atteint à travers le tunnel d'un PC (`tunnel.rs`) : `base` n'est alors qu'un point de départ pour les chemins.
+    tunnel: Option<Route>,
+}
+
+/// Tunnel (jeton) et service déclaré par l'agent.
+#[derive(Clone)]
+struct Route {
+    id: Uuid,
+    service: String,
+}
+
+fn tunnel_error(e: crate::tunnel_relay::TunnelError) -> ApiError {
+    use crate::tunnel_relay::TunnelError as E;
+    ApiError::bad_request(match e {
+        E::Offline | E::Closed => "jupyter_tunnel_offline",
+        E::NoService => "jupyter_tunnel_service",
+        E::TooManyStreams => "jupyter_tunnel_busy",
+        E::Timeout => "jupyter_timeout",
+        E::TooLarge => "jupyter_tunnel_too_large",
+        E::Status(401 | 403) => "jupyter_auth_failed",
+        E::Status(404) => "jupyter_kernel_gone",
+        E::BadRequest | E::Status(_) | E::Agent(_) => "jupyter_unreachable",
+    })
 }
 
 /// JupyterHub derrière le serveur : racine du Hub (préfixe de `hub/api`, `user/…`) et nom.
@@ -160,12 +183,19 @@ fn valid_hub_user(s: &str) -> bool {
 impl Server {
     /// Serveur d'une adresse normalisée ; reconnaît un JupyterHub (voir l'en-tête du module).
     async fn new(base: Url, token: Option<String>) -> Server {
-        let mut s = Server { base, token, hub: None };
+        let mut s = Server { base, token, hub: None, tunnel: None };
         s.detect_hub().await;
         s
     }
 
+    fn tunneled(route: Route, token: Option<String>) -> Server {
+        Server { base: Url::parse("http://tunnel.invalid/").expect("static url"), token, hub: None, tunnel: Some(route) }
+    }
+
     async fn detect_hub(&mut self) {
+        if self.tunnel.is_some() {
+            return;
+        }
         let segs: Vec<String> = self.base.path_segments().map(|s| s.filter(|x| !x.is_empty()).map(str::to_string).collect()).unwrap_or_default();
         let n = segs.len();
         if n >= 2 && segs[n - 2] == "user" {
@@ -214,26 +244,39 @@ impl Server {
     /// ni le jeton n'apparaissent dans les messages ou les journaux.
     async fn call_at(&self, base: &Url, method: Method, path: &str, body: Option<Value>, gone: &'static str) -> ApiResult<Value> {
         let url = base.join(path).map_err(|_| ApiError::bad_request("jupyter_invalid_url"))?;
-        let mut req = http().request(method, url);
-        if let Some(t) = &self.token {
-            req = req.header(reqwest::header::AUTHORIZATION, format!("token {t}"));
-        }
-        if let Some(b) = body {
-            req = req.json(&b);
-        }
-        let res = req.send().await.map_err(|e| ApiError::bad_request(if e.is_timeout() { "jupyter_timeout" } else { "jupyter_unreachable" }))?;
-        let status = res.status();
-        match status.as_u16() {
+        let (status, text) = if let Some(route) = &self.tunnel {
+            let session = crate::tunnel_relay::connected(route.id).ok_or_else(|| ApiError::bad_request("jupyter_tunnel_offline"))?;
+            let path = format!("{}{}", url.path(), url.query().map(|q| format!("?{q}")).unwrap_or_default());
+            let mut headers = vec![("accept".to_string(), "application/json".to_string())];
+            if let Some(t) = &self.token {
+                headers.push(("authorization".into(), format!("token {t}")));
+            }
+            let body = body.map(|b| serde_json::to_vec(&b).unwrap_or_default());
+            if body.is_some() {
+                headers.push(("content-type".into(), "application/json".into()));
+            }
+            let r = crate::tunnel_relay::http(&session, &route.service, "jupyter", method.as_str(), &path, headers, body).await.map_err(tunnel_error)?;
+            (r.status, String::from_utf8_lossy(&r.body).into_owned())
+        } else {
+            let mut req = http().request(method, url);
+            if let Some(t) = &self.token {
+                req = req.header(reqwest::header::AUTHORIZATION, format!("token {t}"));
+            }
+            if let Some(b) = body {
+                req = req.json(&b);
+            }
+            let res = req.send().await.map_err(|e| ApiError::bad_request(if e.is_timeout() { "jupyter_timeout" } else { "jupyter_unreachable" }))?;
+            let status = res.status().as_u16();
+            let text = if (200..300).contains(&status) && status != 204 { res.text().await.map_err(|_| ApiError::bad_request("jupyter_unreachable"))? } else { String::new() };
+            (status, text)
+        };
+        match status {
             200..=299 => {}
             401 | 403 => return Err(ApiError::bad_request("jupyter_auth_failed")),
             404 => return Err(ApiError::bad_request(gone)),
             300..=399 => return Err(ApiError::bad_request("jupyter_redirect")),
             _ => return Err(ApiError::bad_request("jupyter_unexpected_status")),
         }
-        if status == reqwest::StatusCode::NO_CONTENT {
-            return Ok(Value::Null);
-        }
-        let text = res.text().await.map_err(|_| ApiError::bad_request("jupyter_unreachable"))?;
         if text.trim().is_empty() {
             return Ok(Value::Null);
         }
@@ -271,10 +314,12 @@ struct ConfigRow {
     token_enc: Option<String>,
     kernel: String,
     updated_at: DateTime<Utc>,
+    tunnel_id: Option<Uuid>,
+    tunnel_service: Option<String>,
 }
 
 async fn load(state: &AppState, project: Uuid) -> ApiResult<Option<ConfigRow>> {
-    Ok(sqlx::query_as("SELECT url, token_enc, kernel, updated_at FROM project_jupyter WHERE project_id = $1").bind(project).fetch_optional(&state.pool).await?)
+    Ok(sqlx::query_as("SELECT url, token_enc, kernel, updated_at, tunnel_id, tunnel_service FROM project_jupyter WHERE project_id = $1").bind(project).fetch_optional(&state.pool).await?)
 }
 
 fn decrypt_token(row: &ConfigRow) -> ApiResult<Option<String>> {
@@ -286,16 +331,39 @@ fn decrypt_token(row: &ConfigRow) -> ApiResult<Option<String>> {
 
 async fn server_for(state: &AppState, project: Uuid) -> ApiResult<(Server, ConfigRow)> {
     let row = load(state, project).await?.ok_or_else(|| ApiError::bad_request("jupyter_not_configured"))?;
-    let base = check_base(&row.url).await?;
     let token = decrypt_token(&row)?;
+    if let (Some(id), Some(service)) = (row.tunnel_id, row.tunnel_service.clone()) {
+        // Le tunnel doit exister, ne pas être révoqué ni expiré, et la fonction doit être activée.
+        let usable = crate::tunnel::enabled() && crate::tunnel::token_row(state, id).await?.is_some_and(|t| t.usable());
+        if !usable {
+            return Err(ApiError::bad_request("jupyter_tunnel_offline"));
+        }
+        return Ok((Server::tunneled(Route { id, service }, token), row));
+    }
+    let base = check_base(&row.url).await?;
     Ok((Server::new(base, token).await, row))
 }
 
-fn config_json(row: Option<&ConfigRow>, can_edit: bool) -> Value {
+/// Tunnel du projet pour l'interface : propriétaire, état en direct (sans rien de secret).
+async fn tunnel_json(state: &AppState, row: &ConfigRow, viewer: Uuid) -> Value {
+    let Some(id) = row.tunnel_id else { return Value::Null };
+    let t = crate::tunnel::token_row(state, id).await.ok().flatten();
+    let mut live = crate::tunnel::live_json(id);
+    live["id"] = json!(id);
+    live["service"] = json!(row.tunnel_service);
+    live["name"] = json!(t.as_ref().map(|t| t.name.clone()));
+    live["mine"] = json!(t.as_ref().is_some_and(|t| t.user_id == viewer));
+    live["usable"] = json!(t.as_ref().is_some_and(|t| t.usable()));
+    live
+}
+
+fn config_json(row: Option<&ConfigRow>, can_edit: bool, tunnel: Value) -> Value {
     match row {
-        None => json!({ "configured": false, "can_edit": can_edit, "allow_private": allow_private() }),
+        None => json!({ "configured": false, "can_edit": can_edit, "allow_private": allow_private(), "tunnels_enabled": crate::tunnel::enabled() }),
         Some(r) => json!({
             "configured": true,
+            "tunnel": tunnel,
+            "tunnels_enabled": crate::tunnel::enabled(),
             "url": r.url,
             "kernel": r.kernel,
             "has_token": r.token_enc.is_some(),
@@ -313,45 +381,88 @@ async fn can_write(state: &AppState, user: &AuthUser, id: Uuid) -> bool {
 async fn get_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
     project_for(&state, &user, id, Need::Read).await?;
     let row = load(&state, id).await?;
-    Ok(Json(config_json(row.as_ref(), can_write(&state, &user, id).await)))
+    let tunnel = match &row {
+        Some(r) => tunnel_json(&state, r, user.id).await,
+        None => Value::Null,
+    };
+    Ok(Json(config_json(row.as_ref(), can_write(&state, &user, id).await, tunnel)))
 }
 
 #[derive(Deserialize)]
 struct ConfigBody {
+    #[serde(default)]
     url: String,
+    /// Tunnel d'un PC (jeton de tunnel de la personne) au lieu d'une adresse ; `service` : nom déclaré par l'agent.
+    tunnel_id: Option<Uuid>,
+    tunnel_service: Option<String>,
     /// Absent : jeton inchangé ; chaîne vide : retiré.
     token: Option<String>,
     kernel: Option<String>,
 }
 
 async fn put_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(b): Json<ConfigBody>) -> ApiResult<Json<Value>> {
-    project_for(&state, &user, id, Need::Write).await?;
-    let base = check_base(&b.url).await?;
+    let (project, _) = project_for(&state, &user, id, Need::Write).await?;
     let kernel = b.kernel.as_deref().map(str::trim).filter(|k| !k.is_empty()).unwrap_or("python3").to_string();
     if !valid_kernel_name(&kernel) {
         return Err(ApiError::bad_request("jupyter_invalid_kernel"));
     }
     let previous = load(&state, id).await?;
+    let (url, tunnel_id, tunnel_service) = match b.tunnel_id {
+        Some(tid) => {
+            if !crate::tunnel::enabled() {
+                return Err(ApiError::bad_request("tunnels_disabled"));
+            }
+            let same = previous.as_ref().is_some_and(|p| p.tunnel_id == Some(tid));
+            let t = crate::tunnel::token_row(&state, tid).await?.filter(|t| t.usable()).ok_or_else(|| ApiError::bad_request("jupyter_tunnel_unknown"))?;
+            // Seul le propriétaire attache son tunnel ; un autre membre peut seulement garder celui déjà attaché.
+            if t.user_id != user.id && !same {
+                return Err(ApiError::Forbidden);
+            }
+            if t.workspace_id != project.workspace_id || t.project_id.is_some_and(|p| p != id) {
+                return Err(ApiError::bad_request("tunnel_wrong_workspace"));
+            }
+            let service = b
+                .tunnel_service
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .or_else(|| crate::tunnel_relay::connected(tid).and_then(|s| s.services().into_iter().find(|s| s.kind == "jupyter").map(|s| s.name)))
+                .or_else(|| previous.as_ref().filter(|p| p.tunnel_id == Some(tid)).and_then(|p| p.tunnel_service.clone()))
+                .unwrap_or_else(|| "jupyter".to_string());
+            if !crate::tunnel_relay::valid_service_name(&service) {
+                return Err(ApiError::bad_request("jupyter_tunnel_service"));
+            }
+            (String::new(), Some(tid), Some(service))
+        }
+        None => (check_base(&b.url).await?.to_string(), None, None),
+    };
     let token_enc = match b.token.as_deref().map(str::trim) {
         Some("") => None,
         Some(t) if t.len() > 4096 => return Err(ApiError::bad_request("invalid_value")),
         Some(t) => Some(crate::crypto::encrypt(t)),
         // Jeton gardé seulement pour le même serveur : changer d'adresse sans le redonner l'efface.
-        None => previous.as_ref().filter(|p| p.url == base.as_str()).and_then(|p| p.token_enc.clone()),
+        None => previous.as_ref().filter(|p| p.url == url && p.tunnel_id == tunnel_id).and_then(|p| p.token_enc.clone()),
     };
     sqlx::query(
-        "INSERT INTO project_jupyter (project_id, url, token_enc, kernel, updated_by, updated_at) VALUES ($1, $2, $3, $4, $5, NOW())
-         ON CONFLICT (project_id) DO UPDATE SET url = $2, token_enc = $3, kernel = $4, updated_by = $5, updated_at = NOW()",
+        "INSERT INTO project_jupyter (project_id, url, token_enc, kernel, updated_by, updated_at, tunnel_id, tunnel_service) VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7)
+         ON CONFLICT (project_id) DO UPDATE SET url = $2, token_enc = $3, kernel = $4, updated_by = $5, updated_at = NOW(), tunnel_id = $6, tunnel_service = $7",
     )
     .bind(id)
-    .bind(base.as_str())
+    .bind(&url)
     .bind(&token_enc)
     .bind(&kernel)
     .bind(user.id)
+    .bind(tunnel_id)
+    .bind(&tunnel_service)
     .execute(&state.pool)
     .await?;
     let row = load(&state, id).await?;
-    Ok(Json(config_json(row.as_ref(), true)))
+    let tunnel = match &row {
+        Some(r) => tunnel_json(&state, r, user.id).await,
+        None => Value::Null,
+    };
+    Ok(Json(config_json(row.as_ref(), true, tunnel)))
 }
 
 async fn delete_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
@@ -494,9 +605,41 @@ async fn stop_kernel(State(state): State<AppState>, user: AuthUser, Path((id, ki
 // Canaux du noyau (WebSocket relayé)
 // ---------------------------------------------------------------------------
 
-type Upstream = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+/// Côté serveur Jupyter d'un canal : connexion directe, ou flux d'un tunnel.
+struct Upstream {
+    tx: std::pin::Pin<Box<dyn futures::Sink<TMsg, Error = String> + Send>>,
+    rx: std::pin::Pin<Box<dyn futures::Stream<Item = Result<TMsg, String>> + Send>>,
+}
+
+async fn connect_tunnel(route: &Route, token: Option<&str>, kid: &str) -> ApiResult<Upstream> {
+    let session = crate::tunnel_relay::connected(route.id).ok_or_else(|| ApiError::bad_request("jupyter_tunnel_offline"))?;
+    let path = format!("/api/kernels/{kid}/channels?session_id={}", Uuid::new_v4());
+    let headers = token.map(|t| vec![("authorization".to_string(), format!("token {t}"))]).unwrap_or_default();
+    let s = crate::tunnel_relay::ws_open(&session, &route.service, "jupyter", &path, headers).await.map_err(tunnel_error)?;
+    let tx = futures::sink::unfold(s.tx, |tx, m: TMsg| async move {
+        match m {
+            TMsg::Text(t) => tx.send_message(true, t.as_bytes()).await,
+            TMsg::Binary(b) => tx.send_message(false, &b).await,
+            TMsg::Close(_) => tx.end().await,
+            _ => Ok(()),
+        }
+        .map_err(|e| e.code())?;
+        Ok::<_, String>(tx)
+    });
+    let rx = futures::stream::unfold(s.rx, |mut rx| async move {
+        match rx.recv_message().await {
+            None => None,
+            Some(Err(e)) => Some((Err(e.code()), rx)),
+            Some(Ok(m)) => Some((Ok(if m.text { TMsg::text(String::from_utf8_lossy(&m.data).into_owned()) } else { TMsg::Binary(m.data.into()) }), rx)),
+        }
+    });
+    Ok(Upstream { tx: Box::pin(tx), rx: Box::pin(rx) })
+}
 
 async fn connect_upstream(server: &Server, kid: &str) -> ApiResult<Upstream> {
+    if let Some(route) = &server.tunnel {
+        return connect_tunnel(route, server.token.as_deref(), kid).await;
+    }
     // Résolution revérifiée à chaque connexion.
     let base = check_base(server.base.as_str()).await?;
     let mut url = base.join(&format!("api/kernels/{kid}/channels")).map_err(|_| ApiError::bad_request("jupyter_invalid_url"))?;
@@ -511,7 +654,10 @@ async fn connect_upstream(server: &Server, kid: &str) -> ApiResult<Upstream> {
     let connect = tokio_tungstenite::connect_async(req);
     match tokio::time::timeout(Duration::from_secs(15), connect).await {
         Err(_) => Err(ApiError::bad_request("jupyter_timeout")),
-        Ok(Ok((ws, _))) => Ok(ws),
+        Ok(Ok((ws, _))) => {
+            let (tx, rx) = ws.split();
+            Ok(Upstream { tx: Box::pin(tx.sink_map_err(|e| e.to_string())), rx: Box::pin(rx.map(|r| r.map_err(|e| e.to_string()))) })
+        }
         Ok(Err(tungstenite::Error::Http(res))) => Err(ApiError::bad_request(match res.status().as_u16() {
             401 | 403 => "jupyter_auth_failed",
             404 => "jupyter_kernel_gone",
@@ -533,7 +679,7 @@ async fn channels(ws: WebSocketUpgrade, State(state): State<AppState>, user: Aut
 }
 
 async fn relay(socket: WebSocket, upstream: Upstream, kid: String) {
-    let (mut up_tx, mut up_rx) = upstream.split();
+    let (mut up_tx, mut up_rx) = (upstream.tx, upstream.rx);
     let (mut cl_tx, mut cl_rx) = socket.split();
     let to_kernel = async {
         while let Some(Ok(m)) = cl_rx.next().await {
@@ -627,6 +773,56 @@ mod tests {
         assert_eq!(base("not a url").unwrap_err(), "jupyter_invalid_url");
     }
 
+
+    /// Un projet qui cible un tunnel : les appels REST et le canal du noyau passent par l'agent (faux ici).
+    #[tokio::test]
+    async fn a_tunneled_server_reaches_jupyter_through_the_agent() {
+        use crate::tunnel_relay::{self as relay, Ctl, Out, ServiceDecl, Session};
+        use futures::{SinkExt, StreamExt};
+        let (tx, mut out) = tokio::sync::mpsc::channel(64);
+        let id = uuid::Uuid::new_v4();
+        let decl = vec![ServiceDecl { name: "pc".into(), kind: "jupyter".into() }];
+        let session = Session::new(id, uuid::Uuid::new_v4(), "t".into(), chrono::Utc::now() + chrono::Duration::days(1), decl, tx);
+        relay::register(session.clone());
+        let agent = session.clone();
+        tokio::spawn(async move {
+            let say = |c: Ctl| serde_json::to_string(&c).unwrap();
+            while let Some(o) = out.recv().await {
+                let Out::Text(t) = o else { continue };
+                let Ok(Ctl::Open { id, path, headers, proto, .. }) = serde_json::from_str::<Ctl>(&t) else { continue };
+                assert!(headers.iter().any(|(k, v)| k == "authorization" && v == "token secret"));
+                if proto == relay::Proto::Http {
+                    assert!(path.starts_with("/api"));
+                    agent.on_text(&say(Ctl::Head { id, status: 200, headers: vec![] })).await.unwrap();
+                    let mut f = id.to_be_bytes().to_vec();
+                    f.push(0);
+                    f.extend_from_slice(br#"{"default":"python3","kernelspecs":{"python3":{"spec":{"display_name":"Python 3","language":"python"}}}}"#);
+                    agent.on_binary(&f).unwrap();
+                } else {
+                    assert!(path.starts_with("/api/kernels/k1/channels?session_id="));
+                    agent.on_text(&say(Ctl::Head { id, status: 101, headers: vec![] })).await.unwrap();
+                    let mut f = id.to_be_bytes().to_vec();
+                    f.extend_from_slice(&[relay::FLAG_TEXT]);
+                    f.extend_from_slice(b"hello");
+                    agent.on_binary(&f).unwrap();
+                }
+                if proto == relay::Proto::Http {
+                    agent.on_text(&say(Ctl::End { id })).await.unwrap();
+                }
+            }
+        });
+        let server = super::Server::tunneled(super::Route { id, service: "pc".into() }, Some("secret".into()));
+        let specs = server.kernelspecs().await.unwrap();
+        assert_eq!(specs["kernels"][0]["name"], "python3");
+        let mut up = super::connect_upstream(&server, "k1").await.unwrap();
+        let m = up.rx.next().await.unwrap().unwrap();
+        assert_eq!(m.into_text().unwrap().as_str(), "hello");
+        up.tx.send(super::TMsg::text("x")).await.unwrap();
+        // Hors ligne : erreur explicite, pas de repli silencieux.
+        relay::disconnect(id, 4001, "revoked");
+        let e = server.kernelspecs().await.err().unwrap();
+        assert!(matches!(e, crate::error::ApiError::BadRequest(c) if c == "jupyter_tunnel_offline"));
+    }
     #[test]
     fn kernel_names() {
         assert!(super::valid_kernel_name("python3"));
