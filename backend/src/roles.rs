@@ -412,7 +412,11 @@ struct SharedPage {
     title: String,
     icon: Option<String>,
     updated_at: DateTime<Utc>,
+    /// `viewer` ou `editor` (anciens clients) ; le niveau précis est dans `level`.
     role: String,
+    /// `read`, `comment`, `edit` ou `manage`.
+    #[sqlx(skip)]
+    level: String,
     /// Page partagée directement (sinon : sous-page d'une page partagée).
     root: bool,
 }
@@ -421,15 +425,20 @@ async fn shared_with_me(State(state): State<AppState>, user: AuthUser) -> ApiRes
     let rows: Vec<SharedPage> = sqlx::query_as(
         "SELECT DISTINCT ON (p.id) p.id, p.workspace_id, w.name AS workspace_name, p.parent_id, p.title, p.icon, p.updated_at, pp.role, TRUE AS root
          FROM page_permissions pp JOIN pages p ON p.id = pp.page_id JOIN workspaces w ON w.id = p.workspace_id
-         WHERE pp.user_id = $1 AND pp.role IN ('viewer', 'editor')
+         WHERE pp.user_id = $1 AND pp.role NOT IN ('deny', 'blocked')
            AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = p.workspace_id AND m.user_id = $1::varchar)
          ORDER BY p.id",
     )
     .bind(user.id)
     .fetch_all(&state.pool)
     .await?;
-    // Sous-pages : contrôle d'accès réel (permissions héritées, blocages éventuels).
+    // Sous-pages : contrôle d'accès réel (permissions héritées, refus éventuels).
     let mut out = rows;
+    for r in &mut out {
+        let grant = crate::access::Grant::parse(&r.role).unwrap_or(crate::access::Grant::Deny);
+        r.level = grant.name().into();
+        r.role = grant.legacy_name().into();
+    }
     let roots: Vec<(Uuid, Uuid)> = out.iter().map(|r| (r.id, r.workspace_id)).collect();
     for (root, _) in roots {
         let children: Vec<(Uuid, Uuid, String, Option<Uuid>, String, Option<String>, DateTime<Utc>)> = sqlx::query_as(
@@ -446,9 +455,9 @@ async fn shared_with_me(State(state): State<AppState>, user: AuthUser) -> ApiRes
             if out.iter().any(|x| x.id == id) {
                 continue;
             }
-            if let Ok((_, Role::Guest, access)) = crate::access::page_access(&state.pool, &user, id).await {
-                let role = if access == crate::access::PageAccess::Write { "editor" } else { "viewer" };
-                out.push(SharedPage { id, workspace_id: ws, workspace_name: wname, parent_id: parent, title, icon, updated_at: updated, role: role.into(), root: false });
+            if let Ok((_, Role::Guest, lv)) = crate::access::page_access_level(&state.pool, &user, id).await {
+                let role = if lv >= crate::access::level::EDIT { "editor" } else { "viewer" };
+                out.push(SharedPage { id, workspace_id: ws, workspace_name: wname, parent_id: parent, title, icon, updated_at: updated, role: role.into(), level: crate::access::level::name(lv).into(), root: false });
             }
         }
     }

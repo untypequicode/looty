@@ -103,7 +103,7 @@ async fn list_workspaces(State(pool): State<PgPool>, user: AuthUser) -> ApiResul
          FROM workspaces w
          WHERE NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = w.id AND m.user_id = $1)
            AND EXISTS (SELECT 1 FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
-                       WHERE p.workspace_id = w.id AND pp.user_id = $2 AND pp.role IN ('viewer', 'editor'))
+                       WHERE p.workspace_id = w.id AND pp.user_id = $2 AND pp.role NOT IN ('deny', 'blocked'))
          ORDER BY created_at ASC",
     )
     .bind(user.id.to_string())
@@ -331,7 +331,7 @@ async fn list_guests(
     let rows: Vec<(Uuid, String, String, Option<String>, i64)> = sqlx::query_as(
         "SELECT u.id, u.name, u.email, u.avatar_url, count(DISTINCT pp.page_id)
          FROM page_permissions pp JOIN pages p ON p.id = pp.page_id JOIN users u ON u.id = pp.user_id
-         WHERE p.workspace_id = $1 AND pp.role IN ('viewer', 'editor')
+         WHERE p.workspace_id = $1 AND pp.role NOT IN ('deny', 'blocked')
            AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $1 AND m.user_id = u.id::varchar)
          GROUP BY u.id, u.name, u.email, u.avatar_url ORDER BY u.name",
     )

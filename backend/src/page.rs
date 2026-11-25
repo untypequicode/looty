@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{get, post, put},
     Json, Router,
@@ -70,6 +70,10 @@ pub struct Page {
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_permissions: Option<bool>,
+    /// Déplacement : qui gagne ou perd l'accès à la page (réponse de la mise à jour seulement).
+    #[sqlx(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_changes: Option<Vec<crate::access::AccessChange>>,
 }
 
 /// Version allégée pour les listes / l'arbre (sans le contenu HTML).
@@ -139,6 +143,7 @@ pub fn routes() -> Router<AppState> {
         .route("/{page_id}/project", post(make_project))
         .route("/{page_id}/canvas-preview", put(save_canvas_preview))
         .route("/{page_id}/move", post(move_to_workspace))
+        .route("/{page_id}/move-preview", get(move_preview))
 }
 
 /// Routes hors workspace : contrôle d'accès pour le serveur de collaboration.
@@ -455,6 +460,11 @@ async fn update_page(
     }
 
     let before: Option<(String, Option<Uuid>, Option<String>)> = sqlx::query_as("SELECT title, parent_id, content FROM pages WHERE id = $1").bind(page_id).fetch_optional(pool).await?;
+    // Déplacement : les accès hérités de l'ancien parent sont remplacés par ceux du nouveau ; on les compare avant d'écrire.
+    let access_changes = match (payload.parent_id, &before) {
+        (Some(np), Some((_, old, _))) if *old != np => Some(crate::access::move_access_changes(pool, page_id, np).await?),
+        _ => None,
+    };
     let page: Page = sqlx::query_as(
         "UPDATE pages SET
             title = COALESCE($1, title),
@@ -481,6 +491,7 @@ async fn update_page(
     .await?;
     // Rangée sous une page personnelle : elle et ses sous-pages le deviennent aussi.
     let mut page = page;
+    page.access_changes = access_changes.clone().filter(|c| !c.is_empty());
     if let Some(Some(parent)) = payload.parent_id {
         let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages WHERE id = $1").bind(parent).fetch_one(pool).await?;
         if owner.is_some() && page.private_to != owner {
@@ -519,6 +530,7 @@ async fn update_page(
 
     let mut lite = page.clone();
     lite.content = None;
+    lite.access_changes = None;
     state.emit(workspace_id, serde_json::json!({ "type": "PAGE_UPDATED", "page": lite })).await;
     Ok(Json(page))
 }
@@ -576,6 +588,8 @@ async fn move_to_workspace(
         }
     }
 
+    // Les partages ne suivent pas la page : on le dit à la personne qui déplace.
+    let dropped_shares: i64 = sqlx::query_scalar("SELECT count(*) FROM page_permissions WHERE page_id = ANY($1)").bind(&ids).fetch_one(pool).await?;
     move_tree(pool, workspace_id, page_id, &ids, target, payload.parent_id, user.id).await?;
 
     crate::activity::log_page(pool, page_id, target, user.id, "move").await;
@@ -589,7 +603,7 @@ async fn move_to_workspace(
         p.content = None;
         state.emit(target, serde_json::json!({ "type": "PAGE_CREATED", "page": p })).await;
     }
-    Ok(Json(serde_json::json!({ "workspace_id": target, "page_id": page_id, "moved": live.len() })))
+    Ok(Json(serde_json::json!({ "workspace_id": target, "page_id": page_id, "moved": live.len(), "dropped_shares": dropped_shares })))
 }
 
 /// Déplace une page (et `ids`, elle et ses sous-pages) vers un autre espace, sous `parent`
@@ -661,7 +675,7 @@ async fn delete_page(
     user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<StatusCode> {
-    let (ws, _) = require_page_write(&state.pool, &user, page_id).await?;
+    let (ws, _) = crate::access::require_page_delete(&state.pool, &user, page_id).await?;
     if ws != workspace_id {
         return Err(ApiError::NotFound);
     }
@@ -756,11 +770,10 @@ async fn get_page_permissions(
     user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
-    let (ws, _, _) = require_page_read(&pool, &user, page_id).await?;
+    let (ws, _) = crate::access::require_page_manage(&pool, &user, page_id).await?;
     if ws != workspace_id {
         return Err(ApiError::NotFound);
     }
-    crate::access::require_perm(&pool, &user, workspace_id, |p| p.admin).await?;
     // Permissions de la page et celles héritées d'un ancêtre (« sous-pages comprises »).
     let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Uuid, String, i32, bool, bool)> = sqlx::query_as(
         "WITH RECURSIVE anc AS (
@@ -777,6 +790,7 @@ async fn get_page_permissions(
     .bind(workspace_id)
     .fetch_all(&pool)
     .await?;
+    let readable = crate::access::visible_levels(&pool, user.id, workspace_id).await?;
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
     for (uid, name, email, avatar, role, inherit, from, from_title, depth, allow_subpages, is_member) in rows {
@@ -784,9 +798,10 @@ async fn get_page_permissions(
         if !seen.insert(uid) {
             continue;
         }
+        let grant = crate::access::Grant::parse(&role).unwrap_or(crate::access::Grant::Deny);
         out.push(serde_json::json!({
-            "user_id": uid, "name": name, "email": email, "avatar_url": avatar, "role": role, "inherit": inherit, "allow_subpages": allow_subpages,
-            "is_member": is_member, "inherited_from": if depth > 0 { Some(serde_json::json!({ "id": from, "title": from_title })) } else { None },
+            "user_id": uid, "name": name, "email": email, "avatar_url": avatar, "role": grant.legacy_name(), "level": grant.name(), "inherit": inherit, "allow_subpages": allow_subpages,
+            "is_member": is_member, "inherited_from": if depth == 0 { None } else if readable.get(&from).is_some_and(|l| *l > crate::access::level::NONE) { Some(serde_json::json!({ "id": from, "title": from_title })) } else { Some(serde_json::json!({ "id": null, "title": "" })) },
         }));
     }
     Ok(Json(out))
@@ -800,23 +815,34 @@ async fn set_page_permission(
 ) -> ApiResult<StatusCode> {
     let pool = &state.pool;
     ensure_in_workspace(pool, page_id, workspace_id).await?;
-    crate::access::require_perm(pool, &user, workspace_id, |p| p.admin).await?;
+    // Administrateur de l'espace, ou niveau « gestion » sur la page (invité compris).
+    crate::access::require_page_manage(pool, &user, page_id).await?;
     let member = is_member(pool, workspace_id, &payload.user_id.to_string()).await?;
     let inherit = payload.inherit.unwrap_or(true);
-    let allow_subpages = payload.role == "editor" && payload.allow_subpages.unwrap_or(false);
+    // `viewer` (anciens clients) : lecture et commentaire, comme avant les niveaux ; la personne dont
+    // le rôle ne permet pas de commenter garde la lecture seule.
+    let stored = match payload.role.as_str() {
+        "viewer" => {
+            let docs = crate::access::member_perms(pool, payload.user_id, workspace_id).await?.map(|(_, p)| p.docs);
+            if docs.is_some_and(|d| d < crate::access::level::COMMENT) { "read" } else { "comment" }
+        }
+        other => crate::access::Grant::parse(other).map(|g| g.name()).unwrap_or(other),
+    };
+    let allow_subpages = matches!(crate::access::Grant::parse(stored), Some(crate::access::Grant::Level(l)) if l >= crate::access::level::EDIT) && payload.allow_subpages.unwrap_or(false);
     match payload.role.as_str() {
         "none" => {
-            sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
+            let removed = sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
                 .bind(page_id)
                 .bind(payload.user_id)
                 .execute(pool)
-                .await?;
-        }
-        // Personne extérieure à l'espace : lecture ou écriture seulement (invité).
-        "viewer" | "editor" | "blocked" => {
-            if !member && payload.role == "blocked" {
-                return Err(ApiError::bad_request("not_a_member"));
+                .await?
+                .rows_affected();
+            if removed > 0 {
+                crate::activity::log_page(pool, page_id, workspace_id, user.id, "unshare").await;
             }
+        }
+        // Niveaux : lecture, commentaire, modification, gestion, ou refus (membres et personnes extérieures).
+        "read" | "comment" | "edit" | "manage" | "deny" | "viewer" | "editor" | "blocked" => {
             let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE id = $1").bind(payload.user_id).fetch_optional(pool).await?;
             exists.ok_or(ApiError::NotFound)?;
             let created: bool = sqlx::query_scalar(
@@ -826,13 +852,14 @@ async fn set_page_permission(
             )
             .bind(page_id)
             .bind(payload.user_id)
-            .bind(&payload.role)
+            .bind(stored)
             .bind(inherit)
             .bind(user.id)
             .bind(allow_subpages)
             .fetch_one(pool)
             .await?;
-            if created && !member {
+            crate::activity::log_page(pool, page_id, workspace_id, user.id, "share").await;
+            if created && !member && stored != "deny" {
                 // Invité : prévenu par e-mail (page visible dans « Partagé avec moi »).
                 let (title,): (String,) = sqlx::query_as("SELECT title FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
                 let (to, to_name): (String, String) = sqlx::query_as("SELECT email, name FROM users WHERE id = $1").bind(payload.user_id).fetch_one(pool).await?;
@@ -846,6 +873,33 @@ async fn set_page_permission(
     }
     state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct MovePreviewQuery {
+    /// Nouveau parent ; absent : racine de l'espace.
+    parent_id: Option<Uuid>,
+}
+
+/// Qui gagne ou perd l'accès à la page si elle est rangée sous `parent_id` (sans rien changer).
+async fn move_preview(
+    State(pool): State<PgPool>,
+    user: AuthUser,
+    Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<MovePreviewQuery>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let (ws, _) = require_page_write(&pool, &user, page_id).await?;
+    if ws != workspace_id {
+        return Err(ApiError::NotFound);
+    }
+    if let Some(p) = q.parent_id {
+        let (pws, _) = require_page_write(&pool, &user, p).await?;
+        if pws != workspace_id || p == page_id {
+            return Err(ApiError::bad_request("invalid_parent"));
+        }
+    }
+    let changes = crate::access::move_access_changes(&pool, page_id, q.parent_id).await?;
+    Ok(Json(serde_json::json!({ "changes": changes })))
 }
 
 async fn toggle_favorite(
@@ -900,6 +954,9 @@ struct AccessCheck {
     user_id: Uuid,
     name: String,
     can_write: bool,
+    /// Niveau précis : `read`, `comment`, `edit` ou `manage`.
+    level: &'static str,
+    can_comment: bool,
 }
 
 /// Utilisé par le serveur Hocuspocus (cookie de session transmis) pour autoriser
@@ -909,12 +966,12 @@ async fn page_access_check(
     user: AuthUser,
     Path(page_id): Path<Uuid>,
 ) -> ApiResult<Json<AccessCheck>> {
-    let (_, _, access) = require_page_read(&pool, &user, page_id).await?;
+    let (_, _, lv) = crate::access::require_page_level(&pool, &user, page_id, crate::access::level::READ).await?;
     let name: String = sqlx::query_scalar("SELECT name FROM users WHERE id = $1")
         .bind(user.id)
         .fetch_one(&pool)
         .await?;
-    Ok(Json(AccessCheck { user_id: user.id, name, can_write: access == PageAccess::Write }))
+    Ok(Json(AccessCheck { user_id: user.id, name, can_write: lv >= crate::access::level::EDIT, level: crate::access::level::name(lv), can_comment: crate::access::can_comment_level(lv) }))
 }
 
 /// La page devient un projet (LaTeX, site, notebook) : son texte reste dans l'onglet Notes.

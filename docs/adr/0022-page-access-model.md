@@ -1,6 +1,6 @@
 # 0022 - Page access model: audit, target model and phases
 
-Status: proposed (phase 1 of issue #298: audit, tests and small fixes shipped; the model below is built in later phases)
+Status: phases 1 and 2 shipped (audit, tests, one access resolver, levels, deny, scope); the rest of the model is built in later phases
 
 Context: giving someone of the instance who is not a member of the space access to a page and its sub-pages goes through the page share (Share, Access). Users report it "does not seem to work well". This ADR records how access works today (audited end to end, with executable tests in `backend/src/page_access_tests.rs`), the defects found, the target model and the plan.
 
@@ -93,3 +93,16 @@ Surfaces: lists, tree, canvases, graph, activity, classes use `visible_pages`; s
 4. **Phase 4 - groups and notifications**: instance-level groups as share targets, guest mentions, in-app notification on share, activity log of share changes.
 5. **Phase 5 - files, projects and live revocation**: authenticated and page-bound uploads, projects/notebooks/tasks in pages checked through the resolver, guest realtime refresh, collaboration downgrade on level change, trash and move rules.
 6. **Phase 6 - end-to-end and docs**: e2e (outsider with page and sub-pages, revoke, inherit, override, collaboration, files), EN/FR docs and release notes.
+
+## 7. Phase 2 (shipped in web 0.63.0): resolver, levels, deny, scope
+
+- **One resolver** (`backend/src/access.rs`): `resolve_level(perms, grant)` is the only place that turns a person's space role and the nearest page grant (`nearest_grant`) into a level (`level::READ/COMMENT/EDIT/MANAGE`, `NONE`). `page_level` (one page: ancestors chain + grants in two queries) and `visible_levels` (a whole space) both call it; `page_access`, `require_page_*`, `visible_pages`, search, lists, tree, canvases, graph, activity, comments, revisions, projects, calls, study, AI tools, the realtime hub (`ws.rs`) and the collaboration check (`GET /api/pages/{id}/access`, now also `level` and `can_comment`) sit on top. A randomized test checks `page_level == visible_levels` on random trees, grants (all levels, deny, scopes, unknown values) and private pages.
+- **Levels**: stored in `page_permissions.role` as `read | comment | edit | manage | deny`. `manage` = may list and change the shares of that page (space admins keep it everywhere); a manager can grant at most `manage`, and `PUT/GET /permissions` need it. Space role levels (docs) are unchanged: `none/read/comment/edit` map to the same levels.
+- **Deny** works for members and outsiders; the nearest grant wins, so a deny on a sub-page overrides an allow above and an allow below a deny reopens a sub-tree.
+- **Scope** is the existing `inherit` flag (this page only / with sub-pages); `allow_subpages` stays an option of `edit` and `manage`.
+- **Compatibility**: the API still accepts `viewer` (= comment, or read for a member whose role cannot comment), `editor` (= edit), `blocked` (= deny) and returns the former name in `role` beside the new one in `level`. OpenAPI documents the permissions routes and `move-preview`.
+- **Migration** (`20261215120000_page_access_levels.sql`): `editor -> edit`, `blocked -> deny`, `viewer -> comment`, except `read` for members whose role has no comment right (they could not comment). Nothing becomes `manage`. A test compares the effective rights (read, write, comment) of 35 person x page pairs before (historical rules) and after.
+
+Gaps closed: G2 (commenting and resolving a thread follow one rule: level `comment`, for guests and members), G3 (deny for outsiders and members, per page or per tree), G4 (`manage` works for guests and members), G7 (a guest editor cannot trash the page shared with them unless they manage it; sub-pages stay trashable), G9 (moving reports who gains or loses access in `access_changes`, `GET /pages/{id}/move-preview` shows it beforehand, moving to another space returns `dropped_shares`, the permission event is emitted), G11 (`share` / `unshare` entries in the page activity), G12 (a suspended account has no level anywhere, in the single and bulk resolver).
+
+Remaining: G1 and G5 to G6, G8, G10 and the rest of the target model (groups, instance directory limits, guest mentions, files) in phases 3 to 6; the share dialog still only shows the levels in the existing list (phase 3).
