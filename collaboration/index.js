@@ -331,7 +331,7 @@ const server = new Server({
     if (!fid && !cid && !sid && !call && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
       throw authError('outdated-client')
     }
-    // Présentation : son propre numéro de format (ADR 0022).
+    // Présentation : son propre numéro de format (ADR 0023).
     if (sid && Number(requestParameters?.get?.('schema') || 0) < SLIDES_SCHEMA) {
       throw authError('outdated-client')
     }

@@ -40,7 +40,7 @@ pub struct Page {
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_kind: Option<String>,
-    /// Vue à l'ouverture : « doc » (texte), « canvas » ou « slides » (présentation, ADR 0022).
+    /// Vue à l'ouverture : « doc » (texte), « canvas » ou « slides » (présentation, ADR 0023).
     #[sqlx(default)]
     pub default_view: String,
     /// Éléments du canevas (0 : canevas vide).

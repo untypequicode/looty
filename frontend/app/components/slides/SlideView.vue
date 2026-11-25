@@ -4,7 +4,7 @@ import { fragmentHtml, slideColor } from '~/slides/render'
 import { textOf, type Slide, type SlideElement } from '~/slides/model'
 
 /**
- * Une diapositive rendue en DOM et SVG (ADR 0022) : une boîte de taille logique (1920 x 1080) mise
+ * Une diapositive rendue en DOM et SVG (ADR 0023) : une boîte de taille logique (1920 x 1080) mise
  * à l'échelle de son conteneur. Sert au canevas, aux miniatures et plus tard au mode présentation.
  * Le slot par défaut est dessiné dans le repère logique (sélection, guides) ; `editor` remplace le
  * texte d'un élément en cours d'édition.

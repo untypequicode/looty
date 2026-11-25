@@ -1,7 +1,7 @@
 /**
  * Géométrie pure des diapositives (aucune dépendance à Vue ni à Yjs) : boîtes tournées,
  * redimensionnement par poignées, alignement, répartition, guides magnétiques, sélection au lasso.
- * Unités logiques du canevas (1920 x 1080 par défaut). Voir l'ADR 0022.
+ * Unités logiques du canevas (1920 x 1080 par défaut). Voir l'ADR 0023.
  */
 
 export interface Box { x: number; y: number; w: number; h: number; rotation?: number }

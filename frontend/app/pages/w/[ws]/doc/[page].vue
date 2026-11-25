@@ -202,7 +202,7 @@ const docView = computed<DocView>(() => {
 })
 const showProject = computed(() => !!live.value?.project_id && docView.value === 'project')
 const showCanvas = computed(() => docView.value === 'canvas' && live.value?.default_view !== 'slides')
-/** Présentation (ADR 0022) : la page s'ouvre sur ses diapositives, `?view=doc` montre son texte. */
+/** Présentation (ADR 0023) : la page s'ouvre sur ses diapositives, `?view=doc` montre son texte. */
 const showSlides = computed(() => live.value?.default_view === 'slides' && route.query.view !== 'doc' && !live.value?.project_id)
 /** Vue à l'ouverture de la page (pour tout le monde). */
 async function setDefaultView(v: 'doc' | 'canvas') {

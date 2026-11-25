@@ -164,7 +164,7 @@ struct PageRow {
     title: String,
     content: Option<String>,
     yjs_state: Option<Vec<u8>>,
-    /// Plan textuel d'une présentation (ADR 0022) : son contenu dans l'archive.
+    /// Plan textuel d'une présentation (ADR 0023) : son contenu dans l'archive.
     slides_text: Option<String>,
 }
 

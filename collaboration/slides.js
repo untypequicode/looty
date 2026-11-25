@@ -1,4 +1,4 @@
-// Présentations (ADR 0022) : document Yjs « slides:<page> » (meta, slides). Ce module garde la
+// Présentations (ADR 0023) : document Yjs « slides:<page> » (meta, slides). Ce module garde la
 // version du format (SLIDES_SCHEMA, avec frontend/app/slides/model.ts) et calcule le résumé
 // enregistré avec l'état : nombre de diapositives et plan textuel (recherche, graphe, export).
 const Y = require('yjs')

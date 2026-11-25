@@ -1,4 +1,4 @@
--- Présentations (ADR 0022) : une page ouverte en « slides » porte un document Yjs « slides:<page> »
+-- Présentations (ADR 0023) : une page ouverte en « slides » porte un document Yjs « slides:<page> »
 -- tenu par le serveur de collaboration, comme le canevas. Droits, partage, corbeille : ceux de la page.
 
 ALTER TABLE pages_all

@@ -1,4 +1,4 @@
-// Présentations (ADR 0022) : créer une présentation, ajouter du texte et des formes, déplacer,
+// Présentations (ADR 0023) : créer une présentation, ajouter du texte et des formes, déplacer,
 // annuler, voir la présence et les changements d'une autre personne en direct.
 import { readFileSync } from 'node:fs'
 import { B, WS, OUT, ok, launch, login, api as call } from '../lib/index.mjs'

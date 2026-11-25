@@ -2,7 +2,7 @@ import * as Y from 'yjs'
 import { align as alignBoxes, distribute as distributeBoxes, type AlignMode, type Box } from './geometry.ts'
 
 /**
- * Modèle d'une présentation (ADR 0022) : un document Yjs « slides:<page> ».
+ * Modèle d'une présentation (ADR 0023) : un document Yjs « slides:<page> ».
  *
  *   meta      Y.Map   schema, width, height
  *   slides    Y.Map   id -> diapositive (Y.Map : id, pos, layout, background, notes, elements)
@@ -159,7 +159,7 @@ export function isNewerThanClient(doc: Y.Doc): boolean {
   return docSchema(doc) > SLIDES_SCHEMA
 }
 
-/** Point d'entrée des migrations (ADR 0022) : une seule version pour l'instant, rien à convertir. */
+/** Point d'entrée des migrations (ADR 0023) : une seule version pour l'instant, rien à convertir. */
 export function migrate(_doc: Y.Doc): boolean {
   return false
 }

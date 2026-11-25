@@ -1,4 +1,4 @@
-# 0022 - Presentations: one collaborative Yjs document per page, DOM and SVG rendering
+# 0023 - Presentations: one collaborative Yjs document per page, DOM and SVG rendering
 
 Status: accepted
 

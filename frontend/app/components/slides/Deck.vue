@@ -21,7 +21,7 @@ import TextEdit from './TextEdit.vue'
 import Inspector from './Inspector.vue'
 
 /**
- * Présentation d'une page (ADR 0022) : rail de miniatures, canevas et panneau de propriétés, édités
+ * Présentation d'une page (ADR 0023) : rail de miniatures, canevas et panneau de propriétés, édités
  * à plusieurs dans le document Yjs « slides:<page> ». Annulation par personne, présence (sélection et
  * curseur des autres personnes), lecture seule sans droit d'écriture.
  */

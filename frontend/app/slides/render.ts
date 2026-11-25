@@ -1,7 +1,7 @@
 import * as Y from 'yjs'
 
 /**
- * Rendu des diapositives (ADR 0022) : couleurs (clés de la palette de l'éditeur ou #rrggbb) et texte
+ * Rendu des diapositives (ADR 0023) : couleurs (clés de la palette de l'éditeur ou #rrggbb) et texte
  * riche d'une zone de texte converti en HTML sûr (tout le texte est échappé, les liens filtrés).
  */
 

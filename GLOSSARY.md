@@ -368,7 +368,7 @@ Secret qui authentifie un agent. Lié à une personne et à un espace (éventuel
 _Avoid_: clé, mot de passe d'agent
 
 **Présentation**:
-Page de type « diapositives » (`default_view` = `slides`) : liste ordonnée de *diapositives* éditée à plusieurs en temps réel, dans son propre document collaboratif `slides:<page>`. Elle se partage, se range, se recherche et se commente comme n'importe quelle page. Voir l'ADR 0022.
+Page de type « diapositives » (`default_view` = `slides`) : liste ordonnée de *diapositives* éditée à plusieurs en temps réel, dans son propre document collaboratif `slides:<page>`. Elle se partage, se range, se recherche et se commente comme n'importe quelle page. Voir l'ADR 0023.
 _Avoid_: diaporama, deck, slideshow, PowerPoint
 
 **Diapositive**:
