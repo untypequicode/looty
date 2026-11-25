@@ -16,18 +16,18 @@ export interface ToolbarGroup {
 
 /** Ordre d'affichage. Les groupes de priorité négative (style de bloc, menu Insérer) ne sont jamais repliés. */
 export const TOOLBAR_GROUPS: ToolbarGroup[] = [
-  { id: 'history', slots: 2, priority: 5 },
+  { id: 'history', slots: 2, priority: 2 },
   { id: 'block', slots: 3, priority: -1 },
   { id: 'marks', slots: 5, priority: 1 },
   { id: 'color', slots: 2, priority: 6 },
   { id: 'lists', slots: 5, priority: 3 },
   { id: 'align', slots: 1, priority: 7 },
-  { id: 'insert', slots: 5, priority: 2 },
-  { id: 'table', slots: 2, priority: 4 },
+  { id: 'insert', slots: 5, priority: 4 },
+  { id: 'table', slots: 2, priority: 5 },
   { id: 'more', slots: 1, priority: -1 },
 ]
 
-export const BTN_WIDTH = 30
+export const BTN_WIDTH = 29
 export const SEP_WIDTH = 9
 /** Largeur réservée au bouton « Plus ». */
 export const MORE_WIDTH = 38

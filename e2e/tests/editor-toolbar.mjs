@@ -22,7 +22,8 @@ ok('édition : barre visible, role toolbar', (await tb.getAttribute('role')) ===
 await p.screenshot({ path: OUT + 'editor-toolbar-light.png' })
 
 // Gras sur un mot sélectionné.
-await editor.locator('p').first().dblclick()
+await editor.locator('p').first().click()
+await p.keyboard.press('ControlOrMeta+A')
 await btn('bold').click()
 ok('gras : appliqué', (await editor.locator('strong').count()) > 0)
 ok('gras : bouton actif', (await btn('bold').getAttribute('aria-pressed')) === 'true')
@@ -35,7 +36,8 @@ await p.getByRole('menuitem', { name: /^(Heading 1|Titre 1)$/ }).click()
 ok('titre 1', (await editor.locator('h1').count()) === 1)
 
 // Lien.
-await editor.locator('h1').dblclick()
+await editor.locator('h1').click()
+await p.keyboard.press('ControlOrMeta+A')
 await btn('link').click()
 await p.getByRole('textbox', { name: /^(Link|Lien)$/ }).fill('example.org')
 await p.keyboard.press('Enter')

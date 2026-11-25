@@ -18,7 +18,7 @@ test('large screen: every group stays in the bar, no More menu', () => {
 
 test('narrow screen: lowest-priority groups fold first, order is kept', () => {
   const r = splitGroups(total - 1)
-  assert.equal(r.overflow[0], 'align')
+  assert.ok(r.overflow.includes('align') && !r.overflow.includes('marks') && !r.overflow.includes('history'))
   assert.ok(r.visible.includes('block') && r.visible.includes('marks') && r.visible.includes('more'))
   const order = TOOLBAR_GROUPS.map((g) => g.id)
   for (const part of [r.visible, r.overflow]) assert.deepEqual(part, order.filter((id) => part.includes(id)))

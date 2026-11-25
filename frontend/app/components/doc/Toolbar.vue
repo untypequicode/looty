@@ -428,6 +428,8 @@ function onFocusIn(e: FocusEvent) {
 .tb-label { font-size: var(--fs-md); white-space: nowrap; }
 .tb-hide { opacity: 0.6; }
 .sep { width: 1px; height: 18px; flex: none; background: var(--border-strong); margin: 0 4px; }
+/* Colonne de 760px trop étroite pour tous les groupes : la barre déborde vers la marge gauche, vide, quand il y a la place. */
+@media (min-width: 1100px) { .tb:not(.mobile) { margin-left: -76px; } }
 .spacer { flex: 1; }
 .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px; }
 .swatch { width: 32px; height: 32px; border-radius: var(--r-full); display: grid; place-items: center; color: var(--bg); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
