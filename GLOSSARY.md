@@ -318,7 +318,7 @@ Page d'administration et commande `looty doctor` qui vérifient l'installation :
 ## Appels
 
 **Appel**:
-Conversation vocale (puis vidéo, plus tard) entre les personnes qui travaillent sur un même élément. Elle passe directement d'un navigateur à l'autre : le serveur de Looty n'écoute rien et ne garde rien. L'appel continue quand on change de page, grâce à la barre d'appel.
+Conversation vocale, avec caméra et partage d'écran en option, entre les personnes qui travaillent sur un même élément. Elle passe directement d'un navigateur à l'autre : le serveur de Looty n'écoute rien et ne garde rien. L'appel continue quand on change de page, grâce à la barre d'appel.
 _Avoid_: conférence, visio (réservé à la vidéo), chat vocal
 
 **Salle d'appel**:
@@ -332,3 +332,11 @@ _Avoid_: invité (qui désigne un invité d'espace), interlocuteur
 **Signalisation**:
 Échange de petits messages (arrivée, départ, offres et réponses WebRTC, candidats réseau, micro coupé) par lequel les navigateurs se mettent en relation. C'est la seule chose que le serveur relaie dans un appel ; elle passe par le serveur de collaboration. Voir ADR 0019.
 _Avoid_: serveur d'appel, relais audio
+
+**Partage d'écran**:
+Flux vidéo dédié d'un appel (écran, fenêtre ou onglet, avec le son du système si le navigateur le permet), affiché en grand chez tous les participants avec le nom de la personne qui partage. Il privilégie la netteté du texte (peu d'images par seconde) ; la caméra, elle, est limitée à 4 personnes par appel.
+_Avoid_: diffusion, présentation
+
+**Qualité de liaison**:
+Mesure continue (latence, perte de paquets, gigue, débit, par `getStats`) de la connexion directe avec chaque participant, résumée par un indicateur bon / moyen / mauvais. Le débit vidéo s'y adapte ; l'audio reste prioritaire. En cas de coupure, la liaison redémarre seule (*ICE restart*).
+_Avoid_: ping, signal

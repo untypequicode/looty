@@ -33,6 +33,10 @@ function parseRoom(name) {
   return { kind, id }
 }
 
+/** État média annoncé par un participant : micro coupé, identifiants des flux caméra et partage ('' = éteint). */
+const streamId = (v) => (typeof v === 'string' && /^[\w{}-]{1,64}$/.test(v) ? v : '')
+const mediaState = (msg) => ({ muted: !!msg.muted, cam: streamId(msg.cam), share: streamId(msg.share) })
+
 class CallRooms {
   constructor(options = {}, hooks = {}) {
     this.opts = { ...DEFAULTS, ...options }
@@ -95,7 +99,7 @@ class CallRooms {
         return true
       case 'state':
         if (!mine) return false
-        r.peers.get(mine).muted = !!msg.muted
+        Object.assign(r.peers.get(mine), mediaState(msg))
         this.broadcast(r)
         return true
       case 'signal': {
@@ -127,7 +131,7 @@ class CallRooms {
       return true
     }
     if (known?.timer) this.clearTimer(known.timer)
-    r.peers.set(id, { connId, user: conn.user, muted: !!msg.muted, timer: null, joinedAt: known?.joinedAt ?? this.now() })
+    r.peers.set(id, { connId, user: conn.user, ...mediaState(msg), timer: null, joinedAt: known?.joinedAt ?? this.now() })
     this.emit(conn.send, { t: 'joined', you: id, peers: this.snapshot(r), max: this.opts.maxParticipants })
     this.broadcast(r)
     return true
@@ -150,7 +154,7 @@ class CallRooms {
   }
 
   snapshot(r) {
-    return [...r.peers].map(([id, p]) => ({ id, user: p.user.id, name: p.user.name, muted: p.muted }))
+    return [...r.peers].map(([id, p]) => ({ id, user: p.user.id, name: p.user.name, muted: p.muted, cam: p.cam, share: p.share }))
   }
 
   broadcast(r) {

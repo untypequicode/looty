@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.54.2",
+      "version": "0.55.1",
       "date": "2026-11-25",
       "title": {
         "en": "Calls in the Android app: native bridge",
@@ -56,6 +56,31 @@
         "fr": [
           "**Micro et caméra sous Linux** : l’application de bureau laisse désormais Looty les utiliser pour les appels (WebKitGTK refusait tout avant). Seule la fenêtre de Looty peut les utiliser.",
           "**Le partage d’écran** n’est pas encore pris en charge dans l’application de bureau ; utilisez le navigateur pour cela."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.55.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Calls: camera, screen sharing and a sturdier connection",
+        "fr": "Appels : caméra, partage d'écran et connexion plus robuste"
+      },
+      "notes": {
+        "en": [
+          "**Camera**: turn your camera on in a call, pick the device, see your own preview and everyone's thumbnails, with the person speaking highlighted. Cameras are modest by default (640x360 at 24 fps) and get lighter as the room grows; they are limited to 4 people because every camera is sent to every other participant.",
+          "**Screen sharing**: share your screen, a window or a tab, with the system sound when the browser allows it. The shared screen is shown large to everyone, tuned for text (few frames per second, sharp), with who is sharing and a button to stop. Full screen and picture-in-picture are available on every video.",
+          "**Audio first**: voice keeps priority and video lowers its quality first when the network is weak; the video bitrate also adapts to loss and latency.",
+          "**More robust calls**: the connection restarts by itself after a network change (Wi-Fi to 4G) or a drop, with growing delays, and the call recovers after a signaling disconnection without cutting the audio.",
+          "**Connection quality**: a colored indicator in the call bar and a details panel (latency, loss, jitter, bitrate per participant) in the call settings."
+        ],
+        "fr": [
+          "**Caméra** : activez votre caméra pendant un appel, choisissez l'appareil, voyez votre aperçu et les vignettes de chacun, la personne qui parle étant mise en évidence. Les caméras sont modestes par défaut (640x360 à 24 i/s) et s'allègent quand la salle grandit ; elles sont limitées à 4 personnes car chaque caméra est envoyée à tous les autres participants.",
+          "**Partage d'écran** : partagez l'écran, une fenêtre ou un onglet, avec le son du système quand le navigateur le permet. L'écran partagé s'affiche en grand chez tout le monde, optimisé pour le texte (peu d'images par seconde, net), avec le nom de la personne qui partage et un bouton pour arrêter. Plein écran et image dans l'image sont disponibles sur chaque vidéo.",
+          "**L'audio d'abord** : la voix reste prioritaire et la vidéo baisse en qualité en premier quand le réseau est faible ; le débit vidéo s'adapte aussi à la perte et à la latence.",
+          "**Appels plus robustes** : la connexion redémarre seule après un changement de réseau (Wi-Fi vers 4G) ou une coupure, avec des délais croissants, et l'appel reprend après une coupure de la signalisation sans couper l'audio.",
+          "**Qualité de connexion** : un indicateur coloré dans la barre d'appel et un panneau de détails (latence, perte, gigue, débit par participant) dans les réglages de l'appel."
         ]
       }
     },

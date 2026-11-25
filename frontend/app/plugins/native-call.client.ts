@@ -10,7 +10,7 @@ export default defineNuxtPlugin(() => {
   const native = (window as unknown as { LootyApp?: { postMessage: (m: string) => void } }).LootyApp
   if (!native) return
   const post = (m: Record<string, unknown>) => native.postMessage(JSON.stringify(m))
-  const video = () => !!(callState as unknown as { video?: boolean }).video
+  const video = () => callState.cam
   watch(
     () => [callState.status !== 'idle', callState.room?.label ?? '', callState.muted, video()] as const,
     ([active, title, muted, withVideo]) => post({ type: 'call', active, title, muted, video: withVideo }),
