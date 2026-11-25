@@ -64,8 +64,9 @@ function refresh() {
     if (!sameState(st.value, next)) st.value = next
   })
 }
-onMounted(() => { props.editor.on('transaction', refresh); refresh() })
-onBeforeUnmount(() => { props.editor.off('transaction', refresh); if (raf) cancelAnimationFrame(raf) })
+// « update » : setEditable (passage lecture -> édition) ne passe pas par une transaction.
+onMounted(() => { props.editor.on('transaction', refresh); props.editor.on('update', refresh); refresh() })
+onBeforeUnmount(() => { props.editor.off('transaction', refresh); props.editor.off('update', refresh); if (raf) cancelAnimationFrame(raf) })
 
 // Largeur disponible -> groupes visibles ou repliés dans « Plus ».
 const width = ref(1000)
