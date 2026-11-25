@@ -20,6 +20,11 @@
           "Nouveau type de page : la Présentation (menu Nouveau des documents). Un rail de miniatures pour ajouter, dupliquer, supprimer et réordonner par glisser-déposer, un canevas où ajouter des zones de texte, rectangles, ellipses, lignes et images, et un panneau de propriétés pour les couleurs de la palette de l’éditeur, la taille du texte, la position, la taille, l’angle, l’ordre, l’alignement, le groupe et le texte alternatif.",
           "Tout le monde modifie en même temps : vous voyez les sélections et les pointeurs des autres sur la diapositive, et qui regarde chaque diapositive dans le rail. Annuler et rétablir ne touchent que vos propres modifications. Des guides aimantent sur la diapositive et sur les autres éléments ; des raccourcis clavier couvrent le déplacement, la duplication, le groupe et le changement de diapositive. Les personnes en lecture seule voient les diapositives sans pouvoir les changer.",
           "Une présentation est une page : même partage, mêmes droits, commentaires, appels, corbeille et recherche (le texte des diapositives est indexé et fait partie de l’export du compte). Thèmes, mode présentateur et import ou export viendront plus tard ; voir la nouvelle page Présentations de la documentation."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.62.1",
       "date": "2026-11-25",
       "title": {
