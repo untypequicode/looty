@@ -53,6 +53,29 @@
   --red-soft: rgba(235, 87, 87, 0.14);
   --blue: #4ea7fc;
   --purple: #b18cff;
+  /* Palette de l'éditeur : texte (contraste >= 4,5:1 sur le fond) et surlignage. */
+  --pal-gray: #9a9aa6;
+  --pal-gray-bg: rgba(140,140,155, 0.32);
+  --pal-brown: #c49a7a;
+  --pal-brown-bg: rgba(196,154,122, 0.32);
+  --pal-red: #f27a7a;
+  --pal-red-bg: rgba(235,87,87, 0.32);
+  --pal-orange: #f2994a;
+  --pal-orange-bg: rgba(242,153,74, 0.32);
+  --pal-yellow: #f2c94c;
+  --pal-yellow-bg: rgba(242,201,76, 0.32);
+  --pal-green: #4cb782;
+  --pal-green-bg: rgba(76,183,130, 0.32);
+  --pal-teal: #3fc1c4;
+  --pal-teal-bg: rgba(63,193,196, 0.32);
+  --pal-blue: #4ea7fc;
+  --pal-blue-bg: rgba(78,167,252, 0.32);
+  --pal-indigo: #8c8cff;
+  --pal-indigo-bg: rgba(140,140,255, 0.32);
+  --pal-purple: #b18cff;
+  --pal-purple-bg: rgba(177,140,255, 0.32);
+  --pal-pink: #f27ab5;
+  --pal-pink-bg: rgba(242,122,181, 0.32);
 
   /* Priorités */
   --prio-urgent: #f2994a;
@@ -142,6 +165,29 @@ html.light {
   --red-soft: rgba(221, 75, 75, 0.1);
   --blue: #2f84e4;
   --purple: #8e5bf0;
+  /* Palette de l'éditeur : texte (contraste >= 4,5:1 sur le fond) et surlignage. */
+  --pal-gray: #6b6b76;
+  --pal-gray-bg: rgba(120,120,135, 0.26);
+  --pal-brown: #8a5a3c;
+  --pal-brown-bg: rgba(138,90,60, 0.26);
+  --pal-red: #c93636;
+  --pal-red-bg: rgba(221,75,75, 0.26);
+  --pal-orange: #b25810;
+  --pal-orange-bg: rgba(229,120,42, 0.26);
+  --pal-yellow: #8f6b00;
+  --pal-yellow-bg: rgba(217,164,0, 0.26);
+  --pal-green: #1d7f50;
+  --pal-green-bg: rgba(38,164,107, 0.26);
+  --pal-teal: #0f7c80;
+  --pal-teal-bg: rgba(15,124,128, 0.26);
+  --pal-blue: #1f6fcf;
+  --pal-blue-bg: rgba(47,132,228, 0.26);
+  --pal-indigo: #4f4fd1;
+  --pal-indigo-bg: rgba(79,79,209, 0.26);
+  --pal-purple: #7a45d6;
+  --pal-purple-bg: rgba(142,91,240, 0.26);
+  --pal-pink: #c2307f;
+  --pal-pink-bg: rgba(194,48,127, 0.26);
 
   --prio-urgent: #e5782a;
   --prio-high: #3f3f46;

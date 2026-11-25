@@ -257,10 +257,25 @@ html.light .hljs-function, html.light .hljs-title.function_ { color: #1e66f5; }
 }
 
 /* Couleurs de texte (barre d'outils de l'éditeur) : la teinte suit le thème clair ou sombre. */
-.prose [data-text-color='gray'] { color: var(--text-3); }
-.prose [data-text-color='red'] { color: var(--red); }
-.prose [data-text-color='orange'] { color: var(--orange); }
-.prose [data-text-color='yellow'] { color: var(--yellow); }
-.prose [data-text-color='green'] { color: var(--green); }
-.prose [data-text-color='blue'] { color: var(--blue); }
-.prose [data-text-color='purple'] { color: var(--purple); }
+.prose [data-text-color='gray'] { color: var(--pal-gray); }
+.prose [data-text-color='brown'] { color: var(--pal-brown); }
+.prose [data-text-color='red'] { color: var(--pal-red); }
+.prose [data-text-color='orange'] { color: var(--pal-orange); }
+.prose [data-text-color='yellow'] { color: var(--pal-yellow); }
+.prose [data-text-color='green'] { color: var(--pal-green); }
+.prose [data-text-color='teal'] { color: var(--pal-teal); }
+.prose [data-text-color='blue'] { color: var(--pal-blue); }
+.prose [data-text-color='indigo'] { color: var(--pal-indigo); }
+.prose [data-text-color='purple'] { color: var(--pal-purple); }
+.prose [data-text-color='pink'] { color: var(--pal-pink); }
+.prose mark[data-highlight='gray'] { background: var(--pal-gray-bg); }
+.prose mark[data-highlight='brown'] { background: var(--pal-brown-bg); }
+.prose mark[data-highlight='red'] { background: var(--pal-red-bg); }
+.prose mark[data-highlight='orange'] { background: var(--pal-orange-bg); }
+.prose mark[data-highlight='yellow'] { background: var(--pal-yellow-bg); }
+.prose mark[data-highlight='green'] { background: var(--pal-green-bg); }
+.prose mark[data-highlight='teal'] { background: var(--pal-teal-bg); }
+.prose mark[data-highlight='blue'] { background: var(--pal-blue-bg); }
+.prose mark[data-highlight='indigo'] { background: var(--pal-indigo-bg); }
+.prose mark[data-highlight='purple'] { background: var(--pal-purple-bg); }
+.prose mark[data-highlight='pink'] { background: var(--pal-pink-bg); }
