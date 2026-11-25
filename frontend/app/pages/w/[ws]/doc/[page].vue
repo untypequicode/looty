@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { Editor as TEditor } from '@tiptap/core'
-import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users, LayoutTemplate } from 'lucide-vue-next'
+import { FileText, Star, Share2, MoreHorizontal, Link2, Copy, Download, FileArchive, Upload, Trash2, Search, Maximize2, Minimize2, Plus, Smile, Lock, CloudOff, Check, Loader2, FileQuestion, MessageSquare, History, X, BookOpenText, Printer, Sigma, Globe, NotebookText, FolderCode, NotebookPen, PenTool, FolderInput, LockKeyhole, Users, LayoutTemplate, PanelTop } from 'lucide-vue-next'
+import { useUserPrefs } from '~/composables/usePrefs'
+import { toolbarVisible } from '~/editor/toolbarModel'
 import { saveAsTemplate } from '~/composables/useTemplates'
 import { usePersonal } from '~/composables/usePersonalItems'
 import { openMovePage } from '~/composables/useMovePage'
@@ -229,6 +231,9 @@ async function makeProject(kind: string, template: string) {
   toast.success(t('projects.pageConverted'))
 }
 
+const { prefs: userPrefs, update: updateUserPrefs } = useUserPrefs()
+const toolbarOn = computed(() => toolbarVisible(userPrefs.value.editorToolbar))
+
 const menu = computed<MenuItem[]>(() => {
   const p = live.value
   if (!p) return []
@@ -237,6 +242,7 @@ const menu = computed<MenuItem[]>(() => {
     ...openInAppItems(links.doc(wsId.value, p.id)),
     { label: t('reader.open'), icon: BookOpenText, shortcut: ['mod', 'alt', 'R'], onSelect: () => navigateTo(links.read(wsId.value, p.id)) },
     { label: t('history.title'), icon: History, onSelect: () => (historyOpen.value = true) },
+    ...(canEdit.value ? [{ label: toolbarOn.value ? t('toolbar.hide') : t('toolbar.show'), icon: PanelTop, onSelect: () => updateUserPrefs({ editorToolbar: toolbarOn.value ? false : null }).catch(() => {}) }] : []),
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },
     { label: fullWidth.value ? t('editor.normalWidth') : t('editor.fullWidthPage'), icon: fullWidth.value ? Minimize2 : Maximize2, onSelect: () => (fullWidth.value = !fullWidth.value) },
     ...(p.can_edit !== false ? [{ label: p.default_view === 'canvas' ? t('canvas.openAsPage') : t('canvas.openAsCanvas'), icon: p.default_view === 'canvas' ? FileText : PenTool, onSelect: () => setDefaultView(p.default_view === 'canvas' ? 'doc' : 'canvas') }] : []),

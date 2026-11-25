@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.61.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "A fixed toolbar in the page editor",
+        "fr": "Une barre d’outils fixe dans l’éditeur de pages"
+      },
+      "notes": {
+        "en": [
+          "The page editor has a toolbar at the top while you edit: undo and redo, block style, bold, italic, underline, strikethrough, code, text color, highlight, lists with indent, alignment, link, image, file, LaTeX formula, divider, table (with row, column, merge and height actions inside a table) and an Insert menu with the other blocks. It follows the selection, shows shortcuts, works with the keyboard, folds into a More menu on narrow screens and sits above the keyboard on phones. Hide or show it from the page menu; the choice is saved with your account.",
+          "New in documents: text colors and paragraph alignment. Older web tabs must be reloaded to edit a page that uses them."
+        ],
+        "fr": [
+          "L’éditeur de pages a une barre d’outils en haut pendant l’édition : annuler et rétablir, style de bloc, gras, italique, souligné, barré, code, couleur du texte, surlignage, listes avec retrait, alignement, lien, image, fichier, formule LaTeX, séparateur, tableau (avec actions de ligne, colonne, fusion et hauteur dans un tableau) et un menu Insérer avec les autres blocs. Elle suit la sélection, affiche les raccourcis, se pilote au clavier, se replie dans un menu Plus sur écran étroit et se place au-dessus du clavier sur téléphone. Masquez-la ou affichez-la depuis le menu de la page ; le choix est enregistré avec votre compte.",
+          "Nouveau dans les documents : couleurs du texte et alignement des paragraphes. Les anciens onglets web doivent être rechargés pour modifier une page qui en utilise."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.60.0",
       "date": "2026-11-25",
       "title": {

@@ -19,6 +19,7 @@ import { MathScope } from './mathScope'
 import { BlockKeymap } from './blocks'
 import { FindInPage } from './search'
 import { EmojiSuggestion } from './emoji'
+import { TextColor, TextAlign } from './textStyle'
 import { slashCommands, type SlashContext } from './slash'
 import { mentionExtension } from './mention'
 import { PageMention, pageMentionSuggest, type PageSource } from './pageMention'
@@ -51,6 +52,8 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
     }),
     CodeBlock,
     Highlight,
+    TextColor,
+    TextAlign,
     TaskList,
     TaskItem.configure({ nested: true }),
     Table.configure({ resizable: true, lastColumnResizable: false }),

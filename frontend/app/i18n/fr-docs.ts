@@ -27,6 +27,15 @@ export default {
       textHorizontal: 'Texte horizontal', textUp: 'Texte tourné de 90° vers la gauche', textDown: 'Texte tourné de 90° vers la droite',
     },
   },
+  toolbar: {
+    label: 'Mise en forme', undo: 'Annuler', redo: 'Rétablir', blockStyle: 'Style de bloc', textColor: 'Couleur du texte', noColor: 'Couleur par défaut',
+    colors: { gray: 'Gris', red: 'Rouge', orange: 'Orange', yellow: 'Jaune', green: 'Vert', blue: 'Bleu', purple: 'Violet' },
+    indent: 'Augmenter le retrait', outdent: 'Diminuer le retrait', align: 'Alignement', alignRight: 'Aligner à droite', alignJustify: 'Justifier',
+    link: 'Lien', linkApply: 'Appliquer', linkRemove: 'Retirer le lien', image: 'Image', file: 'Fichier', formula: 'Formule LaTeX', divider: 'Séparateur',
+    table: 'Insérer un tableau', tableActions: 'Actions du tableau', mergeCells: 'Fusionner les cellules', splitCell: 'Scinder la cellule', rowHeight: 'Hauteur de ligne',
+    rowAuto: 'Automatique', rowMedium: 'Moyenne', rowTall: 'Haute', insert: 'Insérer', more: 'Plus de mise en forme',
+    hide: 'Masquer la barre d’outils', show: 'Afficher la barre d’outils',
+  },
   share: {
     title: 'Partager le document', share: 'Partager', access: 'Accès', internal: 'Lien interne', internalHint: 'Pour les membres de l’espace qui ont accès.',
     public: 'Publier sur le web', publicOn: 'Toute personne disposant du lien peut lire ce document.', publicOff: 'Seuls les membres autorisés y ont accès.',

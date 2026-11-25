@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { useEditorSpellcheck } from '~/composables/usePrefs'
+import { useEditorSpellcheck, useUserPrefs } from '~/composables/usePrefs'
+import { toolbarVisible } from '~/editor/toolbarModel'
+import type { SlashContext } from '~/editor/slash'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { createDocument, type Editor as TEditor } from '@tiptap/core'
 import { seedYDoc } from '~/utils/seedDoc'
@@ -89,6 +91,24 @@ function submitEmbed() {
   embedOpen.value = false
 }
 
+// Menu « / » et menu « Insérer » de la barre d'outils partagent les mêmes éléments et les mêmes sélecteurs.
+const slashCtx: SlashContext = {
+  pickDoc: (e) => {
+    const c = e.view.coordsAtPos(e.state.selection.from)
+    docPickerPos.value = { x: c.left, y: c.bottom + 4 }
+    docPickerValue.value = null
+    docPickerOpen.value = true
+  },
+  askEmbed: (e) => {
+    const c = e.view.coordsAtPos(e.state.selection.from)
+    embedPos.value = { x: c.left, y: c.bottom + 4 }
+    embedUrl.value = ''
+    embedOpen.value = true
+  },
+}
+const { prefs: userPrefs } = useUserPrefs()
+const showToolbar = computed(() => toolbarVisible(userPrefs.value.editorToolbar))
+
 const docItems = computed(() => (pages.data.value ?? []).filter((p) => p.id !== props.pageId).map((p) => ({ value: p.id, label: `${p.icon ? `${p.icon} ` : ''}${p.title || '…'}` })))
 
 // Avant useEditor : ses propres crochets de démontage détruisent l'éditeur. La dernière
@@ -104,20 +124,7 @@ const editor = useEditor({
     getGroups: () => groups.value ?? [],
     pages: { wsId: () => wsId.value, pages: () => (pages.data.value ?? []).filter((p) => p.id !== props.pageId) },
     onMention: (id) => sendMention(id, `page:${props.pageId}`),
-    slash: {
-      pickDoc: (e) => {
-        const c = e.view.coordsAtPos(e.state.selection.from)
-        docPickerPos.value = { x: c.left, y: c.bottom + 4 }
-        docPickerValue.value = null
-        docPickerOpen.value = true
-      },
-      askEmbed: (e) => {
-        const c = e.view.coordsAtPos(e.state.selection.from)
-        embedPos.value = { x: c.left, y: c.bottom + 4 }
-        embedUrl.value = ''
-        embedOpen.value = true
-      },
-    },
+    slash: slashCtx,
   }),
   editorProps: {
     attributes: { class: 'prose doc-prose' },
@@ -326,6 +333,7 @@ defineExpose({ editor, scrollToAnchor, getHTML: () => editor.value?.getHTML() ??
       <div class="skeleton" style="height: 18px; width: 54%" />
     </div>
     <DocViewer v-if="htmlOnly && synced" :html="initialHtml || ''" />
+    <DocToolbar v-if="editor && synced && showToolbar && !offlineReadonly && !htmlOnly && !deniedReadonly" :editor="editor" :slash="slashCtx" />
     <EditorContent v-show="synced && !offlineReadonly && !htmlOnly && !deniedReadonly" :editor="editor" />
     <template v-if="editor && synced">
       <DocBlockHandle :editor="editor" :container="wrapper" />

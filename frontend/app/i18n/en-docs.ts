@@ -27,6 +27,15 @@ export default {
       textHorizontal: 'Horizontal text', textUp: 'Rotate text 90° counter-clockwise', textDown: 'Rotate text 90° clockwise',
     },
   },
+  toolbar: {
+    label: 'Formatting', undo: 'Undo', redo: 'Redo', blockStyle: 'Block style', textColor: 'Text color', noColor: 'Default color',
+    colors: { gray: 'Gray', red: 'Red', orange: 'Orange', yellow: 'Yellow', green: 'Green', blue: 'Blue', purple: 'Purple' },
+    indent: 'Increase indent', outdent: 'Decrease indent', align: 'Alignment', alignRight: 'Align right', alignJustify: 'Justify',
+    link: 'Link', linkApply: 'Apply', linkRemove: 'Remove link', image: 'Image', file: 'File', formula: 'LaTeX formula', divider: 'Divider',
+    table: 'Insert a table', tableActions: 'Table actions', mergeCells: 'Merge cells', splitCell: 'Split cell', rowHeight: 'Row height',
+    rowAuto: 'Automatic', rowMedium: 'Medium', rowTall: 'Tall', insert: 'Insert', more: 'More formatting',
+    hide: 'Hide the toolbar', show: 'Show the toolbar',
+  },
   share: {
     title: 'Share document', share: 'Share', access: 'Access', internal: 'Internal link', internalHint: 'For workspace members who have access.',
     public: 'Publish to the web', publicOn: 'Anyone with the link can read this document.', publicOff: 'Only authorized members have access.',
