@@ -250,13 +250,14 @@ export function duplicateSlide(doc: Y.Doc, id: string): string | null {
     s.set('elements', els)
     const groupMap = new Map<string, string>()
     ;(src.get('elements') as Y.Map<Y.Map<any>>).forEach((m) => {
-      const e = cloneElement(m, newId(), num(m.get('z')))
+      const eid = newId()
+      const e = cloneElement(m, eid, num(m.get('z')))
       const g = str(m.get('groupId'))
       if (g) {
         if (!groupMap.has(g)) groupMap.set(g, newId())
         e.set('groupId', groupMap.get(g))
       }
-      els.set(str(e.get('id')), e)
+      els.set(eid, e)
     })
     if (needsRenumber(doc)) renumber(doc)
   }, LOCAL)
@@ -458,12 +459,17 @@ export function distributeElements(doc: Y.Doc, slideId: string, ids: readonly st
 
 /** Texte brut d'un fragment (paragraphes séparés par des retours à la ligne). */
 export function fragmentText(f: Y.XmlFragment): string {
-  return f.toString()
-    .replace(/<\/(paragraph|heading|listItem|blockquote|codeBlock)>/g, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-    .replace(/\n{2,}/g, '\n')
-    .trim()
+  const out: string[] = []
+  const walk = (n: Y.XmlFragment | Y.XmlElement | Y.XmlText | Y.XmlHook) => {
+    if (n instanceof Y.XmlText) {
+      out.push(n.toDelta().map((d: { insert?: unknown }) => (typeof d.insert === 'string' ? d.insert : '')).join(''))
+    } else if (n instanceof Y.XmlFragment) {
+      n.toArray().forEach((c) => walk(c as Y.XmlElement))
+      if (n instanceof Y.XmlElement && n.nodeName !== 'text') out.push('\n')
+    }
+  }
+  walk(f)
+  return out.join('').replace(/\n{2,}/g, '\n').trim()
 }
 
 /** Plan textuel de la présentation (recherche, graphe, export de compte) : une rubrique par diapositive. */
