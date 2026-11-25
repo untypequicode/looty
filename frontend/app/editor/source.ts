@@ -19,7 +19,7 @@ export const isSourceNode = (type: string) => Object.hasOwn(SOURCE_NODES, type)
  * Version du format des documents, annoncée au serveur de collaboration : il refuse les
  * interfaces plus anciennes, qui supprimeraient les nœuds qu'elles ne savent pas lire.
  */
-export const DOC_SCHEMA = 3
+export const DOC_SCHEMA = 4
 
 /** Spécification commune : texte brut, sans marques, affiché par la vue du nœud. */
 export const sourceSpec = { content: 'text*', marks: '', code: true, atom: true } as const

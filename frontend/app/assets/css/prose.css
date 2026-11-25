@@ -255,3 +255,12 @@ html.light .hljs-function, html.light .hljs-title.function_ { color: #1e66f5; }
   .prose table, .prose tr { break-inside: avoid; }
   .prose .tableWrapper, .doc-viewer.prose { overflow: visible; }
 }
+
+/* Couleurs de texte (barre d'outils de l'éditeur) : la teinte suit le thème clair ou sombre. */
+.prose [data-text-color='gray'] { color: var(--text-3); }
+.prose [data-text-color='red'] { color: var(--red); }
+.prose [data-text-color='orange'] { color: var(--orange); }
+.prose [data-text-color='yellow'] { color: var(--yellow); }
+.prose [data-text-color='green'] { color: var(--green); }
+.prose [data-text-color='blue'] { color: var(--blue); }
+.prose [data-text-color='purple'] { color: var(--purple); }
