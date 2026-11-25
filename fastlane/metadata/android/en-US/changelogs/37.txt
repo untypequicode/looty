@@ -1,0 +1,3 @@
+• Calls: the microphone (and camera) work in Looty voice calls. The app asks for permission the first time, only for your instance.
+• The call keeps going with the screen off or the app in the background, with a notification to hang up and switch between speaker and earpiece; headsets (wired, USB, Bluetooth) are used automatically.
+• Screen sharing is not available in the Android app.

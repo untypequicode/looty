@@ -1,0 +1,3 @@
+• Appels : le micro (et la caméra) fonctionnent dans les appels vocaux de Looty. L'application demande l'autorisation la première fois, uniquement pour votre instance.
+• L'appel continue écran éteint ou application en arrière-plan, avec une notification pour raccrocher et passer du haut-parleur à l'écouteur ; les casques (filaire, USB, Bluetooth) sont utilisés automatiquement.
+• Le partage d'écran n'est pas disponible dans l'application Android.

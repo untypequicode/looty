@@ -18,6 +18,13 @@ A **voice call** lets the people who can open a page or a project talk while the
 - **Settings** (gear): choose the microphone and set the volume of each person. If the microphone is unplugged, Looty switches to the default one or tells you to pick another; you keep listening.
 - Echo cancellation, noise suppression and automatic gain are on. Audio is Opus, tuned for voice, with silence suppression.
 
+## On Android and desktop
+
+- **Android app**: the first call asks for the microphone (and the camera for video); only your own Looty instance can use them. During a call a notification stays visible with **Hang up** and **Speaker / Earpiece**, so you can lock the phone or open another app and keep talking. Wired, USB and Bluetooth headsets are used automatically, otherwise the speaker. Same in the direct and F-Droid builds. If you refused the permission, allow *Microphone* in Android settings, *Apps*, *Looty*, *Permissions*.
+- Leaving the web screen with the back gesture hangs up (the call lives in that screen); use the home gesture to put the app aside. Some phone makers kill background apps to save battery: set Looty to "unrestricted" battery use if calls cut off.
+- **Screen sharing is not available in the Android app** (the system web view cannot do it): the button is hidden. Use the browser.
+- **Desktop app (Linux)**: the microphone and camera are allowed for Looty's own window (nothing else). **Screen sharing is not supported in the desktop app yet**; use the browser to share a screen. Windows asks for the microphone in its own prompt.
+
 ## Limits
 
 - Up to **6 people** per call by default (the administrator can change it with `LOOTY_CALL_MAX_PARTICIPANTS`).

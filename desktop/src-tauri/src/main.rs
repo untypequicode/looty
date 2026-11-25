@@ -353,6 +353,33 @@ fn enable_spellcheck(window: &tauri::WebviewWindow) {
     });
 }
 
+/// Appels : getUserMedia (micro, caméra) sur WebKitGTK. Le moteur refuse tout sans réponse de l'application ;
+/// on accepte le micro et la caméra uniquement pour la page du proxy local (l'interface de Looty), jamais pour
+/// un autre site. Le partage d'écran (getDisplayMedia) n'est pas pris en charge : refusé.
+#[cfg(target_os = "linux")]
+fn enable_media(window: &tauri::WebviewWindow, origin: String) {
+    let _ = window.with_webview(move |wv| {
+        use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequest, UserMediaPermissionRequestExt, WebViewExt};
+        use gtk::prelude::Cast;
+        let view = wv.inner();
+        if let Some(settings) = WebViewExt::settings(&view) {
+            settings.set_enable_media_stream(true);
+            settings.set_enable_webrtc(true);
+        }
+        view.connect_permission_request(move |view, request| {
+            let Some(media) = request.downcast_ref::<UserMediaPermissionRequest>() else { return false };
+            let here = view.uri().and_then(|u| Url::parse(u.as_str()).ok()).map(|u| u.origin().ascii_serialization());
+            let allowed = here.as_deref() == Some(origin.as_str()) && (media.is_for_audio_device() || media.is_for_video_device());
+            if allowed { request.allow() } else { request.deny() }
+            true
+        });
+    });
+}
+
+/// Windows : WebView2 demande lui-même (invite système) ; rien à faire.
+#[cfg(not(target_os = "linux"))]
+fn enable_media(_window: &tauri::WebviewWindow, _origin: String) {}
+
 /// Windows : WebView2 a son propre correcteur orthographique.
 #[cfg(not(target_os = "linux"))]
 fn enable_spellcheck(_window: &tauri::WebviewWindow) {}
@@ -625,6 +652,7 @@ fn main() {
                 .on_download(move |_webview, event| on_download(&dl_handle, event))
                 .build()?;
             enable_spellcheck(&main_window);
+            enable_media(&main_window, proxy_state.local_origin());
 
             // Barre système
             let menu_handle = handle.clone();

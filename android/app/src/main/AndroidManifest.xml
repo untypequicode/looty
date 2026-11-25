@@ -5,6 +5,18 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Notifications (Android 13+ : à accorder). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Appels (ADR 0019) : micro et caméra demandés à l'usage, service au premier plan pendant l'appel, sortie audio. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Ni micro ni caméra imposés : la caméra est facultative (téléphones sans caméra, appels vocaux). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- Téléchargements sur Android 8–9 (ensuite : MediaStore, sans permission). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
@@ -79,6 +91,12 @@
                 <data android:scheme="looty" android:host="sso" />
             </intent-filter>
         </activity>
+
+        <!-- Appel en cours : micro/caméra gardés actifs écran éteint ou application en arrière-plan. -->
+        <service
+            android:name=".call.CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
 
         <!-- Réception des notifications UnifiedPush : la bibliothèque s'y relie par liaison de service. -->
         <service

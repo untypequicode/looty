@@ -4,6 +4,63 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.54.2",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Calls in the Android app: native bridge",
+        "fr": "Appels dans l’application Android : liaison native"
+      },
+      "notes": {
+        "en": [
+          "The web app tells the Android app when a call starts or ends (so the app can keep the microphone alive in the background) and hides screen sharing where the system cannot do it. No change in the browser."
+        ],
+        "fr": [
+          "L’application web signale à l’application Android le début et la fin d’un appel (pour garder le micro actif en arrière-plan) et masque le partage d’écran là où le système ne peut pas le faire. Aucun changement dans le navigateur."
+        ]
+      }
+    },
+    {
+      "platform": "android",
+      "version": "0.32.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Voice calls with the microphone, in the background",
+        "fr": "Appels vocaux avec le micro, en arrière-plan"
+      },
+      "notes": {
+        "en": [
+          "**Microphone and camera**: Looty calls work in the app. Android asks for permission the first time, and only your own instance can use the microphone or camera.",
+          "**Keeps going in the background**: during a call a notification stays visible with *Hang up* and *Speaker/Earpiece*, so the audio continues with the screen off or another app in front. Wired, USB and Bluetooth headsets are used automatically.",
+          "**Screen sharing** is not available in the Android app (the system web view cannot do it); the button is hidden. Works the same in the direct and F-Droid builds."
+        ],
+        "fr": [
+          "**Micro et caméra** : les appels Looty fonctionnent dans l’application. Android demande l’autorisation la première fois, et seule votre propre instance peut utiliser le micro ou la caméra.",
+          "**Continue en arrière-plan** : pendant un appel, une notification reste visible avec *Raccrocher* et *Haut-parleur/Écouteur* : l’audio continue écran éteint ou avec une autre application au premier plan. Les casques filaires, USB et Bluetooth sont utilisés automatiquement.",
+          "**Le partage d’écran** n’est pas disponible dans l’application Android (la WebView du système ne sait pas le faire) ; le bouton est masqué. Identique dans les versions directe et F-Droid."
+        ]
+      }
+    },
+    {
+      "platform": "desktop",
+      "version": "0.8.4",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Calls: microphone allowed on Linux",
+        "fr": "Appels : micro autorisé sous Linux"
+      },
+      "notes": {
+        "en": [
+          "**Microphone and camera on Linux**: the desktop app now lets Looty use them for calls (WebKitGTK refused everything before). Only Looty’s own window can use them.",
+          "**Screen sharing** is not supported in the desktop app yet; use the browser for it."
+        ],
+        "fr": [
+          "**Micro et caméra sous Linux** : l’application de bureau laisse désormais Looty les utiliser pour les appels (WebKitGTK refusait tout avant). Seule la fenêtre de Looty peut les utiliser.",
+          "**Le partage d’écran** n’est pas encore pris en charge dans l’application de bureau ; utilisez le navigateur pour cela."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.54.1",
       "date": "2026-11-25",
       "title": {

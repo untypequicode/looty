@@ -111,3 +111,5 @@ emulator -avd looty35
 ```
 
 From the emulator, your computer is `10.0.2.2` (for example `10.0.2.2:3000`).
+
+**Calls (0.32.0)**: the microphone and camera work in Looty calls (`WebChromeClient.onPermissionRequest`, only for the app's instance origin; runtime `RECORD_AUDIO`/`CAMERA`). A foreground service (`call/CallService`, types microphone|camera) keeps the call alive with the screen off, with a *Hang up* / *Speaker·Earpiece* notification; audio goes to a headset if present (`call/CallAudio`, `MODE_IN_COMMUNICATION`). The page signals call start/stop through `LootyApp.postMessage({type:'call'…})`; `window.__lootyCaps.screenShare = false` tells the web to hide screen sharing (not available in the Android WebView). Same in both flavors. See `docs/adr/0019-calls-webrtc-mesh.md`.
