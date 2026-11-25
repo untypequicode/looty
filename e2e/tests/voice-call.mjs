@@ -32,8 +32,13 @@ ok('accès à la salle : page inconnue', (await api(a.p, '/api/calls/page/000000
 ok('accès à la salle : type inconnu', (await api(a.p, `/api/calls/other/${page.id}/access`))?.status === 404)
 const cfg = await api(a.p, '/api/calls/config')
 ok('configuration : STUN et limite', cfg?.ice_servers?.[0]?.urls?.[0]?.startsWith('stun:') && cfg.max_participants >= 2, JSON.stringify(cfg))
+// Une page d'un espace où Alice n'est pas membre : sa salle lui est refusée.
 const bob = await open('bob@x.io')
-{ const r = await api(bob.p, `/api/calls/page/${page.id}/access`); ok('accès à la salle : personne sans accès refusée', [403, 404].includes(r?.status), JSON.stringify(r)) }
+const bobWs = (await api(bob.p, '/api/workspaces', 'POST', { name: `appel ${Date.now()}` }))?.workspace
+const bobPage = await api(bob.p, `/api/workspaces/${bobWs?.id}/pages`, 'POST', { title: 'Privé' })
+ok('accès à la salle : propriétaire', (await api(bob.p, `/api/calls/page/${bobPage?.id}/access`))?.user_id != null)
+const denied = await api(a.p, `/api/calls/page/${bobPage?.id}/access`)
+ok('accès à la salle : personne sans accès refusée', [403, 404].includes(denied?.status), JSON.stringify(denied))
 await bob.ctx.close()
 
 const b = await open('alice@x.io')
