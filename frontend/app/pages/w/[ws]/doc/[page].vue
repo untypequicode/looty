@@ -201,7 +201,9 @@ const docView = computed<DocView>(() => {
   return live.value?.default_view === 'canvas' ? 'canvas' : 'doc'
 })
 const showProject = computed(() => !!live.value?.project_id && docView.value === 'project')
-const showCanvas = computed(() => docView.value === 'canvas')
+const showCanvas = computed(() => docView.value === 'canvas' && live.value?.default_view !== 'slides')
+/** Présentation (ADR 0023) : la page s'ouvre sur ses diapositives, `?view=doc` montre son texte. */
+const showSlides = computed(() => live.value?.default_view === 'slides' && route.query.view !== 'doc' && !live.value?.project_id)
 /** Vue à l'ouverture de la page (pour tout le monde). */
 async function setDefaultView(v: 'doc' | 'canvas') {
   await updatePage(pageId.value, { default_view: v })
@@ -245,7 +247,7 @@ const menu = computed<MenuItem[]>(() => {
     ...(canEdit.value ? [{ label: toolbarOn.value ? t('toolbar.hide') : t('toolbar.show'), icon: PanelTop, onSelect: () => updateUserPrefs({ editorToolbar: toolbarOn.value ? false : null }).catch(() => {}) }] : []),
     { label: t('editor.findInPage'), icon: Search, shortcut: ['mod', 'F'], onSelect: () => (findOpen.value = true) },
     { label: fullWidth.value ? t('editor.normalWidth') : t('editor.fullWidthPage'), icon: fullWidth.value ? Minimize2 : Maximize2, onSelect: () => (fullWidth.value = !fullWidth.value) },
-    ...(p.can_edit !== false ? [{ label: p.default_view === 'canvas' ? t('canvas.openAsPage') : t('canvas.openAsCanvas'), icon: p.default_view === 'canvas' ? FileText : PenTool, onSelect: () => setDefaultView(p.default_view === 'canvas' ? 'doc' : 'canvas') }] : []),
+    ...(p.can_edit !== false && p.default_view !== 'slides' ? [{ label: p.default_view === 'canvas' ? t('canvas.openAsPage') : t('canvas.openAsCanvas'), icon: p.default_view === 'canvas' ? FileText : PenTool, onSelect: () => setDefaultView(p.default_view === 'canvas' ? 'doc' : 'canvas') }] : []),
     ...(p.project_id
       ? [{ divider: true }, { label: t('projects.openInProjects'), icon: FolderCode, onSelect: () => navigateTo(`/w/${wsId.value}/projects/${p.project_id}`) }]
       : p.can_edit !== false ? [{ divider: true }, { heading: t('projects.makeProject') }, ...projectKinds.value.map((k) => ({ label: k.label, icon: k.icon, onSelect: () => makeProject(k.kind, k.template) }))] : []),
@@ -283,7 +285,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 <template>
   <div class="page">
     <AppPageHeader :crumbs="crumbs">
-      <UiSegmented v-if="live" class="doc-views" :model-value="docView" :options="viewOptions" @update:model-value="setDocView" />
+      <UiSegmented v-if="live && live.default_view !== 'slides'" class="doc-views" :model-value="docView" :options="viewOptions" @update:model-value="setDocView" />
       <span v-if="live && !showProject" class="status">
         <button v-if="sessionExpired" type="button" class="status-expired" @click="signInAgain"><Lock :size="13" /> {{ t('editor.sessionExpired') }}</button>
         <template v-else-if="status === 'denied' || !canEdit"><Lock :size="13" /> {{ t('editor.readOnly') }}</template>
@@ -324,6 +326,14 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
       </div>
       <ProjectWorkspace :key="live.project_id" :project-id="live.project_id" embedded class="doc-project-ws" />
+    </div>
+    <div v-else-if="showSlides && live" class="doc-project">
+      <div class="doc-project-head">
+        <span v-if="live.icon" class="doc-project-icon">{{ live.icon }}</span>
+        <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
+        <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
+      </div>
+      <SlidesDeck :key="`slides-${live.id}`" class="doc-project-ws" :page-id="live.id" :can-edit="canEdit" :user="cursorUser" @status="(s) => (status = s)" @collaborators="(c) => (collaborators = c)" />
     </div>
     <div v-else-if="showCanvas && live" class="doc-project">
       <div class="doc-project-head">

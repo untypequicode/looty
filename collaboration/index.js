@@ -54,6 +54,7 @@ function textState(text) {
   return state
 }
 
+const { SLIDES_SCHEMA, slidesId, slidesSummary } = require('./slides')
 const { isNotebookPath, notebookText, notebookFromRow } = require('./notebook')
 
 function stateText(state) {
@@ -138,7 +139,7 @@ const accessUrl = (documentName) => {
   if (room) return `${BACKEND_URL}/api/calls/${room.kind}/${room.id}/access`
   const fid = fileId(documentName)
   // Canevas : les droits de sa page.
-  const page = canvasId(documentName) ?? documentName
+  const page = canvasId(documentName) ?? slidesId(documentName) ?? documentName
   return fid ? `${BACKEND_URL}/api/projects/files/${fid}/access` : `${BACKEND_URL}/api/pages/${page}/access`
 }
 
@@ -320,13 +321,18 @@ const server = new Server({
     }
     const fid = fileId(documentName)
     const cid = canvasId(documentName)
+    const sid = slidesId(documentName)
     const call = isCallRoom(documentName)
-    if (!fid && !cid && !call && !UUID_RE.test(documentName)) {
+    if (!fid && !cid && !sid && !call && !UUID_RE.test(documentName)) {
       throw authError('invalid-document')
     }
     // Interface d'avant la version du format (onglet ouvert avant une mise à jour…) : elle ne
     // sait pas lire les formules et diagrammes convertis et les supprimerait du document.
-    if (!fid && !cid && !call && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
+    if (!fid && !cid && !sid && !call && Number(requestParameters?.get?.('schema') || 0) < DOC_SCHEMA) {
+      throw authError('outdated-client')
+    }
+    // Présentation : son propre numéro de format (ADR 0023).
+    if (sid && Number(requestParameters?.get?.('schema') || 0) < SLIDES_SCHEMA) {
       throw authError('outdated-client')
     }
     const cookie = requestHeaders.get ? requestHeaders.get('cookie') : requestHeaders.cookie
@@ -409,6 +415,12 @@ const server = new Server({
           // Erreur de lecture : la connexion échoue (jamais un canevas vide enregistré à la place).
           const res = await pool.query('SELECT canvas_state FROM pages WHERE id = $1', [cid])
           const state = res.rows[0]?.canvas_state
+          return state && state.length > 0 ? state : null
+        }
+        const sid = slidesId(documentName)
+        if (sid) {
+          const res = await pool.query('SELECT slides_state FROM pages WHERE id = $1', [sid])
+          const state = res.rows[0]?.slides_state
           return state && state.length > 0 ? state : null
         }
         const fid = fileId(documentName)
@@ -501,6 +513,15 @@ async function storeDocument({ documentName, state, context, lastContext }) {
     await retry(() => pool.query(
       'UPDATE pages SET canvas_state = $1, canvas_count = $2, canvas_text = $3, canvas_updated_at = NOW(), updated_by = COALESCE($5::uuid, updated_by) WHERE id = $4',
       [state, count, text, cid, userId],
+    ))
+    return
+  }
+  const sid = slidesId(documentName)
+  if (sid) {
+    const { count, text } = slidesSummary(state)
+    await retry(() => pool.query(
+      'UPDATE pages SET slides_state = $1, slides_count = $2, slides_text = $3, slides_updated_at = NOW(), updated_by = COALESCE($5::uuid, updated_by) WHERE id = $4',
+      [state, count, text, sid, userId],
     ))
     return
   }

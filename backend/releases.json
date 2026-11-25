@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.63.0",
+      "version": "0.64.0",
       "date": "2026-11-25",
       "title": {
         "en": "Page access levels: comment, manage, refuse, and who gains or loses access when a page moves",
@@ -26,6 +26,27 @@
           "Un invité qui peut modifier une page partagée avec lui ne peut plus mettre cette page partagée elle-même à la corbeille, sauf s’il peut la gérer.",
           "Déplacer une page indique qui gagnerait ou perdrait l’accès (nouvel aperçu), les changements de partage apparaissent dans l’activité de la page, et un compte suspendu perd tout de suite ses pages partagées.",
           "Les partages existants gardent exactement les mêmes droits effectifs."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.63.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Presentations: build slides together in real time",
+        "fr": "Présentations : construire des diapositives à plusieurs en temps réel"
+      },
+      "notes": {
+        "en": [
+          "New page type: Presentation (New menu of the documents). A slide rail with thumbnails to add, duplicate, delete and drag to reorder, a canvas where you add text boxes, rectangles, ellipses, lines and images, and a properties panel for colors from the editor palette, font size, position, size, angle, order, alignment, grouping and alternative text.",
+          "Everyone edits at the same time: you see the others' selections and pointers on the slide and who is looking at each slide in the rail. Undo and redo only revert your own changes. Guides snap to the slide and to other elements; keyboard shortcuts cover moving, duplicating, grouping and changing slide. People who can only read see the slides without being able to change them.",
+          "A presentation is a page: same sharing, permissions, comments, calls, trash and search (the text of the slides is indexed and included in the account export). Themes, presenter mode and import or export come later; see the new Presentations page of the documentation."
+        ],
+        "fr": [
+          "Nouveau type de page : la Présentation (menu Nouveau des documents). Un rail de miniatures pour ajouter, dupliquer, supprimer et réordonner par glisser-déposer, un canevas où ajouter des zones de texte, rectangles, ellipses, lignes et images, et un panneau de propriétés pour les couleurs de la palette de l’éditeur, la taille du texte, la position, la taille, l’angle, l’ordre, l’alignement, le groupe et le texte alternatif.",
+          "Tout le monde modifie en même temps : vous voyez les sélections et les pointeurs des autres sur la diapositive, et qui regarde chaque diapositive dans le rail. Annuler et rétablir ne touchent que vos propres modifications. Des guides aimantent sur la diapositive et sur les autres éléments ; des raccourcis clavier couvrent le déplacement, la duplication, le groupe et le changement de diapositive. Les personnes en lecture seule voient les diapositives sans pouvoir les changer.",
+          "Une présentation est une page : même partage, mêmes droits, commentaires, appels, corbeille et recherche (le texte des diapositives est indexé et fait partie de l’export du compte). Thèmes, mode présentateur et import ou export viendront plus tard ; voir la nouvelle page Présentations de la documentation."
         ]
       }
     },

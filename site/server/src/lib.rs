@@ -52,7 +52,7 @@ pub fn app(cfg: Config) -> Router {
     );
     let short_cache = SetResponseHeaderLayer::if_not_present(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"));
     let files_cache = SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=3600"));
-    let page = ServeDir::new(&cfg.web).not_found_service(ServeFile::new(cfg.web.join("404.html")));
+    let page = ServeDir::new(&cfg.web).precompressed_br().precompressed_gzip().not_found_service(ServeFile::new(cfg.web.join("404.html")));
     Router::new()
         .route("/latest.json", get(latest))
         .route("/download/{platform}", get(download))
@@ -64,7 +64,7 @@ pub fn app(cfg: Config) -> Router {
         // Dépôt F-Droid de Looty (index et APK) : cache court, l'index change à chaque version.
         .nest_service("/fdroid", ServeDir::new(cfg.data.join("fdroid")))
         // Fichiers dont le nom change avec le contenu (CSS, polices) : cache d’un an ; captures d’écran : un jour.
-        .nest_service("/_astro", ServeDir::new(cfg.web.join("_astro")).layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"))))
+        .nest_service("/_astro", ServeDir::new(cfg.web.join("_astro")).precompressed_br().precompressed_gzip().layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"))))
         .nest_service("/shots", ServeDir::new(cfg.web.join("shots")).layer_files_cache(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"))))
         .fallback_service(page)
         .layer(short_cache)

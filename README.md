@@ -98,4 +98,4 @@ Bump the version, add the notes (English and French) to `backend/releases.json` 
 
 ## License
 
-[GPL-3.0](LICENSE).
+GPL-3.0-only (GNU GPL version 3 only): see [LICENSE](LICENSE).

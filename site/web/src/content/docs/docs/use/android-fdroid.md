@@ -21,6 +21,8 @@ If you type the address yourself, it is `https://looty.untypequicode.fr/fdroid/r
 
 F-Droid shows the repository fingerprint when you add it. It must be the one published on this site, the SHA-256 fingerprint of the repository's signing key:
 
+`98AB977C06DF41102B93943862203BDFABF197A589B68955A3138882FB6D218C`
+
 [Fingerprint of the repository key](/fdroid/fingerprint.txt)
 
 The QR code above already contains it, so scanning it is the safest way to add the repository. If the fingerprint differs, do not add the repository.

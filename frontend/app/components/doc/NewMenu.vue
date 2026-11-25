@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, Sigma, Globe, NotebookText, PenTool, LockKeyhole, BookCheck, LayoutTemplate } from 'lucide-vue-next'
+import { FileText, Sigma, Globe, NotebookText, PenTool, LockKeyhole, BookCheck, LayoutTemplate, Presentation } from 'lucide-vue-next'
 import { useTemplates } from '~/composables/useTemplates'
 import type { Placement } from '@floating-ui/vue'
 import type { MenuItem } from '~/components/ui/Menu.vue'
@@ -43,6 +43,11 @@ async function createCanvas() {
   await navigateTo(links.doc(wsId.value, p.id))
   emit('created', p.id)
 }
+async function createSlides() {
+  const p = await createPage({ parentId: props.parentId, title: t('slides.untitled'), defaultView: 'slides' })
+  await navigateTo(links.doc(wsId.value, p.id))
+  emit('created', p.id)
+}
 const items = computed<MenuItem[]>(() => props.personalOnly
   ? [
       { label: t('personalItem.newPersonalDoc'), icon: LockKeyhole, onSelect: () => create(undefined, true) },
@@ -51,6 +56,7 @@ const items = computed<MenuItem[]>(() => props.personalOnly
   : [
   { label: t('projects.pageKinds.doc'), icon: FileText, onSelect: () => create() },
   { label: t('canvas.title'), icon: PenTool, onSelect: createCanvas },
+  { label: t('slides.newPresentation'), icon: Presentation, onSelect: createSlides },
   ...(pageTemplates.value.length ? [{ label: t('tpl.fromTemplate'), icon: LayoutTemplate, onSelect: () => (tplOpen.value = true) }] : []),
   // Document visible de soi seul, rangé ici (ex. son TP sous la page du cours).
   ...(personalSpace.value ? [] : [{ label: t('personalItem.newPersonalDoc'), icon: LockKeyhole, onSelect: () => create(undefined, true) }]),

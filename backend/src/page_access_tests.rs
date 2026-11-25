@@ -606,3 +606,19 @@ async fn the_single_page_and_the_bulk_resolver_agree_on_random_trees(pool: PgPoo
         assert!(seen.contains(&l), "the generated space exercises level {l}");
     }
 }
+
+/// Une présentation (`default_view = 'slides'`) est une page : mêmes niveaux, refus et contrôle de collaboration.
+#[sqlx::test]
+async fn a_slides_page_follows_the_same_resolver(pool: PgPool) {
+    let w = World::new(pool).await;
+    let deck = page(&w.pool, w.ws, w.ana, "Deck", Some(w.shared)).await;
+    sqlx::query("UPDATE pages SET default_view = 'slides' WHERE id = $1").bind(deck).execute(&w.pool).await.unwrap();
+    assert_eq!(w.collab(w.gus, deck).await.1["can_write"], false);
+    assert_eq!(w.collab(w.edi, deck).await.1["can_write"], true);
+    assert_eq!(w.collab(w.zed, deck).await.0, 404);
+    w.share(deck, w.edi, "deny", true).await;
+    assert_eq!(w.collab(w.edi, deck).await.0, 404);
+    assert_eq!(w.get_page(w.edi, deck).await, 404);
+    assert!(!w.visible_titles(w.edi).await.contains(&"Deck".to_string()));
+    assert_eq!(w.collab(w.gus, deck).await.1["level"], "comment");
+}
