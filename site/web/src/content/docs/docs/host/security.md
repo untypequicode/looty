@@ -13,6 +13,8 @@ description: "Secrets, LOOTY_DEV_LOGIN and what to expose."
 
 ## PC tunnels
 
+Details: [PC tunnels](/docs/host/operate/tunnels/).
+
 A PC tunnel lets a person connect their own computer to a project (Jupyter, LaTeX) with an outgoing connection. **Members of the project can then run code on that computer**, so the feature is off until you turn it on and every limit is yours to set.
 
 - **Turn on / off**: Administration > Instance > Tunnels. `LOOTY_TUNNELS=on` only gives the initial value, until the first save. Turning it off closes the tunnels in progress right away.

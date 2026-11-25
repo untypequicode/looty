@@ -23,3 +23,5 @@ Update (WebR, issue #237): **R now runs in the browser with WebR**, as a third e
 - **Channel**: WebR runs with the PostMessage channel, not SharedArrayBuffer or the service worker channel, so no `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` header is needed site-wide (they would break the embeds and OAuth pop-ups). The Looty service worker (push only) is not involved.
 
 Gaps: no interrupt, no SVG, packages not built for WebAssembly are unavailable (the Jupyter engine covers them), `r-packages.txt` is manual, completion covers base R and loaded packages only, and the memory ceiling is the browser's.
+
+PC tunnel: a project can also reach a Jupyter on a person's own computer through an outgoing connection, see ADR 0020.

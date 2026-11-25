@@ -18,7 +18,7 @@ People link their own Moodle account from their settings; nothing is required on
 
 ## Jupyter
 
-Project Jupyter servers are contacted by the Looty server only. By default servers on a private network or over `http` are refused: set `JUPYTER_ALLOW_PRIVATE=true` if your Jupyter server runs on your LAN or the same host.
+Project Jupyter servers are contacted by the Looty server only. By default servers on a private network or over `http` are refused: set `JUPYTER_ALLOW_PRIVATE=true` if your Jupyter server runs on your LAN or the same host. To let people use their own computer as a Jupyter server without opening any port, see [PC tunnels](/docs/host/operate/tunnels/).
 
 ## CalDAV and AI providers
 
