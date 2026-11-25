@@ -1,0 +1,95 @@
+# 0022 - Page access model: audit, target model and phases
+
+Status: proposed (phase 1 of issue #298: audit, tests and small fixes shipped; the model below is built in later phases)
+
+Context: giving someone of the instance who is not a member of the space access to a page and its sub-pages goes through the page share (Share, Access). Users report it "does not seem to work well". This ADR records how access works today (audited end to end, with executable tests in `backend/src/page_access_tests.rs`), the defects found, the target model and the plan.
+
+## 1. How access works today
+
+- **Space role** (`workspace_members`, `workspace_roles`): `Perms` (docs, boards, calendar levels none/read/comment/validate/edit/manage, plus invite, share, admin, groups, announcements). `member_perms` is the single reader.
+- **Page share** (`page_permissions`: page, user, role `viewer | editor | blocked`, `inherit` = sub-pages included, `allow_subpages`, created_by). The nearest grant on the page or an ancestor with `inherit` wins (`nearest_page_override`, mirrored in bulk by `visible_pages`; the two must stay equal).
+  - Member: grant replaces the role for that page; `blocked` hides it; space admins ignore grants.
+  - Non-member ("guest", `Role::Guest`): only `viewer` (read) and `editor` (write) exist; `blocked` is refused (`not_a_member`). Guests have no space rights at all.
+- **Who can share**: `PUT /workspaces/{ws}/pages/{id}/permissions` and `GET` need the space `admin` right. Members with the `share` right can only create the public link (`POST /share`), and need write access to the page.
+- **Public link**: `pages.share_token` + `is_public`, read-only, unauthenticated (`/api/public/pages/{token}`), including the notebook/PDF/images of the page project.
+- **Enforcement points**: `page_access` / `require_page_read|write` (single page), `visible_pages` (lists, tree, search, canvases, graph, classes, activity), `require_member_or_guest` (the few space reads the UI needs: space, pages, members, prefs, notifications, calls, projects), `require_member` elsewhere (guests excluded), `ws.rs` (realtime room, guests only get filtered presence, members get events filtered per page), `collaboration/index.js` (cookie forwarded to `GET /api/pages/{id}/access`, revalidated on `NOTIFY looty_access` and every 2 minutes).
+- **Shared with me**: `GET /api/shared` (roots from `page_permissions` where the person is not a member + sub-pages checked one by one with `page_access`), frontend `useShared`, `/shared` page, e-mail on first share.
+- **Groups** (`member_groups`) are per space and only contain members; they carry no rights and cannot receive a page share.
+- **Files and images**: uploads are `/uploads/{random-name}` served without authentication (capability URL); project files go through project routes that follow page access.
+- **API tokens** authenticate as the user (same `AuthUser`, same checks). **Webhooks** are space-level configuration. **Exports**: a person's export covers their own spaces; the space export is for admins.
+
+## 2. Findings
+
+Fixed in this PR (tests first, all in `page_access_tests.rs`):
+
+| # | Defect | Fix |
+|---|--------|-----|
+| F1 | A guest could not search at all (`search` required membership): shared pages never appeared in search | Search accepts guests, restricted to visible pages |
+| F2 | Search took the 40 latest matches of the space and filtered by access afterwards: a person who sees few pages got empty or partial results when other pages matched | Visible ids are part of the query |
+| F3 | `GET page` and the page list returned `share_token` (the public link) to read-only people and guests, although realtime events already hid it | Token returned only with write access |
+| F4 | Moving a page inside the space changed inherited access but did not signal the collaboration server: open sessions of people who lost access lasted up to 2 minutes | `PAGE_PERMISSIONS_UPDATED` emitted on move |
+
+Confirmed correct (covered by tests): outsider reads the shared page and its sub-pages only; no parent, sibling or space leak in lists, search paths or 404 vs 403; read guests cannot write; guest editors cannot move a page to the root or to an unshared page; page-only share (`inherit=false`) stops at the page; a grant on a sub-page overrides the parent one; revoking cuts page, collaboration check, revisions, comments, Shared with me and the space list at once; blocked members lose the page and its sub-pages.
+
+Not fixed here, planned (larger or product decisions):
+
+- G1. **Attachments and images are capability URLs**: `/uploads/{name}` has no authentication and no link to a page, so revoking access cannot cut a file whose URL the person already has, and a leaked URL works for anyone.
+- G2. **Levels**: only read/write for guests. No comment-only, no manage. Today a read-only guest can still post comments (the comment route only checks that the page is readable), but cannot resolve threads: neither rule is a decision.
+- G3. **No deny or removal for outsiders** on a sub-page of a shared tree (`blocked` is members only), and no "this page only" for a single sub-page except by granting again with `inherit=false`.
+- G4. **Who may share**: only space admins manage page shares; the `share` right (members) does not allow giving a guest access; guests cannot re-share. No "manage" level on a page.
+- G5. **Targets**: persons only. No group, and the people picker (`/api/users/search`) is the whole instance directory, with no restriction.
+- G6. **Mentions and notifications**: `mentioned_people` keeps space members only, so guests cannot be mentioned and the editor offers no guest in mentions; sharing a page notifies by e-mail only (no in-app notification).
+- G7. **Guest editors can trash the page that was shared with them** (and its whole subtree); they cannot restore it (trash needs membership).
+- G8. **Realtime for guests**: the guest page set is read once at connection; guests receive presence only, so their sidebar does not update live (new sub-pages, renames) until a refetch.
+- G9. **Move rules**: moving between spaces drops all page shares (documented in the code, not told to the user); moves inside a space silently change inherited access with no warning to the mover.
+- G10. **Shared with me** does N+1 queries (`page_access` per descendant) and has no search, grouping or access-origin display. The share dialog shows the origin of inherited grants but not "who can see this" in one summary.
+- G11. Page shares have no audit log entry and `webhooks` have no per-page filtering (space-level by design).
+- G12. A suspended account keeps its `page_permissions`; checks happen at login and at the 2-minute socket tick.
+
+## 3. Access matrix (current behavior, verified)
+
+Page relation: S = page shared with the person, D = descendant of S (grant inherited), P = ancestor of S, X = unrelated page of the space.
+
+| Person | Action | S | D | P | X |
+|--------|--------|---|---|---|---|
+| Owner / admin | read, edit, share, delete | yes | yes | yes | yes |
+| Member (role docs edit) | read, edit | yes | yes | yes | yes |
+| Member, `blocked` on S | read/list/search/collab | no (404) | no | yes | yes |
+| Guest viewer | read, list, search (F1), shared-with-me, comments | yes | yes (if inherit) | 404 | 404 |
+| Guest viewer | edit, collab write, share, trash | 403 | 403 | 404 | 404 |
+| Guest editor | edit, collab write, create sub-page (with option) | yes | yes | 404 | 404 |
+| Guest editor | share, change permissions | 404 (not a member) | 404 | 404 | 404 |
+| Guest editor | trash S (G7), move S under a page they edit | yes | yes | 404 | 404 |
+| Instance member, no share | anything | 404 | 404 | 404 | 404 |
+| Anyone with public link | read page, notebook, PDF | read | no | no | no |
+
+Surfaces: lists, tree, canvases, graph, activity, classes use `visible_pages`; search uses it since F2; breadcrumbs are built client side from the visible list (no parent title leaks); search paths stop at the first hidden ancestor.
+
+## 4. Target model
+
+- **Levels per page**: `read`, `comment`, `edit`, `manage` (manage = share and delete the subtree), plus explicit `deny`. Space roles keep their domain levels; a page grant can raise or lower the effective level for that page.
+- **Scope**: each grant is `this page only` or `this page and sub-pages`. The nearest grant (page, then ancestors with sub-pages scope) wins; a grant or a deny on a sub-page overrides what comes from above. Deny works for members and outsiders alike.
+- **Targets**: a person, several people, an instance group (new instance-level groups of accounts, plus space groups for members) or all members of the space. Invitation by name or e-mail among instance accounts, with the existing instance-directory visibility rules.
+- **Visibility**: "Shared with me" (grouped by space and sharer, with access origin), search, tree and breadcrumbs limited to what the person can see, with the missing parents shown as a single "…" and no titles.
+- **One resolver**: a single function `resolve_page_access(user, page) -> Level` and its bulk version `visible_pages` share one implementation and a property test (equality on random trees), used by every route, by the realtime hub and by the collaboration check. Routes that take a page id via another resource (comments, revisions, files, projects, tasks linked to a page, calls) go through it.
+- **Files**: uploaded files are bound to a page (or space) and served through an authenticated route checking that access; existing capability URLs keep working for a deprecation period through a signed, expiring token form.
+- **Immediate revocation**: every change of grant, deny, move, trash or membership emits `PAGE_PERMISSIONS_UPDATED`; the hub refreshes guest page sets; the collaboration server closes or downgrades connections; file tokens expire.
+- **Notifications and mentions**: guests can be mentioned on pages they can read; sharing creates an in-app notification (and the e-mail); revoking is recorded in the page activity.
+- **Moves**: moving inside the space shows the mover what access will be lost or gained before confirming; moving to another space keeps nothing except what the target space grants, and says so.
+- **Admins and suspension**: space admins and instance admins keep access (audited); suspended accounts lose every grant effect immediately (resolver checks `is_suspended`).
+- **Share dialog**: list of people and groups with level, scope and origin (direct or inherited from a named parent the person may see), search among instance accounts, one summary line ("12 people can see this page"), error pages with "request access".
+
+## 5. Migration
+
+- `viewer` becomes `read`, `editor` becomes `edit`, `blocked` becomes `deny`; `inherit` becomes the scope; `allow_subpages` stays an option of `edit`. No grant gains a level: `comment` and `manage` are new and only given by choice. A read-only guest who can comment today keeps commenting until their grant is edited, so no right is silently removed or added (G2 is settled by a one-time default: existing `viewer` grants get `comment`, new ones choose).
+- Capability upload URLs keep working until the file migration finishes (phase 5), then only signed tokens work.
+- The migration is additive (new columns, old ones read until the last phase), reversible by the feature flag, and covered by a test comparing the effective access of every (person, page) pair before and after on a generated space.
+
+## 6. Plan
+
+1. **Phase 1 (this PR)**: audit, ADR, matrix tests, fixes F1 to F4.
+2. **Phase 2 - resolver and levels**: one access resolver, `comment` and `manage` levels, explicit `deny` for outsiders, scope per grant, backend matrix tests over every route.
+3. **Phase 3 - share dialog and "Shared with me"**: new dialog (levels, scope, origin, summary), people picker, grouped Shared with me, access indicators in the tree, request-access error page, EN/FR, mobile and Android.
+4. **Phase 4 - groups and notifications**: instance-level groups as share targets, guest mentions, in-app notification on share, activity log of share changes.
+5. **Phase 5 - files, projects and live revocation**: authenticated and page-bound uploads, projects/notebooks/tasks in pages checked through the resolver, guest realtime refresh, collaboration downgrade on level change, trash and move rules.
+6. **Phase 6 - end-to-end and docs**: e2e (outsider with page and sub-pages, revoke, inherit, override, collaboration, files), EN/FR docs and release notes.

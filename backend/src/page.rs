@@ -200,6 +200,10 @@ async fn list_pages(
                 Some(PageAccess::None) | None => None,
                 Some(a) => {
                     p.can_edit = Some(*a == PageAccess::Write);
+                    // Le lien public ne se lit que là où on peut le gérer (comme dans les événements temps réel).
+                    if *a != PageAccess::Write {
+                        p.share_token = None;
+                    }
                     if grants.contains(&p.id) {
                         p.can_add_child = Some(true);
                     }
@@ -234,6 +238,9 @@ async fn get_page(
     .fetch_one(&pool)
     .await?;
     page.can_edit = Some(access == PageAccess::Write);
+    if access != PageAccess::Write {
+        page.share_token = None;
+    }
     if crate::access::subpage_grants(&pool, user.id, workspace_id).await?.contains(&page_id) {
         page.can_add_child = Some(true);
     }
@@ -476,6 +483,8 @@ async fn update_page(
         }
         if old_parent != page.parent_id {
             crate::activity::log_page(pool, page_id, workspace_id, user.id, "move").await;
+            // Les droits hérités de l'ancien parent changent : sessions de collaboration et vues temps réel revérifiées.
+            state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
         }
         // L'éditeur réenregistre parfois un HTML identique à l'ouverture : pas une modification.
         if payload.content.is_some() && payload.content != old_content {
