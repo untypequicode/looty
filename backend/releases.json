@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.56.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "PC tunnel: the instance side (off by default)",
+        "fr": "Tunnel PC : le côté instance (désactivé par défaut)"
+      },
+      "notes": {
+        "en": [
+          "Groundwork for using your own computer as the Jupyter server of a project, with an outgoing connection and no open port. The instance can now accept tunnel agents, with revocable tunnel tokens and a project Jupyter server that targets a tunnel. It stays off until an administrator sets `LOOTY_TUNNELS=on`; the agent and the project screens come next."
+        ],
+        "fr": [
+          "Première brique pour utiliser son propre ordinateur comme serveur Jupyter d’un projet, par une connexion sortante et sans port ouvert. L’instance sait désormais accepter des agents de tunnel, avec des jetons de tunnel révocables, et un serveur Jupyter de projet peut cibler un tunnel. Tout reste désactivé tant qu’un administrateur n’a pas mis `LOOTY_TUNNELS=on` ; l’agent et les écrans du projet suivent."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.55.1",
       "date": "2026-11-25",
       "title": {
