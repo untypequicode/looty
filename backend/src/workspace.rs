@@ -836,7 +836,7 @@ async fn search_workspace(
                 substring(regexp_replace(coalesce(content, ''), '<[^>]*>', ' ', 'g') from 1 for 160) AS snippet,
                 parent_id, NULL::timestamptz AS date, NULL::text AS folder, looty_keyword(keywords, $2) AS keyword
          FROM pages
-         WHERE workspace_id = $1 AND ((NOT $3 AND (looty_fold(title) LIKE $2 OR looty_fold(content) LIKE $2 OR looty_fold(canvas_text) LIKE $2))
+         WHERE workspace_id = $1 AND ((NOT $3 AND (looty_fold(title) LIKE $2 OR looty_fold(content) LIKE $2 OR looty_fold(canvas_text) LIKE $2 OR looty_fold(slides_text) LIKE $2))
                                       OR looty_keyword(keywords, $2) IS NOT NULL)
          ORDER BY (NOT $3 AND looty_fold(title) LIKE $2) DESC, (looty_keyword(keywords, $2) IS NOT NULL) DESC, updated_at DESC
          LIMIT 40",

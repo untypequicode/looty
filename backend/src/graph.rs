@@ -82,7 +82,7 @@ async fn build_uncached(pool: &PgPool, user: &AuthUser, ws: Uuid) -> ApiResult<B
     let perms = crate::access::member_perms(pool, user.id, ws).await?.map(|(_, p)| p).ok_or(ApiError::NotFound)?;
     let visible = visible_pages(pool, user, ws, role).await?;
     let pages: Vec<(Uuid, String, Option<String>, Option<Uuid>, String, String)> =
-        sqlx::query_as(r#"SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, ''),
+        sqlx::query_as(r#"SELECT id, title, icon, parent_id, COALESCE(content, '') || ' ' || COALESCE(canvas_text, '') || ' ' || COALESCE(slides_text, ''),
                 COALESCE((SELECT string_agg(m[1], ' ') FROM regexp_matches(encode(yjs_state, 'escape'), '(?:/doc/|/task/|task=|event=|data-board="|/board/)[0-9a-fA-F-]{36}', 'g') AS m), '') FROM pages WHERE workspace_id = $1 AND id = ANY($2)"#)
             .bind(ws)
             .bind(visible.iter().filter(|(_, a)| matches!(a, PageAccess::Read | PageAccess::Write)).map(|(id, _)| *id).collect::<Vec<Uuid>>())

@@ -164,6 +164,15 @@ struct PageRow {
     title: String,
     content: Option<String>,
     yjs_state: Option<Vec<u8>>,
+    /// Plan textuel d'une présentation (ADR 0022) : son contenu dans l'archive.
+    slides_text: Option<String>,
+}
+
+/// Présentation exportée en texte : une rubrique « Diapositive n » par diapositive (Markdown, HTML).
+fn slides_formats(title: &str, outline: &str) -> (String, String) {
+    let md: String = outline.split("\n\n").map(|s| s.replacen("## ", "## Slide ", 1)).collect::<Vec<_>>().join("\n\n");
+    let html = format!("<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>{t}</title></head><body>\n<pre>{b}</pre>\n</body></html>\n", t = escape_html(title), b = escape_html(&md));
+    (format!("# {title}\n\n{md}\n"), html)
 }
 
 /// (Markdown, HTML) d'une page : l'état collaboratif, ou à défaut l'ancien HTML.
@@ -202,7 +211,7 @@ struct Counts {
 
 async fn add_documents(pool: &sqlx::PgPool, ar: &mut Archive, dir: &str, space: &Space, me: Uuid, mode: &'static str) -> ApiResult<usize> {
     let sql = format!(
-        "SELECT p.id, p.parent_id, p.title, p.content, p.yjs_state FROM pages p WHERE p.workspace_id = $1 AND {} ORDER BY p.position",
+        "SELECT p.id, p.parent_id, p.title, p.content, p.yjs_state, p.slides_text FROM pages p WHERE p.workspace_id = $1 AND {} ORDER BY p.position",
         own_cond("p", "created_by")
     );
     let rows: Vec<PageRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql)).bind(space.id).bind(me).bind(mode_for(space, mode)).fetch_all(pool).await?;
@@ -219,8 +228,11 @@ async fn add_documents(pool: &sqlx::PgPool, ar: &mut Archive, dir: &str, space: 
         }
         folders.reverse();
         let rel = if folders.is_empty() { seg(&r.title) } else { format!("{}/{}", folders.join("/"), seg(&r.title)) };
-        let (title, state, html) = (r.title.clone(), r.yjs_state, r.content);
-        let (md, html_out) = tokio::task::spawn_blocking(move || page_formats(&title, state.as_deref(), html.as_deref()))
+        let (title, state, html, slides) = (r.title.clone(), r.yjs_state, r.content, r.slides_text.filter(|t| !t.trim().is_empty()));
+        let (md, html_out) = tokio::task::spawn_blocking(move || match slides {
+            Some(s) if state.as_deref().is_none_or(|b| b.is_empty()) && html.as_deref().is_none_or(|h| h.trim().is_empty()) => slides_formats(&title, &s),
+            _ => page_formats(&title, state.as_deref(), html.as_deref()),
+        })
             .await
             .map_err(|_| ApiError::Internal("export_conversion_failed".into()))?;
         let up = "../".repeat(rel.matches('/').count() + 1);
@@ -745,6 +757,13 @@ mod tests {
         assert!(md.starts_with("# Cours <1>\n\n"), "{md}");
         assert!(md.contains("Intro") && md.contains("Bonjour"), "{md}");
         assert!(html.contains("<title>Cours &lt;1&gt;</title>") && html.contains("<h2>Intro</h2>"));
+    }
+
+    #[test]
+    fn a_presentation_is_exported_as_a_slide_outline() {
+        let (md, html) = slides_formats("Deck <1>", "## 1\nHello\n\n## 2\nWorld");
+        assert_eq!(md, "# Deck <1>\n\n## Slide 1\nHello\n\n## Slide 2\nWorld\n");
+        assert!(html.contains("<title>Deck &lt;1&gt;</title>") && html.contains("## Slide 2"));
     }
 
     #[test]
