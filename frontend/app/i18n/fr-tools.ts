@@ -59,7 +59,7 @@ export default {
   pagePerms: {
     hint: 'Donnez à quelqu’un plus ou moins d’accès à cette page que son rôle : un membre, ou toute personne ayant un compte Looty (invité). Les administrateurs ont toujours accès.',
     addPlaceholder: 'Ajouter un membre ou un compte Looty…', withSubpages: 'Sous-pages comprises', guest: 'Invité', noMatch: 'Aucun résultat.',
-    editorHint: 'Peut modifier cette page', viewerHint: 'Peut lire cette page', blockedHint: 'Ne voit pas cette page', remove: 'Retirer l’accès particulier',
+    editorHint: 'Peut modifier cette page', viewerHint: 'Peut lire cette page', commentLabel: 'Peut commenter', commentHint: 'Peut lire et commenter cette page', manageLabel: 'Peut gérer', manageHint: 'Peut modifier cette page et changer qui y a accès', blockedHint: 'Ne voit pas cette page', remove: 'Retirer l’accès particulier',
     scopeTree: 'Cette page et ses sous-pages', scopePage: 'Cette page seulement', onlyThis: 'cette page seulement', includeSub: 'inclure les sous-pages',
     inherited: 'Depuis une page parente', from: 'Depuis « {title} »', none: 'Aucun accès particulier : chacun suit son rôle.', badge: 'Permissions particulières',
     createSub: 'Peut créer des sous-pages', createSubHint: 'Cette personne peut ajouter des pages dans celle-ci, même si son rôle (ou son statut d’invité) ne permet pas de créer des documents.',

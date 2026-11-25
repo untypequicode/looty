@@ -38,18 +38,22 @@ async function setPublic(on: boolean) {
 }
 
 // --- Accès particuliers (membres et invités extérieurs à l'espace) ---
-interface PagePerm { user_id: string; name: string; email: string; avatar_url?: string | null; role: 'viewer' | 'editor' | 'blocked'; inherit: boolean; allow_subpages?: boolean; is_member: boolean; inherited_from?: { id: string; title: string } | null }
+interface PagePerm { user_id: string; name: string; email: string; avatar_url?: string | null; role: 'read' | 'comment' | 'edit' | 'manage' | 'deny'; level?: 'read' | 'comment' | 'edit' | 'manage' | 'deny'; inherit: boolean; allow_subpages?: boolean; is_member: boolean; inherited_from?: { id: string; title: string } | null }
 const perms = ref<PagePerm[]>([])
 async function loadPerms() {
-  perms.value = await api<PagePerm[]>(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`)
+  // `level` : niveau précis (lecture, commentaire, modification, gestion, refus) ; `role` reste le nom historique.
+  const rows = await api<PagePerm[]>(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`)
+  perms.value = rows.map((r) => ({ ...r, role: r.level ?? r.role }))
 }
 watch([open, tab], ([o, tb]) => { if (o && tb === 'access' && can.value.admin) loadPerms() })
 const own = computed(() => perms.value.filter((p) => !p.inherited_from))
 const inherited = computed(() => perms.value.filter((p) => p.inherited_from))
 const roleItems = computed(() => [
-  { value: 'editor', label: t('share.editor'), hint: t('pagePerms.editorHint') },
-  { value: 'viewer', label: t('share.viewer'), hint: t('pagePerms.viewerHint') },
-  { value: 'blocked', label: t('share.blocked'), hint: t('pagePerms.blockedHint') },
+  { value: 'manage', label: t('pagePerms.manageLabel'), hint: t('pagePerms.manageHint') },
+  { value: 'edit', label: t('share.editor'), hint: t('pagePerms.editorHint') },
+  { value: 'comment', label: t('pagePerms.commentLabel'), hint: t('pagePerms.commentHint') },
+  { value: 'read', label: t('share.viewer'), hint: t('pagePerms.viewerHint') },
+  { value: 'deny', label: t('share.blocked'), hint: t('pagePerms.blockedHint') },
   { value: 'none', label: t('pagePerms.remove') },
 ])
 const roleLabel = (r: string) => roleItems.value.find((x) => x.value === r)?.label ?? r
@@ -62,7 +66,7 @@ const permOpen = ref<Record<string, boolean>>({})
 
 // Ajouter : membres de l'espace, puis toute personne ayant un compte Looty (invitée).
 const addQuery = ref('')
-const addRole = ref<'viewer' | 'editor' | 'blocked'>('viewer')
+const addRole = ref<'read' | 'comment' | 'edit' | 'manage' | 'deny'>('comment')
 const addInherit = ref(true)
 const outside = ref<{ id: string; name: string; email: string; avatar_url?: string | null }[]>([])
 const searchOutside = useDebounceFn(async () => {
@@ -75,8 +79,8 @@ const memberHits = computed(() => {
   if (!q) return []
   return (members.data.value ?? []).filter((m) => !own.value.some((p) => p.user_id === m.user_id) && `${m.name} ${m.email}`.toLowerCase().includes(q)).slice(0, 5)
 })
-async function add(userId: string, isMember: boolean) {
-  await setPerm(userId, !isMember && addRole.value === 'blocked' ? 'viewer' : addRole.value, addInherit.value)
+async function add(userId: string) {
+  await setPerm(userId, addRole.value, addInherit.value)
   addQuery.value = ''
 }
 </script>
@@ -119,12 +123,12 @@ async function add(userId: string, isMember: boolean) {
       </div>
       <label class="scope"><UiSwitch v-model="addInherit" /> {{ t('pagePerms.withSubpages') }}</label>
       <div v-if="addQuery.trim()" class="hits">
-        <button v-for="m in memberHits" :key="m.user_id" class="hit" @click="add(m.user_id, true)">
+        <button v-for="m in memberHits" :key="m.user_id" class="hit" @click="add(m.user_id)">
           <UiAvatar :name="m.name" :src="m.avatar_url" :size="24" />
           <span class="m-body"><span class="m-name truncate">{{ m.name }}</span><span class="m-role">{{ m.role_name ?? t(`roles.${m.role}`) }}</span></span>
           <UserPlus :size="14" class="faint" />
         </button>
-        <button v-for="u in outside" :key="u.id" class="hit" @click="add(u.id, false)">
+        <button v-for="u in outside" :key="u.id" class="hit" @click="add(u.id)">
           <UiAvatar :name="u.name" :src="u.avatar_url" :size="24" />
           <span class="m-body"><span class="m-name truncate">{{ u.name }}</span><span class="m-role">{{ u.email }} · {{ t('pagePerms.guest') }}</span></span>
           <UserPlus :size="14" class="faint" />
@@ -138,12 +142,12 @@ async function add(userId: string, isMember: boolean) {
           <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('pagePerms.guest') }}</span></div>
           <div class="m-role">{{ p.inherit ? t('pagePerms.scopeTree') : t('pagePerms.scopePage') }}
             · <button class="link" @click="setPerm(p.user_id, p.role, !p.inherit, !!p.allow_subpages)">{{ p.inherit ? t('pagePerms.onlyThis') : t('pagePerms.includeSub') }}</button></div>
-          <label v-if="p.role === 'editor'" class="m-sub" :title="t('pagePerms.createSubHint')">
+          <label v-if="p.role === 'edit' || p.role === 'manage'" class="m-sub" :title="t('pagePerms.createSubHint')">
             <input type="checkbox" :checked="!!p.allow_subpages" @change="setPerm(p.user_id, p.role, p.inherit, ($event.target as HTMLInputElement).checked)" />
             {{ t('pagePerms.createSub') }}
           </label>
         </div>
-        <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.role" :items="p.is_member ? roleItems : roleItems.filter((r) => r.value !== 'blocked')" :width="260" placement="bottom-end" @update:model-value="(v) => setPerm(p.user_id, v as string, p.inherit, !!p.allow_subpages)">
+        <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.role" :items="roleItems" :width="260" placement="bottom-end" @update:model-value="(v) => setPerm(p.user_id, v as string, p.inherit, !!p.allow_subpages)">
           <button class="m-select" :class="p.role">{{ roleLabel(p.role) }}</button>
         </UiCombobox>
       </div>
@@ -182,9 +186,9 @@ async function add(userId: string, isMember: boolean) {
 .m-role { font-size: var(--fs-xs); color: var(--text-3); }
 .m-full { font-size: var(--fs-sm); }
 .m-select { height: 28px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); }
-.m-select.blocked { color: var(--red); }
-.m-select.viewer { color: var(--yellow); }
-.m-select.editor { color: var(--green); }
+.m-select.deny { color: var(--red); }
+.m-select.read, .m-select.comment { color: var(--yellow); }
+.m-select.edit, .m-select.manage { color: var(--green); }
 .m-select.static { display: inline-flex; align-items: center; border-style: dashed; }
 .add { display: flex; gap: 8px; }
 .add-q { flex: 1; }

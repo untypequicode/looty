@@ -12,7 +12,7 @@ use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
 use crate::access::{
-    effective_page_access, level, member_perms, nearest_page_override, require_member_or_guest, visible_pages, AuthUser, PageAccess, Perms, Role,
+    access_of, level, member_perms, page_level, require_member_or_guest, visible_pages, AuthUser, PageAccess, Perms, Role,
 };
 use sqlx::PgPool;
 use crate::error::ApiResult;
@@ -384,8 +384,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                                 // Page nouvelle ou déplacée : son accès (hérité du parent) peut changer.
                                 "PAGE_CREATED" | "PAGE_UPDATED" if !mv.perms.admin => {
                                     if let Some(id) = v["page"]["id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) {
-                                        let ov = nearest_page_override(&send_pool, id, user_id).await.ok().flatten();
-                                        mv.pages.insert(id, effective_page_access(&mv.perms, ov.as_deref()));
+                                        let lv = page_level(&send_pool, user_id, id).await.map(|(_, _, l)| l).unwrap_or(level::NONE);
+                                        mv.pages.insert(id, access_of(lv));
                                     }
                                 }
                                 _ => {}

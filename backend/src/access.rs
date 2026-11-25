@@ -329,7 +329,7 @@ pub async fn require_member(pool: &PgPool, user: &AuthUser, workspace_id: Uuid) 
 pub async fn is_guest(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
-          WHERE p.workspace_id = $1 AND pp.user_id = $2 AND pp.role IN ('viewer', 'editor'))",
+          WHERE p.workspace_id = $1 AND pp.user_id = $2 AND pp.role NOT IN ('deny', 'blocked'))",
     )
     .bind(workspace_id)
     .bind(user_id)
@@ -439,6 +439,8 @@ pub async fn is_member(pool: &PgPool, workspace_id: Uuid, user_id: &str) -> ApiR
 // Pages : permissions par page (héritées des parents)
 // ---------------------------------------------------------------------------
 
+/// Vue grossière de l'accès à une page (lecture / écriture) ; le niveau précis (`level`) vient
+/// de `page_level` : lecture < commentaire < modification < gestion (`level::MANAGE`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PageAccess {
     None,
@@ -446,26 +448,106 @@ pub enum PageAccess {
     Write,
 }
 
-/// Calcule l'accès effectif à une page.
+/// Niveau d'accès (échelle `level`) -> vue grossière.
+pub fn access_of(lv: u8) -> PageAccess {
+    match lv {
+        level::NONE => PageAccess::None,
+        l if l >= level::EDIT => PageAccess::Write,
+        _ => PageAccess::Read,
+    }
+}
+
+/// Partage d'une page pour une personne : un niveau ou un refus explicite.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Grant {
+    Deny,
+    Level(u8),
+}
+
+impl Grant {
+    /// Valeur stockée dans `page_permissions.role`. Les anciennes valeurs (`viewer`, `editor`,
+    /// `blocked`) restent comprises : `viewer` donne le commentaire, comme avant les niveaux.
+    pub fn parse(role: &str) -> Option<Grant> {
+        Some(match role {
+            "read" => Grant::Level(level::READ),
+            "comment" | "viewer" => Grant::Level(level::COMMENT),
+            "edit" | "editor" => Grant::Level(level::EDIT),
+            "manage" => Grant::Level(level::MANAGE),
+            "deny" | "blocked" => Grant::Deny,
+            _ => return None,
+        })
+    }
+    pub fn name(&self) -> &'static str {
+        match self {
+            Grant::Deny => "deny",
+            Grant::Level(l) => match *l {
+                level::READ => "read",
+                level::COMMENT => "comment",
+                level::EDIT => "edit",
+                _ => "manage",
+            },
+        }
+    }
+    /// Nom historique, pour les clients qui ne connaissent que `viewer` / `editor` / `blocked`.
+    pub fn legacy_name(&self) -> &'static str {
+        match self {
+            Grant::Deny => "blocked",
+            Grant::Level(l) if *l >= level::EDIT => "editor",
+            Grant::Level(_) => "viewer",
+        }
+    }
+}
+
+/// Fragment SQL : partages qui donnent un accès (tout sauf le refus).
+pub const GRANTING_ROLES: &str = "NOT IN ('deny', 'blocked')";
+
+/// Niveau que donne le rôle de l'espace sur les documents (sans partage particulier).
+fn role_level(perms: &Perms) -> u8 {
+    match perms.docs {
+        level::NONE => level::NONE,
+        level::READ => level::READ,
+        l if l >= level::EDIT => level::EDIT,
+        _ => level::COMMENT,
+    }
+}
+
+/// LA règle d'accès à une page, utilisée par la résolution d'une page (`page_level`), par celle
+/// de tout l'espace (`visible_levels`) et par le temps réel : `perms` (None : personne extérieure
+/// à l'espace) et le partage le plus proche (`grant`) donnent le niveau.
 ///
-/// - un admin/owner du workspace a toujours accès en écriture ;
-/// - sinon, la permission explicite la plus proche (page ou ancêtre) s'applique :
-///   `blocked` -> aucun accès, `viewer` -> lecture, `editor` -> écriture ;
-/// - à défaut, le rôle workspace s'applique (viewer -> lecture, member -> écriture).
-pub fn effective_page_access(perms: &Perms, override_role: Option<&str>) -> PageAccess {
-    if perms.admin {
-        return PageAccess::Write;
+/// - un administrateur de l'espace garde la gestion de toutes les pages ;
+/// - sinon le partage le plus proche remplace le rôle (refus : aucun accès, pour les membres comme
+///   pour les personnes extérieures) ;
+/// - sans partage, le rôle s'applique ; une personne extérieure n'a rien.
+pub fn resolve_level(perms: Option<&Perms>, grant: Option<Grant>) -> u8 {
+    if perms.is_some_and(|p| p.admin) {
+        return level::MANAGE;
     }
-    match override_role {
-        Some("blocked") => PageAccess::None,
-        Some("viewer") => PageAccess::Read,
-        Some("editor") => PageAccess::Write,
-        _ => match perms.docs {
-            level::NONE => PageAccess::None,
-            l if l >= level::EDIT => PageAccess::Write,
-            _ => PageAccess::Read,
-        },
+    match grant {
+        Some(Grant::Deny) => level::NONE,
+        Some(Grant::Level(l)) => l,
+        None => perms.map(role_level).unwrap_or(level::NONE),
     }
+}
+
+/// Partage le plus proche de `start` : sur la page elle-même, ou sur un ancêtre « sous-pages
+/// comprises ». `grants` : page -> (valeur, sous-pages comprises). Valeur inconnue : refus.
+pub fn nearest_grant(start: Uuid, parents: &HashMap<Uuid, Option<Uuid>>, grants: &HashMap<Uuid, (String, bool)>) -> Option<Grant> {
+    let mut cur = Some(start);
+    let mut guard = 0;
+    while let Some(c) = cur {
+        if let Some((role, inherit)) = grants.get(&c) {
+            if c == start || *inherit {
+                return Some(Grant::parse(role).unwrap_or(Grant::Deny));
+            }
+        }
+        cur = parents.get(&c).copied().flatten();
+        guard += 1;
+        if guard > 64 {
+            break;
+        }
+    }
+    None
 }
 
 pub async fn page_workspace(pool: &PgPool, page_id: Uuid) -> ApiResult<Uuid> {
@@ -476,48 +558,82 @@ pub async fn page_workspace(pool: &PgPool, page_id: Uuid) -> ApiResult<Uuid> {
         .ok_or(ApiError::NotFound)
 }
 
-/// Permission explicite la plus proche dans la chaîne d'ancêtres d'une page.
-pub async fn nearest_page_override(pool: &PgPool, page_id: Uuid, user_id: Uuid) -> ApiResult<Option<String>> {
-    Ok(sqlx::query_scalar(
+/// Compte suspendu : plus aucun partage ne joue (la résolution ne passe jamais par la session).
+async fn is_suspended(pool: &PgPool, user_id: Uuid) -> ApiResult<bool> {
+    Ok(sqlx::query_scalar("SELECT COALESCE(is_suspended, FALSE) FROM users WHERE id = $1").bind(user_id).fetch_optional(pool).await?.unwrap_or(true))
+}
+
+/// Chaîne d'ancêtres d'une page (elle comprise) : (page, parent).
+async fn ancestors(pool: &PgPool, page_id: Uuid) -> ApiResult<Vec<(Uuid, Option<Uuid>)>> {
+    Ok(sqlx::query_as(
         "WITH RECURSIVE anc AS (
             SELECT id, parent_id, 0 AS depth FROM pages WHERE id = $1
             UNION ALL
             SELECT p.id, p.parent_id, anc.depth + 1 FROM pages p JOIN anc ON p.id = anc.parent_id
             WHERE anc.depth < 64
          )
-         SELECT pp.role FROM anc JOIN page_permissions pp ON pp.page_id = anc.id AND pp.user_id = $2
-         WHERE anc.depth = 0 OR pp.inherit
-         ORDER BY anc.depth LIMIT 1",
+         SELECT id, parent_id FROM anc",
     )
     .bind(page_id)
-    .bind(user_id)
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await?)
 }
 
-/// Accès effectif d'un utilisateur à une page (vérifie aussi l'appartenance au workspace).
-pub async fn page_access(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, PageAccess)> {
+/// Partages d'une personne sur un ensemble de pages : page -> (valeur, sous-pages comprises).
+async fn grants_on(pool: &PgPool, user_id: Uuid, pages: &[Uuid]) -> ApiResult<HashMap<Uuid, (String, bool)>> {
+    Ok(sqlx::query_as::<_, (Uuid, String, bool)>("SELECT page_id, role, inherit FROM page_permissions WHERE user_id = $1 AND page_id = ANY($2)")
+        .bind(user_id)
+        .bind(pages)
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|(p, r, i)| (p, (r, i)))
+        .collect())
+}
+
+/// Niveau d'accès (`level`) d'une personne à une page : la résolution unique d'une page.
+/// Ne contrôle rien d'autre que le niveau ; erreur seulement si la page n'existe pas.
+pub async fn page_level(pool: &PgPool, user_id: Uuid, page_id: Uuid) -> ApiResult<(Uuid, Role, u8)> {
     let workspace_id = page_workspace(pool, page_id).await?;
+    if is_suspended(pool, user_id).await? {
+        return Ok((workspace_id, Role::Guest, level::NONE));
+    }
     // Page personnelle (GLOSSARY) : à son propriétaire seulement, administrateurs compris.
     let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM pages_all WHERE id = $1").bind(page_id).fetch_one(pool).await?;
+    let member = member_perms(pool, user_id, workspace_id).await?;
     if let Some(owner) = owner {
-        return match workspace_role(pool, user.id, workspace_id).await? {
-            Some(role) if owner == user.id => Ok((workspace_id, role, PageAccess::Write)),
-            _ => Err(ApiError::NotFound),
-        };
+        return Ok(match member {
+            Some((role, _)) if owner == user_id => (workspace_id, role, level::EDIT),
+            Some((role, _)) => (workspace_id, role, level::NONE),
+            None => (workspace_id, Role::Guest, level::NONE),
+        });
     }
-    match member_perms(pool, user.id, workspace_id).await? {
-        Some((role, perms)) => {
-            let ov = if perms.admin { None } else { nearest_page_override(pool, page_id, user.id).await? };
-            Ok((workspace_id, role, effective_page_access(&perms, ov.as_deref())))
-        }
-        // Invité : seulement les pages partagées explicitement avec lui (et leurs sous-pages).
-        None => match nearest_page_override(pool, page_id, user.id).await?.as_deref() {
-            Some("editor") => Ok((workspace_id, Role::Guest, PageAccess::Write)),
-            Some("viewer") => Ok((workspace_id, Role::Guest, PageAccess::Read)),
-            _ => Err(ApiError::NotFound),
-        },
+    let chain = ancestors(pool, page_id).await?;
+    let ids: Vec<Uuid> = chain.iter().map(|(id, _)| *id).collect();
+    let parents: HashMap<Uuid, Option<Uuid>> = chain.into_iter().collect();
+    let grants = grants_on(pool, user_id, &ids).await?;
+    let grant = nearest_grant(page_id, &parents, &grants);
+    let (role, perms) = match member {
+        Some((r, p)) => (r, Some(p)),
+        None => (Role::Guest, None),
+    };
+    Ok((workspace_id, role, resolve_level(perms.as_ref(), grant)))
+}
+
+/// Accès effectif d'un utilisateur à une page, en niveau précis. Une personne extérieure sans
+/// accès ne sait pas que la page existe (NotFound).
+pub async fn page_access_level(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, u8)> {
+    let (ws, role, lv) = page_level(pool, user.id, page_id).await?;
+    if role == Role::Guest && lv == level::NONE {
+        return Err(ApiError::NotFound);
     }
+    Ok((ws, role, lv))
+}
+
+/// Accès effectif d'un utilisateur à une page (vue lecture / écriture).
+pub async fn page_access(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, PageAccess)> {
+    let (ws, role, lv) = page_access_level(pool, user, page_id).await?;
+    Ok((ws, role, access_of(lv)))
 }
 
 pub async fn require_page_read(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role, PageAccess)> {
@@ -537,19 +653,62 @@ pub async fn require_page_write(pool: &PgPool, user: &AuthUser, page_id: Uuid) -
     }
 }
 
-/// Calcule l'accès de l'utilisateur à toutes les pages d'un workspace en une passe
-/// (utilisé pour filtrer les listes, la recherche, l'accueil...).
-pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _role: Role) -> ApiResult<HashMap<Uuid, PageAccess>> {
-    let perms = member_perms(pool, user.id, workspace_id).await?.map(|(_, p)| p).unwrap_or(Perms::preset(Role::Guest));
-    let tree: Vec<(Uuid, Option<Uuid>, Option<Uuid>)> =
-        sqlx::query_as("SELECT id, parent_id, private_to FROM pages WHERE workspace_id = $1")
-            .bind(workspace_id)
-            .fetch_all(pool)
+/// Exige au moins le niveau `min` sur la page : NotFound sans lecture, Forbidden en dessous de `min`.
+pub async fn require_page_level(pool: &PgPool, user: &AuthUser, page_id: Uuid, min: u8) -> ApiResult<(Uuid, Role, u8)> {
+    let (ws, role, lv) = page_access_level(pool, user, page_id).await?;
+    if lv == level::NONE {
+        return Err(ApiError::NotFound);
+    }
+    if lv < min {
+        return Err(ApiError::Forbidden);
+    }
+    Ok((ws, role, lv))
+}
+
+/// Gérer les partages de la page : administrateur de l'espace ou niveau « gestion » sur la page.
+pub async fn require_page_manage(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role)> {
+    let (ws, role, _) = require_page_level(pool, user, page_id, level::MANAGE).await?;
+    Ok((ws, role))
+}
+
+/// Mettre une page à la corbeille : modifier, et — pour qui n'a ce droit que par le partage de
+/// cette page même (invité, rôle sans création de documents) — la gérer.
+pub async fn require_page_delete(pool: &PgPool, user: &AuthUser, page_id: Uuid) -> ApiResult<(Uuid, Role)> {
+    let (ws, role, lv) = require_page_level(pool, user, page_id, level::EDIT).await?;
+    if lv < level::MANAGE {
+        let role_edits = member_perms(pool, user.id, ws).await?.is_some_and(|(_, p)| p.docs >= level::EDIT);
+        let own_grant: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT EXISTS(SELECT 1 FROM page_permissions WHERE page_id = $1 AND user_id = $2 AND role {GRANTING_ROLES})")))
+            .bind(page_id)
+            .bind(user.id)
+            .fetch_one(pool)
             .await?;
+        if !role_edits && own_grant {
+            return Err(ApiError::Forbidden);
+        }
+    }
+    Ok((ws, role))
+}
+
+/// Peut-on commenter (et résoudre les fils) sur une page ? Même règle pour tout le monde.
+pub fn can_comment_level(lv: u8) -> bool {
+    lv >= level::COMMENT
+}
+
+/// Niveau d'accès à toutes les pages d'un espace, en une passe : la même règle que `page_level`
+/// (un test de propriété vérifie l'égalité) pour les listes, la recherche, l'accueil…
+pub async fn visible_levels(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<HashMap<Uuid, u8>> {
+    let member = member_perms(pool, user_id, workspace_id).await?.map(|(_, p)| p);
+    let tree: Vec<(Uuid, Option<Uuid>, Option<Uuid>)> = sqlx::query_as("SELECT id, parent_id, private_to FROM pages WHERE workspace_id = $1")
+        .bind(workspace_id)
+        .fetch_all(pool)
+        .await?;
+    if is_suspended(pool, user_id).await? {
+        return Ok(tree.into_iter().map(|(id, _, _)| (id, level::NONE)).collect());
+    }
     // Pages personnelles : invisibles aux autres, modifiables par leur propriétaire.
     let private: HashMap<Uuid, Uuid> = tree.iter().filter_map(|(id, _, o)| o.map(|o| (*id, o))).collect();
-    let tree: Vec<(Uuid, Option<Uuid>)> = tree.into_iter().map(|(id, p, _)| (id, p)).collect();
-    let overrides: HashMap<Uuid, (String, bool)> = if perms.admin {
+    let parents: HashMap<Uuid, Option<Uuid>> = tree.into_iter().map(|(id, p, _)| (id, p)).collect();
+    let grants: HashMap<Uuid, (String, bool)> = if member.as_ref().is_some_and(|p| p.admin) {
         HashMap::new()
     } else {
         sqlx::query_as::<_, (Uuid, String, bool)>(
@@ -557,47 +716,34 @@ pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _
              WHERE p.workspace_id = $1 AND pp.user_id = $2",
         )
         .bind(workspace_id)
-        .bind(user.id)
+        .bind(user_id)
         .fetch_all(pool)
         .await?
         .into_iter()
         .map(|(id, r, i)| (id, (r, i)))
         .collect()
     };
-    let parents: HashMap<Uuid, Option<Uuid>> = tree.into_iter().collect();
     let mut out = HashMap::with_capacity(parents.len());
     for &id in parents.keys() {
-        // Remonte la chaîne jusqu'à trouver une permission explicite.
-        let mut cur = Some(id);
-        let mut found: Option<&str> = None;
-        let mut guard = 0;
-        while let Some(c) = cur {
-            // Permission sur la page elle-même, ou héritée d'un ancêtre « sous-pages comprises ».
-            if let Some((r, inherit)) = overrides.get(&c) {
-                if c == id || *inherit {
-                    found = Some(r.as_str());
-                    break;
-                }
-            }
-            cur = parents.get(&c).copied().flatten();
-            guard += 1;
-            if guard > 64 {
-                break;
-            }
-        }
-        let access = match private.get(&id) {
-            Some(owner) if *owner == user.id => PageAccess::Write,
-            Some(_) => PageAccess::None,
-            None => effective_page_access(&perms, found),
+        let lv = match private.get(&id) {
+            Some(owner) if *owner == user_id && member.is_some() => level::EDIT,
+            Some(_) => level::NONE,
+            None => resolve_level(member.as_ref(), nearest_grant(id, &parents, &grants)),
         };
-        out.insert(id, access);
+        out.insert(id, lv);
     }
     Ok(out)
 }
 
+/// Calcule l'accès de l'utilisateur à toutes les pages d'un workspace en une passe
+/// (utilisé pour filtrer les listes, la recherche, l'accueil...).
+pub async fn visible_pages(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, _role: Role) -> ApiResult<HashMap<Uuid, PageAccess>> {
+    Ok(visible_levels(pool, user.id, workspace_id).await?.into_iter().map(|(id, lv)| (id, access_of(lv))).collect())
+}
+
 /// Pages où la personne peut créer des sous-pages grâce à un partage « sous-pages permises »
 /// (invités, rôles sans création de documents) : la permission la plus proche (la page ou un
-/// ancêtre « sous-pages comprises ») est `editor` avec l'option.
+/// ancêtre « sous-pages comprises ») est de niveau modification avec l'option.
 pub async fn subpage_grants(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> ApiResult<std::collections::HashSet<Uuid>> {
     let grants: Vec<(Uuid, String, bool, bool)> = sqlx::query_as(
         "SELECT pp.page_id, pp.role, pp.inherit, pp.allow_subpages FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
@@ -611,7 +757,8 @@ pub async fn subpage_grants(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) ->
     if !grants.iter().any(|g| g.3) {
         return Ok(out);
     }
-    let overrides: HashMap<Uuid, (String, bool, bool)> = grants.into_iter().map(|(id, r, i, s)| (id, (r, i, s))).collect();
+    let subpages: HashMap<Uuid, bool> = grants.iter().map(|(id, _, _, s)| (*id, *s)).collect();
+    let overrides: HashMap<Uuid, (String, bool)> = grants.into_iter().map(|(id, r, i, _)| (id, (r, i))).collect();
     let parents: HashMap<Uuid, Option<Uuid>> = sqlx::query_as::<_, (Uuid, Option<Uuid>)>("SELECT id, parent_id FROM pages WHERE workspace_id = $1")
         .bind(workspace_id)
         .fetch_all(pool)
@@ -619,12 +766,13 @@ pub async fn subpage_grants(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) ->
         .into_iter()
         .collect();
     for &id in parents.keys() {
+        // Le partage qui s'applique à `id` : le plus proche, puis son origine pour l'option.
         let mut cur = Some(id);
         let mut guard = 0;
         while let Some(c) = cur {
-            if let Some((role, inherit, subpages)) = overrides.get(&c) {
+            if let Some((role, inherit)) = overrides.get(&c) {
                 if c == id || *inherit {
-                    if role == "editor" && *subpages {
+                    if matches!(Grant::parse(role), Some(Grant::Level(l)) if l >= level::EDIT) && subpages.get(&c).copied().unwrap_or(false) {
                         out.insert(id);
                     }
                     break;
@@ -635,6 +783,50 @@ pub async fn subpage_grants(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) ->
             if guard > 64 {
                 break;
             }
+        }
+    }
+    Ok(out)
+}
+
+/// Un changement d'accès à une page pour une personne (déplacement).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AccessChange {
+    pub user_id: Uuid,
+    pub name: String,
+    /// Niveau avant / après : `none`, `read`, `comment`, `edit` ou `manage`.
+    pub before: String,
+    pub after: String,
+}
+
+/// Qui gagne ou perd l'accès à la page `page_id` si elle est rangée sous `new_parent` (None : à
+/// la racine) ? Seules comptent les personnes qui ont un partage sur la page ou ses ancêtres
+/// (avant ou après) : les autres tiennent leur accès de leur rôle, que le déplacement ne change pas.
+/// Le niveau est celui de la page déplacée ; les partages posés sur ses sous-pages priment toujours.
+pub async fn move_access_changes(pool: &PgPool, page_id: Uuid, new_parent: Option<Uuid>) -> ApiResult<Vec<AccessChange>> {
+    let workspace_id = page_workspace(pool, page_id).await?;
+    let old_chain = ancestors(pool, page_id).await?;
+    let mut new_chain: Vec<(Uuid, Option<Uuid>)> = match new_parent {
+        Some(p) => ancestors(pool, p).await?,
+        None => Vec::new(),
+    };
+    new_chain.push((page_id, new_parent));
+    let ids: Vec<Uuid> = old_chain.iter().chain(new_chain.iter()).map(|(id, _)| *id).collect();
+    let candidates: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT DISTINCT u.id, u.name FROM page_permissions pp JOIN users u ON u.id = pp.user_id WHERE pp.page_id = ANY($1) ORDER BY u.name, u.id",
+    )
+    .bind(&ids)
+    .fetch_all(pool)
+    .await?;
+    let old_parents: HashMap<Uuid, Option<Uuid>> = old_chain.into_iter().collect();
+    let new_parents: HashMap<Uuid, Option<Uuid>> = new_chain.into_iter().collect();
+    let mut out = Vec::new();
+    for (uid, name) in candidates {
+        let perms = member_perms(pool, uid, workspace_id).await?.map(|(_, p)| p);
+        let grants = grants_on(pool, uid, &ids).await?;
+        let before = resolve_level(perms.as_ref(), nearest_grant(page_id, &old_parents, &grants));
+        let after = resolve_level(perms.as_ref(), nearest_grant(page_id, &new_parents, &grants));
+        if before != after {
+            out.push(AccessChange { user_id: uid, name, before: level::name(before).into(), after: level::name(after).into() });
         }
     }
     Ok(out)

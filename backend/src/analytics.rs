@@ -181,7 +181,7 @@ async fn build(state: &AppState, ws: Option<Uuid>, days: i64, instance: bool) ->
     let guest_ids: Vec<Uuid> = match ws {
         Some(w) => sqlx::query_scalar(
             "SELECT DISTINCT pp.user_id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id
-             WHERE p.workspace_id = $1 AND pp.role IN ('viewer', 'editor')
+             WHERE p.workspace_id = $1 AND pp.role NOT IN ('deny', 'blocked')
                AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $1 AND m.user_id = pp.user_id::varchar)",
         )
         .bind(w)

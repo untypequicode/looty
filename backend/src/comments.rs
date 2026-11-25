@@ -87,6 +87,19 @@ async fn can_read_target(state: &AppState, ws: Uuid, kind: &str, id: Uuid, uid: 
     }
 }
 
+/// Commenter une cible (et résoudre ses fils) : pour une page, le niveau « commentaire » de la page
+/// (partage compris, invités compris) ; pour un événement, le droit du rôle sur le calendrier.
+async fn require_comment(state: &AppState, user: &AuthUser, ws: Uuid, kind: &str, id: Uuid) -> ApiResult<()> {
+    if kind == "page" {
+        let (_, _, lv) = crate::access::require_page_level(&state.pool, user, id, crate::access::level::READ).await?;
+        return if crate::access::can_comment_level(lv) { Ok(()) } else { Err(ApiError::Forbidden) };
+    }
+    match crate::access::member_perms(&state.pool, user.id, ws).await? {
+        Some((_, perms)) if crate::roles::can_comment(&perms, kind) => Ok(()),
+        _ => Err(ApiError::Forbidden),
+    }
+}
+
 async fn list(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<TargetQuery>) -> ApiResult<Json<Vec<CommentDto>>> {
     check_target(&state, &user, ws, &q.kind, q.id).await?;
     let rows: Vec<CommentDto> = sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE c.workspace_id = $1 AND c.target_kind = $2 AND c.target_id = $3 ORDER BY c.created_at")))
@@ -142,11 +155,7 @@ async fn changed(state: &AppState, ws: Uuid, kind: &str, id: Uuid) {
 
 async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Json(p): Json<CreateReq>) -> ApiResult<Json<CommentDto>> {
     let (title, author) = check_target(&state, &user, ws, &p.kind, p.id).await?;
-    if let Some((_, perms)) = crate::access::member_perms(&state.pool, user.id, ws).await? {
-        if !crate::roles::can_comment(&perms, &p.kind) {
-            return Err(ApiError::Forbidden);
-        }
-    }
+    require_comment(&state, &user, ws, &p.kind, p.id).await?;
     let content = clean_content(&p.content)?;
     let quote = p.quote.map(|q| q.trim().chars().take(500).collect::<String>()).filter(|q| !q.is_empty());
     // Réponse : toujours rattachée au commentaire racine du fil.
@@ -256,16 +265,8 @@ struct ResolveReq {
 
 async fn resolve(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Json(p): Json<ResolveReq>) -> ApiResult<StatusCode> {
     let (ws, kind, target, _, _) = load(&state, &user, id).await?;
-    // Résoudre un fil : réservé à qui peut commenter (les invités en lecture seule ne le peuvent pas).
-    match crate::access::member_perms(&state.pool, user.id, ws).await? {
-        Some((_, perms)) if crate::roles::can_comment(&perms, &kind) => {}
-        Some(_) => return Err(ApiError::Forbidden),
-        None => {
-            if kind != "page" || crate::access::require_page_write(&state.pool, &user, target).await.is_err() {
-                return Err(ApiError::Forbidden);
-            }
-        }
-    }
+    // Résoudre un fil : réservé à qui peut commenter (même règle, pour les invités comme pour les membres).
+    require_comment(&state, &user, ws, &kind, target).await?;
     sqlx::query("UPDATE item_comments SET resolved_at = CASE WHEN $2 THEN NOW() END, resolved_by = CASE WHEN $2 THEN $3 END WHERE id = $1 AND parent_id IS NULL")
         .bind(id)
         .bind(p.resolved)
