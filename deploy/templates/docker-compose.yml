@@ -52,6 +52,11 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+#@if turn
+      # Relais TURN (service coturn ci-dessous) : secret partagé et adresses données aux navigateurs pour les appels.
+      LOOTY_TURN_SECRET: ${TURN_SECRET:?TURN_SECRET must be set in .env}
+      LOOTY_TURN_URLS: "turn:${APP_DOMAIN:?APP_DOMAIN must be set in .env}:3478?transport=udp,turn:${APP_DOMAIN}:3478?transport=tcp"
+#@end
       PORT: 8080
       OIDC_ISSUER: ${OIDC_ISSUER}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
@@ -264,6 +269,33 @@ services:
       pocket-id:
         condition: service_healthy
     restart: "no"
+#@end
+#@if turn
+
+  # Relais TURN (coturn) pour les appels vocaux des personnes derrière un pare-feu ou un NAT restrictif ; l'audio
+  # ne passe par lui qu'en dernier recours. Sur le réseau de l'hôte (pas de redirection de plages de ports) :
+  # ouvrez 3478 (UDP et TCP) et 49160-49200 (UDP) sur le pare-feu. Si le serveur est derrière un NAT (cloud),
+  # TURN_EXTERNAL_IP=adresse publique dans .env. Le secret partagé avec Looty est TURN_SECRET.
+  coturn:
+    image: coturn/coturn:4.6.3-alpine
+    network_mode: host
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        exec turnserver --no-cli --no-tls --no-dtls --fingerprint --use-auth-secret \
+          --static-auth-secret="$$TURN_SECRET" --realm="$$TURN_REALM" --listening-port=3478 \
+          --min-port=$$TURN_MIN_PORT --max-port=$$TURN_MAX_PORT --no-multicast-peers --log-file=stdout --simple-log \
+          --denied-peer-ip=0.0.0.0-0.255.255.255 --denied-peer-ip=10.0.0.0-10.255.255.255 --denied-peer-ip=127.0.0.0-127.255.255.255 \
+          --denied-peer-ip=169.254.0.0-169.254.255.255 --denied-peer-ip=172.16.0.0-172.31.255.255 --denied-peer-ip=192.168.0.0-192.168.255.255 \
+          $${TURN_EXTERNAL_IP:+--external-ip=$$TURN_EXTERNAL_IP}
+    environment:
+      TURN_SECRET: ${TURN_SECRET:?TURN_SECRET must be set in .env}
+      TURN_REALM: ${APP_DOMAIN:?APP_DOMAIN must be set in .env}
+      TURN_MIN_PORT: ${TURN_MIN_PORT:-49160}
+      TURN_MAX_PORT: ${TURN_MAX_PORT:-49200}
+      TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:-}
+    mem_limit: 128m
+    restart: unless-stopped
 #@end
 #@if backup
 

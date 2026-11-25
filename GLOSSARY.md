@@ -314,3 +314,21 @@ _Avoid_: installateur, onboarding (réservé à l'accueil des membres)
 
 **Diagnostic**:
 Page d'administration et commande `looty doctor` qui vérifient l'installation : adresse, HTTPS, proxy, WebSocket, CalDAV, connexion, e-mails, base et fichiers. Chaque contrôle donne OK, avertissement ou erreur avec un lien vers le dépannage. À ne pas confondre avec l'*État de l'instance* (ce qui tourne et ce que ça occupe).
+
+## Appels
+
+**Appel**:
+Conversation vocale (puis vidéo, plus tard) entre les personnes qui travaillent sur un même élément. Elle passe directement d'un navigateur à l'autre : le serveur de Looty n'écoute rien et ne garde rien. L'appel continue quand on change de page, grâce à la barre d'appel.
+_Avoid_: conférence, visio (réservé à la vidéo), chat vocal
+
+**Salle d'appel**:
+Lieu d'un appel, lié à une page, un projet ou un espace. Qui peut ouvrir l'élément peut rejoindre sa salle ; on voit qui s'y trouve avant de la rejoindre. Limitée en nombre de participants (6 par défaut).
+_Avoid_: canal, réunion
+
+**Participant**:
+Personne qui a rejoint une salle d'appel (distincte de celle qui regarde seulement qui s'y trouve). Un participant peut couper son micro et régler le volume de chacun des autres.
+_Avoid_: invité (qui désigne un invité d'espace), interlocuteur
+
+**Signalisation**:
+Échange de petits messages (arrivée, départ, offres et réponses WebRTC, candidats réseau, micro coupé) par lequel les navigateurs se mettent en relation. C'est la seule chose que le serveur relaie dans un appel ; elle passe par le serveur de collaboration. Voir ADR 0019.
+_Avoid_: serveur d'appel, relais audio

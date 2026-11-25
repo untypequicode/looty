@@ -5,8 +5,8 @@
 //
 // Les modèles (deploy/templates/*) sont passés en paramètre : { 'docker-compose.yml': '…', 'Caddyfile': '…', … }.
 
-const KNOWN = ['caddy', 'traefik', 'pocket-id', 'backup', 'entrypoint', 'resolver', 'network']
-const OPTIONS = ['pocket-id', 'backup', 'entrypoint', 'resolver', 'network']
+const KNOWN = ['caddy', 'traefik', 'pocket-id', 'backup', 'turn', 'entrypoint', 'resolver', 'network']
+const OPTIONS = ['pocket-id', 'backup', 'turn', 'entrypoint', 'resolver', 'network']
 
 /** Rendu d'un modèle : mêmes blocs « #@if … / #@end » que deploy/render.sh. Renvoie '' s'il ne reste rien. */
 export function renderTemplate(text, enabled, file = 'template') {
@@ -77,7 +77,7 @@ export function webRng(crypto = globalThis.crypto) {
 }
 
 /** Variables de .env dont la valeur est un secret (masquées dans l'aperçu de la page). */
-export const SECRET_KEYS = ['DB_PASSWORD', 'LOOTY_SECRET_KEY', 'POCKET_ID_ENCRYPTION_KEY', 'POCKET_ID_STATIC_API_KEY', 'OIDC_CLIENT_SECRET', 'SMTP_PASSWORD']
+export const SECRET_KEYS = ['DB_PASSWORD', 'LOOTY_SECRET_KEY', 'POCKET_ID_ENCRYPTION_KEY', 'POCKET_ID_STATIC_API_KEY', 'OIDC_CLIENT_SECRET', 'SMTP_PASSWORD', 'TURN_SECRET']
 
 export function maskSecrets(env, mask = '••••••••') {
   return env.replace(new RegExp(`^(${SECRET_KEYS.join('|')})=.*$`, 'gm'), `$1=${mask}`)
@@ -117,6 +117,7 @@ export function installCommand(o, origin = 'https://looty.untypequicode.fr') {
     if (o.traefik?.resolver) parts.push(`--traefik-resolver ${o.traefik.resolver}`)
   }
   if (o.dbBackup) parts.push('--backup')
+  if (o.turn) parts.push('--turn')
   return parts.join(' ')
 }
 
@@ -151,6 +152,7 @@ export function buildEnv(o, rng = webRng()) {
     providerId = rng.uuid()
     lines.push(`OIDC_ISSUER=${o.oidc.issuer}`, `OIDC_CLIENT_ID=${o.oidc.clientId}`, `OIDC_CLIENT_SECRET=${o.oidc.clientSecret}`, `OIDC_PROVIDER_ID=${providerId}`)
   }
+  if (o.turn) lines.push(`TURN_SECRET=${rng.hex(32)}`)
   lines.push(...traefikLines(o), ...extraLines(o))
   return { env: lines.join('\n') + '\n', providerId }
 }
@@ -166,6 +168,7 @@ function traefikLines(o) {
 export function composeOptions(o) {
   const options = o.auth === 'bundled-oidc' ? ['pocket-id'] : []
   if (o.dbBackup) options.push('backup')
+  if (o.turn) options.push('turn')
   if (o.proxy === 'traefik') {
     if (o.traefik?.entrypoint) options.push('entrypoint')
     if (o.traefik?.resolver) options.push('resolver')

@@ -15,6 +15,7 @@
 #   --traefik-network N     (traefik) réseau Docker externe de Traefik, auquel les services sont rattachés
 #   --traefik-entrypoint E  (traefik) point d'entrée de Traefik qui sert les routeurs (ex. websecure)
 #   --traefik-resolver R    (traefik) résolveur de certificats de Traefik (ex. letsencrypt)
+#   --turn          relais TURN (coturn) pour les appels sur les réseaux restrictifs (ports 3478 et 49160-49200 à ouvrir)
 #   --backup        sauvegarde automatique de la base : un export toutes les 24 h dans data/db-backups (7 gardés)
 #   --dir D         dossier d'installation (défaut : /opt/looty)
 #   --force         écrase une installation existante (le .env est sauvegardé en .env.bak)
@@ -38,6 +39,7 @@ t_network=
 t_entrypoint=
 t_resolver=
 backup=0
+turn=0
 dir=/opt/looty
 force=0
 upgrade=0
@@ -76,6 +78,7 @@ while [ $# -gt 0 ]; do
 		shift 2
 		;;
 	--backup) backup=1; shift ;;
+	--turn) turn=1; shift ;;
 	--force) force=1; shift ;;
 	--upgrade) upgrade=1; shift ;;
 	--start) start=yes; shift ;;
@@ -136,6 +139,7 @@ if [ "$upgrade" = 1 ]; then
 	[ -z "$(env_get AUTH_DOMAIN)" ] || auth=bundled-oidc
 	# Les options du rendu précédent se lisent dans les fichiers installés.
 	if grep -q '^  db-backup:' "$dir/docker-compose.yml"; then backup=1; fi
+	if grep -q '^  coturn:' "$dir/docker-compose.yml"; then turn=1; fi
 	t_network=$(env_get TRAEFIK_NETWORK)
 	t_entrypoint=$(env_get TRAEFIK_ENTRYPOINT)
 	t_resolver=$(env_get TRAEFIK_CERT_RESOLVER)
@@ -211,6 +215,7 @@ fi
 option=
 [ "$auth" != bundled-oidc ] || option=pocket-id
 [ "$backup" = 0 ] || option="$option backup"
+[ "$turn" = 0 ] || option="$option turn"
 if [ "$proxy" = traefik ]; then
 	[ -z "$t_entrypoint" ] || option="$option entrypoint"
 	[ -z "$t_resolver" ] || option="$option resolver"
@@ -285,6 +290,7 @@ else
 			echo "OIDC_CLIENT_SECRET=$OIDC_CLIENT_SECRET"
 			echo "OIDC_PROVIDER_ID=$provider_id"
 		fi
+		[ "$turn" = 0 ] || echo "TURN_SECRET=$(random 32)"
 		[ -z "$t_network" ] || echo "TRAEFIK_NETWORK=$t_network"
 		[ -z "$t_entrypoint" ] || echo "TRAEFIK_ENTRYPOINT=$t_entrypoint"
 		[ -z "$t_resolver" ] || echo "TRAEFIK_CERT_RESOLVER=$t_resolver"

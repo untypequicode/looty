@@ -62,6 +62,7 @@ pub async fn run(pool: Option<&PgPool>, base_url: &str, local_accounts: bool, he
     }
     out.push(check_files());
     out.push(check_secret_key());
+    out.push(check_turn().await);
     out.push(check_version().await);
     out
 }
@@ -235,6 +236,28 @@ fn check_files() -> Check {
 }
 
 /// Sans `LOOTY_SECRET_KEY`, la clé de chiffrement est un fichier du volume : à sauvegarder avec lui.
+/// Relais TURN des appels (désactivé par défaut) : adresses et secret cohérents, port TCP joignable depuis le serveur.
+async fn check_turn() -> Check {
+    let urls = std::env::var("LOOTY_TURN_URLS").unwrap_or_default();
+    let has_secret = std::env::var("LOOTY_TURN_SECRET").is_ok_and(|s| !s.trim().is_empty());
+    let first = urls.split(',').map(str::trim).find(|u| u.starts_with("turn:") || u.starts_with("turns:"));
+    match (first, has_secret) {
+        (None, false) => check("turn", Status::Skip, "", ""),
+        (Some(_), false) => check("turn", Status::Error, "turn_secret", ""),
+        (None, true) => check("turn", Status::Warn, "turn_urls", ""),
+        (Some(url), true) => {
+            // « turn:hôte:port?transport=… » -> hôte:port (3478, ou 5349 pour turns:)
+            let rest = url.split_once(':').map(|x| x.1).unwrap_or("").split('?').next().unwrap_or("");
+            let default_port = if url.starts_with("turns:") { 5349 } else { 3478 };
+            let addr = if rest.contains(':') { rest.to_string() } else { format!("{rest}:{default_port}") };
+            match tokio::time::timeout(Duration::from_secs(3), tokio::net::TcpStream::connect(&addr)).await {
+                Ok(Ok(_)) => check("turn", Status::Ok, "", addr),
+                _ => check("turn", Status::Warn, "turn_unreachable", addr),
+            }
+        }
+    }
+}
+
 fn check_secret_key() -> Check {
     if std::env::var("LOOTY_SECRET_KEY").is_ok_and(|k| !k.trim().is_empty()) {
         check("secret_key", Status::Ok, "", "")
