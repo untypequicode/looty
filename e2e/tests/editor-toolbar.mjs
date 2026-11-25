@@ -4,7 +4,7 @@ import { B, WS, OUT, ok, launch, login, api } from '../lib/index.mjs'
 
 const { browser, page: p, errors } = await launch(1440, 900)
 await login(p)
-await api(p, `/api/workspaces/${WS}/prefs`, 'PATCH', { modes: { docs: 'write', boards: 'write', calendar: 'write' }, modesChosen: true })
+await api(p, `/api/workspaces/${WS}/prefs`, 'PATCH', { modes: { docs: 'read', boards: 'write', calendar: 'write' }, modesChosen: true })
 await api(p, '/api/user/prefs', 'PATCH', { editorToolbar: null })
 const pg = await api(p, `/api/workspaces/${WS}/pages`, 'POST', { title: 'Barre', content: '<p>Bonjour monde</p>' })
 
