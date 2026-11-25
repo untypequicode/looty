@@ -1,0 +1,20 @@
+export default {
+  slides: {
+    newPresentation: 'Présentation', untitled: 'Présentation sans titre', slides: 'Diapositives', slide: 'Diapositive', slideN: 'Diapositive {n}', canvasLabel: 'Diapositive {n}, canevas',
+    empty: 'Cette présentation n’a pas encore de diapositive.', newSlide: 'Nouvelle diapositive', duplicateSlide: 'Dupliquer la diapositive', deleteSlide: 'Supprimer la diapositive', moveUp: 'Monter la diapositive', moveDown: 'Descendre la diapositive',
+    tools: 'Insérer et modifier', addText: 'Ajouter une zone de texte', text: 'Texte', addRect: 'Ajouter un rectangle', addEllipse: 'Ajouter une ellipse', addLine: 'Ajouter une ligne', addImage: 'Ajouter une image', image: 'Image',
+    undo: 'Annuler', redo: 'Rétablir', limit: 'Limite atteinte pour cette présentation.',
+    readOnly: 'Vous pouvez lire cette présentation, pas la modifier.', newerFormat: 'Cette présentation a été enregistrée par une version plus récente de Looty. Rechargez la page pour la modifier.',
+    properties: 'Propriétés', selectHint: 'Sélectionnez un élément pour le modifier. Double-cliquez sur une zone de texte pour y écrire.', nSelected: { one: '1 élément', other: '{count} éléments' },
+    types: { text: 'Zone de texte', rect: 'Rectangle', ellipse: 'Ellipse', line: 'Ligne', image: 'Image', group: 'Groupe' },
+    background: 'Arrière-plan', defaultBackground: 'Arrière-plan par défaut', defaultColor: 'Par défaut', noColor: 'Aucune',
+    fill: 'Remplissage', stroke: 'Contour', strokeWidth: 'Épaisseur du contour', shape: 'Forme', textColor: 'Couleur du texte', fontSize: 'Taille',
+    bulletList: 'Liste à puces', orderedList: 'Liste numérotée', textAlign: { left: 'Aligner à gauche', center: 'Centrer', right: 'Aligner à droite' },
+    position: 'Position et taille', width: 'L', height: 'H', rotation: 'Angle', arrange: 'Disposition',
+    toFront: 'Premier plan', forward: 'Avancer', backward: 'Reculer', toBack: 'Arrière-plan',
+    alignLeft: 'Aligner à gauche', alignCenter: 'Centrer horizontalement', alignRight: 'Aligner à droite', alignTop: 'Aligner en haut', alignMiddle: 'Centrer verticalement', alignBottom: 'Aligner en bas',
+    distributeH: 'Répartir horizontalement', distributeV: 'Répartir verticalement',
+    group: 'Grouper', ungroup: 'Dissocier', duplicate: 'Dupliquer', delete: 'Supprimer', lock: 'Verrouiller', unlock: 'Déverrouiller',
+    altText: 'Texte alternatif', altHint: 'Décrivez-le pour les lecteurs d’écran',
+  },
+}

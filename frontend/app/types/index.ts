@@ -141,7 +141,7 @@ export interface Page {
   project_id?: string | null
   project_kind?: 'site' | 'latex' | 'notebook' | null
   /** Vue à l'ouverture : texte ou canevas. */
-  default_view?: 'doc' | 'canvas'
+  default_view?: 'doc' | 'canvas' | 'slides'
   /** Éléments du canevas de la page. */
   canvas_count?: number
   /** Permissions particulières (membres ou invités). */

@@ -40,7 +40,7 @@ pub struct Page {
     #[sqlx(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_kind: Option<String>,
-    /// Vue à l'ouverture : « doc » (texte) ou « canvas ».
+    /// Vue à l'ouverture : « doc » (texte), « canvas » ou « slides » (présentation, ADR 0023).
     #[sqlx(default)]
     pub default_view: String,
     /// Éléments du canevas (0 : canevas vide).
@@ -97,7 +97,7 @@ pub struct CreatePage {
     pub content: Option<String>,
     /// Page qui porte un nouveau projet (LaTeX, site, notebook) créé avec elle.
     pub project: Option<NewProject>,
-    /// « canvas » : la page s'ouvre sur son canevas.
+    /// « canvas » : la page s'ouvre sur son canevas ; « slides » : c'est une présentation.
     pub default_view: Option<String>,
     /// Page personnelle (GLOSSARY) : visible de son autrice seulement. Toute personne qui lit
     /// les documents peut en créer, même sous une page partagée qu'elle ne peut que lire.
@@ -154,7 +154,7 @@ fn check_title(t: &str) -> ApiResult<String> {
 
 fn check_view(v: &str) -> ApiResult<String> {
     match v {
-        "doc" | "canvas" => Ok(v.to_string()),
+        "doc" | "canvas" | "slides" => Ok(v.to_string()),
         _ => Err(ApiError::bad_request("invalid_value")),
     }
 }
@@ -976,4 +976,32 @@ async fn save_canvas_preview(
     }
     sqlx::query("UPDATE pages SET canvas_preview = NULLIF($2, '') WHERE id = $1").bind(page_id).bind(svg).execute(&pool).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod slides_tests {
+    use super::*;
+
+    #[test]
+    fn a_presentation_is_a_page_view() {
+        assert_eq!(check_view("slides").unwrap(), "slides");
+        assert!(check_view("doc").is_ok() && check_view("canvas").is_ok());
+        assert!(check_view("presentation").is_err() && check_view("").is_err());
+    }
+
+    #[sqlx::test]
+    async fn slides_pages_store_their_outline_and_the_view_is_checked(pool: PgPool) {
+        let ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('W') RETURNING id").fetch_one(&pool).await.unwrap();
+        let uid: Uuid = sqlx::query_scalar("INSERT INTO users (email, name) VALUES ('a@example.org', 'a') RETURNING id").fetch_one(&pool).await.unwrap();
+        let id: Uuid = sqlx::query_scalar("INSERT INTO pages (workspace_id, title, created_by, default_view) VALUES ($1, 'Deck', $2, 'slides') RETURNING id").bind(ws).bind(uid).fetch_one(&pool).await.unwrap();
+        sqlx::query("UPDATE pages SET slides_state = '\\x00', slides_count = 2, slides_text = $2 WHERE id = $1").bind(id).bind("## 1\nQuarterly review").execute(&pool).await.unwrap();
+        let (view, count, text): (String, i32, Option<String>) = sqlx::query_as("SELECT default_view, slides_count, slides_text FROM pages WHERE id = $1").bind(id).fetch_one(&pool).await.unwrap();
+        assert_eq!((view.as_str(), count, text.as_deref()), ("slides", 2, Some("## 1\nQuarterly review")));
+        // La corbeille garde les colonnes (la vue `pages` les expose).
+        sqlx::query("UPDATE pages_all SET deleted_at = NOW() WHERE id = $1").bind(id).execute(&pool).await.unwrap();
+        let kept: Option<i32> = sqlx::query_scalar("SELECT slides_count FROM pages_all WHERE id = $1").bind(id).fetch_optional(&pool).await.unwrap();
+        assert_eq!(kept, Some(2));
+        let bad = sqlx::query("UPDATE pages_all SET default_view = 'bogus' WHERE id = $1").bind(id).execute(&pool).await;
+        assert!(bad.is_err());
+    }
 }
