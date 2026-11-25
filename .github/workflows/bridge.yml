@@ -1,0 +1,153 @@
+# looty-bridge, the PC tunnel agent (bridge/): checks on pull requests that touch it, release binaries
+# (Linux x86_64/aarch64, macOS, Windows) and container image on a `bridge-v<version>` tag.
+name: Bridge
+
+on:
+  pull_request:
+    paths: ['bridge/**', 'docker-compose.bridge.yml', 'flake.nix', '.github/workflows/bridge.yml']
+  push:
+    tags: ['bridge-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bridge-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Format, clippy, tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: bridge
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridge
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - name: Compose file is valid
+        working-directory: .
+        run: LOOTY_INSTANCE=https://x LOOTY_TOKEN=t JUPYTER_TOKEN=j docker compose -f docker-compose.bridge.yml --profile jupyter --profile latex config -q
+
+  image:
+    name: Container image builds
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'push'
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t looty-bridge bridge/
+      - run: docker run --rm looty-bridge --version
+
+  binaries:
+    name: Binary ${{ matrix.target }}
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/bridge-v') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, runner: ubuntu-24.04, os: linux, arch: x86_64 }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm, os: linux, arch: aarch64 }
+          - { target: aarch64-apple-darwin, runner: macos-latest, os: macos, arch: aarch64 }
+          - { target: x86_64-apple-darwin, runner: macos-latest, os: macos, arch: x86_64 }
+          - { target: x86_64-pc-windows-msvc, runner: windows-latest, os: windows, arch: x86_64 }
+    defaults:
+      run:
+        shell: bash
+        working-directory: bridge
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: |
+          rustup target add ${{ matrix.target }}
+          if [ "${{ matrix.os }}" = linux ]; then sudo apt-get update && sudo apt-get install -y musl-tools; fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridge
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Smoke test
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: target/${{ matrix.target }}/release/looty-bridge${{ matrix.os == 'windows' && '.exe' || '' }} --version
+      - name: Package
+        run: |
+          ver="${GITHUB_REF_NAME#bridge-v}"; [ "$ver" = "$GITHUB_REF_NAME" ] && ver=dev
+          name="looty-bridge-$ver-${{ matrix.os }}-${{ matrix.arch }}"
+          mkdir -p "dist/$name"
+          if [ "${{ matrix.os }}" = windows ]; then
+            cp target/${{ matrix.target }}/release/looty-bridge.exe "dist/$name/"
+          else
+            cp target/${{ matrix.target }}/release/looty-bridge "dist/$name/"
+          fi
+          cp README.md "dist/$name/"
+          cd dist
+          if [ "${{ matrix.os }}" = windows ]; then 7z a "$name.zip" "$name" >/dev/null; f="$name.zip"
+          else tar czf "$name.tar.gz" "$name"; f="$name.tar.gz"; fi
+          if command -v sha256sum >/dev/null; then sha256sum "$f" > "$f.sha256"; else shasum -a 256 "$f" > "$f.sha256"; fi
+          ls -l
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bridge-${{ matrix.target }}
+          path: |
+            bridge/dist/*.tar.gz
+            bridge/dist/*.zip
+            bridge/dist/*.sha256
+          retention-days: 7
+
+  release:
+    name: GitHub release
+    needs: binaries
+    if: startsWith(github.ref, 'refs/tags/bridge-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bridge-*
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: looty-bridge ${{ github.ref_name }}
+          files: dist/*
+          generate_release_notes: true
+
+  image-publish:
+    name: Container image (ghcr.io)
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/bridge-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name (lowercase)
+        id: name
+        run: echo "image=$(echo 'ghcr.io/${{ github.repository }}-bridge' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: ./bridge
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ github.ref_name }}
+            ${{ steps.name.outputs.image }}:latest
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}

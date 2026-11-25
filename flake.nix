@@ -34,10 +34,16 @@
 
       packages = forAll (pkgs: rec {
         looty-desktop = pkgs.callPackage ./desktop/package.nix { };
+        # Agent of the PC tunnel: nix run github:untypequicode/looty#bridge -- --instance ...
+        bridge = pkgs.callPackage ./bridge/package.nix { };
         default = looty-desktop;
       });
 
       apps = forAll (pkgs: {
+        bridge = {
+          type = "app";
+          program = "${self.packages.${pkgs.system}.bridge}/bin/looty-bridge";
+        };
         default = {
           type = "app";
           program = "${self.packages.${pkgs.system}.looty-desktop}/bin/looty";
