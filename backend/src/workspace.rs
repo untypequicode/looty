@@ -817,7 +817,8 @@ async fn search_workspace(
     Path(workspace_id): Path<Uuid>,
     Query(params): Query<SearchQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let role = require_member(&pool, &user, workspace_id).await?;
+    // Invité : la recherche couvre ses pages partagées seulement (les autres domaines exigent un droit d'espace).
+    let role = crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
     let q = params.q.unwrap_or_default();
     let q = q.trim();
     if q.is_empty() {
@@ -838,12 +839,14 @@ async fn search_workspace(
          FROM pages
          WHERE workspace_id = $1 AND ((NOT $3 AND (looty_fold(title) LIKE $2 OR looty_fold(content) LIKE $2 OR looty_fold(canvas_text) LIKE $2))
                                       OR looty_keyword(keywords, $2) IS NOT NULL)
+           AND id = ANY($4)
          ORDER BY (NOT $3 AND looty_fold(title) LIKE $2) DESC, (looty_keyword(keywords, $2) IS NOT NULL) DESC, updated_at DESC
          LIMIT 40",
     )
     .bind(workspace_id)
     .bind(&pattern)
     .bind(kw_only)
+    .bind(visible.iter().filter(|(_, a)| **a != PageAccess::None).map(|(id, _)| *id).collect::<Vec<Uuid>>())
     .fetch_all(&pool)
     .await?;
     let mut results: Vec<SearchResult> = pages.into_iter().filter(|p| page_visible(&p.id)).take(20).collect();

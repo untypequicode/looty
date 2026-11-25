@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.62.1",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Shared pages: guests can search, safer public links, faster access cut-off",
+        "fr": "Pages partagées : recherche pour les invités, liens publics mieux protégés, retrait d’accès plus rapide"
+      },
+      "notes": {
+        "en": [
+          "People a page is shared with (guests) can now search the pages shared with them; search no longer misses their pages when many other pages in the space match.",
+          "A person who can only read a page no longer receives its public link; only people who can edit it do.",
+          "Moving a page out of a shared tree now cuts the access inherited from its old parent immediately, including for people editing it in real time."
+        ],
+        "fr": [
+          "Les personnes avec qui une page est partagée (invités) peuvent maintenant chercher dans les pages partagées avec elles ; la recherche ne les manque plus quand beaucoup d’autres pages de l’espace correspondent.",
+          "Une personne qui peut seulement lire une page ne reçoit plus son lien public ; seules celles qui peuvent la modifier le reçoivent.",
+          "Déplacer une page hors d’une arborescence partagée coupe tout de suite l’accès hérité de son ancien parent, y compris pour les personnes qui la modifient en temps réel."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.62.0",
       "date": "2026-11-25",
       "title": {
