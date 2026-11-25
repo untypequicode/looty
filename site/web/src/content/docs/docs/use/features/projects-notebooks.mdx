@@ -32,6 +32,15 @@ A **project** is a page that holds files: a small web site, a LaTeX document or 
 - **Rendering**: the HTML and PDF exports honour `echo=FALSE`, `include=FALSE`, `results="hide"` and the Quarto `#| echo: false` lines, and leave out the YAML header.
 - **R panels**: on an R notebook run in the browser (WebR) or by a Jupyter server, the panel button of the toolbar opens four tabs. *Environment* lists the session's variables (name, type, size; click a data frame to preview its first rows) and refreshes after each calculation. *Plots* keeps the plots of the cells and of the console in order, with PNG and SVG export (SVG when the kernel sends one). *Help* shows the documentation of a function (`mean`, `stats::lm`, or `?mean` in the console). *Console* runs R on the same kernel as the cells. These requests are silent: they never create a cell or an execution number. Ctrl+Shift+Enter runs the chunk, Ctrl+Alt+Enter sends the current line or selection to the console. Running a request needs the right to edit and a connected kernel; a long calculation delays the answer.
 
+## LaTeX compiled on your own PC
+
+By default a LaTeX project is compiled by the Looty server. If the administrator turned on PC tunnels (`LOOTY_TUNNELS=on`), you can compile with the TeX Live of **your own computer** instead, for the packages and fonts you already have.
+
+1. Create a tunnel token, then start the LaTeX service on your PC: `docker compose -f docker-compose.bridge.yml --profile latex up` with `BRIDGE_SERVICES=latex=http://texlive:8080` (see `bridge/README.md`). Nothing is opened on your router: the bridge connects outward.
+2. In the LaTeX project, attach your tunnel and its `latex` service. Only the person who owns the token can attach it.
+3. *Compile* now sends the project to your PC and shows the PDF and the log as usual. Shell escape is always off, a compilation is limited to 2 minutes by default and cancelled if you leave, and the PC only compiles for the instance while the tunnel is up.
+
+If the tunnel is down, compiling fails with an explicit message (`latex_tunnel_offline`): nothing is silently compiled elsewhere. Detach the tunnel to go back to the server.
 ## Use your own PC as the Jupyter server
 
 Full guide: [Use my PC as a Jupyter or R server](/docs/use/features/pc-tunnel/). In short:

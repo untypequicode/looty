@@ -1,6 +1,7 @@
 //! looty-bridge: agent of the Looty PC tunnel (protocol v1, docs/tunnel-protocol.md).
 
 pub mod config;
+pub mod latex_service;
 pub mod proto;
 pub mod session;
 

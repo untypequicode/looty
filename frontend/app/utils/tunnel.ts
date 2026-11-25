@@ -22,6 +22,7 @@ export const REPO_URL = 'https://github.com/untypequicode/looty'
 export const RELEASES_URL = `${REPO_URL}/releases`
 export const COMPOSE_URL = `${REPO_URL}/blob/main/${BRIDGE_COMPOSE_FILE}`
 export const DEFAULT_JUPYTER_URL = 'http://127.0.0.1:8888'
+export const DEFAULT_LATEX_URL = 'http://127.0.0.1:8080'
 
 /** Adresse de l'instance sans barre finale (celle que l'agent reçoit dans `--instance`). */
 export function instanceUrl(origin: string): string {

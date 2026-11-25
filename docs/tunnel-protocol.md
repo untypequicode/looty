@@ -138,7 +138,7 @@ Each direction of each stream has a **credit window** measured in bytes of data-
 
 ## 7. Services
 
-- A service is `{"name": ..., "kind": ...}`. `name`: 1 to 32 characters among `a-z`, `0-9`, `-`, `_`; unique within the list. `kind`: `jupyter` (Jupyter server REST and kernel WebSocket: the instance sends the Jupyter API paths, `/api/...`), `latex` (compile service, defined by issue #275), `http` (generic HTTP service). At most `max_services` (16) services.
+- A service is `{"name": ..., "kind": ...}`. `name`: 1 to 32 characters among `a-z`, `0-9`, `-`, `_`; unique within the list. `kind`: `jupyter` (Jupyter server REST and kernel WebSocket: the instance sends the Jupyter API paths, `/api/...`), `latex` (compile service, section 13), `http` (generic HTTP service). At most `max_services` (16) services.
 - The instance can open streams **only** to a declared `(name, kind)`; a project that targets a service that is not declared (or whose kind does not match) gets an explicit error.
 - The agent may change the list at any time (a service starts or stops) with the full list:
 
@@ -192,3 +192,28 @@ The agent SHOULD apply its own timeouts to local connections (connect 5 s) and a
 ## 12. Reference agent
 
 The reference implementation is `looty-bridge` (`bridge/`, see `bridge/README.md`): `nix run github:untypequicode/looty#bridge`, `docker-compose.bridge.yml`, or release binaries tagged `bridge-v*`.
+
+## 13. The `latex` service kind (compile API)
+
+A service of kind `latex` is a plain HTTP service that compiles a LaTeX project. The protocol above is unchanged: the instance sends HTTP streams to it (section 4.2) like to any service, and a new kind is just a new entry in the declared kinds (`KINDS`) plus a documented HTTP API, so other services (code server, demo database...) can be added the same way. The reference implementation is `looty-latex-service` (`bridge/src/latex_service.rs`, image `bridge/Dockerfile.latex`, started by the `latex` profile of `docker-compose.bridge.yml`); any server honouring this API can be declared instead (`--service tex:latex=http://127.0.0.1:8080`).
+
+Every request is short (the tunnel allows 30 s before the first byte of a response), so a compilation is a **job**: start it, poll it, collect or cancel it. A synchronous mode exists for direct use (`curl`).
+
+| Request | Meaning |
+| --- | --- |
+| `GET /health` | `{"service":"looty-latex","version","api":1,"engines":[...],"latexmk":bool,"max_request","max_timeout"}` |
+| `POST /compile?main=main.tex&engine=pdflatex&timeout=120&async=1` | Body: the project as a **zip** (`application/zip`, paths relative to the project root). `main`: path of the main file (relative, ends in `.tex`, default `main.tex`). `engine`: `pdflatex` (default), `xelatex`, `lualatex`. `timeout`: seconds, capped by the service (default 120, at most 300). With `async=1`: `202 {"id":"<id>","status":"running"}`. Without: waits and answers like `GET /jobs/{id}` below. |
+| `GET /jobs/{id}?wait=20` | Waits up to `wait` seconds (at most 20). `200` with the result, `202 {"status":"running"}` while it runs, or the job's error. `404 latex_job_unknown`. |
+| `DELETE /jobs/{id}` | Cancels the compilation (processes killed, directory removed) and forgets the job: `204`. |
+
+**Result** (`200`, `application/zip`): `output.pdf` (absent when no PDF was produced) and `compile.log` (the TeX log, last 400 KB). A compilation with LaTeX errors is still `200` (the log explains it, no PDF if none was produced); the instance reads errors and warnings from the log. Headers: `x-looty-pdf` (`1` or `0`), `x-looty-engine`, `x-looty-duration-ms`.
+
+**Errors**: JSON `{"error":"<code>"}` with `400 latex_bad_request` (bad `main`, `engine`, `timeout` or zip, unsafe path), `408 latex_timeout`, `413 latex_too_large`, `422 latex_no_main`, `501 latex_engine_missing`, `503 latex_busy`, `500 latex_internal`. The instance turns them into `latex_timeout`, `latex_tunnel_too_large`, `latex_no_main`, `latex_unavailable`, `latex_busy`, `invalid_value`, and `latex_tunnel_unreachable` for anything else.
+
+**Requirements for a service** (the reference service does all of this):
+
+- Shell escape off (`-no-shell-escape`), file access limited to the job directory (`openin_any=p`, `openout_any=p`), a fresh directory per job removed in every case (done, failed, timeout, cancelled).
+- Zip entries with `..`, absolute paths or links are refused or ignored; sizes are counted on the bytes really read, not on the sizes the zip claims. Defaults: request at most 16 MiB, unpacked at most 128 MiB and 5000 files, PDF at most 48 MiB, 2 compilations at once, 16 jobs kept, a running job nobody polls for 60 s is cancelled, a finished one is forgotten after 2 minutes.
+- Listen on loopback or a private network only: it runs TeX on what it receives. The bridge exposes it to the instance, and only the instance (through the tunnel whitelist) can reach it.
+
+**Instance side** (`backend/src/tunnel_latex.rs`): a LaTeX project is attached with `PUT /api/projects/{id}/latex/tunnel` (`{"tunnel_id","tunnel_service"}`; `GET` and `DELETE` too) under the same rules as Jupyter: edit right on the project, only the owner of the token attaches (another member can only keep it), same workspace, service declared with kind `latex`. `POST /api/projects/{id}/compile` then compiles through the tunnel (the response gets `"via":"tunnel"`), at most 2 compilations at once per tunnel, the job cancelled when the request is dropped. Errors: `latex_tunnel_offline` (tunnel down, revoked, expired or disabled; no silent fallback to the server), `latex_tunnel_service`, `latex_tunnel_busy`, `latex_tunnel_too_large`, `latex_tunnel_unreachable`, plus the service errors above.

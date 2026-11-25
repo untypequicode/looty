@@ -1,6 +1,6 @@
 [package]
 name = "looty-bridge"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Agent that connects a PC to a Looty instance (PC tunnel, protocol v1)"
 license = "GPL-3.0-or-later"
@@ -14,8 +14,14 @@ path = "src/lib.rs"
 name = "looty-bridge"
 path = "src/main.rs"
 
+[[bin]]
+name = "looty-latex-service"
+path = "src/bin/latex_service.rs"
+
 [dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal", "net", "io-util"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal", "net", "io-util", "process", "fs"] }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"

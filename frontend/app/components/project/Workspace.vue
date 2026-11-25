@@ -199,6 +199,8 @@ watch(() => data.value?.files.map((f) => f.updated_at).join(), () => { if (isSit
 
 // --- Publication ---
 const publishOpen = ref(false)
+const pcOpen = ref(false)
+const viaPc = ref(false)
 const slugDraft = ref('')
 const publishing = ref(false)
 watch(publishOpen, (o) => { if (o) slugDraft.value = project.value?.slug ?? (project.value?.name ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) })
@@ -438,6 +440,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
               <UiCombobox :model-value="project?.settings.engine ?? 'pdflatex'" v-model:open="engineOpen" :items="engineItems" :width="160" @update:model-value="(v) => setEngine(v as 'pdflatex')">
                 <button class="pv-sel" :disabled="!canWrite">{{ engineItems.find((e) => e.value === (project?.settings.engine ?? 'pdflatex'))?.label }}</button>
               </UiCombobox>
+              <UiTooltip :text="t('projects.compilePcTitle')"><UiButton size="xs" variant="ghost" :icon="Laptop" :class="{ on: viaPc }" :disabled="isDemo" data-testid="latex-pc" @click="pcOpen = true">{{ t('projects.compilePc') }}</UiButton></UiTooltip>
               <UiSegmented v-if="isDesktop" v-model="where" :options="[{ value: 'server', icon: Server, title: t('projects.compileServer') }, { value: 'local', icon: Laptop, title: t('projects.compileLocal') }]" />
               <label class="pv-auto"><UiSwitch v-model="autoCompile" /> {{ t('projects.autoCompile') }}</label>
               <span class="pv-spacer" />
@@ -445,6 +448,7 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
                 <component :is="result.ok ? CheckCircle2 : result.pdf ? AlertTriangle : AlertCircle" :size="13" />
                 {{ result.ok ? t('projects.compiled', { s: (result.duration_ms / 1000).toFixed(1) }) : result.pdf ? t('projects.compiledWithErrors', { count: errors.length }) : t('projects.failed', { count: errors.length }) }}
                 <template v-if="result.local"> · {{ t('projects.local') }}</template>
+                <template v-if="result.via === 'tunnel'"> · {{ t('projects.viaPc') }}</template>
               </span>
               <UiTooltip :text="t('projects.log')"><UiButton size="xs" variant="ghost" :icon="ScrollText" :aria-label="t('projects.log')" :class="{ on: showLog }" @click="showLog = !showLog" /></UiTooltip>
               <UiTooltip v-if="pdfSrc" :text="t('projects.downloadPdf')"><UiButton size="xs" variant="ghost" :icon="Download" :aria-label="t('projects.downloadPdf')" @click="openUrl(pdfSrc)" /></UiTooltip>
@@ -465,6 +469,8 @@ if (!props.embedded) useHead({ title: () => project.value?.name ?? t('projects.t
         </section>
       </div>
     </template>
+
+    <ProjectLatexPcDialog v-if="project?.kind === 'latex'" v-model:open="pcOpen" :project-id="id" :project-name="project?.name" :can-edit="canWrite" @changed="(a: boolean) => viaPc = a" />
 
     <UiDialog v-model:open="publishOpen" :title="t('projects.publishTitle')" :description="t('projects.publishHint')" :width="480">
       <div class="pub">

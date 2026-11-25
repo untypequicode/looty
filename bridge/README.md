@@ -32,7 +32,7 @@ ENV
 docker compose -f docker-compose.bridge.yml --profile jupyter up
 ```
 
-In Looty, give the project the same `JUPYTER_TOKEN`. Services are `jupyter` (Jupyter with Python and R kernels, published on `127.0.0.1:8888` only). Without `--profile jupyter` only the bridge starts, for a Jupyter you already run: set `BRIDGE_SERVICES=jupyter=http://host.docker.internal:8888`. The `latex` profile starts a TeX Live container reserved for the LaTeX compile service (not available yet).
+In Looty, give the project the same `JUPYTER_TOKEN`. Services are `jupyter` (Jupyter with Python and R kernels, published on `127.0.0.1:8888` only). Without `--profile jupyter` only the bridge starts, for a Jupyter you already run: set `BRIDGE_SERVICES=jupyter=http://host.docker.internal:8888`. The `latex` profile starts a TeX Live container running `looty-latex-service` (published on `127.0.0.1:8080` only); declare it with `BRIDGE_SERVICES=latex=http://texlive:8080` (or both: `jupyter=http://jupyter:8888,latex=http://texlive:8080`), then attach the tunnel's `latex` service in the LaTeX project.
 
 ### Nix
 
@@ -71,3 +71,7 @@ cargo test    # unit tests and an integration test against a fake relay
 ```
 
 Releases: push a tag `bridge-v<version>` (binaries and the `ghcr.io/untypequicode/looty-bridge` image are built by `.github/workflows/bridge.yml`).
+
+## LaTeX compile service
+
+`looty-latex-service` (second binary of this crate, image `Dockerfile.latex` on top of the official TeX Live image) compiles a LaTeX project sent by the instance with the TeX Live of your PC: latexmk or pdflatex/xelatex/lualatex, shell escape off, a throw-away directory per job, time and size limits, cancellation. Run it without Docker with `looty-latex-service --listen 127.0.0.1:8080` and `--service tex:latex=http://127.0.0.1:8080` on the bridge. Options (environment): `LATEX_LISTEN`, `LATEX_BIN_DIR`, `LATEX_SLOTS` (2), `LATEX_TIMEOUT` (120 s), `LATEX_MAX_TIMEOUT` (300 s), `LATEX_WORK_DIR`. API: section 13 of [`docs/tunnel-protocol.md`](../docs/tunnel-protocol.md). It runs TeX on what it receives: keep it on loopback or a private network.

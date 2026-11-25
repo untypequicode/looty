@@ -1,5 +1,9 @@
 //! End to end against a fake relay (this test is the instance) and fake local services.
-#![allow(clippy::result_large_err, clippy::single_match)]
+#![allow(
+    clippy::result_large_err,
+    clippy::single_match,
+    clippy::field_reassign_with_default
+)]
 
 use futures_util::{SinkExt, StreamExt};
 use looty_bridge::config::Services;
@@ -296,4 +300,110 @@ async fn accept_agent(
     })
     .await
     .unwrap()
+}
+
+/// A `latex` service reached through the bridge: the instance posts a project zip to /compile and gets the PDF back,
+/// while a service that was not declared stays unreachable.
+#[cfg(unix)]
+#[tokio::test]
+async fn latex_compile_through_the_bridge() {
+    use looty_bridge::latex_service::{router, Config};
+    use std::io::{Cursor, Read, Write};
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = std::env::temp_dir().join(format!("looty-bridge-latex-it-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("work")).unwrap();
+    let engine = dir.join("pdflatex");
+    std::fs::write(&engine, "#!/bin/sh\nfor last; do :; done\nstem=${last%.tex}\necho '%PDF-fake' > \"$stem.pdf\"\necho \"compiled $last\" > \"$stem.log\"\n").unwrap();
+    std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut cfg = Config::default();
+    cfg.bin_dir = Some(dir.clone());
+    cfg.use_path = false;
+    cfg.work_dir = dir.join("work");
+    let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let laddr = l.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(l, router(cfg)).await.unwrap() });
+
+    let relay = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let raddr = relay.local_addr().unwrap().to_string();
+    let p = params(&raddr, &[format!("tex:latex=http://{laddr}")]);
+    let (stx, srx) = watch::channel(false);
+    let agent = tokio::spawn(async move { run_forever(&p, srx).await });
+    let (sock, _) = relay.accept().await.unwrap();
+    let mut ws = accept_agent(sock).await;
+    let hello = ctl(&mut ws).await;
+    assert_eq!(hello["services"][0], json!({"name":"tex","kind":"latex"}));
+    ws.send(Message::text(
+        json!({"t":"welcome","v":1,"ping_interval":15,"limits":{}}).to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    w.start_file("main.tex", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    w.write_all(b"\\documentclass{article}").unwrap();
+    let body = w.finish().unwrap().into_inner();
+
+    ws.send(Message::text(json!({"t":"open","id":1,"service":"tex","proto":"http","method":"POST","path":"/compile?main=main.tex&engine=pdflatex","headers":[["content-type","application/zip"]]}).to_string())).await.unwrap();
+    ws.send(Message::binary(encode_frame(1, 0, &body)))
+        .await
+        .unwrap();
+    ws.send(Message::text(json!({"t":"end","id":1}).to_string()))
+        .await
+        .unwrap();
+    let head = loop {
+        let v = ctl(&mut ws).await;
+        if v["t"] != "window" {
+            break v;
+        }
+    };
+    assert_eq!(
+        (head["t"].as_str(), head["status"].as_u64()),
+        (Some("head"), Some(200)),
+        "{head}"
+    );
+    let mut resp = Vec::new();
+    loop {
+        match timeout(T, ws.next()).await.unwrap().unwrap().unwrap() {
+            Message::Binary(b) => {
+                let (_, _, p) = decode_frame(&b, 65536).unwrap();
+                resp.extend_from_slice(p);
+                ws.send(Message::text(
+                    json!({"t":"window","id":1,"add":p.len().max(1)}).to_string(),
+                ))
+                .await
+                .unwrap();
+            }
+            Message::Text(t) => {
+                let v: Value = serde_json::from_str(&t).unwrap();
+                if v["t"] == "end" {
+                    break;
+                }
+                assert_ne!(v["t"], "error", "{v}");
+            }
+            _ => {}
+        }
+    }
+    let mut z = zip::ZipArchive::new(Cursor::new(resp)).unwrap();
+    let mut pdf = Vec::new();
+    z.by_name("output.pdf")
+        .unwrap()
+        .read_to_end(&mut pdf)
+        .unwrap();
+    assert!(pdf.starts_with(b"%PDF"));
+    let mut log = String::new();
+    z.by_name("compile.log")
+        .unwrap()
+        .read_to_string(&mut log)
+        .unwrap();
+    assert!(log.contains("compiled main.tex"));
+
+    // Not declared: refused by the agent.
+    ws.send(Message::text(json!({"t":"open","id":3,"service":"other","proto":"http","method":"POST","path":"/compile","headers":[]}).to_string())).await.unwrap();
+    assert_eq!(ctl(&mut ws).await["code"], "unknown_service");
+
+    stx.send(true).unwrap();
+    assert_eq!(timeout(T, agent).await.unwrap().unwrap(), 0);
+    let _ = std::fs::remove_dir_all(&dir);
 }

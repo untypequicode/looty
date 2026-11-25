@@ -7,7 +7,7 @@ import { confirmDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import {
   bridgeCommands, instanceUrl, tunnelPhase, formatLatency, machineLabel, validLocalUrl,
-  DEFAULT_JUPYTER_URL, COMPOSE_URL, RELEASES_URL, type TunnelLive,
+  DEFAULT_JUPYTER_URL, DEFAULT_LATEX_URL, COMPOSE_URL, RELEASES_URL, type TunnelLive,
 } from '~/utils/tunnel'
 
 /**
@@ -16,7 +16,10 @@ import {
  */
 export interface ProjectTunnel extends TunnelLive { id: string; name?: string | null; mine?: boolean }
 
-const props = defineProps<{ projectId: string; projectName?: string; tunnel: ProjectTunnel | null; canEdit: boolean; kernel?: string }>()
+const props = withDefaults(defineProps<{ projectId: string; projectName?: string; tunnel: ProjectTunnel | null; canEdit: boolean; kernel?: string; service?: 'jupyter' | 'latex' }>(), { service: 'jupyter' })
+const isLatex = computed(() => props.service === 'latex')
+// Rattachement du projet : serveur Jupyter ou service `latex` (compilation sur le TeX Live du PC).
+const attachUrl = computed(() => `/api/projects/${props.projectId}/${isLatex.value ? 'latex/tunnel' : 'jupyter'}`)
 const emit = defineEmits<{
   /** Le projet cible (ou ne cible plus) un tunnel : le parent recharge la configuration. */
   (e: 'changed'): void
@@ -28,8 +31,7 @@ const { wsId } = useWorkspace()
 
 type Step = 'idle' | 'setup' | 'launch'
 const step = ref<Step>(props.tunnel ? 'idle' : 'idle')
-const jupyterOn = ref(true)
-const localUrl = ref(DEFAULT_JUPYTER_URL)
+const localUrl = ref(props.service === 'latex' ? DEFAULT_LATEX_URL : DEFAULT_JUPYTER_URL)
 const days = ref(30)
 const confirmed = ref(false)
 const busy = ref(false)
@@ -41,10 +43,10 @@ const tab = ref<'nix' | 'compose' | 'binary'>('nix')
 
 const phase = computed(() => tunnelPhase(props.tunnel, fresh.value && props.tunnel?.id === created.value))
 const owner = computed(() => !!props.tunnel?.mine)
-const commands = computed(() => bridgeCommands(instanceUrl(typeof location === 'undefined' ? '' : location.origin), token.value, jupyterOn.value ? [{ name: 'jupyter', url: localUrl.value.trim() }] : []))
+const commands = computed(() => bridgeCommands(instanceUrl(typeof location === 'undefined' ? '' : location.origin), token.value, [{ name: props.service, url: localUrl.value.trim() }]))
 const line = computed(() => commands.value[tab.value])
-const urlOk = computed(() => !jupyterOn.value || validLocalUrl(localUrl.value))
-const canCreate = computed(() => confirmed.value && jupyterOn.value && urlOk.value && !busy.value)
+const urlOk = computed(() => validLocalUrl(localUrl.value))
+const canCreate = computed(() => confirmed.value && urlOk.value && !busy.value)
 
 watch(() => props.tunnel?.connected, (c) => { if (c) fresh.value = false })
 
@@ -66,7 +68,7 @@ async function create() {
     })
     id = r.id
     token.value = r.token
-    await api(`/api/projects/${props.projectId}/jupyter`, { method: 'PUT', silent: true, body: { tunnel_id: r.id, tunnel_service: 'jupyter', kernel: props.kernel || 'python3' } })
+    await api(attachUrl.value, { method: 'PUT', silent: true, body: isLatex.value ? { tunnel_id: r.id, tunnel_service: 'latex' } : { tunnel_id: r.id, tunnel_service: 'jupyter', kernel: props.kernel || 'python3' } })
     created.value = r.id
     fresh.value = true
     step.value = 'launch'
@@ -98,11 +100,11 @@ function hideToken() {
 async function stop() {
   const tn = props.tunnel
   if (!tn) return
-  const ok = await confirmDialog({ title: t('tunnel.stopTitle'), message: owner.value ? t('tunnel.stopMessage') : t('tunnel.detachMessage'), confirmLabel: owner.value ? t('tunnel.stopConfirm') : t('tunnel.detach'), danger: true })
+  const ok = await confirmDialog({ title: t('tunnel.stopTitle'), message: owner.value ? t(isLatex.value ? 'tunnel.stopMessageLatex' : 'tunnel.stopMessage') : t('tunnel.detachMessage'), confirmLabel: owner.value ? t('tunnel.stopConfirm') : t('tunnel.detach'), danger: true })
   if (!ok) return
   busy.value = true
   try {
-    await api(`/api/projects/${props.projectId}/jupyter`, { method: 'DELETE', silent: true })
+    await api(attachUrl.value, { method: 'DELETE', silent: true })
     if (owner.value) await api(`/api/tunnels/${tn.id}`, { method: 'DELETE', silent: true })
     token.value = ''
     step.value = 'idle'
@@ -136,8 +138,8 @@ async function stop() {
       <div v-if="phase === 'disconnected' || phase === 'unusable'" class="tb-drop" role="alert" data-testid="tunnel-dropped">
         <TriangleAlert :size="14" aria-hidden="true" />
         <div>
-          <p>{{ phase === 'unusable' ? t('tunnel.unusableHint') : t('tunnel.droppedHint') }}</p>
-          <UiButton size="xs" variant="ghost" @click="emit('fallback')">{{ t('tunnel.useBrowser') }}</UiButton>
+          <p>{{ phase === 'unusable' ? t(isLatex ? 'tunnel.unusableHintLatex' : 'tunnel.unusableHint') : t(isLatex ? 'tunnel.droppedHintLatex' : 'tunnel.droppedHint') }}</p>
+          <UiButton size="xs" variant="ghost" @click="emit('fallback')">{{ isLatex ? t('tunnel.useServer') : t('tunnel.useBrowser') }}</UiButton>
         </div>
       </div>
       <p v-if="!owner" class="tb-meta">{{ t('tunnel.notYours') }}</p>
@@ -149,7 +151,7 @@ async function stop() {
 
     <!-- Pas de tunnel : accueil -->
     <template v-else-if="step === 'idle'">
-      <p class="tb-meta">{{ t('tunnel.intro') }}</p>
+      <p class="tb-meta">{{ isLatex ? t('tunnel.introLatex') : t('tunnel.intro') }}</p>
       <p v-if="!canEdit" class="tb-meta">{{ t('tunnel.needEdit') }}</p>
       <div v-else class="tb-actions">
         <UiButton size="sm" variant="primary" :icon="Laptop" data-testid="tunnel-use-pc" @click="startSetup">{{ t('tunnel.usePc') }}</UiButton>
@@ -160,13 +162,12 @@ async function stop() {
     <form v-else-if="step === 'setup'" class="tb-form" @submit.prevent="create">
       <fieldset class="tb-fs">
         <legend>{{ t('tunnel.services') }}</legend>
-        <label class="tb-check"><input v-model="jupyterOn" type="checkbox" disabled data-testid="tunnel-svc-jupyter"> {{ t('tunnel.svcJupyter') }}</label>
-        <label class="tb-check off"><input type="checkbox" disabled> {{ t('tunnel.svcLatex') }} <span class="tb-soon">{{ t('tunnel.soon') }}</span></label>
+        <label class="tb-check"><input type="checkbox" checked disabled :data-testid="`tunnel-svc-${service}`"> {{ isLatex ? t('tunnel.svcLatex') : t('tunnel.svcJupyter') }}</label>
       </fieldset>
       <label class="tb-field">
-        <span>{{ t('tunnel.localUrl') }}</span>
+        <span>{{ isLatex ? t('tunnel.localUrlLatex') : t('tunnel.localUrl') }}</span>
         <UiInput v-model="localUrl" type="url" spellcheck="false" autocomplete="off" data-testid="tunnel-local-url" :aria-invalid="!urlOk" />
-        <small>{{ t('tunnel.localUrlHint') }}</small>
+        <small>{{ isLatex ? t('tunnel.localUrlLatexHint') : t('tunnel.localUrlHint') }}</small>
       </label>
       <label class="tb-field">
         <span>{{ t('tunnel.duration') }}</span>
@@ -180,7 +181,7 @@ async function stop() {
         <TriangleAlert :size="14" aria-hidden="true" />
         <div>
           <p><strong>{{ t('tunnel.warnTitle') }}</strong></p>
-          <p>{{ t('tunnel.warnBody') }}</p>
+          <p>{{ isLatex ? t('tunnel.warnBodyLatex') : t('tunnel.warnBody') }}</p>
           <p>{{ t('tunnel.warnRestrict') }}</p>
         </div>
       </div>
@@ -246,7 +247,6 @@ async function stop() {
 .tb-field small { font-weight: 400; color: var(--text-3); }
 .tb-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm, 13px); }
 .tb-check.off { color: var(--text-3); }
-.tb-soon { font-size: 11px; padding: 1px 6px; border-radius: 99px; background: var(--bg-code); }
 .tb-select { height: 32px; padding: 0 8px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--bg-panel, var(--bg)); color: var(--text); font: inherit; font-weight: 400; }
 .tb-token, .tb-line { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: var(--r-md); background: var(--bg-code); }
 .tb-token code, .tb-line code { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 12px; word-break: break-all; user-select: all; }
