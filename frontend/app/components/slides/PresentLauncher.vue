@@ -2,7 +2,7 @@
 import type * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import { MonitorPlay, Play, Printer, Radio } from 'lucide-vue-next'
-import { slideIds } from '~/slides/model'
+import { slideIds, slidesOf } from '~/slides/model'
 import { pickPresenter, type Presenter } from '~/slides/presentSync'
 import { useI18n } from '~/composables/useI18n'
 import PresentShow from './PresentShow.vue'
@@ -24,7 +24,11 @@ const printing = ref(false)
 
 const base = computed(() => `/w/${route.params.ws}/present/${props.pageId}`)
 const presenterUrl = computed(() => `${base.value}?mode=presenter`)
-const hasSlides = computed(() => props.ready && slideIds(props.doc).length > 0)
+const count = ref(slideIds(props.doc).length)
+const recount = () => { count.value = slideIds(props.doc).length }
+slidesOf(props.doc).observe(recount)
+onBeforeUnmount(() => slidesOf(props.doc).unobserve(recount))
+const hasSlides = computed(() => props.ready && count.value > 0)
 
 function readPresenter() {
   const aw = props.provider.awareness
