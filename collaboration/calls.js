@@ -35,7 +35,21 @@ function parseRoom(name) {
 
 /** État média annoncé par un participant : micro coupé, identifiants des flux caméra et partage ('' = éteint). */
 const streamId = (v) => (typeof v === 'string' && /^[\w{}-]{1,64}$/.test(v) ? v : '')
-const mediaState = (msg) => ({ muted: !!msg.muted, cam: streamId(msg.cam), share: streamId(msg.share) })
+/**
+ * `limits` (réglages d'instance, voir backend/src/calls.rs) : { max, video, share }. Si la caméra ou le
+ * partage d'écran sont interdits, l'état annoncé est forcé à « éteint » : aucun flux n'est classé.
+ */
+const mediaState = (msg, limits) => ({
+  muted: !!msg.muted,
+  cam: limits?.video === false ? '' : streamId(msg.cam),
+  share: limits?.share === false ? '' : streamId(msg.share),
+})
+/** Limites par défaut des options (variable d'environnement) quand l'accès n'en a pas fourni. */
+const limitsOf = (access) => {
+  const c = access?.calls
+  if (!c) return null
+  return { max: Number(c.max_participants) || undefined, video: c.video !== false, share: c.screen_share !== false }
+}
 
 class CallRooms {
   constructor(options = {}, hooks = {}) {
@@ -55,10 +69,10 @@ class CallRooms {
   }
 
   /** Une connexion arrive dans la salle : elle reçoit l'état courant. */
-  attach(name, connId, send, user) {
+  attach(name, connId, send, user, limits) {
     const r = this.room(name)
     if (r.conns.has(connId)) return
-    r.conns.set(connId, { send, user, tokens: this.opts.burst, at: this.now() })
+    r.conns.set(connId, { send, user, limits, tokens: this.opts.burst, at: this.now() })
     this.emit(send, { t: 'presence', peers: this.snapshot(r) })
   }
 
@@ -99,7 +113,7 @@ class CallRooms {
         return true
       case 'state':
         if (!mine) return false
-        Object.assign(r.peers.get(mine), mediaState(msg))
+        Object.assign(r.peers.get(mine), mediaState(msg, r.conns.get(connId)?.limits))
         this.broadcast(r)
         return true
       case 'signal': {
@@ -125,14 +139,15 @@ class CallRooms {
     // Une connexion ne tient qu'une place (un onglet = un participant).
     const already = this.peerOf(r, connId)
     if (already && already !== id) this.remove(name, already, 'switch')
-    if (!known && r.peers.size >= this.opts.maxParticipants) {
-      this.emit(conn.send, { t: 'error', code: 'room-full', max: this.opts.maxParticipants })
+    const max = conn.limits?.max ?? this.opts.maxParticipants
+    if (!known && r.peers.size >= max) {
+      this.emit(conn.send, { t: 'error', code: 'room-full', max })
       this.log(`call: room full room=${name}`)
       return true
     }
     if (known?.timer) this.clearTimer(known.timer)
-    r.peers.set(id, { connId, user: conn.user, ...mediaState(msg), timer: null, joinedAt: known?.joinedAt ?? this.now() })
-    this.emit(conn.send, { t: 'joined', you: id, peers: this.snapshot(r), max: this.opts.maxParticipants })
+    r.peers.set(id, { connId, user: conn.user, ...mediaState(msg, conn.limits), timer: null, joinedAt: known?.joinedAt ?? this.now() })
+    this.emit(conn.send, { t: 'joined', you: id, peers: this.snapshot(r), max })
     this.broadcast(r)
     return true
   }
@@ -188,4 +203,4 @@ class CallRooms {
   }
 }
 
-module.exports = { CallRooms, isCallRoom, parseRoom, PEER_RE, DEFAULTS }
+module.exports = { CallRooms, isCallRoom, parseRoom, limitsOf, PEER_RE, DEFAULTS }

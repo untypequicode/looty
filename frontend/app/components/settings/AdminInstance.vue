@@ -5,11 +5,11 @@ import { api, uploadFile } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
 
-interface Settings { app_name: string; favicon_url?: string | null; allow_public_signups: boolean; umami_website_id?: string | null; umami_script_url?: string | null; default_locale?: 'fr' | 'en' | null; default_timezone?: string | null }
+interface Settings { app_name: string; favicon_url?: string | null; allow_public_signups: boolean; umami_website_id?: string | null; umami_script_url?: string | null; default_locale?: 'fr' | 'en' | null; default_timezone?: string | null; calls_enabled: boolean; calls_max_participants: number; calls_video: boolean; calls_screen_share: boolean }
 const { t } = useI18n()
 const qc = useQueryClient()
 const { data } = useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api<Settings>('/api/admin/settings') })
-const form = reactive<Settings>({ app_name: 'Looty', favicon_url: null, allow_public_signups: true, umami_website_id: '', umami_script_url: '', default_locale: null, default_timezone: null })
+const form = reactive<Settings>({ app_name: 'Looty', favicon_url: null, allow_public_signups: true, umami_website_id: '', umami_script_url: '', default_locale: null, default_timezone: null, calls_enabled: true, calls_max_participants: 6, calls_video: true, calls_screen_share: true })
 watch(data, (d) => { if (d) Object.assign(form, { ...d, umami_website_id: d.umami_website_id ?? '', umami_script_url: d.umami_script_url ?? '' }) }, { immediate: true })
 const saving = ref(false)
 const uploading = ref(false)
@@ -54,6 +54,20 @@ async function save() {
       <UiSwitch v-model="form.allow_public_signups" />
     </SettingsRow>
   </SettingsSection>
+  <SettingsSection :title="t('settings.instance.calls')" :description="t('settings.instance.callsHint')">
+    <SettingsRow :label="t('settings.instance.callsEnabled')" :hint="t('settings.instance.callsEnabledHint')">
+      <UiSwitch v-model="form.calls_enabled" />
+    </SettingsRow>
+    <SettingsRow :label="t('settings.instance.callsMax')" :hint="t('settings.instance.callsMaxHint')">
+      <UiInput :model-value="form.calls_max_participants" @update:model-value="(v: string | number | null | undefined) => (form.calls_max_participants = Number(v))" type="number" min="2" max="12" style="width: 90px" :disabled="!form.calls_enabled" />
+    </SettingsRow>
+    <SettingsRow :label="t('settings.instance.callsVideo')" :hint="t('settings.instance.callsVideoHint')">
+      <UiSwitch v-model="form.calls_video" :disabled="!form.calls_enabled" />
+    </SettingsRow>
+    <SettingsRow :label="t('settings.instance.callsShare')">
+      <UiSwitch v-model="form.calls_screen_share" :disabled="!form.calls_enabled" />
+    </SettingsRow>
+  </SettingsSection>
   <SettingsSection :title="t('settings.instance.defaults')" :description="t('settings.instance.defaultsHint')">
     <SettingsRow :label="t('settings.instance.defaultLocale')">
       <UiCombobox v-model:open="localeOpen" :model-value="form.default_locale ?? ''" :items="localeItems" :width="200" placement="bottom-end" @update:model-value="(v) => (form.default_locale = v ? (String(v) as 'fr' | 'en') : null)">
@@ -70,7 +84,7 @@ async function save() {
     <SettingsRow label="Website ID"><UiInput v-model="form.umami_website_id" placeholder="xxxxxxxx-xxxx-…" style="width: 280px" /></SettingsRow>
     <SettingsRow :label="t('settings.instance.scriptUrl')"><UiInput v-model="form.umami_script_url" placeholder="https://analytics.example.com/script.js" style="width: 280px" /></SettingsRow>
   </SettingsSection>
-  <div class="actions"><UiButton variant="primary" :loading="saving" :disabled="!form.app_name.trim()" @click="save">{{ t('common.save') }}</UiButton></div>
+  <div class="actions"><UiButton variant="primary" :loading="saving" :disabled="!form.app_name.trim() || !(form.calls_max_participants >= 2 && form.calls_max_participants <= 12)" @click="save">{{ t('common.save') }}</UiButton></div>
 </template>
 
 <style scoped>

@@ -5,6 +5,7 @@
 //! - `/api/calls/config` : serveurs ICE et limite de participants pour le navigateur.
 
 use axum::{extract::{Path, State}, routing::get, Json, Router};
+use sqlx::PgPool;
 use base64::Engine;
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
@@ -41,7 +42,37 @@ pub fn max_participants() -> u32 {
 }
 
 fn parse_max(v: Option<&str>) -> u32 {
-    v.and_then(|s| s.trim().parse::<u32>().ok()).filter(|n| (2..=32).contains(n)).unwrap_or(6)
+    v.and_then(|s| s.trim().parse::<u32>().ok()).filter(|n| valid_max(*n as i32)).unwrap_or(6)
+}
+
+/// Plafond dur du réglage : au-delà de 12 le maillage (N-1 flux par personne) n'a plus de sens.
+pub const HARD_MAX: i32 = 12;
+pub fn valid_max(n: i32) -> bool {
+    (2..=HARD_MAX).contains(&n)
+}
+
+/// Réglages d'instance appliqués côté serveur : appels actifs, participants maximum, caméra, partage d'écran.
+pub struct Limits {
+    pub enabled: bool,
+    pub max_participants: u32,
+    pub video: bool,
+    pub screen_share: bool,
+}
+
+impl Limits {
+    fn json(&self) -> Value {
+        json!({ "enabled": self.enabled, "max_participants": self.max_participants, "video": self.video, "screen_share": self.screen_share })
+    }
+}
+
+async fn limits(pool: &PgPool) -> ApiResult<Limits> {
+    let s = crate::admin::call_settings(pool).await?;
+    Ok(Limits {
+        enabled: s.calls_enabled,
+        max_participants: s.calls_max_participants.filter(|n| valid_max(*n)).map(|n| n as u32).unwrap_or_else(max_participants),
+        video: s.calls_video,
+        screen_share: s.calls_screen_share,
+    })
 }
 
 /// HMAC-SHA1 (RFC 2104), le condensat des identifiants éphémères de coturn.
@@ -92,7 +123,8 @@ fn ice_servers(stun: Option<&str>) -> Value {
     json!([{ "urls": urls }])
 }
 
-async fn config(user: AuthUser) -> Json<Value> {
+async fn config(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<Value>> {
+    let lim = limits(&state.pool).await?;
     let mut servers = ice_servers(std::env::var("LOOTY_STUN_URLS").ok().as_deref());
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let secret = std::env::var("LOOTY_TURN_SECRET").unwrap_or_default();
@@ -100,12 +132,17 @@ async fn config(user: AuthUser) -> Json<Value> {
     if let Some(turn) = turn_server(turn_urls(std::env::var("LOOTY_TURN_URLS").ok().as_deref()), secret.trim(), user.id, now, ttl) {
         servers.as_array_mut().expect("liste").push(turn);
     }
-    Json(json!({ "ice_servers": servers, "max_participants": max_participants() }))
+    Ok(Json(json!({ "ice_servers": servers, "max_participants": lim.max_participants, "enabled": lim.enabled, "video": lim.video, "screen_share": lim.screen_share })))
 }
 
 async fn room_access(State(state): State<AppState>, user: AuthUser, Path((kind, id)): Path<(String, Uuid)>) -> ApiResult<Json<Value>> {
     let kind = parse_kind(&kind).ok_or(ApiError::NotFound)?;
     let pool = &state.pool;
+    // Appels désactivés par l'administrateur : salle refusée (la signalisation est coupée à la révalidation).
+    let lim = limits(pool).await?;
+    if !lim.enabled {
+        return Err(ApiError::Forbidden);
+    }
     match kind {
         Kind::Page => {
             let (_, _, a) = access::page_access(pool, &user, id).await?;
@@ -121,7 +158,7 @@ async fn room_access(State(state): State<AppState>, user: AuthUser, Path((kind, 
         }
     }
     let name: String = sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(user.id).fetch_one(pool).await?;
-    Ok(Json(json!({ "user_id": user.id, "name": name, "can_write": false, "max_participants": max_participants() })))
+    Ok(Json(json!({ "user_id": user.id, "name": name, "can_write": false, "max_participants": lim.max_participants, "calls": lim.json() })))
 }
 
 #[cfg(test)]
@@ -142,6 +179,9 @@ mod tests {
         assert_eq!(parse_max(Some("4")), 4);
         assert_eq!(parse_max(Some("1")), 6);
         assert_eq!(parse_max(Some("500")), 6);
+        assert_eq!(parse_max(Some("12")), 12);
+        assert_eq!(parse_max(Some("13")), 6);
+        assert!(valid_max(2) && valid_max(12) && !valid_max(1) && !valid_max(13));
         assert_eq!(parse_max(Some("abc")), 6);
     }
 

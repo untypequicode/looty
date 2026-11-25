@@ -44,6 +44,14 @@ export const callState = reactive({
   devices: [] as CallDevice[],
   inputId: '',
   max: 6,
+  /** Réglages d'instance (admin, #268) lus dans /api/calls/config : appels actifs, caméra et partage d'écran autorisés. */
+  enabled: true,
+  video: true,
+  share: true,
+  /** Appuyer pour parler : micro coupé tant que la touche (code KeyboardEvent) n'est pas maintenue. Désactivé par défaut. */
+  ptt: false,
+  pttKey: 'Backquote',
+  pttHeld: false,
   cam: false,
   sharing: false,
   cameras: [] as CallDevice[],
@@ -199,9 +207,12 @@ const conns = new Map<string, Conn>()
 /** Serveurs ICE et limite fournis par le serveur (crochet TURN : #264). */
 async function loadConfig() {
   try {
-    const c = await api<{ ice_servers?: RTCIceServer[]; max_participants?: number }>('/api/calls/config', { silent: true })
+    const c = await api<{ ice_servers?: RTCIceServer[]; max_participants?: number; enabled?: boolean; video?: boolean; screen_share?: boolean }>('/api/calls/config', { silent: true })
     if (c?.ice_servers?.length) iceServers = c.ice_servers
     if (c?.max_participants) callState.max = c.max_participants
+    callState.enabled = c?.enabled !== false
+    callState.video = c?.video !== false
+    callState.share = c?.screen_share !== false
   } catch { iceServers = DEFAULT_ICE }
 }
 
@@ -625,6 +636,7 @@ export async function joinCall(kind: CallKind, id: string, label: string, to: st
   try {
     const [stream] = await Promise.all([captureMic(callState.inputId || undefined), loadConfig()])
     local = stream
+    if (!callState.enabled) { stopStream(local); local = null; callState.status = 'idle'; callState.error = 'calls-disabled'; return }
   } catch (e) {
     callState.status = 'idle'
     callState.error = micError(e)
@@ -661,6 +673,57 @@ export async function joinCall(kind: CallKind, id: string, label: string, to: st
   if (current.provider.synced) sendJoin()
   if (current.denied.value) void fail('call-denied')
   window.addEventListener('pagehide', onPageHide)
+  loadPtt()
+  window.addEventListener('keydown', onPttDown)
+  window.addEventListener('keyup', onPttUp)
+  window.addEventListener('blur', onPttBlur)
+  if (callState.ptt) applyMute(true)
+}
+
+// --- Appuyer pour parler (optionnel, désactivé par défaut) ---
+
+const PTT_STORE = 'looty.call.ptt'
+function loadPtt() {
+  try {
+    const v = JSON.parse(localStorage.getItem(PTT_STORE) || '{}')
+    callState.ptt = v.on === true
+    if (typeof v.key === 'string' && /^[A-Za-z0-9]{1,24}$/.test(v.key)) callState.pttKey = v.key
+  } catch { /* stockage indisponible : réglage par défaut */ }
+}
+function savePtt() { try { localStorage.setItem(PTT_STORE, JSON.stringify({ on: callState.ptt, key: callState.pttKey })) } catch { /* stockage indisponible */ } }
+function applyMute(muted: boolean) {
+  if (callState.muted === muted) return
+  callState.muted = muted
+  local?.getAudioTracks().forEach((t) => { t.enabled = !muted })
+  sendState()
+}
+export function setPtt(on: boolean) {
+  callState.ptt = on
+  savePtt()
+  if (on && callState.status !== 'idle') applyMute(true)
+}
+export function setPttKey(code: string) {
+  if (!/^[A-Za-z0-9]{1,24}$/.test(code)) return
+  callState.pttKey = code
+  savePtt()
+}
+const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
+function onPttDown(e: KeyboardEvent) {
+  if (!callState.ptt || callState.status === 'idle' || e.code !== callState.pttKey || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return
+  e.preventDefault()
+  if (e.repeat) return
+  callState.pttHeld = true
+  applyMute(false)
+}
+function onPttUp(e: KeyboardEvent) {
+  if (!callState.ptt || e.code !== callState.pttKey || !callState.pttHeld) return
+  callState.pttHeld = false
+  applyMute(true)
+}
+function onPttBlur() {
+  if (!callState.ptt || !callState.pttHeld) return
+  callState.pttHeld = false
+  applyMute(true)
 }
 
 function onPageHide() { send({ t: 'leave' }) }
@@ -671,6 +734,10 @@ export async function leave() {
   if (leaving) return
   leaving = true
   window.removeEventListener('pagehide', onPageHide)
+  window.removeEventListener('keydown', onPttDown)
+  window.removeEventListener('keyup', onPttUp)
+  window.removeEventListener('blur', onPttBlur)
+  callState.pttHeld = false
   send({ t: 'leave' })
   if (meter) clearInterval(meter)
   if (statsTimer) clearInterval(statsTimer)
@@ -755,6 +822,7 @@ async function setTrack(slot: 'cam' | 'share' | 'shareAudio', track: MediaStream
 
 export async function startCamera(deviceId?: string) {
   if (callState.status === 'idle') return
+  if (!callState.video) { callState.error = 'video-disabled'; return }
   if (!canUseCamera(participantCount())) { callState.error = 'video-limit'; return }
   callState.error = null
   let stream: MediaStream
@@ -796,6 +864,7 @@ export const canShareScreen = () => typeof navigator !== 'undefined' && !!naviga
 
 export async function startShare() {
   if (callState.status === 'idle' || !canShareScreen()) return
+  if (!callState.share) { callState.error = 'share-disabled'; return }
   callState.error = null
   let stream: MediaStream
   try { stream = await navigator.mediaDevices.getDisplayMedia(displayConstraints(shareProfile(participantCount())) as DisplayMediaStreamOptions) } catch (e) {
