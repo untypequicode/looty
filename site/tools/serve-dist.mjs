@@ -14,8 +14,16 @@ createServer(async (req, res) => {
   if (!f.startsWith(normalize(root))) { res.writeHead(403); return res.end() }
   try { if ((await stat(f)).isDirectory()) f = join(f, 'index.html') } catch {}
   try {
-    const body = await readFile(f)
-    res.writeHead(200, { 'content-type': types[extname(f)] || 'application/octet-stream', 'cache-control': 'public, max-age=3600' })
+    // Copies précompressées (.br, .gz) créées par la construction, comme le serveur du site.
+    const accept = String(req.headers['accept-encoding'] || '')
+    let enc = ''
+    let body
+    for (const [e, ext] of [['br', '.br'], ['gzip', '.gz']]) {
+      if (!accept.includes(e)) continue
+      try { body = await readFile(f + ext); enc = e; break } catch {}
+    }
+    if (!body) body = await readFile(f)
+    res.writeHead(200, { 'content-type': types[extname(f)] || 'application/octet-stream', 'cache-control': 'public, max-age=3600', ...(enc ? { 'content-encoding': enc, vary: 'accept-encoding' } : {}) })
     res.end(body)
   } catch { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found') }
 }).listen(port, () => console.log(`serving ${root} on :${port}`))

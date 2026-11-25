@@ -1,6 +1,30 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
 import starlightLinksValidator from 'starlight-links-validator'
+import { brotliCompressSync, gzipSync, constants } from 'node:zlib'
+import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Après la construction : une copie .br et une copie .gz de chaque page, feuille de style, script et image vectorielle.
+// Le serveur (site/server) sert la copie que le navigateur accepte, sans recompresser à chaque requête.
+const precompress = {
+  name: 'precompress',
+  hooks: {
+    'astro:build:done': ({ dir }) => {
+      const walk = (d) => readdirSync(d).forEach((n) => {
+        const f = join(d, n)
+        if (statSync(f).isDirectory()) return walk(f)
+        if (!/\.(html|css|js|mjs|json|svg|xml|txt)$/.test(n)) return
+        const b = readFileSync(f)
+        if (b.length < 512) return
+        writeFileSync(f + '.br', brotliCompressSync(b, { params: { [constants.BROTLI_PARAM_QUALITY]: 11, [constants.BROTLI_PARAM_SIZE_HINT]: b.length } }))
+        writeFileSync(f + '.gz', gzipSync(b, { level: 9 }))
+      })
+      walk(fileURLToPath(dir))
+    },
+  },
+}
 
 // Site statique : aucune bibliothèque côté navigateur sur les pages d'accueil (CSS dans la page).
 // La documentation (Starlight) vit sous /docs/ (anglais) et /fr/docs/ (français) ; elle charge ses propres styles.
@@ -16,6 +40,7 @@ export default defineConfig({
   // Le générateur (/install/) embarque les modèles de deploy/ (hors de ce dossier) : le serveur de développement doit les lire.
   vite: { server: { fs: { allow: ['../..'] } } },
   integrations: [
+    precompress,
     starlight({
       title: 'Looty',
       logo: { src: './public/favicon.svg', alt: '' },
