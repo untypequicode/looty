@@ -55,4 +55,39 @@ function slidesSummary(state) {
   }
 }
 
-module.exports = { SLIDES_SCHEMA, slidesId, slidesSummary }
+/**
+ * Identifiant de la première diapositive d'une présentation neuve : le même que INITIAL_SLIDE_ID de
+ * frontend/app/slides/model.ts. Deux personnes qui ouvrent un document neuf en même temps écrivent
+ * alors la même clé, et une seule diapositive subsiste.
+ */
+const INITIAL_SLIDE_ID = '00000000-0000-4000-8000-000000000001'
+
+/**
+ * État d'une présentation neuve (méta et une diapositive vide), fabriqué par le serveur : tout le monde
+ * reçoit le même document de départ au lieu de l'initialiser chacun de son côté (même contenu que
+ * initDoc de frontend/app/slides/model.ts).
+ */
+function initialSlidesState() {
+  const doc = new Y.Doc()
+  try {
+    doc.transact(() => {
+      const meta = doc.getMap('meta')
+      meta.set('schema', SLIDES_SCHEMA)
+      meta.set('width', 1920)
+      meta.set('height', 1080)
+      const s = new Y.Map()
+      doc.getMap('slides').set(INITIAL_SLIDE_ID, s)
+      s.set('id', INITIAL_SLIDE_ID)
+      s.set('pos', 1)
+      s.set('layout', 'blank')
+      s.set('background', 'default')
+      s.set('notes', new Y.Text())
+      s.set('elements', new Y.Map())
+    })
+    return Buffer.from(Y.encodeStateAsUpdate(doc))
+  } finally {
+    doc.destroy()
+  }
+}
+
+module.exports = { SLIDES_SCHEMA, INITIAL_SLIDE_ID, slidesId, slidesSummary, initialSlidesState }

@@ -29,6 +29,13 @@ Decision:
 
 **Presence**: awareness carries `user`, the selected element ids and the current slide, shown as colored outlines on the canvas and avatars in the slide rail.
 
-Not decided here (later issues): themes and masters (#302; `layout` and `background` are the hooks), presenter mode and animations (#301, `notes` exists), import and export (#303), charts and tables, version history (page revisions are built on `yjs_state` and do not cover `slides_state` yet).
+Not decided here (later issues): themes and masters (#302; `layout` and `background` are the hooks), presenter mode and animations (`notes` exists), import and export, charts and tables.
+
+**Collaboration (web 0.64.0).**
+- *Comments* reuse the page comments (`item_comments`, kind `page`): a nullable `anchor` column names a slide (`slide:<id>`) or an element (`el:<slide>:<element>`); only a thread root carries one, only presentations accept one, and the backend validates the format. Access, mentions, resolving and notifications are the page ones (readers cannot comment, notified people must be able to read the page). A deleted slide or element leaves its threads, shown as detached.
+- *Versions* reuse `page_revisions`: for a presentation (`default_view = 'slides'`) the `yjs_state` column holds the Yjs state of the slides document, recorded by the collaboration server on each store (one automatic version per editing session) and by the explicit snapshot endpoint. Restoring is done by the client inside the live document (`restoreFrom`): one LOCAL transaction that deletes the slides absent from the version and rewrites the ones that differ, leaving identical slides untouched, after an automatic "before restore" version. Everyone receives it as a normal edit and the person who restored can undo it.
+- *First slide*: a brand-new presentation is initialised by the collaboration server (`initialSlidesState`) with a fixed slide id (`INITIAL_SLIDE_ID`), and clients that still initialise write the same key, so simultaneous opens converge on one slide.
+- *Presence*: awareness also carries the element being edited; people editing a text box are shown live (read-only editors bound to the same fragment, with the same caret extension as pages), keyed on the fragment identity so a restoration recreates them.
+- *Sections* are a `section` title on the first slide of each group (additive field, no schema bump); *arrow* and *icon* are new element types (older clients show the inert placeholder). View settings (zoom, grid) are personal.
 
 Consequences: slides behave like pages for permissions, trash, search and links with little backend code; the document is a single unit (no per-slide lazy loading), bounded by the slide limit; PowerPoint-level fidelity (arbitrary fonts, effects) is out of scope in favor of Looty tokens and the page text schema.

@@ -54,7 +54,7 @@ function textState(text) {
   return state
 }
 
-const { SLIDES_SCHEMA, slidesId, slidesSummary } = require('./slides')
+const { SLIDES_SCHEMA, slidesId, slidesSummary, initialSlidesState } = require('./slides')
 const { isNotebookPath, notebookText, notebookFromRow } = require('./notebook')
 
 function stateText(state) {
@@ -421,7 +421,9 @@ const server = new Server({
         if (sid) {
           const res = await pool.query('SELECT slides_state FROM pages WHERE id = $1', [sid])
           const state = res.rows[0]?.slides_state
-          return state && state.length > 0 ? state : null
+          // Présentation neuve : le serveur fournit la première diapositive (même document pour tout le monde).
+          if (state && state.length > 0) return state
+          return res.rows[0] ? initialSlidesState() : null
         }
         const fid = fileId(documentName)
         if (fid) {
@@ -523,6 +525,8 @@ async function storeDocument({ documentName, state, context, lastContext }) {
       'UPDATE pages SET slides_state = $1, slides_count = $2, slides_text = $3, slides_updated_at = NOW(), updated_by = COALESCE($5::uuid, updated_by) WHERE id = $4',
       [state, count, text, sid, userId],
     ))
+    // Versions (historique) : même mécanisme que les pages, l'état des diapositives à la place du texte.
+    await recordRevision(sid, state, userId)
     return
   }
   const fid = fileId(documentName)
