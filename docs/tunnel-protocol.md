@@ -188,3 +188,7 @@ The agent SHOULD apply its own timeouts to local connections (connect 5 s) and a
 3. For each binary frame: find the stream by id, push the payload to the local connection (HTTP request body or WebSocket message, reassembling on `MORE`), and send `window` once written.
 4. Local to instance: for HTTP, `head`, data frames (wait for credit), `end`; for WebSocket, `head` 101, one message per frame group, `end` on close.
 5. On connection loss, drop everything local and reconnect with backoff.
+
+## 12. Reference agent
+
+The reference implementation is `looty-bridge` (`bridge/`, see `bridge/README.md`): `nix run github:untypequicode/looty#bridge`, `docker-compose.bridge.yml`, or release binaries tagged `bridge-v*`.
