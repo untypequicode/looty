@@ -16,3 +16,10 @@
 /* Captures : la variante qui correspond au thème. */
 .shot { width: 100%; height: auto; border-radius: .6rem; border: 1px solid var(--sl-color-hairline); margin: 1rem 0; }
 :root[data-theme='light'] .shot-dark, :root:not([data-theme='light']) .shot-light { display: none; }
+
+/* Mini-vidéos (<Clip>) : variante claire ou sombre selon le thème de la documentation. */
+.clip .only-dark, .clip .only-light { display: none; }
+:root:not([data-theme='light']) .clip .only-dark { display: block; }
+:root[data-theme='light'] .clip .only-light { display: block; }
+.clip { margin: 1.2rem 0; border: 1px solid var(--sl-color-hairline); border-radius: 10px; overflow: hidden; }
+.clip figcaption { padding: .4rem .8rem; font-size: .8rem; color: var(--sl-color-gray-3); }
