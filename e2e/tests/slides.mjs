@@ -3,6 +3,15 @@
 import { readFileSync } from 'node:fs'
 import { B, WS, OUT, ok, launch, login, api as call } from '../lib/index.mjs'
 
+// Les changements arrivent à la prochaine image : on attend le nombre attendu au lieu de le lire tout de suite.
+const settle = async (loc, n) => {
+  for (let i = 0; i < 40; i++) {
+    if ((await loc.count()) === n) return true
+    await new Promise((r) => setTimeout(r, 150))
+  }
+  return false
+}
+
 const alice = await launch(1440, 950)
 await login(alice.page)
 const p = alice.page
@@ -30,7 +39,7 @@ ok('zone de texte rendue', (await p.locator('.frame .sv-text').first().textConte
 // Rectangle : ajout puis déplacement à la souris.
 await p.locator('.bar .tb').nth(1).click()
 const rect = p.locator('.frame .sv-el[data-type="rect"]')
-ok('rectangle ajouté', (await rect.count()) === 1)
+ok('rectangle ajouté', await settle(rect, 1))
 const left0 = await rect.evaluate((e) => parseFloat(e.style.left))
 const b = await rect.boundingBox()
 await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
@@ -53,13 +62,13 @@ ok('annulation : fond de la couleur rétabli', (await rect.locator('rect').getAt
 
 // Diapositives : ajout, duplication, réordonnancement par les boutons.
 await p.locator('.rail-head .primary').click()
-ok('deux diapositives', (await p.locator('.rail-item').count()) === 2)
+ok('deux diapositives', await settle(p.locator('.rail-item'), 2))
 await p.locator('.rail-head .rb[title]').first().click()
 await p.waitForTimeout(500)
-ok('diapositive dupliquée', (await p.locator('.rail-item').count()) === 3)
+ok('diapositive dupliquée', await settle(p.locator('.rail-item'), 3))
 await p.locator('.rail-item .thumb').first().click()
 await p.locator('.bar .tb').nth(2).click()
-ok('ellipse sur la première', (await p.locator('.frame .sv-el[data-type="ellipse"]').count()) === 1)
+ok('ellipse sur la première', await settle(p.locator('.frame .sv-el[data-type="ellipse"]'), 1))
 
 // Une autre personne voit les mêmes diapositives et ses changements arrivent en direct.
 const bob = await launch(1300, 900)
@@ -71,8 +80,8 @@ await call(bob.page, '/api/user/releases/seen', 'PUT', { version: webVersion })
 await call(bob.page, `/api/workspaces/${WS}/prefs`, 'PATCH', { modesChosen: true })
 await bob.page.goto(`${B}/w/${WS}/doc/${deck.id}`, { waitUntil: 'networkidle' })
 await bob.page.waitForSelector('.deck .rail-item', { timeout: 20000 })
-ok('autre personne : trois diapositives', (await bob.page.locator('.rail-item').count()) === 3)
-ok('autre personne : voit l’ellipse', (await bob.page.locator('.frame .sv-el[data-type="ellipse"]').count()) === 1)
+ok('autre personne : trois diapositives', await settle(bob.page.locator('.rail-item'), 3))
+ok('autre personne : voit l’ellipse', await settle(bob.page.locator('.frame .sv-el[data-type="ellipse"]'), 1))
 ok('autre personne : voit le texte', (await bob.page.locator('.frame .sv-text').first().textContent()).includes('Bonjour les équipes'))
 
 await bob.page.locator('header').getByRole('button', { name: /^(Edit|Modifier)$/ }).first().click().catch(() => {})
