@@ -46,6 +46,14 @@ jobs:
           test -f dist/install/index.html && test -f dist/fr/install/index.html
           # Titre, description, canonical, hreflang, Open Graph, JSON-LD et plan du site de chaque page ; pas d'appel réseau dans le générateur.
           node scripts/check-seo.mjs
+      - name: Home layout (no overflow, no squeezed column, no console error)
+        working-directory: site/web
+        run: |
+          # Chrome est déjà sur le runner : seul playwright-core (client, sans navigateur) est installé.
+          npm i --no-save --no-audit --no-fund playwright-core
+          node ../tools/serve-dist.mjs 4321 dist &
+          sleep 1
+          CHROMIUM=$(command -v google-chrome) node ../tools/check-layout.mjs http://localhost:4321
       - name: Install generator gives the same files as render.sh and install.sh
         working-directory: .
         run: |
