@@ -8,7 +8,7 @@ const load = eager ? 'eager' : 'lazy'
 <figure class="phone" style="margin:0">
   <div class="screen">
     <img class="only-dark" src={src('dark')} alt={alt} width="540" height="1200" loading={load} decoding="async" />
-    <img class="only-light" src={src('light')} alt={alt} width="540" height="1200" loading={load} decoding="async" />
+    <img class="only-light" src={src('light')} alt={alt} width="540" height="1200" loading="lazy" decoding="async" />
   </div>
   {caption && <figcaption class="cap">{caption}</figcaption>}
 </figure>

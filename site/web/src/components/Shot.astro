@@ -13,6 +13,6 @@ const style = crop ? `aspect-ratio: 1 / ${crop}` : undefined
   <div class="bar"><i></i><i></i><i></i><span>{url}</span></div>
   <div class={crop ? 'view crop' : 'view'} style={style}>
     <img class="only-dark" src={src('dark')} srcset={set('dark')} sizes={sizes} alt={alt} width="1800" height="1108" loading={load} decoding="async" fetchpriority={eager ? 'high' : 'auto'} />
-    <img class="only-light" src={src('light')} srcset={set('light')} sizes={sizes} alt={alt} width="1800" height="1108" loading={load} decoding="async" />
+    <img class="only-light" src={src('light')} srcset={set('light')} sizes={sizes} alt={alt} width="1800" height="1108" loading="lazy" decoding="async" />
   </div>
 </div>

@@ -23,7 +23,7 @@ const shown = variants.length === 1 ? [{ ...variants[0], cls: 'only-dark only-li
 {shown.length > 0 && (
   <figure class="clip">
     {shown.map((v) => (v.webm || v.mp4) ? (
-      <video class={v.cls} muted loop playsinline preload="none" poster={v.poster || undefined} aria-label={caption} width="1024" height="640">
+      <video class={v.cls} muted loop playsinline preload="none" data-poster={v.poster || undefined} aria-label={caption} width="1024" height="640">
         {v.webm && <source src={v.webm} type="video/webm" />}
         {v.mp4 && <source src={v.mp4} type="video/mp4" />}
       </video>
@@ -44,6 +44,16 @@ const shown = variants.length === 1 ? [{ ...variants[0], cls: 'only-dark only-li
         else v.pause()
       }), { threshold: 0.4 })
     : null
+  // L'affiche n'est téléchargée qu'à l'approche de l'écran : elle ne concurrence pas le haut de la page.
+  const posters = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries) => entries.forEach((e) => {
+        if (!e.isIntersecting) return
+        const v = e.target as HTMLVideoElement
+        posters!.unobserve(v)
+        if (v.dataset.poster) v.poster = v.dataset.poster
+      }), { rootMargin: '400px 0px' })
+    : null
+  document.querySelectorAll<HTMLVideoElement>('figure.clip video').forEach((v) => { if (posters) posters.observe(v); else if (v.dataset.poster) v.poster = v.dataset.poster })
   document.querySelectorAll<HTMLElement>('figure.clip').forEach((fig) => {
     const button = fig.querySelector<HTMLButtonElement>('.clip-play')
     fig.querySelectorAll<HTMLVideoElement>('video').forEach((v) => {
