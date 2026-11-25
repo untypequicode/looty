@@ -97,7 +97,7 @@ L'agent se reconnecte seul après une coupure réseau (attente de 1 s, doublée 
 
 Le tunnel transporte ce que propose votre Jupyter. Avec le fichier Docker Compose, vous avez Python 3 et R (IRkernel, `ir`, avec les paquets R usuels de l'image `r-notebook`). Avec votre propre Jupyter, installez les noyaux voulus (`IRkernel` pour R, Julia, etc.). Les notebooks R sur un PC bénéficient de la vraie interruption, des graphiques SVG et de la complétion du noyau, et les [panneaux R](/fr/docs/use/features/projects-notebooks/) fonctionnent de la même façon.
 
-LaTeX : le type de service `latex` est réservé à un service de compilation LaTeX sur votre PC. Il n'est pas encore disponible ; le profil `latex` de Docker Compose ne fait que préparer un conteneur TeX Live.
+LaTeX : le type de service `latex` est un service de compilation qui tourne sur votre PC (`looty-latex-service`, avec le TeX Live de la machine). Avec Docker Compose, démarrez le profil `latex` et indiquez-le au bridge : `BRIDGE_SERVICES=latex=http://texlive:8080 docker compose -f docker-compose.bridge.yml --profile latex up` (`jupyter=http://jupyter:8888,latex=http://texlive:8080` pour les deux). Sans Docker, lancez `looty-latex-service` et ajoutez `--service tex:latex=http://127.0.0.1:8080` au bridge. Ensuite, dans un projet LaTeX, utilisez **Mon PC** à côté du choix du moteur : *Compiler* envoie le projet à votre PC, sans exécution de commandes et avec une limite de temps, et ne compile nulle part ailleurs si le tunnel est coupé.
 
 ## Sécurité et vie privée
 
