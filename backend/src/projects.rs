@@ -866,7 +866,8 @@ const MAX_EXPORT_BYTES: usize = 200 * 1024 * 1024;
 #[derive(Deserialize)]
 struct DownloadQuery {
     /// `?check=1` : ne construit pas l'archive, renvoie `{ "parts": n }` (nombre d'archives nécessaires).
-    check: Option<u8>,
+    #[serde(default, deserialize_with = "crate::flag::flag")]
+    check: bool,
     /// `?part=k` (à partir de 1) : k-ième archive quand le projet dépasse le plafond d'une archive.
     part: Option<usize>,
 }
@@ -913,10 +914,10 @@ mod pack_tests {
 }
 
 /// Archive zip du projet ; au-delà du plafond, plusieurs archives (`?part=k`).
-async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, Query(q): Query<DownloadQuery>) -> ApiResult<Response> {
+async fn download_zip(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, crate::flag::Q(q): crate::flag::Q<DownloadQuery>) -> ApiResult<Response> {
     let (p, _) = project_for(&state, &user, id, Need::Read).await?;
     let parts = export_parts(&state, id).await?;
-    if q.check.is_some() {
+    if q.check {
         return Ok(Json(json!({ "parts": parts.len() })).into_response());
     }
     let part = q.part.unwrap_or(1);

@@ -84,7 +84,7 @@ function preview(list: MoodleFile[], f: MoodleFile) {
   previewItems.value = list.filter((x) => x.url && !x.html).map(asItem)
   previewing.value = previewItems.value.find((x) => x.id === f.source) ?? null
 }
-const href = (i: Item, inline: boolean) => (inline ? i.url : `${i.url}&download=1`)
+const href = (i: Item, inline: boolean) => (inline ? i.url : `${i.url}&download=true`)
 
 /** Liens vers la plateforme dans le contenu : ouverts connectés, sur le site. */
 function onContentClick(e: MouseEvent) {
@@ -167,7 +167,7 @@ function onContentClick(e: MouseEvent) {
               <div v-for="f in otherFiles(m)" :key="f.source" class="mc-filerow">
                 <button class="mc-file" @click="preview(otherFiles(m), f)">
                   <FileText :size="14" /> <span class="truncate">{{ f.path !== '/' ? f.path.slice(1) : '' }}{{ f.name }}</span> <small>{{ fileSize(f.size) }}</small>
-                  <a v-if="f.url" class="mc-dl" :href="`${f.url}&download=1`" :aria-label="t('moodle.course.download')" @click.stop><Download :size="13" /></a>
+                  <a v-if="f.url" class="mc-dl" :href="`${f.url}&download=true`" :aria-label="t('moodle.course.download')" @click.stop><Download :size="13" /></a>
                 </button>
                 <UiTooltip v-if="sendable(f)" :text="t('ai.send.label')">
                   <button class="mc-ai" :aria-label="t('ai.send.fileLabel', { name: f.name })" @click="sendFile(f)"><Bot :size="14" /></button>

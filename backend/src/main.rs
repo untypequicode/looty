@@ -27,6 +27,7 @@ mod diagram_styles;
 mod demo;
 mod demo_mode;
 mod error;
+mod flag;
 mod mail;
 mod mailbox;
 mod mailclient;

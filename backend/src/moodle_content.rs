@@ -164,7 +164,7 @@ fn module(m: &Value, base: &str, ws: Uuid) -> Value {
 #[derive(Deserialize)]
 struct UrlQuery {
     url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::flag::flag")]
     download: bool,
 }
 
@@ -229,7 +229,7 @@ pub(crate) async fn download(client: &crate::moodle::Ws, raw: &str, max: usize) 
     Ok(buf)
 }
 
-async fn file(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, Query(q): Query<UrlQuery>) -> ApiResult<Response> {
+async fn file(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uuid>, crate::flag::Q(q): crate::flag::Q<UrlQuery>) -> ApiResult<Response> {
     let (_, client, _) = conn_of(&state, &user, ws).await?;
     let name = q.url.split('?').next().unwrap_or("").rsplit('/').next().map(crate::moodle::pct_decode).unwrap_or_else(|| "file".into());
     let r = match fetch(&client, &q.url).await {
