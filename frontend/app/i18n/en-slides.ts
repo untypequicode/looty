@@ -1,0 +1,20 @@
+export default {
+  slides: {
+    newPresentation: 'Presentation', untitled: 'Untitled presentation', slides: 'Slides', slide: 'Slide', slideN: 'Slide {n}', canvasLabel: 'Slide {n}, canvas',
+    newSlide: 'New slide', duplicateSlide: 'Duplicate slide', deleteSlide: 'Delete slide', moveUp: 'Move slide up', moveDown: 'Move slide down',
+    tools: 'Insert and edit', addText: 'Add a text box', text: 'Text', addRect: 'Add a rectangle', addEllipse: 'Add an ellipse', addLine: 'Add a line', addImage: 'Add an image', image: 'Image',
+    undo: 'Undo', redo: 'Redo', limit: 'Limit reached for this presentation.',
+    readOnly: 'You can read this presentation but not edit it.', newerFormat: 'This presentation was saved by a newer version of Looty. Reload the page to edit it.',
+    properties: 'Properties', selectHint: 'Select an element to edit it. Double-click a text box to type in it.', nSelected: { one: '1 element', other: '{count} elements' },
+    types: { text: 'Text box', rect: 'Rectangle', ellipse: 'Ellipse', line: 'Line', image: 'Image', group: 'Group' },
+    background: 'Background', defaultBackground: 'Default background', defaultColor: 'Default', noColor: 'None',
+    fill: 'Fill', stroke: 'Stroke', strokeWidth: 'Stroke width', shape: 'Shape', textColor: 'Text color', fontSize: 'Size',
+    bulletList: 'Bulleted list', orderedList: 'Numbered list', textAlign: { left: 'Align left', center: 'Center', right: 'Align right' },
+    position: 'Position and size', width: 'W', height: 'H', rotation: 'Angle', arrange: 'Arrange',
+    toFront: 'Bring to front', forward: 'Bring forward', backward: 'Send backward', toBack: 'Send to back',
+    alignLeft: 'Align left', alignCenter: 'Align center', alignRight: 'Align right', alignTop: 'Align top', alignMiddle: 'Align middle', alignBottom: 'Align bottom',
+    distributeH: 'Distribute horizontally', distributeV: 'Distribute vertically',
+    group: 'Group', ungroup: 'Ungroup', duplicate: 'Duplicate', delete: 'Delete', lock: 'Lock', unlock: 'Unlock',
+    altText: 'Alternative text', altHint: 'Describe it for screen readers',
+  },
+}

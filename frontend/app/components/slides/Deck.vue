@@ -315,7 +315,8 @@ function onStageMove(e: PointerEvent) {
     }
     updateElements(ydoc, slideId, new Map([...drag.boxes].map(([id, b]) => [id, { x: Math.round(b.x + dx), y: Math.round(b.y + dy) }])))
   } else if (drag.kind === 'resize') {
-    const el = curSlide.value.elements.find((x) => x.id === drag!.id)
+    const rid = drag.id
+    const el = curSlide.value.elements.find((x) => x.id === rid)
     const r = resizeBox(drag.box, drag.handle, p.x - drag.start.x, p.y - drag.start.y, { keepRatio: e.shiftKey || el?.type === 'image', fromCenter: e.altKey })
     updateElement(ydoc, slideId, drag.id, { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) })
   } else if (drag.kind === 'rotate') {
