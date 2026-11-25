@@ -366,3 +366,15 @@ _Avoid_: port, application locale
 **Jeton de tunnel**:
 Secret qui authentifie un agent. Lié à une personne et à un espace (éventuellement un projet), à durée limitée, révocable, montré une seule fois. Il ne donne aucun accès à l'API de Looty, à ne pas confondre avec un *Jeton d'accès*.
 _Avoid_: clé, mot de passe d'agent
+
+**Présentation**:
+Page de type « diapositives » (`default_view` = `slides`) : liste ordonnée de *diapositives* éditée à plusieurs en temps réel, dans son propre document collaboratif `slides:<page>`. Elle se partage, se range, se recherche et se commente comme n'importe quelle page. Voir l'ADR 0022.
+_Avoid_: diaporama, deck, slideshow, PowerPoint
+
+**Diapositive**:
+Une vue d'une *présentation* : un canevas de taille fixe (16:9, 1920 x 1080 unités logiques, mis à l'échelle à l'affichage) qui porte un arrière-plan, des notes et des *éléments*. Elle est ordonnée par un indice fractionnaire.
+_Avoid_: slide (dans l'interface française), page (réservé aux pages de documents)
+
+**Élément de diapositive**:
+Objet positionné sur une *diapositive* : zone de texte (texte riche), forme (rectangle, ellipse, ligne), image, ou groupe. Il a une position, une taille, une rotation et un rang d'empilement (z).
+_Avoid_: objet, calque, bloc (réservé aux blocs de l'éditeur de pages)
