@@ -21,6 +21,8 @@ Si vous saisissez l’adresse vous-même, c’est `https://looty.untypequicode.f
 
 F-Droid affiche l’empreinte du dépôt quand vous l’ajoutez. Elle doit être celle publiée sur ce site, l’empreinte SHA-256 de la clé de signature du dépôt :
 
+`98AB977C06DF41102B93943862203BDFABF197A589B68955A3138882FB6D218C`
+
 [Empreinte de la clé du dépôt](/fdroid/fingerprint.txt)
 
 Le QR code ci-dessus la contient déjà : le scanner est la façon la plus sûre d’ajouter le dépôt. Si l’empreinte est différente, n’ajoutez pas le dépôt.
