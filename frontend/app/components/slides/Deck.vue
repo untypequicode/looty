@@ -17,6 +17,8 @@ import {
 } from '~/slides/model'
 import type { AlignMode } from '~/slides/geometry'
 import SlideView from './SlideView.vue'
+import PresentLauncher from './PresentLauncher.vue'
+import PresentPanel from './PresentPanel.vue'
 import TextEdit from './TextEdit.vue'
 import Inspector from './Inspector.vue'
 
@@ -477,6 +479,7 @@ defineExpose({ undo: doUndo, redo: doRedo })
     </nav>
 
     <section class="main">
+      <div class="pbar"><PresentLauncher :doc="ydoc" :provider="provider" :page-id="pageId" :current-id="cur" :can-edit="canEdit" :ready="synced" /></div>
       <div v-if="canWrite" class="bar" role="toolbar" :aria-label="t('slides.tools')">
         <button type="button" class="tb" :title="t('slides.addText')" @click="addText"><Type :size="16" /><span>{{ t('slides.text') }}</span></button>
         <button type="button" class="tb" :title="t('slides.addRect')" :aria-label="t('slides.addRect')" @click="addRect"><Square :size="16" /></button>
@@ -535,11 +538,14 @@ defineExpose({ undo: doUndo, redo: doRedo })
     <Inspector
       v-if="curSlide" :slide="curSlide" :selected="selected" :can-write="canWrite" :text-editor="editingId ? textEditor : null"
       @patch="patchSel" @background="onBackground" @z="onZ" @align="onAlign" @distribute="onDistribute" @group="onGroup" @ungroup="onUngroup" @duplicate="dupSel" @delete="removeSel"
-    />
+    >
+      <PresentPanel :doc="ydoc" :slide="curSlide" :selected="selected" :tick="tick" :can-write="canWrite" />
+    </Inspector>
   </div>
 </template>
 
 <style scoped>
+.pbar { display: flex; padding: 6px 10px 0; }
 .deck { flex: 1; min-height: 0; display: grid; grid-template-columns: 188px minmax(0, 1fr) 244px; background: var(--bg); outline: none; }
 .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); background: var(--bg-sidebar); }
 .rail-head { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-bottom: 1px solid var(--border); }

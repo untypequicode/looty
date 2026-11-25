@@ -35,10 +35,44 @@ Dans la barre latérale, ouvrez le menu **Nouveau** des documents et choisissez 
 | Flèches, <kbd>Maj</kbd> + flèches | Déplacer de 1 ou de 10 unités |
 | <kbd>Page préc.</kbd> / <kbd>Page suiv.</kbd>, <kbd>Début</kbd>, <kbd>Fin</kbd> | Changer de diapositive |
 
+## Présenter
+
+**Présenter** (au-dessus du canevas) lance le diaporama depuis la diapositive affichée, en plein écran quand le navigateur le permet.
+
+| Touche ou geste | Action |
+|---|---|
+| <kbd>→</kbd> <kbd>↓</kbd> <kbd>Espace</kbd> <kbd>Page suivante</kbd>, clic, balayage vers la gauche | Étape ou diapositive suivante (une télécommande fonctionne de la même façon) |
+| <kbd>←</kbd> <kbd>↑</kbd> <kbd>Page précédente</kbd>, balayage vers la droite | Précédent |
+| <kbd>Début</kbd> / <kbd>Fin</kbd> | Première / dernière diapositive |
+| Un numéro puis <kbd>Entrée</kbd> | Aller à cette diapositive |
+| <kbd>G</kbd> | Aperçu de toutes les diapositives |
+| <kbd>B</kbd> ou <kbd>.</kbd> / <kbd>W</kbd> ou <kbd>,</kbd> | Écran noir / blanc (même touche pour revenir) |
+| <kbd>L</kbd> | Pointeur laser |
+| <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom avant, arrière, réinitialisation (le zoom suit le pointeur) |
+| <kbd>F</kbd> / <kbd>Échap</kbd> | Plein écran / quitter |
+
+La barre de commandes en bas se masque quand le pointeur ne bouge plus et revient avec lui ou au clavier. Le numéro de diapositive est annoncé aux lecteurs d'écran à chaque changement, et <kbd>Échap</kbd> permet toujours de quitter. Seule la diapositive affichée est dessinée : les longues présentations restent légères.
+
+### Transitions et animations
+
+Dans le panneau de propriétés d'une diapositive, **Transition** choisit aucune, fondu, glissement ou zoom pour cette diapositive, et **Transition par défaut** règle celle des autres. **Animations** liste, dans l'ordre de lecture, les éléments qui entrent pas à pas : sélectionnez un élément et ajoutez une animation (apparition, fondu, entrée en glissant), puis choisissez si elle démarre **au clic** ou **après la précédente**, et réordonnez-les. Animations et transitions sont ignorées quand votre système demande de réduire les animations.
+
+### Notes de l'orateur et vue présentateur
+
+Écrivez les **notes de l'orateur** de chaque diapositive dans le panneau de propriétés ; elles ne s'affichent jamais sur la diapositive. La **vue présentateur** ouvre une seconde fenêtre, pensée pour votre propre écran, avec la diapositive en cours et la suivante, les notes (texte agrandissable), un minuteur, l'horloge et une barre de progression. Les deux fenêtres restent synchronisées dans les deux sens et utilisent le même navigateur : vous pouvez avancer depuis l'une ou l'autre.
+
+### Laisser les autres vous suivre
+
+Pendant que vous présentez, les personnes qui ont la présentation ouverte voient **« Quelqu’un présente »** (avec son nom) et peuvent **Suivre**. Elles voient votre diapositive et votre étape au fil de vos changements. Si elles reviennent en arrière ou avancent seules, elles restent libres jusqu'à **Revenir au présentateur**, et **Ne plus suivre** quitte la vue en direct. Le bouton **partage** de la barre de commandes désactive cela pour présenter en privé. Aucun droit de plus que ceux de la page n'est nécessaire : l'état en direct passe par le canal de collaboration de la présentation.
+
+### Lien public, boucle et impression
+
+Une présentation partagée par lien public s'ouvre dans une visionneuse en lecture seule, sans compte, avec un bouton **Lancer le diaporama**. Ajoutez `?kiosk=8` au lien (ou cochez **Défilement automatique en boucle**) pour que la présentation défile seule, 8 secondes par diapositive, pour un écran d'événement. Les personnes connectées peuvent aussi ouvrir `/w/<espace>/present/<page>` pour le diaporama seul, avec `?mode=presenter` pour la vue présentateur. **Imprimer** (ou la commande d'impression du navigateur) imprime toutes les diapositives, une par page, sur papier ou en PDF.
+
 ## Droits
 
 Les droits sont ceux de la page : les personnes qui peuvent seulement lire voient les diapositives sans rien pouvoir changer, et une présentation partagée par lien suit le partage de la page. Sur téléphone la présentation est faite pour la lecture ; la modification est plus confortable sur tablette ou ordinateur.
 
 ## Limites
 
-Une présentation contient jusqu'à 300 diapositives et 500 éléments par diapositive. Les thèmes, le mode présentateur et l'import/export (PowerPoint, PDF) sont prévus et pas encore disponibles.
+Une présentation contient jusqu'à 300 diapositives et 500 éléments par diapositive. Les thèmes et l'import/export (PowerPoint, PDF) sont prévus et pas encore disponibles.
