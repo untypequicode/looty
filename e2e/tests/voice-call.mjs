@@ -32,9 +32,9 @@ ok('accès à la salle : page inconnue', (await api(a.p, '/api/calls/page/000000
 ok('accès à la salle : type inconnu', (await api(a.p, `/api/calls/other/${page.id}/access`))?.status === 404)
 const cfg = await api(a.p, '/api/calls/config')
 ok('configuration : STUN et limite', cfg?.ice_servers?.[0]?.urls?.[0]?.startsWith('stun:') && cfg.max_participants >= 2, JSON.stringify(cfg))
-const carol = await open('carol@x.io')
-ok('accès à la salle : personne sans accès refusée', [403, 404].includes((await api(carol.p, `/api/calls/page/${page.id}/access`))?.status))
-await carol.ctx.close()
+const bob = await open('bob@x.io')
+{ const r = await api(bob.p, `/api/calls/page/${page.id}/access`); ok('accès à la salle : personne sans accès refusée', [403, 404].includes(r?.status), JSON.stringify(r)) }
+await bob.ctx.close()
 
 const b = await open('alice@x.io')
 const url = `${B}/w/${WS}/doc/${page.id}`
