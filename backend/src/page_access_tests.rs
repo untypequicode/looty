@@ -150,9 +150,9 @@ async fn read_and_edit_guests_differ_for_writes_and_the_collaboration_check(pool
     assert_eq!(s, 403);
     let (s, _) = w.call(w.edi, "PUT", &url(w.child), Some(json!({ "parent_id": w.other }))).await;
     assert_eq!(s, 404);
-    // Ils ne gèrent pas les partages (la route n'existe pas pour qui n'est pas membre).
+    // Ils ne gèrent pas les partages sans le niveau « gestion » : ils lisent la page mais ne la partagent pas.
     let (s, _) = w.call(w.edi, "PUT", &format!("/api/workspaces/{}/pages/{}/permissions", w.ws, w.child), Some(json!({ "user_id": w.zed, "role": "viewer" }))).await;
-    assert_eq!(s, 404);
+    assert_eq!(s, 403);
 }
 
 #[sqlx::test]
@@ -260,7 +260,349 @@ async fn a_blocked_member_and_a_sub_page_override_for_members(pool: PgPool) {
     assert_eq!(w.get_page(w.ben, w.grand).await, 404);
     assert_eq!(w.get_page(w.ben, w.shared).await, 200);
     assert!(!w.visible_titles(w.ben).await.contains(&"Grand".to_string()));
-    // Un refus ne s'applique pas à une personne extérieure : « blocked » n'a pas de sens sans accès de base.
-    let (s, _) = w.call(w.ana, "PUT", &format!("/api/workspaces/{}/pages/{}/permissions", w.ws, w.child), Some(json!({ "user_id": w.zed, "role": "blocked" }))).await;
-    assert_eq!(s, 400);
+    // Le refus vaut aussi pour une personne extérieure à l'espace (voir les tests de refus).
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 : niveaux lecture < commentaire < modification < gestion, refus, étendue, migration.
+// ---------------------------------------------------------------------------
+
+impl World {
+    async fn status(&self, who: Uuid, method: &str, path: String, body: Option<Value>) -> u16 {
+        self.call(who, method, &path, body).await.0
+    }
+
+    async fn comment(&self, who: Uuid, page: Uuid) -> (u16, Value) {
+        self.call(who, "POST", &format!("/api/workspaces/{}/comments", self.ws), Some(json!({ "kind": "page", "id": page, "content": "<p>hello</p>" }))).await
+    }
+
+    async fn activity_kinds(&self, page: Uuid) -> Vec<String> {
+        sqlx::query_scalar("SELECT kind FROM page_activities WHERE page_id = $1 ORDER BY created_at").bind(page).fetch_all(&self.pool).await.unwrap()
+    }
+}
+
+/// Personne x niveau x relation x action : lecture, commentaire, résolution, modification, gestion des partages, corbeille.
+#[sqlx::test]
+async fn every_level_opens_exactly_its_actions_for_an_outsider(pool: PgPool) {
+    let w = World::new(pool).await;
+    let page_url = |p: Uuid| format!("/api/workspaces/{}/pages/{p}", w.ws);
+    for (level, can_comment, can_edit, can_manage) in [("read", false, false, false), ("comment", true, false, false), ("edit", true, true, false), ("manage", true, true, true)] {
+        let who = user(&w.pool, &format!("lvl-{level}")).await;
+        // Chaque niveau a ses pages : racine partagée S et sous-page D (la corbeille détruit).
+        let s = page(&w.pool, w.ws, w.ana, &format!("S {level}"), None).await;
+        let d = page(&w.pool, w.ws, w.ana, &format!("D {level}"), Some(s)).await;
+        let d2 = page(&w.pool, w.ws, w.ana, &format!("D2 {level}"), Some(s)).await;
+        w.share(s, who, level, true).await;
+        for p in [s, d] {
+            assert_eq!(w.get_page(who, p).await, 200, "{level} reads S and D");
+            assert_eq!(w.collab(who, p).await.1["level"], level);
+            let (cs, body) = w.comment(who, p).await;
+            assert_eq!(cs == 200, can_comment, "{level} comment on {p}: {cs} {body}");
+            if can_comment {
+                let id = body["id"].as_str().unwrap().to_string();
+                assert_eq!(w.status(who, "POST", format!("/api/comments/{id}/resolve"), Some(json!({ "resolved": true }))).await, 204, "same rule to resolve as to comment");
+            }
+            let edit = w.status(who, "PUT", page_url(p), Some(json!({ "title": format!("T {level}") }))).await;
+            assert_eq!(edit == 200, can_edit, "{level} edit {p}");
+            let share = w.status(who, "GET", format!("{}/permissions", page_url(p)), None).await;
+            assert_eq!(share == 200, can_manage, "{level} lists shares of {p}: {share}");
+            let put = w.status(who, "PUT", format!("{}/permissions", page_url(p)), Some(json!({ "user_id": w.zed, "role": "read" }))).await;
+            assert_eq!(put == 204, can_manage, "{level} changes shares of {p}");
+            w.status(w.ana, "PUT", format!("{}/permissions", page_url(p)), Some(json!({ "user_id": w.zed, "role": "none" }))).await;
+        }
+        // Les pages voisines et le parent restent invisibles.
+        assert_eq!(w.get_page(who, w.top).await, 404);
+        assert_eq!(w.get_page(who, w.other).await, 404);
+        // G7 : mettre à la corbeille la page partagée elle-même demande la gestion ; une sous-page, la modification.
+        let trash_d = w.status(who, "DELETE", page_url(d2), None).await;
+        assert_eq!(trash_d == 204, can_edit, "{level} trashes a sub-page");
+        let trash_s = w.status(who, "DELETE", page_url(s), None).await;
+        assert_eq!(trash_s == 204, can_manage, "{level} trashes the shared root: {trash_s}");
+    }
+}
+
+#[sqlx::test]
+async fn an_outsider_can_be_denied_on_a_sub_page_and_scope_is_per_grant(pool: PgPool) {
+    let w = World::new(pool).await;
+    // Refus explicite sur une sous-page d'un arbre partagé (personne extérieure), sous-pages comprises.
+    w.share(w.child, w.gus, "deny", true).await;
+    assert_eq!(w.get_page(w.gus, w.shared).await, 200);
+    for p in [w.child, w.grand] {
+        assert_eq!(w.get_page(w.gus, p).await, 404);
+        assert_eq!(w.collab(w.gus, p).await.0, 404, "the collaboration check agrees");
+        assert_eq!(w.call(w.gus, "GET", &format!("/api/pages/{p}/revisions"), None).await.0, 404);
+        assert_eq!(w.call(w.gus, "GET", &format!("/api/workspaces/{}/comments?kind=page&id={p}", w.ws), None).await.0, 404);
+    }
+    assert_eq!(w.visible_titles(w.gus).await, vec!["Shared root"]);
+    let (_, shared) = w.call(w.gus, "GET", "/api/shared", None).await;
+    assert_eq!(shared.as_array().unwrap().len(), 1);
+    let (_, found) = w.call(w.gus, "GET", &format!("/api/workspaces/{}/search?q=needle", w.ws), None).await;
+    assert_eq!(found["results"].as_array().unwrap().len(), 1);
+    // Refus de cette page seulement : les sous-pages retombent sur le partage de la racine.
+    w.share(w.child, w.gus, "deny", false).await;
+    assert_eq!(w.get_page(w.gus, w.child).await, 404);
+    assert_eq!(w.get_page(w.gus, w.grand).await, 200);
+    // Un partage plus bas relève un refus plus haut (le plus proche gagne).
+    w.share(w.grand, w.gus, "read", true).await;
+    w.share(w.shared, w.gus, "deny", true).await;
+    assert_eq!(w.get_page(w.gus, w.shared).await, 404);
+    assert_eq!(w.get_page(w.gus, w.grand).await, 200);
+    // Retirer le refus rend l'accès.
+    w.share(w.shared, w.gus, "none", true).await;
+    w.share(w.child, w.gus, "none", true).await;
+    assert_eq!(w.get_page(w.gus, w.shared).await, 404, "no grant left on the shared root");
+    assert_eq!(w.get_page(w.gus, w.grand).await, 200);
+    // La liste des partages dit le niveau précis et garde les noms historiques.
+    let (_, perms) = w.call(w.ana, "GET", &format!("/api/workspaces/{}/pages/{}/permissions", w.ws, w.grand), None).await;
+    let mine = perms.as_array().unwrap().iter().find(|p| p["user_id"] == json!(w.gus)).unwrap();
+    assert_eq!((mine["level"].as_str(), mine["role"].as_str()), (Some("read"), Some("viewer")));
+}
+
+#[sqlx::test]
+async fn manage_lets_a_member_or_a_guest_share_and_nothing_more_than_that(pool: PgPool) {
+    let w = World::new(pool).await;
+    let perm = |p: Uuid| format!("/api/workspaces/{}/pages/{p}/permissions", w.ws);
+    // Membre ordinaire : pas de gestion sans le niveau.
+    assert_eq!(w.status(w.ben, "PUT", perm(w.shared), Some(json!({ "user_id": w.zed, "role": "read" }))).await, 403);
+    w.share(w.shared, w.ben, "manage", true).await;
+    assert_eq!(w.status(w.ben, "PUT", perm(w.child), Some(json!({ "user_id": w.zed, "role": "comment" }))).await, 204);
+    assert_eq!(w.get_page(w.zed, w.grand).await, 200);
+    // Il ne peut pas sortir de la page : le parent reste fermé à zed.
+    assert_eq!(w.get_page(w.zed, w.shared).await, 404);
+    w.share(w.child, w.zed, "none", true).await;
+    // Invité gestionnaire : donne accès à une autre personne, et retire cet accès.
+    w.share(w.shared, w.gus, "manage", true).await;
+    assert_eq!(w.status(w.gus, "PUT", perm(w.shared), Some(json!({ "user_id": w.zed, "role": "edit" }))).await, 204);
+    assert_eq!(w.collab(w.zed, w.grand).await.1["can_write"], true);
+    assert_eq!(w.status(w.gus, "PUT", perm(w.shared), Some(json!({ "user_id": w.zed, "role": "none" }))).await, 204);
+    assert_eq!(w.get_page(w.zed, w.grand).await, 404);
+    // Mais pas ailleurs que sur ce qu'il gère.
+    assert_eq!(w.status(w.gus, "PUT", perm(w.other), Some(json!({ "user_id": w.zed, "role": "read" }))).await, 404);
+    // Valeur inconnue refusée.
+    assert_eq!(w.status(w.gus, "PUT", perm(w.shared), Some(json!({ "user_id": w.zed, "role": "owner" }))).await, 400);
+    // Anciens clients : `viewer` / `editor` / `blocked` fonctionnent toujours.
+    for (old, new) in [("viewer", "comment"), ("editor", "edit"), ("blocked", "deny")] {
+        w.share(w.shared, w.zed, old, true).await;
+        let stored: String = sqlx::query_scalar("SELECT role FROM page_permissions WHERE page_id = $1 AND user_id = $2").bind(w.shared).bind(w.zed).fetch_one(&w.pool).await.unwrap();
+        assert_eq!(stored, new);
+    }
+}
+
+#[sqlx::test]
+async fn a_read_guest_cannot_comment_but_a_comment_guest_can_resolve(pool: PgPool) {
+    let w = World::new(pool).await;
+    // G2 : gus a `viewer` (= commentaire) ; une personne en lecture seule ne commente plus ni ne résout.
+    let (s, c) = w.comment(w.gus, w.child).await;
+    assert_eq!(s, 200, "{c}");
+    let id = c["id"].as_str().unwrap();
+    assert_eq!(w.status(w.gus, "POST", format!("/api/comments/{id}/resolve"), Some(json!({ "resolved": true }))).await, 204);
+    w.share(w.shared, w.gus, "read", true).await;
+    assert_eq!(w.comment(w.gus, w.child).await.0, 403);
+    assert_eq!(w.status(w.gus, "POST", format!("/api/comments/{id}/resolve"), Some(json!({ "resolved": false }))).await, 403);
+    // Les commentaires restent lisibles.
+    assert_eq!(w.call(w.gus, "GET", &format!("/api/workspaces/{}/comments?kind=page&id={}", w.ws, w.child), None).await.0, 200);
+    // Membre : un partage en lecture lui retire aussi le commentaire sur cette page.
+    w.share(w.child, w.ben, "read", true).await;
+    assert_eq!(w.comment(w.ben, w.grand).await.0, 403);
+    assert_eq!(w.comment(w.ben, w.shared).await.0, 200);
+}
+
+#[sqlx::test]
+async fn moving_a_page_reports_who_gains_or_loses_access_and_the_preview_agrees(pool: PgPool) {
+    let w = World::new(pool).await;
+    let url = format!("/api/workspaces/{}/pages/{}", w.ws, w.child);
+    let (s, preview) = w.call(w.ana, "GET", &format!("{url}/move-preview?parent_id={}", w.other), None).await;
+    assert_eq!(s, 200, "{preview}");
+    let lost = |v: &Value| -> HashMap<String, (String, String)> {
+        v["changes"].as_array().unwrap().iter().map(|c| (c["name"].as_str().unwrap().to_string(), (c["before"].as_str().unwrap().to_string(), c["after"].as_str().unwrap().to_string()))).collect()
+    };
+    assert_eq!(lost(&preview), HashMap::from([("gus".to_string(), ("comment".to_string(), "none".to_string())), ("edi".to_string(), ("edit".to_string(), "none".to_string()))]));
+    // Vers une page déjà partagée avec gus en lecture : son niveau change, rien d'autre.
+    w.share(w.other, w.gus, "read", true).await;
+    let (_, preview) = w.call(w.ana, "GET", &format!("{url}/move-preview?parent_id={}", w.other), None).await;
+    assert_eq!(lost(&preview)["gus"], ("comment".to_string(), "read".to_string()));
+    // Le déplacement lui-même renvoie le même constat et prévient la collaboration.
+    let (s, moved) = w.call(w.ana, "PUT", &url, Some(json!({ "parent_id": w.other }))).await;
+    assert_eq!(s, 200, "{moved}");
+    assert_eq!(lost(&json!({ "changes": moved["access_changes"] })), lost(&preview));
+    // Un partage sans changement ne remonte rien : sous le même parent, le déplacement est neutre.
+    let (_, noop) = w.call(w.ana, "GET", &format!("{url}/move-preview?parent_id={}", w.other), None).await;
+    assert_eq!(noop["changes"], json!([]));
+    // Lecture seule : pas d'aperçu.
+    assert_eq!(w.call(w.gus, "GET", &format!("/api/workspaces/{}/pages/{}/move-preview", w.ws, w.grand), None).await.0, 403);
+}
+
+#[sqlx::test]
+async fn share_changes_are_recorded_in_the_page_activity(pool: PgPool) {
+    let w = World::new(pool).await;
+    w.share(w.child, w.zed, "read", true).await;
+    w.share(w.child, w.zed, "none", true).await;
+    w.share(w.child, w.zed, "none", true).await; // rien à retirer : pas d'entrée
+    assert_eq!(w.activity_kinds(w.child).await, vec!["share", "unshare"]);
+}
+
+#[sqlx::test]
+async fn a_suspended_account_loses_every_grant_in_the_resolver(pool: PgPool) {
+    let w = World::new(pool).await;
+    assert_eq!(crate::access::page_level(&w.pool, w.edi, w.grand).await.unwrap().2, crate::access::level::EDIT);
+    sqlx::query("UPDATE users SET is_suspended = TRUE WHERE id = $1").bind(w.edi).execute(&w.pool).await.unwrap();
+    assert_eq!(crate::access::page_level(&w.pool, w.edi, w.grand).await.unwrap().2, crate::access::level::NONE);
+    assert!(crate::access::visible_levels(&w.pool, w.edi, w.ws).await.unwrap().values().all(|l| *l == crate::access::level::NONE));
+    // Membre suspendu : de même, et le serveur de collaboration est déjà refusé à l'authentification.
+    sqlx::query("UPDATE users SET is_suspended = TRUE WHERE id = $1").bind(w.ben).execute(&w.pool).await.unwrap();
+    assert_eq!(crate::access::page_level(&w.pool, w.ben, w.other).await.unwrap().2, crate::access::level::NONE);
+    assert_eq!(w.collab(w.edi, w.grand).await.0, 401);
+}
+
+/// Règle de la version précédente (avant les niveaux) : (lecture, écriture, commentaire).
+fn legacy_rights(member_docs: Option<u8>, grant: Option<&str>) -> (bool, bool, bool) {
+    use crate::access::level;
+    let admin = member_docs == Some(u8::MAX);
+    if admin {
+        return (true, true, true);
+    }
+    let (read, write) = match grant {
+        Some("blocked") => (false, false),
+        Some("viewer") => (true, false),
+        Some("editor") => (true, true),
+        _ => match member_docs {
+            None | Some(level::NONE) => (false, false),
+            Some(l) if l >= level::EDIT => (true, true),
+            Some(_) => (true, false),
+        },
+    };
+    // Commentaire : un membre selon le rôle de l'espace, une personne extérieure dès qu'elle lit.
+    let comment = read && match member_docs { Some(d) => d >= level::COMMENT, None => true };
+    (read, write, comment)
+}
+
+/// Migration sans élargissement : les droits effectifs d'un échantillon (personne x partage x relation)
+/// sont les mêmes avant (règles historiques) et après (valeurs converties, nouvelle résolution),
+/// sauf le commentaire de qui modifie déjà (il comprend désormais le commentaire).
+#[sqlx::test]
+async fn migrating_existing_shares_changes_no_effective_right(pool: PgPool) {
+    use crate::access::level;
+    let w = World::new(pool).await;
+    // Rôles personnalisés : docs lecture, docs commentaire, docs modification.
+    let mut people: Vec<(Uuid, Option<u8>)> = vec![(w.gus, None)];
+    for (name, docs) in [("r", "read"), ("c", "comment"), ("e", "edit"), ("n", "none")] {
+        let u = user(&w.pool, &format!("mig-{name}")).await;
+        let role_id: Uuid = sqlx::query_scalar("INSERT INTO workspace_roles (workspace_id, name, permissions) VALUES ($1, $2, $3) RETURNING id")
+            .bind(w.ws).bind(format!("role-{name}")).bind(json!({ "docs": docs })).fetch_one(&w.pool).await.unwrap();
+        sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role, role_id) VALUES ($1, $2, 'member', $3)").bind(w.ws).bind(u.to_string()).bind(role_id).execute(&w.pool).await.unwrap();
+        people.push((u, Some(level::parse(docs).unwrap())));
+    }
+    people.push((w.ben, Some(level::EDIT)));
+    people.push((w.ana, Some(u8::MAX))); // propriétaire
+    // Partages historiques posés à la main (valeurs d'avant la migration).
+    sqlx::query("DELETE FROM page_permissions").execute(&w.pool).await.unwrap();
+    let grants: [(Option<&str>, Option<&str>, Option<&str>); 6] = [
+        (Some("viewer"), None, None),
+        (Some("editor"), None, None),
+        (Some("blocked"), None, None),
+        (Some("viewer"), Some("editor"), None),
+        (Some("editor"), Some("blocked"), Some("viewer")),
+        (None, None, None),
+    ];
+    // Chaque personne reçoit, selon son rang, une combinaison sur (shared, child, grand) ; inherit alterné.
+    let mut expected = Vec::new();
+    for (i, (u, docs)) in people.iter().enumerate() {
+        let (g_shared, g_child, g_grand) = grants[i % grants.len()];
+        for (page, g, inherit) in [(w.shared, g_shared, i % 2 == 0), (w.child, g_child, true), (w.grand, g_grand, false)] {
+            if let Some(g) = g {
+                // Un refus n'existait pas pour une personne extérieure.
+                if docs.is_none() && g == "blocked" {
+                    continue;
+                }
+                sqlx::query("INSERT INTO page_permissions (page_id, user_id, role, inherit) VALUES ($1, $2, $3, $4)").bind(page).bind(u).bind(g).bind(inherit).execute(&w.pool).await.unwrap();
+            }
+        }
+        expected.push((*u, *docs));
+    }
+    // Droits d'avant, calculés par la règle historique sur l'arbre (partage le plus proche).
+    let rows: Vec<(Uuid, Uuid, String, bool)> = sqlx::query_as("SELECT user_id, page_id, role, inherit FROM page_permissions").fetch_all(&w.pool).await.unwrap();
+    let parent: HashMap<Uuid, Option<Uuid>> = HashMap::from([(w.top, None), (w.shared, Some(w.top)), (w.child, Some(w.shared)), (w.grand, Some(w.child)), (w.other, None)]);
+    let nearest = |u: Uuid, p: Uuid| -> Option<String> {
+        let mut cur = Some(p);
+        while let Some(c) = cur {
+            if let Some((_, _, r, inh)) = rows.iter().find(|(ru, rp, _, _)| *ru == u && *rp == c) {
+                if c == p || *inh {
+                    return Some(r.clone());
+                }
+            }
+            cur = parent[&c];
+        }
+        None
+    };
+    let mut before = HashMap::new();
+    for (u, docs) in &expected {
+        for p in [w.top, w.shared, w.child, w.grand, w.other] {
+            before.insert((*u, p), legacy_rights(*docs, nearest(*u, p).as_deref()));
+        }
+    }
+    // La migration, telle que livrée.
+    sqlx::raw_sql(include_str!("../migrations/20261215120000_page_access_levels.sql")).execute(&w.pool).await.unwrap();
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM page_permissions WHERE role IN ('viewer', 'editor', 'blocked')").fetch_one(&w.pool).await.unwrap();
+    assert_eq!(left, 0, "every legacy value is converted");
+    let mut checked = 0;
+    for ((u, p), (read, write, comment)) in before {
+        let (_, _, lv) = crate::access::page_level(&w.pool, u, p).await.unwrap();
+        assert_eq!(lv >= level::READ, read, "read: user {u} page {p}");
+        assert_eq!(lv >= level::EDIT, write, "write: user {u} page {p}");
+        // Pas de commentaire en plus pour qui ne pouvait que lire ; qui modifie comprend le commentaire.
+        assert!(!(lv >= level::COMMENT && !comment && !write), "comment widened: user {u} page {p}");
+        assert!(!(comment && lv < level::COMMENT), "comment lost: user {u} page {p}");
+        checked += 1;
+    }
+    assert_eq!(checked, 7 * 5);
+    // Le résultat de la migration ne contient plus de niveau « gestion » : jamais donné d'office.
+    let manage: i64 = sqlx::query_scalar("SELECT count(*) FROM page_permissions WHERE role = 'manage'").fetch_one(&w.pool).await.unwrap();
+    assert_eq!(manage, 0);
+}
+
+/// Une seule règle : la résolution d'une page et celle de tout l'espace donnent le même niveau
+/// sur des arbres, des partages (niveaux, refus, étendues) et des rôles tirés au hasard.
+#[sqlx::test]
+async fn the_single_page_and_the_bulk_resolver_agree_on_random_trees(pool: PgPool) {
+    use crate::access::level;
+    let w = World::new(pool).await;
+    let mut seed: u64 = 0x2545F4914F6CDD1D;
+    let mut rnd = move |n: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % n
+    };
+    let mut pages = vec![w.top, w.shared, w.child, w.grand, w.other];
+    for i in 0..25 {
+        let parent = if rnd(5) == 0 { None } else { Some(pages[rnd(pages.len() as u64) as usize]) };
+        pages.push(page(&w.pool, w.ws, w.ana, &format!("rnd {i}"), parent).await);
+    }
+    // Quelques pages personnelles.
+    for _ in 0..3 {
+        let p = pages[rnd(pages.len() as u64) as usize];
+        sqlx::query("UPDATE pages_all SET private_to = $2 WHERE id = $1").bind(p).bind(if rnd(2) == 0 { w.ben } else { w.ana }).execute(&w.pool).await.unwrap();
+    }
+    sqlx::query("DELETE FROM page_permissions").execute(&w.pool).await.unwrap();
+    let values = ["read", "comment", "edit", "manage", "deny", "viewer", "editor", "blocked", "bogus"];
+    let people = [w.ana, w.ben, w.gus, w.edi, w.zed];
+    for p in &pages {
+        for u in people {
+            if rnd(4) == 0 {
+                sqlx::query("INSERT INTO page_permissions (page_id, user_id, role, inherit) VALUES ($1, $2, $3, $4)").bind(p).bind(u).bind(values[rnd(values.len() as u64) as usize]).bind(rnd(2) == 0).execute(&w.pool).await.unwrap();
+            }
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    for u in people {
+        let bulk = crate::access::visible_levels(&w.pool, u, w.ws).await.unwrap();
+        for p in &pages {
+            let (_, _, single) = crate::access::page_level(&w.pool, u, *p).await.unwrap();
+            assert_eq!(bulk[p], single, "user {u} page {p}");
+            seen.insert(single);
+        }
+    }
+    for l in [level::NONE, level::READ, level::EDIT] {
+        assert!(seen.contains(&l), "the generated space exercises level {l}");
+    }
 }
