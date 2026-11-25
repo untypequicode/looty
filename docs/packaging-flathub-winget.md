@@ -17,7 +17,7 @@ The repository holds everything that can be automated. The steps marked **owner*
 
 Generated files (`cargo-sources.json`, `shared-modules/`, `metainfo.xml`) are not committed; the scripts recreate them.
 
-Design choices: the app id on Flathub is `io.github.untypequicode.looty` (the Tauri identifier `app.looty.desktop` is only used for Windows toasts). The built-in updater is compiled for Windows only (`#[cfg(windows)]`), so the Flatpak never updates itself: Flathub does. Permissions: network, Wayland/X11, DRI, and D-Bus names for notifications, the tray icon (StatusNotifier) and the secret service (session encryption key). No filesystem access. The metainfo licence field assumes `GPL-3.0-only` (the repository `LICENSE` is GPL-3.0); change it if the project is "or later".
+Design choices: the app id on Flathub is `io.github.untypequicode.looty` (the Tauri identifier `app.looty.desktop` is only used for Windows toasts). The built-in updater is compiled for Windows only (`#[cfg(windows)]`), so the Flatpak never updates itself: Flathub does. Permissions: network, Wayland/X11, DRI, and D-Bus names for notifications, the tray icon (StatusNotifier) and the secret service (session encryption key). No filesystem access. The metainfo licence field is `GPL-3.0-only`.
 
 ## Flathub (#169)
 
@@ -49,7 +49,7 @@ Submission (**owner**), for a release that already has its `desktop-vX.Y.Z` tag 
 3. After acceptance a `flathub/io.github.untypequicode.looty` repository is created. For each later desktop release, rerun step 1 and open a PR there (or enable the Flathub external-data checker/bot).
 4. Screenshots: the metainfo uses `https://looty.untypequicode.fr/shots/*-light-en.webp`; Flathub requires them to be reachable and a stable size, so replace them with desktop-window screenshots when you have them.
 
-**Licence, to confirm before submitting:** the metainfo template says `AGPL-3.0-or-later` for `project_license`, while the repository `LICENSE` is the GPL-3.0 text and the F-Droid and winget metadata say `GPL-3.0` / `GPL-3.0-only`. Decide which is right and make the three agree (the metainfo is `packaging/flatpak/io.github.untypequicode.looty.metainfo.xml.in`; not changed here).
+Licence: `GPL-3.0-only` everywhere (README, Cargo/package manifests, metainfo, F-Droid, winget `GPL-3.0`), confirmed by the maintainer.
 
 Ready-to-paste PR body (title: `Add io.github.untypequicode.looty`):
 
@@ -59,7 +59,7 @@ Looty is the desktop client of Looty, a self-hosted team workspace (tasks, wiki 
 
 ### Checklist answers
 - Original upstream project: yes, I am the maintainer and author (github.com/untypequicode/looty). The app id `io.github.untypequicode.looty` matches the GitHub account `untypequicode`.
-- Licence: <GPL-3.0-only or AGPL-3.0-or-later: see note above, fill in>. Source is public; the manifest builds from the `desktop-v0.8.4` tag with the Cargo dependencies vendored offline through flatpak-cargo-generator (`cargo-sources.json`).
+- Licence: GPL-3.0-only. Source is public; the manifest builds from the `desktop-v0.8.4` tag with the Cargo dependencies vendored offline through flatpak-cargo-generator (`cargo-sources.json`).
 - No bundled binaries; Rust comes from `org.freedesktop.Sdk.Extension.rust-stable`, the tray library from `flathub/shared-modules`.
 - Built-in updater: compiled for Windows only, so the Flatpak never updates itself.
 - Permissions, each justified: `--share=network` (the app talks to the user's Looty server); `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`, `--device=dri` (window and GPU rendering of the WebView); `--talk-name=org.freedesktop.Notifications` (task and message notifications); `--talk-name=org.kde.StatusNotifierWatcher` (tray icon); `--talk-name=org.freedesktop.secrets` (the session encryption key is stored in the keyring). No filesystem access: downloads and "Save as" go through portals.

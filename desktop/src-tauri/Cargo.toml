@@ -3,7 +3,7 @@ name = "looty-desktop"
 version = "0.8.4"
 description = "Looty desktop app"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-only"
 authors = ["Looty contributors"]
 default-run = "looty"
 
