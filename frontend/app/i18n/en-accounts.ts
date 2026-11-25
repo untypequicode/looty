@@ -138,6 +138,7 @@ export default {
       database: 'Database',
       files: 'File storage',
       secret_key: 'Encryption key',
+      turn: 'Call relay (TURN)',
       version: 'Version',
     },
     msg: {
@@ -174,6 +175,9 @@ export default {
       files_not_writable: 'The uploads folder is not writable.',
       disk_full: 'The disk is almost full.',
       disk_low: 'The disk is running low.',
+      turn_secret: 'LOOTY_TURN_URLS is set but LOOTY_TURN_SECRET is not: calls cannot use the relay.',
+      turn_urls: 'LOOTY_TURN_SECRET is set but LOOTY_TURN_URLS is not: the relay is not offered to browsers.',
+      turn_unreachable: 'The TURN relay does not answer on its TCP port (3478 by default): check that coturn runs and that the firewall lets 3478 and the relay port range through.',
       secret_key_file: 'LOOTY_SECRET_KEY is not set: the key lives in the uploads volume and must be backed up with it.',
       update_off: 'Update check is off (LOOTY_UPDATE_CHECK).',
       update_error: 'The latest version could not be checked.',

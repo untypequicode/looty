@@ -138,6 +138,7 @@ export default {
       database: 'Base de données',
       files: 'Stockage des fichiers',
       secret_key: 'Clé de chiffrement',
+      turn: 'Relais des appels (TURN)',
       version: 'Version',
     },
     msg: {
@@ -174,6 +175,9 @@ export default {
       files_not_writable: 'Le dossier des fichiers n’est pas accessible en écriture.',
       disk_full: 'Le disque est presque plein.',
       disk_low: 'Le disque se remplit.',
+      turn_secret: 'LOOTY_TURN_URLS est définie mais pas LOOTY_TURN_SECRET : les appels ne peuvent pas utiliser le relais.',
+      turn_urls: 'LOOTY_TURN_SECRET est définie mais pas LOOTY_TURN_URLS : le relais n’est pas proposé aux navigateurs.',
+      turn_unreachable: 'Le relais TURN ne répond pas sur son port TCP (3478 par défaut) : vérifiez que coturn tourne et que le pare-feu laisse passer 3478 et la plage de ports du relais.',
       secret_key_file: 'LOOTY_SECRET_KEY n’est pas définie : la clé vit dans le volume des fichiers et doit être sauvegardée avec lui.',
       update_off: 'La vérification des mises à jour est désactivée (LOOTY_UPDATE_CHECK).',
       update_error: 'La dernière version n’a pas pu être vérifiée.',

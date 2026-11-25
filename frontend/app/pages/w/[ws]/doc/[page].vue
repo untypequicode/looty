@@ -298,6 +298,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <UiTooltip :text="t('reader.open')" :shortcut="['mod', 'alt', 'R']">
           <UiButton size="sm" variant="ghost" :icon="BookOpenText" :to="links.read(wsId, live.id)" :aria-label="t('reader.open')" />
         </UiTooltip>
+        <AppCallButton kind="page" :id="live.id" :label="live.title || t('docs.untitled')" />
         <UiTooltip :text="t('itemComments.title')">
           <UiButton size="sm" variant="ghost" :icon="MessageSquare" :class="{ 'cm-on': commentsOpen }" :aria-pressed="commentsOpen" @click="commentsOpen = !commentsOpen">{{ openComments || '' }}</UiButton>
         </UiTooltip>

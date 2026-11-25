@@ -73,6 +73,7 @@ mod polls;
 mod study;
 mod analytics;
 mod backup;
+mod calls;
 mod session_store;
 mod state;
 mod upload;
@@ -221,6 +222,7 @@ fn app(state: state::AppState) -> Router {
         .route("/boards/tasks/{task_id}/caldav", get(caldav::task_links))
         .nest("/notifications", notifications::routes())
         .nest("/invites", workspace::invite_routes())
+        .nest("/calls", calls::routes())
         .nest("/pages", page::access_routes().merge(revisions::routes()))
         .nest("/ai", ai::routes())
         .nest("/comments", comments::routes())

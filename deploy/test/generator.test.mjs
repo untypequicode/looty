@@ -23,9 +23,24 @@ const templates = readDir(join(root, 'deploy/templates'))
 // Secrets d'un tirage fixe : le test les remplace de toute façon par une valeur neutre avant de comparer.
 const neutral = (env) => env.replace(new RegExp(`^(${[...SECRET_KEYS, 'OIDC_PROVIDER_ID'].join('|')})=.*$`, 'gm'), '$1=<secret>')
 
+test('turn is off by default and adds coturn, a shared secret and the relay addresses when chosen', () => {
+  for (const proxy of ['caddy', 'traefik']) {
+    const plain = renderFiles(templates, proxy, [])['docker-compose.yml']
+    assert.doesNotMatch(plain, /coturn|TURN_|LOOTY_TURN/)
+    const withTurn = renderFiles(templates, proxy, ['turn'])['docker-compose.yml']
+    assert.match(withTurn, /^ {2}coturn:\n {4}image: coturn\/coturn:/m)
+    assert.match(withTurn, /LOOTY_TURN_SECRET: \$\{TURN_SECRET:\?/)
+    assert.match(withTurn, /--static-auth-secret="\$\$TURN_SECRET"/)
+  }
+  const { env } = buildEnv({ proxy: 'caddy', auth: 'local', domain: 'looty.example.org', turn: true })
+  assert.match(env, /^TURN_SECRET=[0-9a-f]{64}$/m)
+  assert.doesNotMatch(buildEnv({ proxy: 'caddy', auth: 'local', domain: 'looty.example.org' }).env, /TURN/)
+  assert.ok(installCommand({ domain: 'looty.example.org', proxy: 'caddy', name: 'x', auth: 'local', turn: true }).endsWith(' --turn'))
+})
+
 test('render: every proxy and option gives the files of render.sh, byte for byte', () => {
   for (const proxy of ['caddy', 'traefik']) {
-    for (const options of [[], ['pocket-id'], ['backup'], ['pocket-id', 'backup', 'entrypoint', 'resolver', 'network'], ['entrypoint'], ['resolver', 'network']]) {
+    for (const options of [[], ['pocket-id'], ['backup'], ['turn'], ['pocket-id', 'backup', 'turn', 'entrypoint', 'resolver', 'network'], ['entrypoint'], ['resolver', 'network']]) {
       const out = tempDir()
       execFileSync('sh', [join(root, 'deploy/render.sh'), proxy, out, ...options])
       assert.deepEqual(renderFiles(templates, proxy, options), readDir(out), `${proxy} ${options}`)
@@ -63,16 +78,18 @@ const cases = [
   { proxy: 'traefik', auth: 'oidc', name: 'Looty', traefik: { network: 'traefik-public', entrypoint: 'websecure', resolver: 'letsencrypt' } },
   { proxy: 'traefik', auth: 'bundled-oidc', name: 'Team', dbBackup: true, traefik: { entrypoint: 'websecure', network: 'proxy_net' } },
   { proxy: 'caddy', auth: 'local', name: 'Local', dbBackup: true },
+  { proxy: 'caddy', auth: 'bundled-oidc', name: 'Team', turn: true },
+  { proxy: 'traefik', auth: 'local', name: 'Local', turn: true, traefik: { entrypoint: 'websecure' } },
 ]
 
 for (const c of cases) {
-  test(`same files as install.sh: ${c.proxy} ${c.auth} ${JSON.stringify(c.traefik ?? '')} ${c.dbBackup ?? ''}`, () => {
+  test(`same files as install.sh: ${c.proxy} ${c.auth} ${JSON.stringify(c.traefik ?? '')} ${c.dbBackup ?? ''} ${c.turn ?? ''}`, () => {
     const o = { ...c, domain: 'looty.example.org', oidc, lang: 'en' }
     const args = ['--domain', o.domain, '--proxy', o.proxy, '--name', o.name, '--auth', o.auth, ...(o.version ? ['--version', o.version] : []),
       ...(o.traefik?.network ? ['--traefik-network', o.traefik.network] : []),
       ...(o.traefik?.entrypoint ? ['--traefik-entrypoint', o.traefik.entrypoint] : []),
       ...(o.traefik?.resolver ? ['--traefik-resolver', o.traefik.resolver] : []),
-      ...(o.dbBackup ? ['--backup'] : [])]
+      ...(o.dbBackup ? ['--backup'] : []), ...(o.turn ? ['--turn'] : [])]
     const real = cli(args, { OIDC_ISSUER: oidc.issuer, OIDC_CLIENT_ID: oidc.clientId, OIDC_CLIENT_SECRET: oidc.clientSecret })
     const { files } = buildInstall(o, templates)
     const { 'README.md': readme, '.env': env, ...rendered } = files
