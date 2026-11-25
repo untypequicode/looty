@@ -1,7 +1,12 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core'
+import Highlight from '@tiptap/extension-highlight'
 
-/** Couleurs de texte proposées : des clés (et non des valeurs), le thème clair ou sombre choisit la teinte. */
-export const TEXT_COLORS = ['gray', 'red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const
+/**
+ * Palette : des clés (et non des valeurs), le thème clair ou sombre choisit la teinte (variables
+ * `--pal-*` de tokens.css, contraste au moins 4,5:1 sur le fond de la page dans les deux thèmes).
+ * Sert au texte et au surlignage.
+ */
+export const TEXT_COLORS = ['gray', 'brown', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'indigo', 'purple', 'pink'] as const
 export type TextColorKey = (typeof TEXT_COLORS)[number]
 export const TEXT_ALIGNS = ['left', 'center', 'right', 'justify'] as const
 export type TextAlignKey = (typeof TEXT_ALIGNS)[number]
@@ -9,6 +14,8 @@ export type TextAlignKey = (typeof TEXT_ALIGNS)[number]
 export function cleanColor(v: unknown): TextColorKey | null {
   return typeof v === 'string' && (TEXT_COLORS as readonly string[]).includes(v) ? (v as TextColorKey) : null
 }
+/** Surlignage : mêmes clés que la couleur du texte. */
+export const cleanHighlight = cleanColor
 export function cleanAlign(v: unknown): TextAlignKey | null {
   return typeof v === 'string' && (TEXT_ALIGNS as readonly string[]).includes(v) && v !== 'left' ? (v as TextAlignKey) : null
 }
@@ -72,6 +79,22 @@ export const TextAlign = Extension.create({
       setTextAlign: (align) => ({ commands }) => {
         const v = cleanAlign(align)
         return ['paragraph', 'heading'].map((t) => commands.updateAttributes(t, { textAlign: v })).some(Boolean)
+      },
+    }
+  },
+})
+
+/**
+ * Surlignage à palette : `mark[data-highlight]` porte une clé de la palette. Sans attribut (anciens
+ * documents), le surlignage reste le jaune d'origine.
+ */
+export const PaletteHighlight = Highlight.extend({
+  addAttributes() {
+    return {
+      color: {
+        default: null,
+        parseHTML: (el: HTMLElement) => cleanHighlight(el.getAttribute('data-highlight')),
+        renderHTML: (attrs: Record<string, unknown>) => (cleanHighlight(attrs.color) ? { 'data-highlight': attrs.color as string } : {}),
       },
     }
   },

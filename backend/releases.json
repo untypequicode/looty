@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.62.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "A toolbar you can shape: palette, ribbon, position and animation",
+        "fr": "Une barre d’outils à votre main : palette, ruban, position et animation"
+      },
+      "notes": {
+        "en": [
+          "Colors are now a simple palette: 11 colors for the text and 11 for the highlight (readable on light and dark themes), a one-click default to clear, your recent colors on top, and the current color shown on the button. The toolbar buttons are larger on touch screens, the bar adapts to the width of its column and folds the least useful groups into the More menu first.",
+          "The toolbar is yours to customize (sliders button on the bar, or Settings, Preferences): top or bottom of the window, compact or comfortable, with or without labels, show or hide any tool or group and reorder groups, and an optional Word-style ribbon with Home, Insert and Table tabs (phones keep the compact bar). Animation, shrinking, translucency and hiding while you type are each a switch; the bar becomes fully opaque when the mouse is over it. Saved with your account.",
+          "Highlight can now use any of the palette colors. Older web tabs must be reloaded to edit a page."
+        ],
+        "fr": [
+          "Les couleurs deviennent une palette simple : 11 couleurs pour le texte et 11 pour le surlignage (lisibles en thème clair et sombre), une pastille par défaut pour effacer en un clic, vos couleurs récentes en haut, et la couleur courante sur le bouton. Les boutons de la barre sont plus grands sur écran tactile, la barre s’adapte à la largeur de sa colonne et replie d’abord les groupes les moins utiles dans le menu Plus.",
+          "La barre d’outils se personnalise (bouton à curseurs sur la barre, ou Réglages, Préférences) : en haut ou en bas de la fenêtre, compacte ou confortable, avec ou sans libellés, afficher ou masquer chaque outil ou groupe et réordonner les groupes, et un ruban façon Word facultatif avec les onglets Accueil, Insertion et Tableau (les téléphones gardent la barre compacte). Animation, réduction, translucidité et masquage pendant la frappe sont chacun un interrupteur ; la barre redevient bien opaque quand la souris la survole. Enregistré avec votre compte.",
+          "Le surlignage peut maintenant prendre toutes les couleurs de la palette. Les anciens onglets web doivent être rechargés pour modifier une page."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.61.0",
       "date": "2026-11-25",
       "title": {

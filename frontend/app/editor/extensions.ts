@@ -1,5 +1,4 @@
 import StarterKit from '@tiptap/starter-kit'
-import Highlight from '@tiptap/extension-highlight'
 import Typography from '@tiptap/extension-typography'
 import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
@@ -19,7 +18,7 @@ import { MathScope } from './mathScope'
 import { BlockKeymap } from './blocks'
 import { FindInPage } from './search'
 import { EmojiSuggestion } from './emoji'
-import { TextColor, TextAlign } from './textStyle'
+import { TextColor, TextAlign, PaletteHighlight } from './textStyle'
 import { slashCommands, type SlashContext } from './slash'
 import { mentionExtension } from './mention'
 import { PageMention, pageMentionSuggest, type PageSource } from './pageMention'
@@ -51,7 +50,7 @@ function schemaExtensions(opts: { collaborative?: boolean } = {}): Extensions {
       },
     }),
     CodeBlock,
-    Highlight,
+    PaletteHighlight,
     TextColor,
     TextAlign,
     TaskList,

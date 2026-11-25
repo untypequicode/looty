@@ -13,6 +13,7 @@ import { reminderLabel, REMINDER_PRESETS } from '~/utils/reminders'
 import { isAndroidBrowser, androidBannerHidden } from '~/composables/useAppHandoff'
 
 const { prefs, update: updatePrefs } = useUserPrefs()
+const toolbarOpen = ref(false)
 const spellOn = computed({ get: () => prefs.value.spellcheck !== false, set: (v: boolean) => updatePrefs({ spellcheck: v }) })
 const spellLang = computed({ get: () => prefs.value.spellLang ?? '', set: (v: string) => updatePrefs({ spellLang: v || null }) })
 
@@ -94,6 +95,12 @@ const themes = computed(() => [
       <UiSwitch v-model="androidBanner" />
     </SettingsRow>
   </SettingsSection>
+  <SettingsSection :title="t('toolbar.label')">
+    <SettingsRow :label="t('toolbar.customizeTitle')" :hint="t('toolbar.customizeHint')">
+      <UiButton size="sm" data-open-toolbar-settings @click="toolbarOpen = true">{{ t('toolbar.customize') }}</UiButton>
+    </SettingsRow>
+  </SettingsSection>
+  <DocToolbarSettings v-model:open="toolbarOpen" />
   <SettingsSection :title="t('spell.title')">
     <SettingsRow :label="t('spell.check')" :hint="t('spell.checkHint')">
       <UiSwitch v-model="spellOn" />

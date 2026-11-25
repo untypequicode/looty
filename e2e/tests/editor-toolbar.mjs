@@ -1,16 +1,23 @@
-// Barre d'outils fixe de l'éditeur de pages : gras, titre, lien, tableau, annuler/rétablir,
-// absence en lecture, masquage mémorisé, menu « Plus » sur écran étroit.
+// Barre d'outils fixe de l'éditeur de pages : gras, titre, lien, tableau, annuler/rétablir, palette de couleurs,
+// absence en lecture, masquage mémorisé, position haut/bas, personnalisation (masquer un outil, ordre, options)
+// mémorisée après rechargement, réduction/translucidité pendant la frappe, ruban à onglets, écran étroit (390 px).
 import { B, WS, OUT, ok, launch, login, api } from '../lib/index.mjs'
 
 const { browser, page: p, errors } = await launch(1440, 900)
 await login(p)
 await api(p, `/api/workspaces/${WS}/prefs`, 'PATCH', { modes: { docs: 'read', boards: 'write', calendar: 'write' }, modesChosen: true })
-await api(p, '/api/user/prefs', 'PATCH', { editorToolbar: null })
+await api(p, '/api/user/prefs', 'PATCH', { editorToolbar: null, editorToolbarCfg: null })
 const pg = await api(p, `/api/workspaces/${WS}/pages`, 'POST', { title: 'Barre', content: '<p>Bonjour monde</p>' })
 
 const tb = p.locator('[data-doc-toolbar]')
 const btn = (id) => tb.locator(`[data-tb="${id}"]`)
 const editor = p.locator('.ProseMirror').first()
+// Bouton de la barre, ou son entrée du menu « Plus » quand la largeur l'a replié.
+async function press(id, name) {
+  if (await btn(id).count()) return btn(id).click()
+  await btn('more').click()
+  await p.getByRole('menuitem', { name }).click()
+}
 
 await p.goto(`${B}/w/${WS}/doc/${pg.id}`, { waitUntil: 'networkidle' })
 await editor.waitFor({ timeout: 15000 })
@@ -46,7 +53,12 @@ ok('lien', (await editor.locator('a[href="https://example.org"]').count()) === 1
 
 // Tableau + action contextuelle.
 await editor.click({ position: { x: 20, y: 300 } })
-await btn('table').click()
+// Selon la largeur, le groupe Insérer tient dans la barre ou est replié dans « Plus ».
+if (await btn('table').count()) await btn('table').click()
+else {
+  await btn('more').click()
+  await p.getByRole('menuitem', { name: /^(Insert a table|Insérer un tableau)$/ }).click()
+}
 await p.waitForTimeout(800) // pas de fusion avec l'étape suivante dans l'historique
 ok('tableau inséré', (await editor.locator('table').count()) === 1)
 const cellsBefore = await editor.locator('table tr').count()
@@ -56,19 +68,46 @@ await p.waitForTimeout(800)
 ok('tableau : ligne ajoutée', (await editor.locator('table tr').count()) === cellsBefore + 1)
 
 // Annuler / rétablir.
-await p.waitForFunction(() => !document.querySelector('[data-tb="undo"]')?.disabled, null, { timeout: 5000 }).catch(() => {})
-await btn('undo').click()
+await p.waitForTimeout(500)
+await press('undo', /^(Undo|Annuler)/)
 ok('annuler : ligne retirée', (await editor.locator('table tr').count()) === cellsBefore)
-await btn('redo').click()
+await press('redo', /^(Redo|Rétablir)/)
 ok('rétablir : ligne revenue', (await editor.locator('table tr').count()) === cellsBefore + 1)
 
 // Clavier : flèches entre les boutons, un seul arrêt de tabulation.
-await btn('undo').focus()
+await p.waitForTimeout(600) // le menu « Plus » rend le focus à son bouton en se fermant
+await btn('bold').focus()
 await p.keyboard.press('ArrowRight')
-ok('clavier : flèche droite', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) !== 'undo')
+ok('clavier : flèche droite', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'italic')
 await p.keyboard.press('ArrowLeft')
-ok('clavier : flèche gauche', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'undo')
+ok('clavier : flèche gauche', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'bold')
 ok('clavier : un seul bouton tabulable', (await tb.locator('.tb-btn[tabindex="0"]').count()) === 1)
+
+// Le menu de sélection flotte au-dessus du texte sélectionné et peut recouvrir la barre : on déclenche le clic directement.
+const openColors = () => btn('color').dispatchEvent('click')
+// Palette : couleur du texte et surlignage, un clic applique, « par défaut » / « aucun » retire.
+await editor.locator('h1').click()
+await p.keyboard.press('ControlOrMeta+A')
+await openColors()
+const pal = p.locator('[data-palette]')
+await pal.waitFor({ timeout: 5000 })
+ok('palette : 12 pastilles de texte (11 + défaut)', (await pal.locator('[data-color]').count()) === 12)
+ok('palette : 12 pastilles de surlignage (11 + aucun)', (await pal.locator('[data-hl]').count()) === 12)
+await p.screenshot({ path: OUT + 'editor-palette.png' })
+await pal.locator('[data-color="red"]').first().click()
+ok('palette : couleur du texte appliquée', (await editor.locator('[data-text-color="red"]').count()) > 0)
+ok('palette : fermée après le clic', await p.locator('[data-palette]').waitFor({ state: 'detached', timeout: 3000 }).then(() => true, () => false))
+await openColors()
+ok('palette : récentes affichées', (await p.locator('[data-palette] .recent').count()) >= 1)
+await p.locator('[data-palette] [data-color="default"]').click()
+ok('palette : couleur retirée', (await editor.locator('[data-text-color]').count()) === 0)
+await openColors()
+await p.locator('[data-palette] [data-hl="green"]').first().click()
+ok('palette : surlignage vert', (await editor.locator('mark[data-highlight="green"]').count()) > 0)
+await openColors()
+await p.locator('[data-palette] [data-hl="none"]').click()
+ok('palette : surlignage retiré', (await editor.locator('mark').count()) === 0)
+await editor.locator('h1').click()
 
 // Masquer (mémorisé) puis réafficher par le menu de la page.
 await p.locator('.doc-more').click()
@@ -82,16 +121,116 @@ ok('masquage mémorisé après rechargement', (await tb.count()) === 0)
 ok('préférence enregistrée', (await api(p, '/api/user/prefs')).editorToolbar === false)
 await api(p, '/api/user/prefs', 'PATCH', { editorToolbar: null })
 
+// Position en bas : fixée au bas de la fenêtre, les menus s'ouvrent vers le haut.
+await api(p, '/api/user/prefs', 'PATCH', { editorToolbarCfg: { position: 'bottom' } })
+await p.reload({ waitUntil: 'networkidle' })
+await tb.waitFor({ timeout: 15000 })
+ok('bas : position annoncée', (await tb.getAttribute('data-position')) === 'bottom')
+let box = await tb.boundingBox()
+ok('bas : barre au bas de la fenêtre', box.y + box.height > 800 && box.y + box.height <= 900, JSON.stringify(box))
+await btn('block').click()
+const item = p.getByRole('menuitem', { name: /^(Heading 2|Titre 2)$/ })
+await item.waitFor({ timeout: 5000 })
+ok('bas : le menu s’ouvre vers le haut', (await item.boundingBox()).y < box.y)
+await p.keyboard.press('Escape')
+await p.screenshot({ path: OUT + 'editor-toolbar-bottom.png' })
+
+// Personnaliser : masquer un outil, monter un groupe, activer les options de frappe ; mémorisé après rechargement.
+await btn('options').click()
+await p.getByRole('menuitem', { name: /^(Customize toolbar|Personnaliser la barre)/ }).click()
+const dlg = p.locator('[data-toolbar-settings]')
+await dlg.waitFor({ timeout: 5000 })
+await p.screenshot({ path: OUT + 'editor-toolbar-customize.png' })
+ok('personnaliser : le bouton barré est présent', (await btn('strike').count()) === 1)
+await dlg.locator('[data-tool-toggle="strike"]').uncheck()
+await p.waitForTimeout(500)
+ok('personnaliser : outil masqué immédiatement', (await btn('strike').count()) === 0)
+await dlg.locator('[data-up="marks"]').click()
+await dlg.locator('[data-opt="reduce"]').click()
+await dlg.locator('[data-opt="translucent"]').click()
+await dlg.locator('[data-opt="animate"]').click() // désactivée : transitions instantanées pour le test
+await p.waitForTimeout(600)
+const cfg = (await api(p, '/api/user/prefs')).editorToolbarCfg
+ok('personnaliser : enregistré sur le compte', cfg?.hidden?.includes('strike') && cfg.reduce === true && cfg.translucent === true && cfg.position === 'bottom', JSON.stringify(cfg))
+ok('personnaliser : groupe monté', Array.isArray(cfg?.order) && cfg.order.indexOf('marks') < cfg.order.indexOf('block'))
+await p.keyboard.press('Escape')
+await p.reload({ waitUntil: 'networkidle' })
+await tb.waitFor({ timeout: 15000 })
+ok('personnaliser : mémorisé après rechargement', (await btn('strike').count()) === 0 && (await btn('bold').count()) === 1)
+const order = await tb.locator('.grp').evaluateAll((els) => els.map((e) => e.getAttribute('data-group')))
+ok('personnaliser : ordre des groupes appliqué', order.indexOf('marks') < order.indexOf('block'), order.join())
+
+// Frappe : la barre se réduit et devient translucide ; au survol elle redevient opaque.
+await p.mouse.move(700, 450)
+await editor.click({ position: { x: 40, y: 20 } })
+await p.keyboard.type('bonjour tout le monde encore', { delay: 40 })
+await p.waitForFunction(() => document.querySelector('[data-doc-toolbar]')?.getAttribute('data-phase') !== 'normal', null, { timeout: 5000 })
+const op = () => tb.evaluate((el) => Number(getComputedStyle(el).opacity))
+ok('frappe : barre translucide', (await op()) < 0.9, String(await op()))
+ok('frappe : barre réduite (transform)', (await tb.evaluate((el) => getComputedStyle(el).transform)) !== 'none')
+await tb.hover()
+await p.waitForFunction(() => document.querySelector('[data-doc-toolbar]')?.getAttribute('data-phase') === 'normal', null, { timeout: 5000 })
+ok('frappe : opaque au survol', (await op()) === 1)
+await p.mouse.move(700, 450)
+await p.mouse.move(760, 500)
+await p.waitForTimeout(300)
+ok('frappe : revient au mouvement de la souris', (await tb.getAttribute('data-phase')) === 'normal')
+
+// Retour aux réglages par défaut (bouton « Rétablir »).
+await btn('options').click()
+await p.getByRole('menuitem', { name: /^(Customize toolbar|Personnaliser la barre)/ }).click()
+await p.locator('[data-toolbar-reset]').click()
+await p.waitForTimeout(600)
+ok('réinitialisation : préférence supprimée', (await api(p, '/api/user/prefs')).editorToolbarCfg === undefined)
+await p.keyboard.press('Escape')
+ok('réinitialisation : outil revenu', (await btn('strike').count()) === 1)
+ok('réinitialisation : en haut', (await tb.getAttribute('data-position')) === 'top')
+
+// Ruban façon Word : onglets, onglet Tableau contextuel, repli, mémorisation.
+await btn('options').click()
+await p.getByRole('menuitem', { name: /^(Use the ribbon|Utiliser le ruban)$/ }).click()
+await p.waitForSelector('[data-doc-toolbar][data-style="ribbon"]', { timeout: 5000 })
+ok('ruban : onglets Accueil et Insertion', (await tb.locator('[role="tab"]').count()) === 2 || (await tb.locator('[role="tab"]').count()) === 3)
+await p.screenshot({ path: OUT + 'editor-toolbar-ribbon.png' })
+await editor.locator('td, th').first().click()
+await tb.locator('[data-tab="table"]').waitFor({ timeout: 5000 })
+ok('ruban : onglet Tableau contextuel dans un tableau', (await tb.locator('[role="tab"]').count()) === 3)
+await tb.locator('[data-tab="table"]').click()
+ok('ruban : actions du tableau', (await btn('table-actions').count()) === 1)
+await tb.locator('[data-tab="insert"]').click()
+ok('ruban : onglet Insertion', (await btn('image').count()) === 1 && (await btn('bold').count()) === 0)
+await tb.locator('[data-tab="home"]').click()
+ok('ruban : onglet Accueil', (await btn('bold').count()) === 1)
+await tb.locator('[data-tab="home"]').focus()
+await p.keyboard.press('ArrowRight')
+ok('ruban : flèche droite change d’onglet', (await tb.locator('[data-tab="insert"]').getAttribute('aria-selected')) === 'true')
+await btn('collapse').click()
+await p.waitForTimeout(400)
+ok('ruban : replié, seuls les onglets restent', !(await tb.locator('[data-group="marks"]').isVisible()) || (await tb.locator('[data-tab="home"]').isVisible()))
+await tb.locator('[data-tab="home"]').click()
+await tb.locator('[data-tab="home"]').click().catch(() => {})
+await p.waitForTimeout(300)
+await p.reload({ waitUntil: 'networkidle' })
+await tb.waitFor({ timeout: 15000 })
+const rcfg = (await api(p, '/api/user/prefs')).editorToolbarCfg
+ok('ruban : style et repli mémorisés', rcfg?.style === 'ribbon' && rcfg?.collapsed === true, JSON.stringify(rcfg))
+ok('ruban : encore en ruban après rechargement', (await tb.getAttribute('data-style')) === 'ribbon')
+await api(p, '/api/user/prefs', 'PATCH', { editorToolbarCfg: { style: 'ribbon' } })
+
 // Écran étroit (390 px) : repli dans « Plus ».
 await p.setViewportSize({ width: 390, height: 800 })
 await p.reload({ waitUntil: 'networkidle' })
 await tb.waitFor({ timeout: 15000 })
 ok('mobile : menu Plus', (await btn('more').count()) === 1)
 ok('mobile : barre dans la largeur', (await tb.boundingBox()).width <= 390)
+ok('mobile : le ruban retombe sur la barre compacte', (await tb.getAttribute('data-style')) === 'bar')
+ok('mobile : zones tactiles de 40px', (await btn('bold').boundingBox()).height >= 40)
+ok('mobile : sans défilement horizontal', await tb.evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
 await p.screenshot({ path: OUT + 'editor-toolbar-390.png' })
 await btn('more').click()
 ok('mobile : le menu propose l’alignement', (await p.getByRole('menuitem', { name: /^(Center|Centrer)$/ }).count()) === 1)
 await p.keyboard.press('Escape')
 
+await api(p, '/api/user/prefs', 'PATCH', { editorToolbarCfg: null })
 ok('aucune erreur page', !errors.length, errors.join(' | '))
 await browser.close()
