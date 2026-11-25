@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.58.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Use my PC: connect your computer from a notebook",
+        "fr": "Utiliser mon PC : connecter son ordinateur depuis un notebook"
+      },
+      "notes": {
+        "en": [
+          "In the notebook Engine dialog, Jupyter server, a new Use my PC button creates a tunnel: pick the service, read the warning that project members will be able to run code on your PC, confirm, and Looty shows the tunnel token once with the launch line ready to copy (nix run, Docker Compose or binary), instance address filled in.",
+          "Live status in the dialog: waiting for the agent, connected (machine and latency) or disconnected, with a clear message and the option to fall back to the browser engine (Pyodide or R) when the tunnel drops. The kernels of your PC's Jupyter are listed as with any Jupyter server. One click disconnects and revokes.",
+          "Settings, PC tunnels: the list of your tunnels with their state, expiry and a revoke button. Hidden when the administrator has not turned tunnels on. Documented in Projects and notebooks."
+        ],
+        "fr": [
+          "Dans la fenêtre Moteur d’un notebook, Serveur Jupyter, un nouveau bouton Utiliser mon PC crée un tunnel : choisissez le service, lisez l’avertissement (les membres du projet pourront exécuter du code sur votre PC), confirmez, et Looty affiche le jeton une seule fois avec la ligne de lancement prête à copier (nix run, Docker Compose ou binaire), adresse de l’instance déjà remplie.",
+          "Statut en direct dans la fenêtre : en attente de l’agent, connecté (machine et latence) ou déconnecté, avec un message clair et la possibilité de se replier sur le moteur du navigateur (Pyodide ou R) quand le tunnel tombe. Les noyaux du Jupyter de votre PC sont listés comme avec n’importe quel serveur Jupyter. Un clic déconnecte et révoque.",
+          "Paramètres, Tunnels PC : la liste de vos tunnels avec leur état, leur expiration et un bouton de révocation. Masquée tant que l’administrateur n’a pas activé les tunnels. Documenté dans Projets et notebooks."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.57.0",
       "date": "2026-11-25",
       "title": {
