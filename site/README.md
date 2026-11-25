@@ -67,21 +67,33 @@ WEB_DIR=web/dist DATA_DIR=/tmp/site UPLOAD_TOKEN=secret PORT=8080 server/target/
 
 Documentation : les pages sont dans `web/src/content/docs/docs/` (anglais) et `web/src/content/docs/fr/docs/` (français), au format Markdown ; chaque page existe dans les deux langues. Le build vérifie les liens internes (`starlight-links-validator`). La page `reference/environment` est **générée** : sources dans `docs/env-vars.json`, commande `node scripts/env-reference.mjs --write` (la CI échoue avec `--check` si une variable du code n'y figure pas).
 
-Captures et aperçus (pile de développement en marche, voir `tools/`) :
+Captures, mini-vidéos et aperçus (#155, #156, #157) : ils se refont sur une pile de développement complète (Postgres, backend avec
+`LOOTY_DEV_LOGIN=true`, collaboration, interface ; voir la tâche `e2e` de `.github/workflows/ci.yml` ou `e2e/README.md`), avec le jeu de
+données « Looty Démo » que `backend seed-demo` régénère à chaque lancement. Les scripts ont besoin de `playwright-core` (le plus simple :
+`ln -s ../e2e/node_modules site/node_modules` après `npm ci` dans `e2e/`), de Chromium (`CHROMIUM=…` ; sous Nix : `nix-shell -p chromium ffmpeg`) et,
+pour les vidéos, de `ffmpeg`.
 
 ```sh
-CHROMIUM=… node tools/screenshots.mjs           # public/shots/*.webp, sur l'espace « Looty Démo » (régénéré)
-CHROMIUM=… node tools/videos.mjs           # public/clips/*.{webm,mp4,webp} (mini-vidéos, ffmpeg requis ; non versionnées)
-CHROMIUM=… node tools/og.mjs                    # public/og-en.png, og-fr.png (aperçus des réseaux sociaux)
+export LOOTY=http://127.0.0.1:3000 DATABASE_URL=postgres://… CHROMIUM=…
+node tools/screenshots.mjs [dossier] [en,fr] [dark,light] [écran…]   # public/shots/*.webp : accueil, tableau, document, agenda, annonces, notebook, recherche
+node tools/videos.mjs [dossier] [en,fr] [dark,light] [scénario…]     # public/clips/*.{webm,mp4,webp}
+node tools/og.mjs                                                    # public/og-en.png, og-fr.png (aperçus des réseaux sociaux)
 ```
 
-Mini-vidéos (#156, #157) : `tools/videos.mjs` enregistre des scénarios Playwright (curseur visible, mouvements fluides) sur le jeu
-« Looty Démo », puis `ffmpeg` les encode en WebM VP9, MP4 H.264 (repli) et affiche WebP, sous 1 Mo visés par vidéo, par langue et
-par thème (sombre par défaut) : `node tools/videos.mjs [dossier] [fr,en] [dark,light] [scénario…]`. `DRY_RUN=1` liste les
-fichiers attendus. Les fichiers (`public/clips/`) ne sont pas versionnés. Le composant `src/components/Clip.astro` les affiche
-(lecture à l'entrée dans l'écran, rien de téléchargé avant, affiche seule avec bouton lecture si le mouvement est réduit) et ne
-rend rien quand ils manquent : le site se construit donc sans eux. Scénarios écrits : `board`, `search`, `latex`, `calendar` ;
-restent à scripter : édition à deux curseurs, sondage, notebook Pyodide, Android hors ligne.
+Une seule commande refait donc tout : le workflow manuel **Site media** (`.github/workflows/site-media.yml`, *Run workflow*) monte la pile,
+lance les deux scripts et dépose `shots/` et `clips/` comme artefacts.
+
+Les captures `phone-*` viennent de l'application Android native (émulateur) et ne sont pas refaites par ces scripts.
+
+Mini-vidéos : `tools/videos.mjs` enregistre des scénarios Playwright (curseur visible, mouvements fluides, un second navigateur pour les
+scénarios à deux personnes, faux micro pour l'appel), coupe le chargement, puis `ffmpeg` les encode en WebM VP9, MP4 H.264 (repli) et
+affiche WebP. **Budget : 600 Ko par fichier vidéo** (`BUDGET_KB`) : l'encodage baisse la qualité puis la taille jusqu'à y tenir. Scénarios :
+`board` (tâche glissée), `search` (#mot-clé), `latex`, `calendar`, `collab` (deux curseurs), `poll`, `notebook` (Pyodide), `webr` (R dans le navigateur),
+`call` (appel vocal avec faux micro) ; restent : application Android hors ligne puis synchro (demande un émulateur). `DRY_RUN=1` liste les fichiers attendus.
+Seuls les WebM et affiches du thème **sombre** (français et anglais) sont versionnés dans `public/clips/` ; les MP4 et le thème clair sortent en
+artefact du workflow. Le composant `src/components/Clip.astro` les affiche sur l'accueil (« Voyez-le à l'œuvre ») et dans la documentation
+(pages `.mdx` de `use/features/`) : lecture à l'entrée dans l'écran, rien de téléchargé avant (`preload="none"`), affiche seule avec bouton
+lecture si le mouvement est réduit, et rien de rendu quand les fichiers manquent.
 
 Variables du serveur : `PORT` (8080), `WEB_DIR`, `DATA_DIR`, `UPLOAD_TOKEN`, `SITE_URL` (adresse publique ; sinon
 déduite de l'en-tête `Host` / `X-Forwarded-*`).

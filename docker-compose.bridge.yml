@@ -1,0 +1,65 @@
+# Connect this PC to a Looty instance with one command (PC tunnel, docs/adr/0020-pc-tunnel.md).
+#
+#   1. In Looty, create a tunnel token (project settings, "PC tunnel").
+#   2. Put these in a .env file next to this file (or export them):
+#        LOOTY_INSTANCE=https://looty.example.org
+#        LOOTY_TOKEN=lty_tun_...
+#        JUPYTER_TOKEN=a-long-random-string     # enter the same one in Looty for the project
+#   3. docker compose -f docker-compose.bridge.yml --profile jupyter up
+#
+# Profiles: `jupyter` starts a Jupyter server with Python and R kernels (jupyter/r-notebook), `latex` starts a
+# TeX Live container (reserved for the LaTeX compile service, issue #275). Without a profile only the bridge
+# runs, for a Jupyter that already exists on this PC (see BRIDGE_SERVICES below).
+#
+# Every published port is bound to 127.0.0.1: nothing is reachable from the network. The bridge connects
+# outward only; it talks to the services declared in LOOTY_SERVICES and to nothing else.
+#
+# Warning: connecting a Jupyter gives the project's editors code execution inside that container
+# (and on the PC for a Jupyter you run yourself).
+
+services:
+  bridge:
+    build: ./bridge
+    # Or, once a bridge-v* tag is published: image: ghcr.io/untypequicode/looty-bridge:latest
+    restart: unless-stopped
+    environment:
+      LOOTY_INSTANCE: ${LOOTY_INSTANCE:?set LOOTY_INSTANCE, for example https://looty.example.org}
+      LOOTY_TOKEN: ${LOOTY_TOKEN:?set LOOTY_TOKEN to the tunnel token shown by Looty}
+      # Comma separated name=url. Default: the Jupyter of this file. For a Jupyter running on the host itself:
+      #   BRIDGE_SERVICES=jupyter=http://host.docker.internal:8888
+      LOOTY_SERVICES: ${BRIDGE_SERVICES:-jupyter=http://jupyter:8888}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  jupyter:
+    profiles: [jupyter]
+    image: quay.io/jupyter/r-notebook:latest
+    restart: unless-stopped
+    command:
+      - start-notebook.py
+      - --IdentityProvider.token=${JUPYTER_TOKEN:?set JUPYTER_TOKEN to a long random string}
+      - --ServerApp.ip=0.0.0.0
+    ports:
+      - "127.0.0.1:8888:8888"
+    volumes:
+      - jupyter-work:/home/jovyan/work
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  texlive:
+    profiles: [latex]
+    image: texlive/texlive:latest
+    restart: unless-stopped
+    # Placeholder until the LaTeX compile service exists (#275): the container just stays up with the work volume.
+    command: ["sleep", "infinity"]
+    volumes:
+      - latex-work:/work
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  jupyter-work:
+  latex-work:
