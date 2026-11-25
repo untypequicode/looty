@@ -31,7 +31,7 @@ export default {
     label: 'Formatting', undo: 'Undo', redo: 'Redo', blockStyle: 'Block style', textColor: 'Text color', noColor: 'Default color',
     colors: { gray: 'Gray', brown: 'Brown', red: 'Red', orange: 'Orange', yellow: 'Yellow', green: 'Green', teal: 'Teal', blue: 'Blue', indigo: 'Indigo', purple: 'Purple', pink: 'Pink' },
     colorTool: 'Colors', noHighlight: 'No highlight', recent: 'Recent',
-    groups: { history: 'History', block: 'Block style', marks: 'Text style', color: 'Colors', lists: 'Lists', align: 'Alignment', insert: 'Insert', blocks: 'Insert menu', table: 'Table actions' },
+    groups: { history: 'History', block: 'Block style', marks: 'Text style', link: 'Link', color: 'Colors', lists: 'Lists', align: 'Alignment', insert: 'Insert', blocks: 'Insert menu', table: 'Table actions' },
     customize: 'Customize toolbar…', customizeTitle: 'Customize the toolbar', customizeHint: 'Saved with your account, on every device.',
     style: 'Style', styleBar: 'Compact bar', styleRibbon: 'Word-style ribbon', styleHint: 'The ribbon has tabs (Home, Insert, and Table inside a table). Phones always use the compact bar.',
     position: 'Position', posTop: 'Top', posBottom: 'Bottom', size: 'Size', sizeCompact: 'Compact', sizeComfortable: 'Comfortable', labels: 'Text labels',

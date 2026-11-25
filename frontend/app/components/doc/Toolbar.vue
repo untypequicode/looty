@@ -118,7 +118,12 @@ const rootStyle = computed(() => {
   const st: Record<string, string> = { '--tb-op': String(cfg.value.opacity) }
   if (atBottom.value) {
     st.bottom = `calc(${kb.value}px + max(10px, var(--safe-bottom, 0px)))`
-    if (!isMobile.value && host.value) { st.left = `${host.value.left}px`; st.width = `${host.value.width}px` }
+    if (!isMobile.value && host.value) {
+      // Comme la barre du haut, déborde de 76px dans la marge gauche quand la fenêtre est assez large.
+      const ext = window.innerWidth >= 1100 ? 76 : 0
+      st.left = `${host.value.left - ext}px`
+      st.width = `${host.value.width + ext}px`
+    }
   }
   return st
 })

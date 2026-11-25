@@ -4,7 +4,7 @@
  * DocToolbar en fait l'affichage, en barre compacte ou en ruban (même modèle, aucune logique dupliquée).
  */
 
-export type ToolbarGroupId = 'history' | 'block' | 'marks' | 'color' | 'lists' | 'align' | 'insert' | 'blocks' | 'table'
+export type ToolbarGroupId = 'history' | 'block' | 'marks' | 'link' | 'color' | 'lists' | 'align' | 'insert' | 'blocks' | 'table'
 
 export type ToolId =
   | 'undo' | 'redo' | 'block' | 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'color' | 'highlight'
@@ -16,10 +16,11 @@ export const GROUP_TOOLS: Record<ToolbarGroupId, ToolId[]> = {
   history: ['undo', 'redo'],
   block: ['block'],
   marks: ['bold', 'italic', 'underline', 'strike', 'code'],
+  link: ['link'],
   color: ['color', 'highlight'],
   lists: ['bullet', 'ordered', 'todo', 'outdent', 'indent'],
   align: ['align'],
-  insert: ['link', 'image', 'file', 'formula', 'divider', 'table'],
+  insert: ['image', 'file', 'formula', 'divider', 'table'],
   blocks: ['insert'],
   table: ['table-actions'],
 }
@@ -29,15 +30,15 @@ export const ALL_TOOLS = ALL_GROUPS.flatMap((g) => GROUP_TOOLS[g])
 /** Largeur d'un outil, en boutons : les menus à flèche et les boutons à libellé sont plus larges. */
 const TOOL_SLOTS: Partial<Record<ToolId, number>> = { color: 1.6, align: 1.6, 'table-actions': 1.6 }
 /** Plus un groupe a de priorité, plus tôt il est replié dans « Plus » ; négative : jamais replié. Classé par utilité. */
-const GROUP_PRIORITY: Record<ToolbarGroupId, number> = { block: -1, blocks: -1, table: 0, marks: 1, color: 2, lists: 3, history: 4, insert: 5, align: 6 }
+const GROUP_PRIORITY: Record<ToolbarGroupId, number> = { block: -1, blocks: -1, table: 0, marks: 1, link: 2, color: 2, lists: 3, history: 4, insert: 5, align: 6 }
 
 /** Ordre d'affichage par défaut : les actions principales d'abord (style, mise en forme, couleur, listes). */
-export const DEFAULT_ORDER: ToolbarGroupId[] = ['history', 'block', 'marks', 'color', 'lists', 'align', 'insert', 'blocks', 'table']
+export const DEFAULT_ORDER: ToolbarGroupId[] = ['history', 'block', 'marks', 'link', 'color', 'lists', 'align', 'insert', 'blocks', 'table']
 
 /** Onglets du ruban : l'onglet Tableau n'existe que dans un tableau. */
 export type RibbonTab = 'home' | 'insert' | 'table'
 export const TAB_GROUPS: Record<RibbonTab, ToolbarGroupId[]> = {
-  home: ['history', 'block', 'marks', 'color', 'lists', 'align'],
+  home: ['history', 'block', 'marks', 'link', 'color', 'lists', 'align'],
   insert: ['insert', 'blocks'],
   table: ['table'],
 }
@@ -357,6 +358,6 @@ export const TOOL_LABEL: Record<ToolId, string> = {
   divider: 'toolbar.divider', table: 'toolbar.table', insert: 'toolbar.insert', 'table-actions': 'toolbar.tableActions',
 }
 export const GROUP_LABEL: Record<ToolbarGroupId, string> = {
-  history: 'toolbar.groups.history', block: 'toolbar.groups.block', marks: 'toolbar.groups.marks', color: 'toolbar.groups.color',
+  history: 'toolbar.groups.history', block: 'toolbar.groups.block', marks: 'toolbar.groups.marks', link: 'toolbar.groups.link', color: 'toolbar.groups.color',
   lists: 'toolbar.groups.lists', align: 'toolbar.groups.align', insert: 'toolbar.groups.insert', blocks: 'toolbar.groups.blocks', table: 'toolbar.groups.table',
 }

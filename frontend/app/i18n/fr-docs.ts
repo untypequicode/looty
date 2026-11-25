@@ -31,7 +31,7 @@ export default {
     label: 'Mise en forme', undo: 'Annuler', redo: 'Rétablir', blockStyle: 'Style de bloc', textColor: 'Couleur du texte', noColor: 'Couleur par défaut',
     colors: { gray: 'Gris', brown: 'Marron', red: 'Rouge', orange: 'Orange', yellow: 'Jaune', green: 'Vert', teal: 'Sarcelle', blue: 'Bleu', indigo: 'Indigo', purple: 'Violet', pink: 'Rose' },
     colorTool: 'Couleurs', noHighlight: 'Sans surlignage', recent: 'Récentes',
-    groups: { history: 'Historique', block: 'Style de bloc', marks: 'Style du texte', color: 'Couleurs', lists: 'Listes', align: 'Alignement', insert: 'Insérer', blocks: 'Menu Insérer', table: 'Actions du tableau' },
+    groups: { history: 'Historique', block: 'Style de bloc', marks: 'Style du texte', link: 'Lien', color: 'Couleurs', lists: 'Listes', align: 'Alignement', insert: 'Insérer', blocks: 'Menu Insérer', table: 'Actions du tableau' },
     customize: 'Personnaliser la barre…', customizeTitle: 'Personnaliser la barre d’outils', customizeHint: 'Enregistré avec votre compte, sur tous vos appareils.',
     style: 'Style', styleBar: 'Barre compacte', styleRibbon: 'Ruban façon Word', styleHint: 'Le ruban a des onglets (Accueil, Insertion, et Tableau dans un tableau). Les téléphones gardent la barre compacte.',
     position: 'Position', posTop: 'Haut', posBottom: 'Bas', size: 'Taille', sizeCompact: 'Compacte', sizeComfortable: 'Confortable', labels: 'Libellés',

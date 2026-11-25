@@ -12,6 +12,12 @@ const pg = await api(p, `/api/workspaces/${WS}/pages`, 'POST', { title: 'Barre',
 const tb = p.locator('[data-doc-toolbar]')
 const btn = (id) => tb.locator(`[data-tb="${id}"]`)
 const editor = p.locator('.ProseMirror').first()
+// Bouton de la barre, ou son entrée du menu « Plus » quand la largeur l'a replié.
+async function press(id, name) {
+  if (await btn(id).count()) return btn(id).click()
+  await btn('more').click()
+  await p.getByRole('menuitem', { name }).click()
+}
 
 await p.goto(`${B}/w/${WS}/doc/${pg.id}`, { waitUntil: 'networkidle' })
 await editor.waitFor({ timeout: 15000 })
@@ -47,7 +53,12 @@ ok('lien', (await editor.locator('a[href="https://example.org"]').count()) === 1
 
 // Tableau + action contextuelle.
 await editor.click({ position: { x: 20, y: 300 } })
-await btn('table').click()
+// Selon la largeur, le groupe Insérer tient dans la barre ou est replié dans « Plus ».
+if (await btn('table').count()) await btn('table').click()
+else {
+  await btn('more').click()
+  await p.getByRole('menuitem', { name: /^(Insert a table|Insérer un tableau)$/ }).click()
+}
 await p.waitForTimeout(800) // pas de fusion avec l'étape suivante dans l'historique
 ok('tableau inséré', (await editor.locator('table').count()) === 1)
 const cellsBefore = await editor.locator('table tr').count()
@@ -57,18 +68,18 @@ await p.waitForTimeout(800)
 ok('tableau : ligne ajoutée', (await editor.locator('table tr').count()) === cellsBefore + 1)
 
 // Annuler / rétablir.
-await p.waitForFunction(() => !document.querySelector('[data-tb="undo"]')?.disabled, null, { timeout: 5000 }).catch(() => {})
-await btn('undo').click()
+await p.waitForTimeout(500)
+await press('undo', /^(Undo|Annuler)$/)
 ok('annuler : ligne retirée', (await editor.locator('table tr').count()) === cellsBefore)
-await btn('redo').click()
+await press('redo', /^(Redo|Rétablir)$/)
 ok('rétablir : ligne revenue', (await editor.locator('table tr').count()) === cellsBefore + 1)
 
 // Clavier : flèches entre les boutons, un seul arrêt de tabulation.
-await btn('undo').focus()
+await btn('bold').focus()
 await p.keyboard.press('ArrowRight')
-ok('clavier : flèche droite', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) !== 'undo')
+ok('clavier : flèche droite', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'italic')
 await p.keyboard.press('ArrowLeft')
-ok('clavier : flèche gauche', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'undo')
+ok('clavier : flèche gauche', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'bold')
 ok('clavier : un seul bouton tabulable', (await tb.locator('.tb-btn[tabindex="0"]').count()) === 1)
 
 // Palette : couleur du texte et surlignage, un clic applique, « par défaut » / « aucun » retire.
@@ -114,8 +125,8 @@ await tb.waitFor({ timeout: 15000 })
 ok('bas : position annoncée', (await tb.getAttribute('data-position')) === 'bottom')
 let box = await tb.boundingBox()
 ok('bas : barre au bas de la fenêtre', box.y + box.height > 800 && box.y + box.height <= 900, JSON.stringify(box))
-await btn('align').click()
-const item = p.getByRole('menuitem', { name: /^(Center|Centrer)$/ })
+await btn('block').click()
+const item = p.getByRole('menuitem', { name: /^(Heading 2|Titre 2)$/ })
 await item.waitFor({ timeout: 5000 })
 ok('bas : le menu s’ouvre vers le haut', (await item.boundingBox()).y < box.y)
 await p.keyboard.press('Escape')
