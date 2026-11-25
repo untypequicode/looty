@@ -82,3 +82,5 @@ const refused = await startFakeAgent({ backend: BACKEND, token }).then(() => fal
 ok('a revoked token is refused', refused)
 
 await browser.close()
+
+process.exit(0)
