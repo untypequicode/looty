@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.59.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "PC tunnels: administration, limits and audit",
+        "fr": "Tunnels PC : administration, limites et audit"
+      },
+      "notes": {
+        "en": [
+          "Administration > Instance > Tunnels: turn PC tunnels on or off (`LOOTY_TUNNELS` is now only the initial value; turning them off closes the tunnels in progress), and set tunnels per person, maximum token lifetime, streams and bandwidth per tunnel and the allowed kinds of service. Changes reach open tunnels within 15 seconds.",
+          "Creating a tunnel now requires an explicit confirmation that members of the project can run code on the PC, and a tunnel can be limited to its owner. Revoked, expired or suspended-account tokens are cut, and an audit log shows who created, attached, connected, disconnected and revoked which tunnel, and when."
+        ],
+        "fr": [
+          "Administration > Instance > Tunnels : activer ou désactiver les tunnels PC (`LOOTY_TUNNELS` ne donne plus que la valeur initiale ; la désactivation coupe les tunnels en cours), et régler les tunnels par personne, la durée de vie maximale des jetons, les flux et le débit par tunnel et les types de service autorisés. Les changements atteignent les tunnels ouverts en 15 secondes au plus.",
+          "Créer un tunnel demande désormais de confirmer explicitement que les membres du projet peuvent exécuter du code sur le PC, et un tunnel peut être réservé à son propriétaire. Les jetons révoqués, expirés ou d’un compte suspendu sont coupés, et un journal d’audit montre qui a créé, attaché, connecté, déconnecté et révoqué quel tunnel, et quand."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.58.0",
       "date": "2026-11-25",
       "title": {

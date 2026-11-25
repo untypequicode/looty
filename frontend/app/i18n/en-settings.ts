@@ -1,4 +1,13 @@
 export default {
+  errors: {
+    tunnels_disabled: 'PC tunnels are turned off on this instance', tunnel_ack_required: 'Confirm that members of the project can run code on your computer',
+    tunnel_lifetime_too_long: 'This lifetime is longer than the maximum set by the administrator', tunnel_too_many_tokens: 'You have reached the maximum number of tunnels set by the administrator',
+    tunnel_wrong_workspace: 'This tunnel belongs to another workspace', tunnel_owner_only: 'This tunnel can only be used by the person who created it',
+    tunnel_kind_not_allowed: 'This kind of service is not allowed on this instance', tunnel_token_lifetime: 'This tunnel token lives longer than the instance now allows: create a new one',
+    tunnel_token_revoked: 'This tunnel token was revoked', tunnel_token_expired: 'This tunnel token expired', tunnel_token_invalid: 'Invalid tunnel token',
+    invalid_tunnel_max: 'Tunnels per person: between 1 and 100', invalid_tunnel_days: 'Token lifetime: between 1 and 365 days', invalid_tunnel_streams: 'Streams per tunnel: between 1 and 64',
+    invalid_tunnel_rate: 'Bandwidth: 0 (unlimited) or between 16 and 1000000 KiB/s', invalid_tunnel_kinds: 'Unknown kind of service', invalid_tunnel_audit_days: 'Audit retention: between 1 and 365 days',
+  },
   settings: {
     latex: {
       title: 'LaTeX macros', description: 'Definitions shared by every formula in this workspace’s pages: \\newcommand, \\DeclareMathOperator, \\usepackage… A page can still add or override its own.',
@@ -81,6 +90,15 @@ export default {
       callsMax: 'Maximum people per call', callsMaxHint: 'Between 2 and 12. Everyone sends their audio to everyone else, so keep it small. Cameras stay limited to 4 people.',
       callsVideo: 'Allow cameras', callsVideoHint: 'When off, calls are voice only.',
       callsShare: 'Allow screen sharing',
+      tunnels: 'Tunnels', tunnelsHint: 'People connect their own computer to a project (Jupyter, LaTeX…) with an outgoing connection. Members of a project can run code on that computer, so keep these limits tight.',
+      tunnelsEnabled: 'Enable PC tunnels', tunnelsEnabledHint: 'When off, tunnels in progress are closed right away and no new one can connect. The LOOTY_TUNNELS variable only sets the initial value.',
+      tunnelsMax: 'Tunnels per person', tunnelsMaxHint: 'Active tunnel tokens one person can hold (1 to 100).',
+      tunnelsDays: 'Maximum token lifetime (days)', tunnelsDaysHint: 'Between 1 and 365. Tokens that live longer stop connecting.',
+      tunnelsStreams: 'Simultaneous streams per tunnel', tunnelsStreamsHint: 'Between 1 and 64.',
+      tunnelsRate: 'Bandwidth cap per tunnel (KiB/s)', tunnelsRateHint: '0 for no cap, otherwise 16 or more.',
+      tunnelsKinds: 'Allowed kinds of service', tunnelsAuditDays: 'Audit log retention (days)', tunnelsAuditDaysHint: 'Older events are deleted.',
+      tunnelAudit: 'Tunnel audit log', tunnelAuditEmpty: 'Nothing recorded yet.', tunnelAuditWhen: 'When', tunnelAuditEvent: 'Event', tunnelAuditWho: 'Who', tunnelAuditTunnel: 'Tunnel', tunnelAuditDetails: 'Details',
+      tunnelEvents: { created: 'Created', attached: 'Attached to a project', connected: 'Connected', disconnected: 'Disconnected', revoked: 'Revoked', refused: 'Refused', owner_only_changed: 'Owner-only changed', settings_changed: 'Settings changed' },
       analytics: 'Analytics (Umami)', analyticsHint: 'Optional privacy-friendly audience tracking.', scriptUrl: 'Script URL',
     },
   },
