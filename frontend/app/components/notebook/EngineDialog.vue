@@ -14,13 +14,13 @@ export interface KernelSpec { name: string; display_name: string; language: stri
 interface Config { configured: boolean; url?: string; kernel?: string; has_token?: boolean; can_edit: boolean; allow_private: boolean }
 
 const open = defineModel<boolean>('open', { default: false })
-const props = defineProps<{ projectId: string; engine: 'pyodide' | 'jupyter'; kernel?: string; readOnly: boolean }>()
+const props = defineProps<{ projectId: string; engine: 'pyodide' | 'jupyter' | 'webr'; kernel?: string; readOnly: boolean }>()
 /** `kernel` : noyau choisi pour ce notebook (absent : celui du projet) ; `spec` : décrit le noyau utilisé. */
-const emit = defineEmits<{ (e: 'apply', engine: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec: KernelSpec }): void }>()
+const emit = defineEmits<{ (e: 'apply', engine: 'pyodide' | 'jupyter' | 'webr', choice?: { kernel?: string; spec: KernelSpec }): void }>()
 const { t } = useI18n()
 const { isDemo, unavailableLabel } = useDemo()
 
-const choice = ref<'pyodide' | 'jupyter'>(props.engine)
+const choice = ref<'pyodide' | 'jupyter' | 'webr'>(props.engine)
 const config = ref<Config | null>(null)
 const specs = ref<KernelSpec[]>([])
 const specsError = ref('')
@@ -109,13 +109,13 @@ async function remove() {
 }
 
 const kernelOptions = computed(() => testResult.value?.kernels ?? specs.value)
-const canApply = computed(() => !props.readOnly && (choice.value === 'pyodide' || !!config.value?.configured))
+const canApply = computed(() => !props.readOnly && (choice.value !== 'jupyter' || !!config.value?.configured))
 function apply() {
   if (choice.value === 'jupyter') {
     const name = nbKernel.value || config.value?.kernel || 'python3'
     const spec = specs.value.find((s) => s.name === name) ?? { name, display_name: name, language: 'python' }
     emit('apply', 'jupyter', { kernel: nbKernel.value || undefined, spec })
-  } else emit('apply', 'pyodide')
+  } else emit('apply', choice.value)
   open.value = false
 }
 </script>
@@ -123,8 +123,9 @@ function apply() {
 <template>
   <UiDialog v-model:open="open" :title="t('notebook.jupyter.title')" :description="t('notebook.jupyter.description')" :width="560">
     <div class="ed">
-      <UiSegmented v-model="choice" size="md" :options="[{ value: 'pyodide', label: t('notebook.jupyter.pyodide'), icon: Cpu }, { value: 'jupyter', label: isDemo ? `${t('notebook.jupyter.remote')} · ${unavailableLabel()}` : t('notebook.jupyter.remote'), icon: Server, disabled: isDemo, title: isDemo ? unavailableLabel() : undefined }]" />
+      <UiSegmented v-model="choice" size="md" :options="[{ value: 'pyodide', label: t('notebook.jupyter.pyodide'), icon: Cpu }, { value: 'webr', label: t('notebook.jupyter.webr'), icon: Cpu }, { value: 'jupyter', label: isDemo ? `${t('notebook.jupyter.remote')} · ${unavailableLabel()}` : t('notebook.jupyter.remote'), icon: Server, disabled: isDemo, title: isDemo ? unavailableLabel() : undefined }]" />
       <p v-if="choice === 'pyodide'" class="ed-hint">{{ t('notebook.jupyter.pyodideHint') }}</p>
+      <p v-else-if="choice === 'webr'" class="ed-hint" data-testid="nb-engine-webr-hint">{{ t('notebook.jupyter.webrHint') }}</p>
 
       <template v-else>
         <p class="ed-hint">{{ t('notebook.jupyter.remoteHint') }}</p>
@@ -189,7 +190,7 @@ function apply() {
     </div>
     <template #footer>
       <UiButton variant="ghost" @click="open = false">{{ t('common.close') }}</UiButton>
-      <UiButton variant="primary" :disabled="!canApply || editing" @click="apply">{{ t('notebook.jupyter.apply') }}</UiButton>
+      <UiButton variant="primary" :disabled="!canApply || (choice === 'jupyter' && editing)" @click="apply">{{ t('notebook.jupyter.apply') }}</UiButton>
     </template>
   </UiDialog>
 </template>

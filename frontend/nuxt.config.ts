@@ -6,6 +6,12 @@ const isDev = process.env.NODE_ENV !== 'production'
 // Python des notebooks (Pyodide) : le moteur est servi par l'application elle-même ;
 // les bibliothèques (numpy, pandas…) se chargent à la demande depuis le CDN.
 const pyodideDir = fileURLToPath(new URL('./node_modules/pyodide', import.meta.url))
+// R des notebooks (WebR) : moteur, bibliothèques de base et Worker servis par l'application (aucun CDN) ; chargés à la demande.
+const webrDir = fileURLToPath(new URL('./node_modules/webr/dist', import.meta.url))
+
+// Les images de bibliothèques de WebR (*.data.gz) sont déjà compressées et décompressées par WebR : Nitro ajouterait
+// « Content-Encoding: gzip » à cause de l'extension, le navigateur les décompresserait avant WebR (échec). « identity » l'en empêche.
+const webrHeaders = { headers: { 'content-encoding': 'identity' } }
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-01',
@@ -48,7 +54,7 @@ export default defineNuxtConfig({
   // En production le reverse proxy (Traefik) route /api, /uploads, /pages, /dav et /collab directement.
   // Ces règles servent de repli si le frontend est exposé seul ; /api/ws et /collab (WebSocket) passent par server/routes.
   routeRules: isDev
-    ? {}
+    ? { '/webr/**': webrHeaders }
     : {
         // redirect: 'manual' : les redirections du backend (callback OAuth -> /, /login...)
         // doivent atteindre le navigateur avec leur Set-Cookie, pas être suivies par le proxy.
@@ -63,13 +69,14 @@ export default defineNuxtConfig({
         '/**': { headers: { 'cache-control': 'no-cache' } },
         '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
         '/pyodide/**': { headers: { 'cache-control': 'public, max-age=86400' } },
+        '/webr/**': { headers: { 'cache-control': 'public, max-age=86400', ...webrHeaders.headers } },
         '/sw.js': { headers: { 'cache-control': 'no-cache' } },
       },
 
   nitro: {
     // Relais WebSocket de /api/ws et /collab (server/routes) quand aucun reverse proxy ne s'en charge.
     experimental: { websocket: true },
-    publicAssets: [{ dir: pyodideDir, baseURL: '/pyodide', maxAge: 86400 }],
+    publicAssets: [{ dir: pyodideDir, baseURL: '/pyodide', maxAge: 86400 }, { dir: webrDir, baseURL: '/webr', maxAge: 86400 }],
     devProxy: {
       '/api': { target: `${backend}/api`, ws: true, changeOrigin: true },
       '/uploads': { target: `${backend}/uploads`, changeOrigin: true },

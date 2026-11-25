@@ -4,6 +4,29 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.53.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "R in the browser: no server, no setup",
+        "fr": "R dans le navigateur : sans serveur, sans installation"
+      },
+      "notes": {
+        "en": [
+          "**R now works without any server**: in the notebook *Engine* dialog, pick **R (browser)**. R runs in your browser with WebR (R compiled to WebAssembly), next to Python with Pyodide. No Jupyter server, no install, and it works on self-hosted and offline instances.",
+          "**Everything you expect**: text, warnings and errors, data frames as tables, plots as images, completion, the RStudio-like panels, Run all, and R Markdown / Quarto documents opened as notebooks. Each person has their own R session, outputs are shared.",
+          "**Lazy and self-hosted**: the R engine (about 30 MB the first time, then cached) is served by Looty itself and is only downloaded when a notebook first runs R. Packages come from the public WebR repository only when your code runs `install.packages()` / `webr::install()`; list packages in `r-packages.txt` to install them at every start.",
+          "**Limits**: a calculation cannot be interrupted, only stopped by restarting R; plots are PNG only. A Jupyter server remains available for everything else."
+        ],
+        "fr": [
+          "**R fonctionne désormais sans aucun serveur** : dans la fenêtre *Moteur* d’un notebook, choisissez **R (navigateur)**. R s’exécute dans votre navigateur avec WebR (R compilé en WebAssembly), comme Python avec Pyodide. Ni serveur Jupyter, ni installation, et cela marche sur les instances auto-hébergées et hors ligne.",
+          "**Tout ce qu’on attend** : texte, avertissements et erreurs, data frames en tableaux, graphiques en images, complétion, panneaux façon RStudio, Tout exécuter, et documents R Markdown / Quarto ouverts comme notebooks. Chaque personne a sa propre session R, les sorties sont partagées.",
+          "**À la demande et auto-hébergé** : le moteur R (environ 30 Mo la première fois, puis en cache) est servi par Looty lui-même et n’est téléchargé que lorsqu’un notebook exécute du R pour la première fois. Les paquets viennent du dépôt public WebR seulement quand votre code lance `install.packages()` / `webr::install()` ; listez-les dans `r-packages.txt` pour les installer à chaque démarrage.",
+          "**Limites** : un calcul ne s’interrompt pas, il s’arrête en redémarrant R ; graphiques en PNG seulement. Le serveur Jupyter reste disponible pour le reste."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.51.0",
       "date": "2026-11-24",
       "title": {
