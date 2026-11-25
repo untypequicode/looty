@@ -23,3 +23,7 @@
 :root[data-theme='light'] .clip .only-light { display: block; }
 .clip { margin: 1.2rem 0; border: 1px solid var(--sl-color-hairline); border-radius: 10px; overflow: hidden; }
 .clip figcaption { padding: .4rem .8rem; font-size: .8rem; color: var(--sl-color-gray-3); }
+
+/* Premier rendu allégé : le pied de page
+   n'est mis en page qu'à l'approche (content-visibility). Pas sur le contenu, le menu ni la table des matières : décalages de mise en page. */
+main footer { content-visibility: auto; contain-intrinsic-size: auto 400px; }
