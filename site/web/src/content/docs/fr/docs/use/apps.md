@@ -21,7 +21,7 @@ Tous les téléchargements sont sur le [site de Looty](/fr/#download). Chaque ap
 
 ## Windows
 
-Windows 10 et 11. L’installateur est réservé à votre utilisateur. Windows peut signaler un éditeur inconnu : *Informations complémentaires*, puis *Exécuter quand même*. Il n’y a pas encore de mise à jour automatique. Avec winget : voir [Flathub et winget](/fr/docs/use/flathub-winget/).
+Windows 10 et 11. L’installateur est réservé à votre utilisateur. Windows peut signaler un éditeur inconnu : *Informations complémentaires*, puis *Exécuter quand même*. Elle se met à jour toute seule : l’app cherche une nouvelle version toutes les quelques heures et l’installe après avoir vérifié sa signature. Avec winget : voir [Flathub et winget](/fr/docs/use/flathub-winget/).
 
 ## iPhone et iPad
 
