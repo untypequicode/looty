@@ -69,9 +69,9 @@ ok('tableau : ligne ajoutée', (await editor.locator('table tr').count()) === ce
 
 // Annuler / rétablir.
 await p.waitForTimeout(500)
-await press('undo', /^(Undo|Annuler)$/)
+await press('undo', /^(Undo|Annuler)/)
 ok('annuler : ligne retirée', (await editor.locator('table tr').count()) === cellsBefore)
-await press('redo', /^(Redo|Rétablir)$/)
+await press('redo', /^(Redo|Rétablir)/)
 ok('rétablir : ligne revenue', (await editor.locator('table tr').count()) === cellsBefore + 1)
 
 // Clavier : flèches entre les boutons, un seul arrêt de tabulation.
