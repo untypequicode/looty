@@ -19,9 +19,12 @@ ok('une diapositive au départ', (await p.locator('.rail-item').count()) === 1)
 
 // Texte : ajout, saisie, sortie de l'édition.
 await p.locator('.bar .tb').first().click()
-await p.keyboard.type('Bonjour les équipes')
-await p.keyboard.press('Escape')
+await p.waitForSelector('.te [contenteditable="true"]')
 await p.waitForTimeout(300)
+await p.keyboard.type('Bonjour les équipes')
+await p.waitForTimeout(300)
+await p.keyboard.press('Escape')
+await p.waitForTimeout(500)
 ok('zone de texte rendue', (await p.locator('.frame .sv-text').first().textContent()).includes('Bonjour les équipes'))
 
 // Rectangle : ajout puis déplacement à la souris.
@@ -52,6 +55,7 @@ ok('annulation : fond de la couleur rétabli', (await rect.locator('rect').getAt
 await p.locator('.rail-head .primary').click()
 ok('deux diapositives', (await p.locator('.rail-item').count()) === 2)
 await p.locator('.rail-head .rb[title]').first().click()
+await p.waitForTimeout(500)
 ok('diapositive dupliquée', (await p.locator('.rail-item').count()) === 3)
 await p.locator('.rail-item .thumb').first().click()
 await p.locator('.bar .tb').nth(2).click()
@@ -69,9 +73,9 @@ await bob.page.goto(`${B}/w/${WS}/doc/${deck.id}`, { waitUntil: 'networkidle' })
 await bob.page.waitForSelector('.deck .rail-item', { timeout: 20000 })
 ok('autre personne : trois diapositives', (await bob.page.locator('.rail-item').count()) === 3)
 ok('autre personne : voit l’ellipse', (await bob.page.locator('.frame .sv-el[data-type="ellipse"]').count()) === 1)
-await bob.page.locator('.rail-item .thumb').nth(1).click()
 ok('autre personne : voit le texte', (await bob.page.locator('.frame .sv-text').first().textContent()).includes('Bonjour les équipes'))
 
+await bob.page.locator('header').getByRole('button', { name: /^(Edit|Modifier)$/ }).first().click().catch(() => {})
 await bob.page.locator('.rail-item .thumb').first().click()
 await bob.page.locator('.bar .tb').nth(3).click()
 await p.waitForSelector('.frame .sv-el[data-type="line"]', { timeout: 10000 })

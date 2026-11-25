@@ -285,7 +285,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
 <template>
   <div class="page">
     <AppPageHeader :crumbs="crumbs">
-      <UiSegmented v-if="live" class="doc-views" :model-value="docView" :options="viewOptions" @update:model-value="setDocView" />
+      <UiSegmented v-if="live && live.default_view !== 'slides'" class="doc-views" :model-value="docView" :options="viewOptions" @update:model-value="setDocView" />
       <span v-if="live && !showProject" class="status">
         <button v-if="sessionExpired" type="button" class="status-expired" @click="signInAgain"><Lock :size="13" /> {{ t('editor.sessionExpired') }}</button>
         <template v-else-if="status === 'denied' || !canEdit"><Lock :size="13" /> {{ t('editor.readOnly') }}</template>

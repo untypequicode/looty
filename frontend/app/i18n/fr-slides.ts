@@ -1,7 +1,7 @@
 export default {
   slides: {
     newPresentation: 'Présentation', untitled: 'Présentation sans titre', slides: 'Diapositives', slide: 'Diapositive', slideN: 'Diapositive {n}', canvasLabel: 'Diapositive {n}, canevas',
-    newSlide: 'Nouvelle diapositive', duplicateSlide: 'Dupliquer la diapositive', deleteSlide: 'Supprimer la diapositive', moveUp: 'Monter la diapositive', moveDown: 'Descendre la diapositive',
+    empty: 'Cette présentation n’a pas encore de diapositive.', newSlide: 'Nouvelle diapositive', duplicateSlide: 'Dupliquer la diapositive', deleteSlide: 'Supprimer la diapositive', moveUp: 'Monter la diapositive', moveDown: 'Descendre la diapositive',
     tools: 'Insérer et modifier', addText: 'Ajouter une zone de texte', text: 'Texte', addRect: 'Ajouter un rectangle', addEllipse: 'Ajouter une ellipse', addLine: 'Ajouter une ligne', addImage: 'Ajouter une image', image: 'Image',
     undo: 'Annuler', redo: 'Rétablir', limit: 'Limite atteinte pour cette présentation.',
     readOnly: 'Vous pouvez lire cette présentation, pas la modifier.', newerFormat: 'Cette présentation a été enregistrée par une version plus récente de Looty. Rechargez la page pour la modifier.',

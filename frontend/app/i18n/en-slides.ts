@@ -1,7 +1,7 @@
 export default {
   slides: {
     newPresentation: 'Presentation', untitled: 'Untitled presentation', slides: 'Slides', slide: 'Slide', slideN: 'Slide {n}', canvasLabel: 'Slide {n}, canvas',
-    newSlide: 'New slide', duplicateSlide: 'Duplicate slide', deleteSlide: 'Delete slide', moveUp: 'Move slide up', moveDown: 'Move slide down',
+    empty: 'This presentation has no slides yet.', newSlide: 'New slide', duplicateSlide: 'Duplicate slide', deleteSlide: 'Delete slide', moveUp: 'Move slide up', moveDown: 'Move slide down',
     tools: 'Insert and edit', addText: 'Add a text box', text: 'Text', addRect: 'Add a rectangle', addEllipse: 'Add an ellipse', addLine: 'Add a line', addImage: 'Add an image', image: 'Image',
     undo: 'Undo', redo: 'Redo', limit: 'Limit reached for this presentation.',
     readOnly: 'You can read this presentation but not edit it.', newerFormat: 'This presentation was saved by a newer version of Looty. Reload the page to edit it.',

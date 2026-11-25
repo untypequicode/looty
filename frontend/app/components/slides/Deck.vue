@@ -72,11 +72,16 @@ watch(slides, (list) => {
 }, { immediate: true })
 watch(cur, () => { sel.value = []; editingId.value = null })
 
+/** Présentation neuve : sa première diapositive est créée par la première personne qui peut modifier. */
+function ensureInit() {
+  if (synced.value && props.canEdit && !newer.value && slidesOf(ydoc).size === 0) initDoc(ydoc)
+}
+watch(() => props.canEdit, ensureInit)
 provider.on('synced', () => {
   synced.value = true
   emit('status', 'synced')
   if (isNewerThanClient(ydoc)) { newer.value = true; return }
-  if (props.canEdit && slidesOf(ydoc).size === 0) initDoc(ydoc)
+  ensureInit()
   undo.clear()
   syncUndo()
 })
@@ -487,6 +492,7 @@ defineExpose({ undo: doUndo, redo: doRedo })
       <p v-else-if="!canEdit" class="notice" role="status">{{ t('slides.readOnly') }}</p>
       <div ref="stageBox" class="stagebox">
         <div v-if="!synced" class="loading"><UiSpinner /></div>
+        <p v-else-if="!curSlide" class="empty">{{ t('slides.empty') }}</p>
         <div
           v-if="curSlide" class="frame" :style="frameStyle" role="group" :aria-label="t('slides.canvasLabel', { n: slides.findIndex((s) => s.id === curSlide!.id) + 1 })"
           @pointerdown="onStageDown" @pointermove="onStageMove" @pointerup="onStageUp" @pointercancel="onStageUp" @pointerleave="onStageLeave" @dblclick="onDouble"
@@ -563,6 +569,7 @@ defineExpose({ undo: doUndo, redo: doRedo })
 .sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 .notice { margin: 0; padding: 6px 12px; font-size: var(--fs-sm); color: var(--text-2); background: var(--bg-hover); }
 .stagebox { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; background: var(--bg-column); }
+.empty { margin: 0; color: var(--text-3); }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; }
 .frame { position: relative; box-shadow: 0 0 0 1px var(--border-strong), 0 8px 30px rgb(0 0 0 / 0.25); touch-action: none; user-select: none; }
 .ro .frame { touch-action: auto; }
