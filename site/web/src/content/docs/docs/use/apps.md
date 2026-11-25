@@ -21,7 +21,7 @@ All downloads are on the [Looty website](/#download). Each app connects to your 
 
 ## Windows
 
-Windows 10 and 11. The installer is for your user only. Windows may warn about an unknown publisher: *More info*, then *Run anyway*. There is no automatic update yet. With winget: see [Flathub and winget](/docs/use/flathub-winget/).
+Windows 10 and 11. The installer is for your user only. Windows may warn about an unknown publisher: *More info*, then *Run anyway*. It updates itself: the app checks for a new version every few hours and installs it after verifying its signature. With winget: see [Flathub and winget](/docs/use/flathub-winget/).
 
 ## iPhone and iPad
 
