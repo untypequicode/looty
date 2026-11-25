@@ -60,5 +60,7 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 /packaging/flatpak/build/
 /packaging/flatpak/repo/
 
-# Mini-vidéos du site (site/tools/videos.mjs) : générées, jamais versionnées
-site/web/public/clips/
+# Mini-vidéos du site (site/tools/videos.mjs) : seuls les WebM et affiches du thème sombre sont versionnés (budget de taille)
+site/web/public/clips/*.mp4
+site/web/public/clips/*-light-*
+site/node_modules

@@ -2,6 +2,7 @@
 // « Looty Démo » régénéré à chaque lancement par la commande backend `seed-demo` (dates du jour).
 //   CHROMIUM=<chemin> node site/tools/screenshots.mjs [dossier-de-sortie] [fr|en] [dark|light] [écran…]
 // LOOTY : adresse de Looty (défaut http://localhost:13095), avec LOOTY_DEV_LOGIN=true côté backend.
+// Écrans : home, board, doc, calendar, announcements, notebook.
 // SEED : commande qui génère le jeu de données (défaut : backend/target/debug/backend seed-demo, lancé depuis
 // backend/ avec DATABASE_URL), par exemple « docker exec looty-backend /app/backend seed-demo ».
 import { chromium } from 'playwright-core'
@@ -21,6 +22,12 @@ const screens = ({ workspace, board, launch }) => ({
   board: `/w/${workspace}/board/${board}`,
   doc: `/w/${workspace}/doc/${launch}`,
   calendar: `/w/${workspace}/calendar`,
+  announcements: `/w/${workspace}/announcements`,
+  notebook: async (page) => {
+    // Le notebook Pyodide du jeu de données, avec ses sorties (exécutées avant la capture).
+    const list = await page.evaluate(async (w) => (await fetch(`/api/workspaces/${w}/projects`)).json(), workspace)
+    return `/w/${workspace}/projects/${(Array.isArray(list) ? list : list.projects).find((p) => p.kind === 'notebook').id}`
+  },
 })
 fs.mkdirSync(out, { recursive: true })
 const browser = await chromium.launch({ executablePath: CHROMIUM, args: ['--no-sandbox'] })
@@ -45,9 +52,18 @@ for (const lang of langs) for (const theme of themes) {
     const { version } = await (await fetch('/api/health')).json()
     await fetch('/api/user/releases/seen', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version }) })
   })
-  for (const [name, path] of Object.entries(screens(demo[lang]))) {
+  for (const [name, target] of Object.entries(screens(demo[lang]))) {
     if (only.length && !only.includes(name)) continue
+    const path = typeof target === 'function' ? await target(page) : target
     await page.goto(B + path, { waitUntil: 'networkidle' }); await page.waitForTimeout(name === 'doc' ? 3500 : 1800)
+    if (name === 'notebook') {
+      for (const i of [1, 2, 3]) {
+        const cell = page.locator('.nb .cell').nth(i)
+        await cell.locator('.cm-content').click(); await page.keyboard.press('Shift+Enter')
+        await cell.locator('.cell-prompt', { hasText: /\d/ }).waitFor({ timeout: 180000 })
+      }
+      await page.waitForTimeout(1500)
+    }
     // Première visite de l’accueil : fenêtre « Personnaliser » à valider.
     const keep = page.getByRole('button', { name: /Save my home|Enregistrer mon accueil|Enregistrer/ })
     if (name === 'home' && await keep.count()) { await keep.first().click(); await page.waitForTimeout(1200) }
