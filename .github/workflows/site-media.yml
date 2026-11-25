@@ -1,0 +1,80 @@
+# Captures d'écran et mini-vidéos du site (site/tools/screenshots.mjs et videos.mjs), refaites sur une pile complète
+# (Postgres, backend, collaboration, interface) avec le jeu de données « Looty Démo ». Manuel : les fichiers sont
+# déposés comme artefacts, à copier dans site/web/public/shots et site/web/public/clips (voir site/README.md).
+name: Site media
+
+on:
+  workflow_dispatch:
+    inputs:
+      themes:
+        description: Thèmes des vidéos (dark, light ou dark,light)
+        default: dark,light
+      langs:
+        description: Langues (en, fr ou en,fr)
+        default: en,fr
+
+jobs:
+  media:
+    name: Screenshots and clips
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: looty_db
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d looty_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres@127.0.0.1:5432/looty_db
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: cargo build --locked --manifest-path backend/Cargo.toml
+      - working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          BACKEND_URL: http://127.0.0.1:8080
+          COLLAB_URL: http://127.0.0.1:8082
+        run: npm run build
+      - working-directory: collaboration
+        run: npm ci --omit=dev --no-audit --no-fund
+      - working-directory: e2e
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps chromium
+      - run: sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Start the stack
+        run: |
+          (cd backend && PORT=8080 BASE_URL=http://localhost:3000 LOOTY_DEV_LOGIN=true CALDAV_ALLOW_PRIVATE=true CALENDAR_DEFAULT_TZ=Europe/Paris nohup ./target/debug/backend > ../backend.log 2>&1 &)
+          (cd collaboration && PORT=8082 BACKEND_URL=http://127.0.0.1:8080 nohup node index.js > ../collab.log 2>&1 &)
+          (cd frontend && PORT=3000 BACKEND_URL=http://127.0.0.1:8080 COLLAB_URL=http://127.0.0.1:8082 nohup node .output/server/index.mjs > ../front.log 2>&1 &)
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:3000/api/auth/providers >/dev/null 2>&1 && curl -fs -o /dev/null http://127.0.0.1:3000/ && break; sleep 1; done
+      - name: Record
+        env:
+          LOOTY: http://127.0.0.1:3000
+        run: |
+          ln -s ../e2e/node_modules site/node_modules
+          export CHROMIUM=$(find ~/.cache/ms-playwright -name chrome -type f | head -1)
+          node site/tools/screenshots.mjs out/shots "${{ inputs.langs }}" dark,light
+          node site/tools/videos.mjs out/clips "${{ inputs.langs }}" "${{ inputs.themes }}"
+          du -sh out/shots out/clips
+      - name: Server logs
+        if: failure()
+        run: tail -n 60 backend.log collab.log front.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: site-media
+          path: out
+          if-no-files-found: ignore

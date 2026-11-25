@@ -13,8 +13,6 @@ const platforms = [['android', 'phone'], ['linux', 'monitor'], ['windows', 'moni
 const strings = JSON.stringify({ version: l.dl.version, released: l.dl.released, checksum: l.dl.checksum, missing: l.dl.missing, recommended: l.recommended, lang, repo: REPO })
 // Hauteur affichée des captures (part de la largeur) : le vide sous le contenu est coupé.
 const crops: Record<string, number> = { board: 0.4, calendar: 0.5 }
-// Mini-vidéo (site/tools/videos.mjs) qui accompagne une capture, quand ses fichiers existent.
-const clipOf: Record<string, string> = { board: 'board', calendar: 'calendar', doc: 'latex' }
 ---
 <Base lang={lang} home>
   <main id="main">
@@ -64,10 +62,16 @@ const clipOf: Record<string, string> = { board: 'board', calendar: 'calendar', d
             </div>
             <div class="media">
               <Shot name={s.shot} lang={lang} alt={s.alt} url={s.url} crop={crops[s.shot]} />
-              {clipOf[s.shot] && <Clip name={clipOf[s.shot]} lang={lang} caption={s.alt} />}
             </div>
           </div>
         ))}
+        <div class="center" style="margin-top:80px">
+          <p class="kicker">{l.motion.kicker}</p>
+          <h2>{l.motion.h}</h2>
+        </div>
+        <div class="motion">
+          {l.motion.items.map(([name, caption]) => <Clip name={name} lang={lang} caption={caption} />)}
+        </div>
         <div class="center" style="margin-top:80px">
           <p class="kicker">{l.more.kicker}</p>
           <h2>{l.more.h}</h2>
@@ -187,3 +191,7 @@ nix profile install github:untypequicode/looty#looty-desktop</code></pre></div>
     })();
   </script>
 </Base>
+
+<style>
+  .motion { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 22px; margin-top: 36px; }
+</style>
