@@ -182,7 +182,7 @@ jobs:
       - run: python3 -m venv /tmp/jupyter && /tmp/jupyter/bin/pip install --quiet jupyter_server ipykernel
       - name: Start the stack
         run: |
-          (cd backend && PORT=8080 BASE_URL=http://localhost:3000 LOOTY_DEV_LOGIN=true CALDAV_ALLOW_PRIVATE=true JUPYTER_ALLOW_PRIVATE=true CALENDAR_DEFAULT_TZ=Europe/Paris nohup ./target/debug/backend > ../backend.log 2>&1 &)
+          (cd backend && PORT=8080 BASE_URL=http://localhost:3000 LOOTY_DEV_LOGIN=true CALDAV_ALLOW_PRIVATE=true JUPYTER_ALLOW_PRIVATE=true LOOTY_TUNNELS=on CALENDAR_DEFAULT_TZ=Europe/Paris nohup ./target/debug/backend > ../backend.log 2>&1 &)
           (cd collaboration && PORT=8082 BACKEND_URL=http://127.0.0.1:8080 nohup node index.js > ../collab.log 2>&1 &)
           (mkdir -p /tmp/nb && cd /tmp/nb && nohup /tmp/jupyter/bin/jupyter server --no-browser --ServerApp.ip=127.0.0.1 --ServerApp.port=18888 --IdentityProvider.token=e2e-jupyter-token > "$GITHUB_WORKSPACE/jupyter.log" 2>&1 &)
           (cd frontend && PORT=3000 BACKEND_URL=http://127.0.0.1:8080 COLLAB_URL=http://127.0.0.1:8082 nohup node .output/server/index.mjs > ../front.log 2>&1 &)
