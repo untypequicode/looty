@@ -127,15 +127,15 @@ async fn file_at(pool: &PgPool, project: Uuid, path: &str) -> ApiResult<Option<F
 pub struct NotebookQuery {
     path: String,
     /// Téléchargement (fichier tel quel) plutôt qu'affichage.
-    #[serde(default)]
-    download: Option<String>,
+    #[serde(default, deserialize_with = "crate::flag::flag")]
+    download: bool,
 }
 
 /// `.ipynb` enregistré d'un projet notebook publié.
 pub async fn notebook(
     State(pool): State<PgPool>,
     Path(token): Path<Uuid>,
-    Query(q): Query<NotebookQuery>,
+    crate::flag::Q(q): crate::flag::Q<NotebookQuery>,
 ) -> ApiResult<Response> {
     let project = shared_project_of(&pool, token, "notebook").await?;
     let path = clean_path(&q.path).map_err(|_| ApiError::NotFound)?;
@@ -147,7 +147,7 @@ pub async fn notebook(
         .ok_or(ApiError::NotFound)?;
     let bytes = file_bytes(&f).await?;
     let name = path.rsplit('/').next().unwrap_or("notebook.ipynb");
-    let disposition = if q.download.is_some() {
+    let disposition = if q.download {
         "attachment"
     } else {
         "inline"

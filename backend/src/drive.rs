@@ -505,13 +505,14 @@ async fn file_response(r: &Row, inline: bool) -> ApiResult<Response> {
 
 #[derive(Deserialize)]
 struct DownloadQuery {
-    inline: Option<u8>,
+    #[serde(default, deserialize_with = "crate::flag::flag")]
+    inline: bool,
 }
 
-async fn download(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, Query(q): Query<DownloadQuery>) -> ApiResult<Response> {
+async fn download(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>, crate::flag::Q(q): crate::flag::Q<DownloadQuery>) -> ApiResult<Response> {
     perms_for(&state, &user, ws).await?;
     let r = row(&state, ws, id, user.id).await?;
-    file_response(&r, q.inline == Some(1)).await
+    file_response(&r, q.inline).await
 }
 
 async fn share(State(state): State<AppState>, user: AuthUser, Path((ws, id)): Path<(Uuid, Uuid)>) -> ApiResult<Json<Value>> {

@@ -4,6 +4,25 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.53.1",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Fix: downloads no longer fail with a query-string error",
+        "fr": "Correctif : les téléchargements n'échouent plus avec une erreur de chaîne de requête"
+      },
+      "notes": {
+        "en": [
+          "**Fixed**: downloading a Moodle file or another file could fail with `Failed to deserialize query string: download: provided string was not true or false`. Download options such as `?download=1`, `?download`, `yes` or `on` are now all understood.",
+          "An invalid option now returns a clear `invalid_query` error instead of raw technical text."
+        ],
+        "fr": [
+          "**Corrigé** : le téléchargement d'un fichier Moodle ou d'un autre fichier pouvait échouer avec `Failed to deserialize query string: download: provided string was not true or false`. Les options de téléchargement comme `?download=1`, `?download`, `yes` ou `on` sont désormais toutes comprises.",
+          "Une option invalide renvoie maintenant une erreur `invalid_query` claire au lieu d'un texte technique brut."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.53.0",
       "date": "2026-11-25",
       "title": {

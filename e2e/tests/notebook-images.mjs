@@ -103,7 +103,7 @@ await v.reload({ waitUntil: 'networkidle' })
 await v.getByText('Introduction du TP.').waitFor({ timeout: 10000 })
 ok('hash reopens the page tab', (await v.locator('[data-testid=nb-viewer]').count()) === 0)
 const dl = await v.locator('[data-testid=rd-tabs]').getByRole('tab', { name: 'Notebook' }).click().then(() => v.locator('[data-testid=pv-download]').getAttribute('href'))
-ok('download link serves the .ipynb as is', dl?.includes('download=1') && (await fetch(`${B}${dl}`).then((r) => r.headers.get('content-disposition') ?? '')).startsWith('attachment'), dl)
+ok('download link serves the .ipynb as is', dl?.includes('download=true') && (await fetch(`${B}${dl}`).then((r) => r.headers.get('content-disposition') ?? '')).startsWith('attachment'), dl)
 
 // --- Lecture des membres : même composant, routes authentifiées ---
 await p.goto(`${B}/w/${WS}/read/${pg.id}`, { waitUntil: 'networkidle' })

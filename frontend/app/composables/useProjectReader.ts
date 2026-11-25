@@ -41,7 +41,7 @@ export function publicProject(token: string, p: PublicProjectSummary | null | un
       if (!r.ok) throw new Error(String(r.status))
       return r.text()
     },
-    download: (path) => `${base}/notebook?path=${encodeURIComponent(path)}&download=1`,
+    download: (path) => `${base}/notebook?path=${encodeURIComponent(path)}&download=true`,
     files: null,
     // Images seulement : le lien public ne sert aucun autre fichier du projet.
     fileUrl: ([first, alt]) => (first && IMAGE_EXT.test(first) ? `${base}/files/${encodePath(first)}${alt ? `?alt=${encodeURIComponent(alt)}` : ''}` : null),
