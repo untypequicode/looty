@@ -39,6 +39,11 @@
   --accent-soft: rgba(113, 112, 255, 0.16);
   --accent-text: #a5a4ff;
 
+  /* Sélection de texte (contraste texte/fond >= 4.5:1) */
+  --selection-bg: #4543b0;
+  --selection-bg-inactive: #3a3a58;
+  --selection-text: #ffffff;
+
   /* États */
   --green: #4cb782;
   --green-soft: rgba(76, 183, 130, 0.15);
@@ -124,6 +129,10 @@ html.light {
   --accent-hover: #4f5bc4;
   --accent-soft: rgba(94, 106, 210, 0.12);
   --accent-text: #4f5bc4;
+
+  --selection-bg: #b9c1f5;
+  --selection-bg-inactive: #d9dcef;
+  --selection-text: #121218;
 
   --green: #26a46b;
   --green-soft: rgba(38, 164, 107, 0.12);

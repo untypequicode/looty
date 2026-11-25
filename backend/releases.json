@@ -21,6 +21,23 @@
     },
     {
       "platform": "web",
+      "version": "0.59.1",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Selected text is easier to read",
+        "fr": "Le texte sélectionné se lit mieux"
+      },
+      "notes": {
+        "en": [
+          "Selected text now has a stronger background and a forced readable text color in light and dark themes, including links, colored text, table cells and code editors."
+        ],
+        "fr": [
+          "Le texte sélectionné a désormais un fond plus marqué et une couleur de texte lisible forcée en thème clair et sombre, y compris pour les liens, le texte coloré, les cellules de tableau et les éditeurs de code."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.59.0",
       "date": "2026-11-25",
       "title": {
