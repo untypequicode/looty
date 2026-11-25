@@ -49,7 +49,7 @@ jobs:
           node-version: 26
       - name: ShellCheck
         run: |
-          shellcheck deploy/render.sh deploy/install.sh deploy/test/stack.sh
+          shellcheck deploy/render.sh deploy/install.sh deploy/test/stack.sh deploy/test/traefik-public.sh
           # install.sh servi par le site : copie exacte de deploy/install.sh.
           cmp deploy/install.sh site/web/public/install.sh
           rendered=$(mktemp -d)
@@ -124,3 +124,6 @@ jobs:
       - run: sh deploy/test/stack.sh traefik pocket-id
       # Les fichiers écrits par install.sh (non interactif), démarrés pour de bon avec le Pocket ID inclus.
       - run: LOOTY_INSTALL_SH=1 sh deploy/test/stack.sh caddy pocket-id
+      # Un vrai Traefik sur le réseau externe traefik-public (résolveur ACME : Pebble), deux piles d'APP_NAME différents :
+      # routeurs, certificat, WebSocket 101, noms uniques par pile, db-backup.
+      - run: sh deploy/test/traefik-public.sh

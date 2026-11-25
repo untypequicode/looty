@@ -2,7 +2,7 @@
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, MonitorUp, Settings2, AlertCircle, X } from 'lucide-vue-next'
 import { useI18n } from '~/composables/useI18n'
 import { useShortcuts } from '~/composables/useShortcuts'
-import { callState, inCall, peerList, leave, toggleMute, chooseInput, setVolume, resumeAudio, toggleCamera, chooseCamera, startShare, stopShare, canShareScreen } from '~/composables/useCall'
+import { callState, inCall, peerList, leave, toggleMute, chooseInput, setVolume, resumeAudio, toggleCamera, chooseCamera, startShare, stopShare, canShareScreen, setPtt, setPttKey } from '~/composables/useCall'
 import { formatBitrate } from '~/utils/callRtc'
 
 /**
@@ -18,7 +18,11 @@ const everyone = computed(() => [{ id: '_me', name: t('calls.you'), muted: callS
 useShortcuts([{ keys: 'mod+alt+m', global: true, handler: () => { if (!inCall.value) return false; toggleMute() } }])
 
 const hasVideo = computed(() => !!callState.localCam || !!callState.localShare || peerList.value.some((p) => p.camStream || p.shareStream))
-const shareSupported = canShareScreen()
+const shareSupported = computed(() => canShareScreen() && callState.share)
+const capturing = ref(false)
+const onPttKey = (e: KeyboardEvent) => { e.preventDefault(); e.stopPropagation(); if (e.code !== 'Escape') setPttKey(e.code); capturing.value = false }
+const pickKey = () => { capturing.value = true; window.addEventListener('keydown', onPttKey, { once: true, capture: true }) }
+const keyLabel = computed(() => callState.pttKey.replace(/^Key|^Digit/, '').replace('Backquote', '`'))
 const sharers = computed(() => [...(callState.localShare ? [t('calls.you')] : []), ...peerList.value.filter((p) => p.share).map((p) => p.name || t('calls.unknown'))])
 const diagnostics = ref(false)
 const qualityLabel = computed(() => t(`calls.quality.${callState.quality}`))
@@ -61,6 +65,10 @@ onMounted(() => document.addEventListener('visibilitychange', () => { if (!docum
           <option v-for="d in callState.cameras" :key="d.id" :value="d.id">{{ d.label }}</option>
         </select>
       </label>
+      <div class="cb-field cb-ptt">
+        <label><input type="checkbox" :checked="callState.ptt" @change="setPtt(($event.target as HTMLInputElement).checked)" /> {{ t('calls.ptt') }}</label>
+        <span v-if="callState.ptt">{{ t('calls.pttHint', { key: keyLabel }) }} <button type="button" class="cb-link" @click="pickKey">{{ capturing ? t('calls.pttPress') : t('calls.pttChange') }}</button></span>
+      </div>
       <ul class="cb-list" :aria-label="t('calls.participants')">
         <li v-for="p in everyone" :key="p.id" class="cb-peer" :class="{ speaking: p.speaking }">
           <UiAvatar :name="p.name" :size="22" :ring="p.speaking" />
@@ -95,7 +103,7 @@ onMounted(() => document.addEventListener('visibilitychange', () => { if (!docum
         <template v-else>{{ t('calls.count', { count: everyone.length }) }}</template>
       </span>
       <span v-if="peerList.length" class="cb-quality" :class="`q-${callState.quality}`" role="img" :aria-label="t('calls.qualityLabel', { quality: qualityLabel })" :title="t('calls.qualityLabel', { quality: qualityLabel })" />
-      <button type="button" class="cb-btn" :class="{ on: callState.cam }" :aria-pressed="callState.cam" :aria-label="callState.cam ? t('calls.cameraOff') : t('calls.cameraOn')" @click="toggleCamera">
+      <button v-if="callState.video" type="button" class="cb-btn" :class="{ on: callState.cam }" :aria-pressed="callState.cam" :aria-label="callState.cam ? t('calls.cameraOff') : t('calls.cameraOn')" @click="toggleCamera">
         <Video v-if="callState.cam" :size="16" /><VideoOff v-else :size="16" />
       </button>
       <button v-if="shareSupported" type="button" class="cb-btn" :class="{ off: callState.sharing }" :aria-pressed="callState.sharing" :aria-label="callState.sharing ? t('calls.stopShare') : t('calls.share')" :title="callState.sharing ? t('calls.stopShare') : t('calls.share')" @click="callState.sharing ? stopShare() : startShare()">

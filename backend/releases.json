@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.56.0",
+      "version": "0.57.0",
       "date": "2026-11-25",
       "title": {
         "en": "PC tunnel: the instance side (off by default)",
@@ -16,6 +16,27 @@
         ],
         "fr": [
           "Première brique pour utiliser son propre ordinateur comme serveur Jupyter d’un projet, par une connexion sortante et sans port ouvert. L’instance sait désormais accepter des agents de tunnel, avec des jetons de tunnel révocables, et un serveur Jupyter de projet peut cibler un tunnel. Tout reste désactivé tant qu’un administrateur n’a pas mis `LOOTY_TUNNELS=on` ; l’agent et les écrans du projet suivent."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.56.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Calls: administration settings and push to talk",
+        "fr": "Appels : réglages d’administration et appuyer pour parler"
+      },
+      "notes": {
+        "en": [
+          "Administration > Instance > Calls: turn calls on or off, set the maximum number of people per call (2 to 12), allow or forbid cameras and screen sharing. The limits are enforced by the server, and the interface shows a clear message when a call is full or a feature is off.",
+          "Optional push to talk in the call settings: the microphone stays muted until you hold a key.",
+          "Calls documentation completed: use, limits, privacy (peer-to-peer media, nothing recorded, participants see each other's addresses unless a relay is used), administration and FAQ."
+        ],
+        "fr": [
+          "Administration > Instance > Appels : activer ou désactiver les appels, fixer le nombre maximal de personnes par appel (2 à 12), autoriser ou interdire les caméras et le partage d’écran. Les limites sont appliquées par le serveur, et l’interface affiche un message clair quand un appel est complet ou qu’une fonction est désactivée.",
+          "Appuyer pour parler en option dans les réglages de l’appel : le micro reste coupé tant qu’on maintient une touche.",
+          "Documentation des appels complétée : utilisation, limites, vie privée (média de pair à pair, rien d’enregistré, les participants voient mutuellement leurs adresses sauf avec un relais), administration et FAQ."
         ]
       }
     },

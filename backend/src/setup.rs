@@ -142,4 +142,35 @@ mod tests {
         let (locale, tz): (Option<String>, Option<String>) = sqlx::query_as("SELECT locale, timezone FROM users WHERE id = $1").bind(id).fetch_one(&pool).await.unwrap();
         assert_eq!((locale.as_deref(), tz.as_deref()), (Some("fr"), Some("Europe/Paris")));
     }
+
+    #[sqlx::test]
+    async fn call_settings_are_validated_saved_and_enforced_by_the_server(pool: PgPool) {
+        let api = Api::new(&pool).await;
+        let admin = api.admin("root@example.org", true).await;
+        let member = api.admin("ana@example.org", false).await;
+        let put = |extra: Value| {
+            let mut b = json!({ "app_name": "Campus", "allow_public_signups": true });
+            b.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            b
+        };
+        // Sans réglage enregistré : appels actifs, 6 personnes, caméra et partage permis.
+        let (s, c) = api.call(Some(&member), "GET", "/api/calls/config", None).await;
+        assert_eq!((s, c["enabled"].clone(), c["max_participants"].clone(), c["video"].clone(), c["screen_share"].clone()), (200, json!(true), json!(6), json!(true), json!(true)));
+        for bad in [1, 13, 500] {
+            let (s, e) = api.call(Some(&admin), "PUT", "/api/admin/settings", Some(put(json!({ "calls_max_participants": bad })))).await;
+            assert_eq!((s, e["error"].as_str()), (400, Some("invalid_call_max")), "{bad}");
+        }
+        let body = put(json!({ "calls_max_participants": 3, "calls_video": false, "calls_screen_share": false }));
+        assert_eq!(api.call(Some(&member), "PUT", "/api/admin/settings", Some(body.clone())).await.0, 403);
+        let (s, saved) = api.call(Some(&admin), "PUT", "/api/admin/settings", Some(body)).await;
+        assert_eq!(s, 200, "{saved}");
+        let (_, c) = api.call(Some(&member), "GET", "/api/calls/config", None).await;
+        assert_eq!((c["max_participants"].clone(), c["video"].clone(), c["screen_share"].clone(), c["enabled"].clone()), (json!(3), json!(false), json!(false), json!(true)));
+        // Appels désactivés : la salle est refusée, quelle que soit la personne.
+        api.call(Some(&admin), "PUT", "/api/admin/settings", Some(put(json!({ "calls_enabled": false })))).await;
+        let (s, _) = api.call(Some(&member), "GET", &format!("/api/calls/workspace/{}/access", Uuid::new_v4()), None).await;
+        assert_eq!(s, 403);
+        let (_, p) = api.call(None, "GET", "/api/settings", None).await;
+        assert_eq!(p["calls_enabled"], json!(false));
+    }
 }

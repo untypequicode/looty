@@ -14,6 +14,7 @@ A **voice call** lets the people who can open a page or a project talk while the
 ## In the call
 
 - **Mute**: the microphone button, or `Ctrl`+`Alt`+`M` (`Cmd`+`Alt`+`M` on Mac). Others see who is muted.
+- **Push to talk** (optional, off by default): in the call settings, tick *Push to talk*. The microphone stays muted until you **hold a key** (the backtick key by default; *Change key* picks another). Releasing the key, or leaving the window, mutes you again. The key is ignored while you type in a text field and with `Ctrl`, `Alt` or `Cmd` held. The choice is kept on this device.
 - **Who is speaking** is shown by a ring around the avatar.
 - **Settings** (gear): choose the microphone and set the volume of each person. If the microphone is unplugged, Looty switches to the default one or tells you to pick another; you keep listening.
 - Echo cancellation, noise suppression and automatic gain are on. Audio is Opus, tuned for voice, with silence suppression.
@@ -43,12 +44,33 @@ A **voice call** lets the people who can open a page or a project talk while the
 
 ## Limits
 
-- Up to **6 people** per call by default (the administrator can change it with `LOOTY_CALL_MAX_PARTICIPANTS`).
+- Up to **6 people** per call by default. The administrator changes it (2 to 12) in Administration > Instance > Calls. When a call is full, joining shows a clear message.
+- The administrator can also **turn calls off**, or allow only voice (no camera) or no screen sharing. The buttons then disappear or explain why; the limits are enforced by the server, not only hidden in the interface.
 - Same rights as the content: whoever can open the page, project or workspace can join its call, and nobody else.
 - On very restrictive networks (some corporate or school firewalls) two people may not manage to connect directly. An administrator can enable a relay server for that case (see below).
 - Latency is that of a direct network path: typically well under 150 ms. The automated test reports the measured round-trip time of its two browsers.
 
 For the technical choices see the architecture decision `docs/adr/0019-calls-webrtc-mesh.md`.
+
+## Privacy
+
+- **Audio, video and shared screens go directly from browser to browser** (WebRTC, encrypted with DTLS-SRTP). They do not go through the Looty server, which only relays the connection setup. **Nothing is recorded or stored**, by Looty or by anyone else.
+- In a call every participant connects to every other one, so **participants can see each other's IP addresses** (a normal consequence of a direct connection). If that is a concern, ask the administrator to enable the relay (TURN): then media goes through the relay server of your instance and addresses are not exchanged with peers.
+- Without a relay, the public STUN server (Google by default, `LOOTY_STUN_URLS` to change it) learns that your browser asks for its public address, never the content of the call.
+- The server knows who is in a call (names shown in the join button, same rights as the content) and logs only counters such as "room full", never the content.
+
+## Administration settings
+
+Administration > Instance > **Calls**:
+
+| Setting | Effect | Default |
+|---|---|---|
+| Enable calls | Off: nobody can start or join a call, the buttons disappear. | on |
+| Maximum people per call | 2 to 12. Beyond it, joining is refused with "This call is full". | 6 (`LOOTY_CALL_MAX_PARTICIPANTS` gives the initial value) |
+| Allow cameras | Off: voice only, the camera button disappears and any camera stream is ignored by the server. | on |
+| Allow screen sharing | Off: the share button disappears and shares are ignored by the server. | on |
+
+Changes apply to new connections at once and to people already connected within two minutes. Camera calls stay limited to 4 people whatever the maximum.
 
 ## Hosting: relay (TURN) for restrictive networks
 

@@ -337,6 +337,14 @@ _Avoid_: serveur d'appel, relais audio
 Flux vidéo dédié d'un appel (écran, fenêtre ou onglet, avec le son du système si le navigateur le permet), affiché en grand chez tous les participants avec le nom de la personne qui partage. Il privilégie la netteté du texte (peu d'images par seconde) ; la caméra, elle, est limitée à 4 personnes par appel.
 _Avoid_: diffusion, présentation
 
+**Réglages d'appels**:
+Réglages d'instance (Administration > Instance > Appels) : appels activés ou non, nombre maximal de personnes par appel (2 à 12, 6 par défaut), caméras autorisées, partage d'écran autorisé. Appliqués par le serveur (accès à la salle et serveur de collaboration), pas seulement masqués dans l'interface.
+_Avoid_: quotas, permissions d'appel
+
+**Appuyer pour parler**:
+Option personnelle, désactivée par défaut : le micro reste coupé tant qu'une touche est maintenue. Réglage local à l'appareil, sans effet sur le serveur.
+_Avoid_: push-to-talk (en français)
+
 **Qualité de liaison**:
 Mesure continue (latence, perte de paquets, gigue, débit, par `getStats`) de la connexion directe avec chaque participant, résumée par un indicateur bon / moyen / mauvais. Le débit vidéo s'y adapte ; l'audio reste prioritaire. En cas de coupure, la liaison redémarre seule (*ICE restart*).
 _Avoid_: ping, signal
