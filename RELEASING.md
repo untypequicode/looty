@@ -135,3 +135,5 @@ The Windows app updates itself (Tauri updater, free). Setup, once:
 2. Put the public key in `plugins.updater.pubkey` of `desktop/src-tauri/tauri.conf.json` and the private key in the repository secret `TAURI_SIGNING_PRIVATE_KEY`.
 
 When that secret exists, the **Desktop** workflow also produces `*-setup.exe.sig`, and **Release** attaches it and replaces `latest.json` on the fixed `updater` release (`https://github.com/untypequicode/looty/releases/download/updater/latest.json`), which the app reads every 6 hours. The first installation still shows Windows' "unknown publisher" warning (no paid code-signing certificate); updates are checked against the key above.
+
+Authenticode signing (to remove "unknown publisher") is prepared but off: see `docs/signpath-application.md` (SignPath Foundation, free for open source, by application). Self-signed certificates do not help SmartScreen.

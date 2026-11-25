@@ -114,6 +114,40 @@ jobs:
       - name: Installer exists
         shell: bash
         run: ls -l desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+      # Signature Authenticode par SignPath Foundation (programme gratuit pour l'open source) : DÉSACTIVÉE tant que la
+      # variable de dépôt SIGNPATH_ENABLED n'est pas « true ». Voir docs/signpath-application.md.
+      - name: Upload the unsigned installer for SignPath
+        if: vars.SIGNPATH_ENABLED == 'true' && github.event_name != 'pull_request'
+        id: unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: looty-windows-unsigned
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          archive: false
+      - name: Sign the installer with SignPath
+        if: vars.SIGNPATH_ENABLED == 'true' && github.event_name != 'pull_request'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 86400
+          output-artifact-directory: signed
+      # Le .sig du programme de mise à jour couvre les octets de l'installateur : il est refait sur l'installateur signé.
+      - name: Replace the installer and redo the updater signature
+        if: vars.SIGNPATH_ENABLED == 'true' && github.event_name != 'pull_request'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          exe=$(ls desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          cp "$(ls signed/*-setup.exe | head -1)" "$exe"
+          # cargo tauri signer sign lit la clé (et son mot de passe éventuel) dans l'environnement
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then cargo tauri signer sign "$exe"; fi
       - uses: actions/upload-artifact@v7
         with:
           name: looty-windows
