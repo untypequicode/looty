@@ -17,6 +17,10 @@ No. We never see your instance: the apps connect to the server you or your organ
 
 Calls are peer-to-peer: audio, video and shared screens go directly between browsers and never through the server, so nothing is recorded or stored. Because participants connect directly, they can see each other's IP addresses; an administrator can enable a relay (TURN) to avoid that. Calls can be limited or turned off in Administration. See [Voice calls](/docs/use/features/voice-calls/).
 
+## Can I use my own PC to run Jupyter or R notebooks?
+
+Yes, if your administrator has turned on PC tunnels. A small agent on your PC opens one outgoing connection to the instance, with no open port, and the project then uses your PC as its Jupyter server while the agent runs. Everyone who can edit the project can run code on that PC, so Looty asks you to confirm, and you can limit a tunnel to yourself. For light needs, R (WebR) and Python (Pyodide) already run in the browser with nothing to install. See [Use my PC as a Jupyter or R server](/docs/use/features/pc-tunnel/) and, for hosts, [PC tunnels](/docs/host/operate/tunnels/).
+
 ## Do I need an OpenID Connect provider?
 
 Looty signs people in through OpenID Connect, which we recommend. If you have none, the [bundled Pocket ID](/docs/host/sign-in/pocket-id/) is set up for you with passkeys, in the same compose file. [Local accounts](/docs/host/sign-in/local-accounts/) exist too, but are not recommended.

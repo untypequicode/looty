@@ -15,3 +15,5 @@ Why:
 - Errors (unreachable, token rejected, kernel gone) are mapped to explicit codes; there is no silent fallback to Pyodide.
 
 Consequences: the Looty server must reach the Jupyter server. Like CalDAV, http and https are allowed, but private addresses (local network, localhost) only with `JUPYTER_ALLOW_PRIVATE=true`. For JupyterHub, the address may be the hub's (`/hub/login…`): the token owner is read from `/hub/api/user`, the address becomes `/user/<name>/`, and a stopped user server is started through `/hub/api/users/<name>/server`. Password and OAuth logins are not supported: users give a Jupyter token or a JupyterHub API token. Kernel ownership is kept in memory: after a backend restart, the notebook reports its kernel as gone, **Restart kernel** starts a new one, and orphaned kernels are left to Jupyter’s own culling.
+
+PC tunnel: a project can also reach a Jupyter on a person's own computer through an outgoing connection, see ADR 0020.

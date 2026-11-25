@@ -43,6 +43,8 @@ By default a LaTeX project is compiled by the Looty server. If the administrator
 If the tunnel is down, compiling fails with an explicit message (`latex_tunnel_offline`): nothing is silently compiled elsewhere. Detach the tunnel to go back to the server.
 ## Use your own PC as the Jupyter server
 
+Full guide: [Use my PC as a Jupyter or R server](/docs/use/features/pc-tunnel/). In short:
+
 When the administrator has turned on PC tunnels (`LOOTY_TUNNELS=on`), a person who can edit a project can run its notebooks on **their own computer**, with no open port and no router setting: a small agent (`looty-bridge`) on the PC opens an outgoing connection to the instance, for as long as it runs.
 
 1. In the notebook, open the **Engine** dialog, pick **Jupyter server**, then **Use my PC**.
