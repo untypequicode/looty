@@ -136,8 +136,11 @@ curl_host() { name=$1; shift; curl -ksS --resolve "$name.localhost:443:127.0.0.1
 
 for name in alpha beta; do
 	# 1. Routeurs et services de l'API de Traefik.
-	retry 60 curl -sf "$api/api/http/routers" -o "$dir/routers.json" &&
-		[ "$(jq "[.[] | select(.name | startswith(\"$name-\")) | select(.status == \"enabled\")] | length" "$dir/routers.json")" = 3 ] ||
+	routers_ready() {
+		curl -sf "$api/api/http/routers" -o "$dir/routers.json" || return 1
+		[ "$(jq "[.[] | select(.name | startswith(\"$name-\")) | select(.status == \"enabled\")] | length" "$dir/routers.json")" = 3 ]
+	}
+	retry 60 routers_ready ||
 		fail "$name: expected 3 enabled routers in the Traefik API: $(cat "$dir/routers.json")"
 	for r in api collab web; do
 		jq -e ".[] | select(.name == \"$name-$r@docker\" and .tls.certResolver == \"le\" and (.entryPoints == [\"websecure\"]))" "$dir/routers.json" > /dev/null ||
