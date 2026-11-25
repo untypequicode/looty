@@ -123,8 +123,10 @@ ul.ticks li::before { content: ''; flex: none; width: 18px; height: 18px; margin
 .platforms { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 64px; }
 
 /* Hébergement */
-.host { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
-@media (max-width: 900px) { .host { grid-template-columns: 1fr; gap: 28px; } }
+.host { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+.host > *, .row > * { min-width: 0; }
+.host pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .host { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
 pre { margin: 0; background: var(--bg-code); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; overflow: auto; font: 13px/1.65 var(--mono); color: var(--text-2); }
 pre .c { color: var(--text-3); } pre .k { color: var(--accent-text); }
 pre[data-copy] { position: relative; padding-right: 76px; }
