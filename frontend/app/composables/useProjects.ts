@@ -54,7 +54,7 @@ export interface ProjectDetail {
   page_id: string | null
 }
 export interface LatexIssue { file: string | null; line: number | null; message: string; level: 'error' | 'warning' }
-export interface CompileResult { ok: boolean; pdf: boolean; engine: string; duration_ms: number; issues: LatexIssue[]; log: string; local?: boolean }
+export interface CompileResult { ok: boolean; pdf: boolean; engine: string; duration_ms: number; issues: LatexIssue[]; log: string; local?: boolean; via?: string }
 
 export const projectKeys = {
   list: (ws: string) => ['projects', ws] as const,

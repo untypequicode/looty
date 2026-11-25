@@ -4,6 +4,8 @@ import { api, errorMessage } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { useDemo } from '~/composables/useDemo'
 import { toast } from '~/composables/useToast'
+import { pollDelay, tunnelPhase } from '~/utils/tunnel'
+import type { ProjectTunnel } from '~/components/notebook/TunnelBox.vue'
 
 /**
  * Moteur d'un notebook : Pyodide (navigateur, par défaut) ou le serveur Jupyter du projet.
@@ -11,10 +13,10 @@ import { toast } from '~/composables/useToast'
  * le projet, côté serveur : le jeton n'est jamais renvoyé ni affiché.
  */
 export interface KernelSpec { name: string; display_name: string; language: string }
-interface Config { configured: boolean; url?: string; kernel?: string; has_token?: boolean; can_edit: boolean; allow_private: boolean }
+interface Config { configured: boolean; url?: string; kernel?: string; has_token?: boolean; can_edit: boolean; allow_private: boolean; tunnels_enabled?: boolean; tunnel?: ProjectTunnel | null }
 
 const open = defineModel<boolean>('open', { default: false })
-const props = defineProps<{ projectId: string; engine: 'pyodide' | 'jupyter' | 'webr'; kernel?: string; readOnly: boolean }>()
+const props = defineProps<{ projectId: string; projectName?: string; engine: 'pyodide' | 'jupyter' | 'webr'; kernel?: string; readOnly: boolean }>()
 /** `kernel` : noyau choisi pour ce notebook (absent : celui du projet) ; `spec` : décrit le noyau utilisé. */
 const emit = defineEmits<{ (e: 'apply', engine: 'pyodide' | 'jupyter' | 'webr', choice?: { kernel?: string; spec: KernelSpec }): void }>()
 const { t } = useI18n()
@@ -44,7 +46,7 @@ async function load() {
   specsError.value = ''
   try {
     config.value = await api<Config>(base.value, { silent: true })
-    if (config.value.configured && config.value.can_edit) await loadSpecs()
+    if (config.value.configured && config.value.can_edit && (!config.value.tunnel || config.value.tunnel.connected)) await loadSpecs()
   } catch (e) {
     specsError.value = errorMessage(e)
   } finally {
@@ -67,6 +69,31 @@ async function loadSpecs() {
     specsError.value = errorMessage(e)
   }
 }
+// Tunnel d'un PC : statut en direct (interrogation légère tant que la fenêtre est ouverte), noyaux dès la connexion.
+const viaTunnel = computed(() => !!config.value?.tunnel)
+const tunnelUp = computed(() => !viaTunnel.value || !!config.value?.tunnel?.connected)
+const showTunnel = computed(() => !isDemo.value && !!config.value?.tunnels_enabled)
+let timer: ReturnType<typeof setTimeout> | undefined
+async function pollTunnel() {
+  timer = undefined
+  if (!open.value || choice.value !== 'jupyter' || !config.value?.tunnels_enabled) return
+  const wasConnected = !!config.value.tunnel?.connected
+  try {
+    const c = await api<Config>(base.value, { silent: true })
+    if (config.value) { config.value.tunnel = c.tunnel; config.value.configured = c.configured }
+    if (c.tunnel?.connected && !wasConnected && c.can_edit) await loadSpecs()
+    if (c.tunnel && !c.tunnel.connected) specs.value = []
+  } catch { /* le prochain tour réessaie */ }
+  schedule()
+}
+function schedule() {
+  if (timer || !open.value) return
+  timer = setTimeout(pollTunnel, pollDelay(tunnelPhase(config.value?.tunnel, false)))
+}
+watch([open, choice, () => config.value?.tunnels_enabled], () => { if (open.value && choice.value === 'jupyter' && config.value?.tunnels_enabled) schedule() })
+onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
+const fallback = () => { choice.value = 'pyodide' }
+
 watch(open, (o) => {
   if (!o) return
   choice.value = props.engine
@@ -129,10 +156,13 @@ function apply() {
 
       <template v-else>
         <p class="ed-hint">{{ t('notebook.jupyter.remoteHint') }}</p>
-        <div v-if="loading" class="ed-loading"><UiSpinner /></div>
+        <div v-if="loading && !config" class="ed-loading"><UiSpinner /></div>
         <template v-else>
+          <!-- PC de la personne, par tunnel -->
+          <NotebookTunnelBox v-if="showTunnel" :project-id="projectId" :project-name="projectName" :tunnel="config?.tunnel ?? null" :can-edit="!!config?.can_edit" :kernel="config?.kernel" @changed="load" @fallback="fallback" />
+
           <!-- Serveur du projet -->
-          <section class="ed-box">
+          <section v-if="!viaTunnel" class="ed-box">
             <header class="ed-head">
               <strong>{{ t('notebook.jupyter.server') }}</strong>
               <span v-if="config?.configured && !editing" class="ed-url" :title="config.url">{{ config.url }}</span>
@@ -175,7 +205,7 @@ function apply() {
           </section>
 
           <!-- Noyau de ce notebook -->
-          <label v-if="config?.configured && !editing" class="ed-field">
+          <label v-if="config?.configured && !editing && tunnelUp" class="ed-field">
             <span>{{ t('notebook.jupyter.notebookKernel') }}</span>
             <select v-model="nbKernel" class="ed-select" :disabled="readOnly">
               <option value="">{{ t('notebook.jupyter.useDefault', { kernel: config.kernel ?? 'python3' }) }}</option>
@@ -183,7 +213,7 @@ function apply() {
               <option v-if="nbKernel && !specs.some((s) => s.name === nbKernel)" :value="nbKernel">{{ nbKernel }}</option>
             </select>
           </label>
-          <p v-if="specsError && config?.configured" class="ed-result" role="alert"><CircleAlert :size="14" /> {{ specsError }}</p>
+          <p v-if="specsError && config?.configured && tunnelUp" class="ed-result" role="alert"><CircleAlert :size="14" /> {{ specsError }}</p>
         </template>
       </template>
       <p v-if="readOnly" class="ed-warn">{{ t('notebook.jupyter.readOnlyChoice') }}</p>

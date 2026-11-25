@@ -41,3 +41,15 @@ By default a LaTeX project is compiled by the Looty server. If the administrator
 3. *Compile* now sends the project to your PC and shows the PDF and the log as usual. Shell escape is always off, a compilation is limited to 2 minutes by default and cancelled if you leave, and the PC only compiles for the instance while the tunnel is up.
 
 If the tunnel is down, compiling fails with an explicit message (`latex_tunnel_offline`): nothing is silently compiled elsewhere. Detach the tunnel to go back to the server.
+## Use your own PC as the Jupyter server
+
+When the administrator has turned on PC tunnels (`LOOTY_TUNNELS=on`), a person who can edit a project can run its notebooks on **their own computer**, with no open port and no router setting: a small agent (`looty-bridge`) on the PC opens an outgoing connection to the instance, for as long as it runs.
+
+1. In the notebook, open the **Engine** dialog, pick **Jupyter server**, then **Use my PC**.
+2. Choose the service (Jupyter with Python, R or other kernels) and the address of Jupyter on your PC (`http://127.0.0.1:8888` by default), read the warning and tick the confirmation. Looty creates the **tunnel token** and shows it **once**, with the line to run on the PC and the instance address already filled in: `nix run`, Docker Compose (`docker-compose.bridge.yml`) or the downloaded binary. The token is not shown again: revoke the tunnel and create another if you lose it.
+3. The dialog shows the live status: waiting for the agent, connected (machine, latency) or disconnected. The kernels of your Jupyter are listed like those of any Jupyter server.
+4. **Disconnect and revoke** cuts the connection immediately. All your tunnels are listed, with a revoke button, in **Settings, PC tunnels**.
+
+If the PC goes offline, notebooks show a clear message and nothing is rerouted silently: relaunch the agent, or switch the notebook to the browser engine (Pyodide or R) in the meantime.
+
+**Security**: connecting a Jupyter to a project lets everyone who can edit that project run code on your PC, with your user's rights, each in their own kernel. There is no per-person restriction yet: attach the tunnel to a project only you can edit (for example in your personal space), run the agent with an unprivileged user, ideally in a container, and keep Jupyter's own token on. The feature is hidden when `LOOTY_TUNNELS` is not `on` and unavailable in the demo.

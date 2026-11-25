@@ -70,20 +70,22 @@ pub async fn route(state: &AppState, project: Uuid) -> ApiResult<Option<Route>> 
     Ok(Some(Route { tunnel_id: row.tunnel_id, service: row.tunnel_service }))
 }
 
-async fn config_json(state: &AppState, row: Option<&Row>) -> Value {
+async fn config_json(state: &AppState, row: Option<&Row>, viewer: Uuid) -> Value {
     let Some(r) = row else { return json!({ "attached": false, "tunnels_enabled": crate::tunnel::enabled() }) };
     let t = crate::tunnel::token_row(state, r.tunnel_id).await.ok().flatten();
     let mut live = crate::tunnel::live_json(r.tunnel_id);
     live["id"] = json!(r.tunnel_id);
+    live["service"] = json!(r.tunnel_service);
     live["name"] = json!(t.as_ref().map(|t| t.name.clone()));
     live["usable"] = json!(t.as_ref().is_some_and(|t| t.usable()));
+    live["mine"] = json!(t.as_ref().is_some_and(|t| t.user_id == viewer));
     json!({ "attached": true, "service": r.tunnel_service, "tunnel": live, "tunnels_enabled": crate::tunnel::enabled() })
 }
 
 async fn get_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
     project_for(&state, &user, id, Need::Read).await?;
     let row = load(&state, id).await?;
-    Ok(Json(config_json(&state, row.as_ref()).await))
+    Ok(Json(config_json(&state, row.as_ref(), user.id).await))
 }
 
 #[derive(Deserialize)]
@@ -144,7 +146,7 @@ async fn put_config(State(state): State<AppState>, user: AuthUser, Path(id): Pat
     .execute(&state.pool)
     .await?;
     let row = load(&state, id).await?;
-    Ok(Json(config_json(&state, row.as_ref()).await))
+    Ok(Json(config_json(&state, row.as_ref(), user.id).await))
 }
 
 async fn delete_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
