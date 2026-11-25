@@ -60,8 +60,13 @@ img {
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--selection-bg);
+  color: var(--selection-text);
+  -webkit-text-fill-color: var(--selection-text);
 }
+
+/* Cellules de tableau sélectionnées : voile translucide, texte reste lisible */
+.ProseMirror .selectedCell::after { background: color-mix(in srgb, var(--selection-bg) 55%, transparent); }
 
 :focus-visible {
   outline: 2px solid var(--border-focus);
