@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook, Stethoscope, BookOpen, ExternalLink } from 'lucide-vue-next'
+import { ChevronLeft, AtSign, UserRound, SlidersHorizontal, KeyRound, CalendarSync, Bell, Mail, Building2, Users, LayoutDashboard, UserCog, Building, ShieldCheck, Server, Menu, HardDrive, ChartLine, Globe, Archive, Bot, DatabaseBackup, Activity, LayoutTemplate, Webhook, Stethoscope, BookOpen, ExternalLink, Laptop } from 'lucide-vue-next'
+import { useQuery } from '@tanstack/vue-query'
+import { api } from '~/composables/api'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { useAuth } from '~/composables/useAuth'
 import { useI18n, currentLocale } from '~/composables/useI18n'
@@ -13,6 +15,10 @@ const navOpen = ref(false)
 const personal = computed(() => !!workspace.data.value?.personal)
 watch(() => route.fullPath, () => (navOpen.value = false))
 
+// Tunnels PC : l'entrée n'existe que si l'administrateur a activé la fonction (LOOTY_TUNNELS).
+const { data: tunnelsInfo } = useQuery({ queryKey: ['tunnels'], queryFn: () => api<{ enabled: boolean }>('/api/tunnels', { silent: true }), staleTime: 60_000 })
+const tunnelsOn = computed(() => !!tunnelsInfo.value?.enabled)
+
 const groups = computed(() => [
   {
     title: t('settings.groups.account'),
@@ -23,6 +29,7 @@ const groups = computed(() => [
       { key: 'notifications', label: t('settings.nav.notifications'), icon: Bell },
       { key: 'calendars', label: t('settings.nav.calendars'), icon: CalendarSync },
       { key: 'ai', label: t('ai.settings.title'), icon: Bot },
+      ...(tunnelsOn.value ? [{ key: 'tunnels', label: t('tunnel.nav'), icon: Laptop }] : []),
       { key: 'data', label: t('data.nav'), icon: DatabaseBackup },
     ],
   },
