@@ -87,7 +87,8 @@ export default {
       failed: 'Le notebook n’a pas pu être exporté.',
     },
     r: {
-      needsJupyter: 'Les cellules R s’exécutent sur le serveur Jupyter du projet (IRkernel). Ouvrez le bouton Moteur de la barre d’outils et choisissez le serveur Jupyter avec un noyau R : le moteur du navigateur n’exécute que Python.',
+      needsJupyter: 'Les cellules R ne s’exécutent pas avec le moteur Python. Ouvrez le bouton Moteur de la barre d’outils et choisissez « R (navigateur) », qui ne demande aucun serveur, ou le serveur Jupyter avec un noyau R.',
+      needsR: 'Ce notebook est un notebook Python : le moteur R n’exécute que du R. Choisissez un autre moteur avec le bouton Moteur de la barre d’outils.',
       panel: {
         title: 'Panneaux R', toggle: 'Panneaux R : environnement, graphiques, aide, console', env: 'Environnement', plots: 'Graphiques', help: 'Aide', console: 'Console',
         needKernel: 'Connectez d’abord le noyau Jupyter : exécutez une cellule, ou envoyez une ligne depuis l’onglet Console.', timeout: 'Le noyau R n’a pas répondu à temps (il est peut-être occupé par un long calcul).',
@@ -98,6 +99,11 @@ export default {
         clear: 'Vider la console', prompt: 'Code R…',
       },
     },
+    webr: {
+      loading: 'Téléchargement de R (environ 30 Mo, la première fois seulement)…', installing: 'Installation du paquet R {pkg}…', installFailed: 'Impossible d’installer le paquet R {pkg} listé dans r-packages.txt.',
+      interrupted: 'Exécution arrêtée (R redémarré)', failed: 'R n’a pas pu démarrer dans ce navigateur.',
+      starting: 'Démarrage de R…', busy: 'R en cours…', ready: 'R prêt', off: 'R (démarre à la première exécution)', restart: 'Redémarrer R',
+    },
     deps: {
       refreshFailed:'Impossible d’actualiser les fichiers du projet : le code s’exécute avec les fichiers déjà chargés.', saveFailed: '{pkg} est installé pour cette session mais n’a pas pu être enregistré dans requirements.txt.',
       install: 'Installer {pkg}', installing: 'Installation de {pkg}…', warn: 'Impossible d’installer {pkg} depuis requirements.txt.',
@@ -107,6 +113,8 @@ export default {
       title: 'Moteur d’exécution', description: 'Où s’exécute le code de ce notebook. Le choix est partagé avec toutes les personnes qui le modifient.',
       pyodide: 'Navigateur (Pyodide)', remote: 'Serveur Jupyter', pyodideShort: 'Pyodide', remoteShort: 'Jupyter', projectKernel: 'noyau du projet',
       pyodideHint: 'Moteur par défaut : Python s’exécute dans le navigateur de la personne qui clique, sans aucun serveur.',
+      webr: 'R (navigateur)', webrShort: 'R (WebR)',
+      webrHint: 'R s’exécute dans le navigateur de la personne qui clique (WebR), sans serveur ni installation. La première exécution télécharge environ 30 Mo, que le navigateur garde ensuite. Les paquets viennent du dépôt WebR, seulement quand votre code les installe. Graphiques et tableaux sont pris en charge ; un calcul ne peut pas être interrompu, seulement arrêté en redémarrant R. Les sorties sont partagées avec toutes les personnes qui modifient.',
       remoteHint: 'Le code s’exécute sur le serveur Jupyter du projet, dans votre propre noyau : variables, fichiers et bibliothèques sont ceux de cette machine. Le serveur Looty s’y connecte pour vous, le jeton n’arrive jamais dans les navigateurs. Les sorties sont partagées avec toutes les personnes qui modifient.',
       server: 'Serveur Jupyter du projet', url: 'Adresse du serveur', token: 'Jeton', tokenPlaceholder: 'Jeton Jupyter ou jeton d’API JupyterHub', tokenKeep: 'Inchangé (enregistré, masqué)', tokenClear: 'Retirer le jeton enregistré',
       tokenSet: 'Jeton enregistré', noToken: 'Sans jeton', defaultKernel: 'Noyau par défaut', notebookKernel: 'Noyau de ce notebook', useDefault: 'Celui du projet ({kernel})',

@@ -87,7 +87,7 @@ const OPEN = /^(`{3,})\s*\{([^}]*)\}\s*$/
 const closes = (line: string, n: number) => new RegExp('^`{' + n + ',}\\s*$').test(line)
 
 const KERNELS: Record<NbLanguage, Record<string, any>> = {
-  r: { kernelspec: { name: 'ir', display_name: 'R', language: 'R' }, language_info: { name: 'R' }, looty: { engine: 'jupyter', kernel: 'ir' } },
+  r: { kernelspec: { name: 'ir', display_name: 'R', language: 'R' }, language_info: { name: 'R' }, looty: { engine: 'webr' } },
   python: { kernelspec: { name: 'python3', display_name: 'Python 3 (Pyodide)', language: 'python' }, language_info: { name: 'python' } },
 }
 
