@@ -4,6 +4,33 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.63.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Page access levels: comment, manage, refuse, and who gains or loses access when a page moves",
+        "fr": "Niveaux d’accès aux pages : commenter, gérer, refuser, et qui gagne ou perd l’accès quand une page est déplacée"
+      },
+      "notes": {
+        "en": [
+          "A page share now has four levels: read, comment, edit and manage. Manage lets a member or a guest change who else has access to that page.",
+          "You can refuse a person a sub-page of a shared tree, members and people outside the space alike, for one page or with its sub-pages. The closest share on a page or its parents always wins.",
+          "Reading only means you can no longer comment or resolve threads; commenting and resolving now follow the same rule for guests and members.",
+          "A guest who can edit a page shared with them can no longer move the shared page itself to the trash unless they can manage it.",
+          "Moving a page tells you who would gain or lose access (new preview), the sharing changes appear in the page activity, and a suspended account loses its shared pages immediately.",
+          "Existing shares keep exactly the same effective rights."
+        ],
+        "fr": [
+          "Un partage de page a maintenant quatre niveaux : lecture, commentaire, modification et gestion. La gestion permet à un membre ou à un invité de changer qui d’autre a accès à cette page.",
+          "Vous pouvez refuser à une personne une sous-page d’une arborescence partagée, membre ou extérieure à l’espace, pour une seule page ou avec ses sous-pages. Le partage le plus proche sur une page ou ses parents l’emporte toujours.",
+          "Avec la lecture seule, on ne peut plus commenter ni résoudre un fil ; commenter et résoudre suivent la même règle pour les invités et les membres.",
+          "Un invité qui peut modifier une page partagée avec lui ne peut plus mettre cette page partagée elle-même à la corbeille, sauf s’il peut la gérer.",
+          "Déplacer une page indique qui gagnerait ou perdrait l’accès (nouvel aperçu), les changements de partage apparaissent dans l’activité de la page, et un compte suspendu perd tout de suite ses pages partagées.",
+          "Les partages existants gardent exactement les mêmes droits effectifs."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.62.1",
       "date": "2026-11-25",
       "title": {
