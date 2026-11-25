@@ -4,13 +4,15 @@
 interface Props { name: string; lang: string; alt: string; url?: string; eager?: boolean; crop?: number }
 const { name, lang, alt, url = 'looty.example.org', eager = false, crop } = Astro.props
 const src = (theme: string) => `/shots/${name}-${theme}-${lang}.webp`
+const set = (theme: string) => `${src(theme).replace('.webp', '-900.webp')} 900w, ${src(theme)} 1800w`
+const sizes = '(max-width: 900px) 92vw, 700px'
 const load = eager ? 'eager' : 'lazy'
 const style = crop ? `aspect-ratio: 1 / ${crop}` : undefined
 ---
 <div class="frame">
   <div class="bar"><i></i><i></i><i></i><span>{url}</span></div>
   <div class={crop ? 'view crop' : 'view'} style={style}>
-    <img class="only-dark" src={src('dark')} alt={alt} width="1800" height="1108" loading={load} decoding="async" fetchpriority={eager ? 'high' : 'auto'} />
-    <img class="only-light" src={src('light')} alt={alt} width="1800" height="1108" loading={load} decoding="async" />
+    <img class="only-dark" src={src('dark')} srcset={set('dark')} sizes={sizes} alt={alt} width="1800" height="1108" loading={load} decoding="async" fetchpriority={eager ? 'high' : 'auto'} />
+    <img class="only-light" src={src('light')} srcset={set('light')} sizes={sizes} alt={alt} width="1800" height="1108" loading={load} decoding="async" />
   </div>
 </div>

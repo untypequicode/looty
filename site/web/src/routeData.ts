@@ -10,7 +10,7 @@ export const onRequest = defineRouteMiddleware((context) => {
   const fr = route.lang === 'fr'
   const title = route.entry.data.title
   const description = route.entry.data.description ?? ''
-  const image = abs(`/og-${fr ? 'fr' : 'en'}.png`)
+  const image = abs(`/og/${route.entry.id}.png`)
   const docsHome = fr ? '/fr/docs/' : '/docs/'
   const here = context.url.pathname
   const crumbs: [string, string][] = [[fr ? 'Accueil' : 'Home', fr ? '/fr/' : '/'], [fr ? 'Documentation' : 'Documentation', docsHome]]
