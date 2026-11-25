@@ -18,6 +18,22 @@ Un **appel vocal** permet aux personnes qui peuvent ouvrir une page ou un projet
 - **Réglages** (engrenage) : choix du micro et volume de chaque personne. Si le micro est débranché, Looty passe au micro par défaut ou vous invite à en choisir un autre ; vous continuez à écouter.
 - Annulation d'écho, suppression de bruit et gain automatique sont actifs. L'audio est en Opus, optimisé pour la voix, avec suppression des silences.
 
+## Caméra et partage d'écran
+
+- **Caméra** : le bouton caméra active ou coupe votre caméra ; les réglages de l'appel permettent de choisir l'appareil. Vous voyez votre aperçu et une vignette de chaque personne dont la caméra est active, la personne qui parle étant mise en évidence.
+- **Partager l'écran** : le bouton écran permet de partager tout l'écran, une fenêtre ou un onglet du navigateur. Le son du système est partagé quand le navigateur le permet (Chrome et Edge, pour un onglet ou tout l'écran). Tout le monde voit l'écran partagé en grand, avec **qui partage** ; **Arrêter le partage** se fait en un clic, dans la barre d'appel ou sous l'aperçu, et la barre « arrêter le partage » du navigateur fonctionne aussi.
+- **Plein écran** et **image dans l'image** sont disponibles sur chaque vidéo (au survol).
+- L'écran est envoyé net mais avec peu d'images par seconde (5 à 15), ce dont le texte a besoin ; les caméras sont en 640x360 à 24 i/s à deux et plus légères quand d'autres personnes arrivent.
+- **L'audio reste prioritaire** : quand le réseau est faible, la vidéo perd d'abord en qualité, et Looty baisse le débit vidéo quand il mesure de la perte de paquets ou une latence élevée.
+- **Les caméras sont limitées à 4 personnes par appel.** Dans un maillage chaque caméra est envoyée une fois par autre participant, ce qui ne tiendrait pas au-delà sur une connexion domestique. Si une cinquième personne arrive, les caméras sont coupées avec un message ; le partage d'écran et la voix restent disponibles jusqu'à la limite de l'appel (6 par défaut). Pour de plus gros groupes, il faudrait un serveur média (SFU).
+
+## Qualité de connexion et reprise
+
+- Un point coloré dans la barre d'appel indique la pire liaison : **bonne** (latence sous 150 ms, perte sous 3 %, gigue sous 30 ms), **moyenne** (jusqu'à 300 ms, 8 % de perte, 60 ms de gigue) ou **mauvaise** au-delà. **Réglages de l'appel > Détails de la connexion** donne latence, perte, gigue et débit de chaque participant.
+- Après un changement de réseau (Wi-Fi vers données mobiles, câble débranché) ou une coupure, chaque liaison redémarre seule (ICE restart) avec des délais croissants (1 s, 2 s, 4 s ... jusqu'à 30 s) et est reconstruite si elle échoue durablement. Vous restez dans l'appel.
+- Si la connexion au serveur Looty est perdue, la voix et la vidéo **continuent entre les participants** ; un message s'affiche et l'appel se resynchronise au retour du serveur. Les revalidations de session ne coupent jamais un appel.
+- Mesuré par le test automatique avec deux navigateurs : latence aller-retour sous 150 ms exigée (en général quelques millisecondes en réseau local).
+
 ## Limites
 
 - Jusqu'à **6 personnes** par appel par défaut (l'administrateur peut changer cette valeur avec `LOOTY_CALL_MAX_PARTICIPANTS`).
