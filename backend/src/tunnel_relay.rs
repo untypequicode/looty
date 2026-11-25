@@ -73,7 +73,12 @@ pub struct Limits {
 }
 
 pub fn limits() -> Limits {
-    Limits { max_streams: MAX_STREAMS, max_frame: MAX_FRAME, initial_window: INITIAL_WINDOW, max_header_bytes: MAX_HEADER_BYTES, max_message: MAX_MESSAGE, max_services: MAX_SERVICES }
+    limits_for(MAX_STREAMS)
+}
+
+/// Limites annoncées à l'agent, avec le nombre de flux réglé par l'administrateur.
+pub fn limits_for(max_streams: usize) -> Limits {
+    Limits { max_streams, max_frame: MAX_FRAME, initial_window: INITIAL_WINDOW, max_header_bytes: MAX_HEADER_BYTES, max_message: MAX_MESSAGE, max_services: MAX_SERVICES }
 }
 
 /// Messages de contrôle (trames texte JSON, champ `t`).
@@ -120,6 +125,10 @@ pub enum TunnelError {
     TooLarge,
     /// Réponse HTTP d'un statut inattendu (ouverture WebSocket refusée par le service local).
     Status(u16),
+    /// Le type de service est interdit par l'administrateur de l'instance.
+    KindNotAllowed,
+    /// Tunnel réservé à son propriétaire (`owner_only`).
+    OwnerOnly,
     /// Erreur signalée par l'agent (`unreachable`, `refused`…).
     Agent(String),
 }
@@ -134,6 +143,8 @@ impl TunnelError {
             TunnelError::Timeout => "tunnel_timeout".into(),
             TunnelError::TooLarge => "tunnel_too_large".into(),
             TunnelError::Status(_) => "tunnel_status".into(),
+            TunnelError::KindNotAllowed => "tunnel_kind_not_allowed".into(),
+            TunnelError::OwnerOnly => "tunnel_owner_only".into(),
             TunnelError::Agent(c) => format!("tunnel_agent_{c}"),
         }
     }
@@ -176,7 +187,7 @@ struct Entry {
 
 pub struct Session {
     pub id: Uuid,
-    #[allow(dead_code)]
+    /// Propriétaire du jeton.
     pub user: Uuid,
     pub since: Instant,
     pub agent: String,
@@ -193,6 +204,22 @@ pub struct Session {
     last_rx: Mutex<Instant>,
     pub bytes_in: AtomicU64,
     pub bytes_out: AtomicU64,
+    // Réglages d'instance appliqués en direct (`apply`) : flux simultanés, débit (octets/s, 0 = illimité),
+    // types de service permis, tunnel réservé à son propriétaire.
+    max_streams: AtomicUsize,
+    rate: AtomicU64,
+    kinds: RwLock<Vec<String>>,
+    owner_only: AtomicBool,
+    pace_at: Mutex<Instant>,
+    reason: Mutex<Option<String>>,
+}
+
+/// Réglages d'instance qui s'appliquent à une connexion déjà ouverte.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Live {
+    pub max_streams: usize,
+    pub bytes_per_sec: u64,
+    pub kinds: Vec<String>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -219,7 +246,60 @@ impl Session {
             last_rx: Mutex::new(Instant::now()),
             bytes_in: AtomicU64::new(0),
             bytes_out: AtomicU64::new(0),
+            max_streams: AtomicUsize::new(MAX_STREAMS),
+            rate: AtomicU64::new(0),
+            kinds: RwLock::new(KINDS.iter().map(|k| k.to_string()).collect()),
+            owner_only: AtomicBool::new(false),
+            pace_at: Mutex::new(Instant::now()),
+            reason: Mutex::new(None),
         })
+    }
+
+    /// Applique les réglages d'instance (à la connexion, puis à chaque revalidation).
+    pub fn apply(&self, live: &Live) {
+        self.max_streams.store(live.max_streams.clamp(1, 64), Ordering::Relaxed);
+        self.rate.store(live.bytes_per_sec, Ordering::Relaxed);
+        *self.kinds.write().unwrap_or_else(|e| e.into_inner()) = live.kinds.clone();
+    }
+
+    pub fn max_streams(&self) -> usize {
+        self.max_streams.load(Ordering::Relaxed)
+    }
+
+    pub fn kind_allowed(&self, kind: &str) -> bool {
+        self.kinds.read().unwrap_or_else(|e| e.into_inner()).iter().any(|k| k == kind)
+    }
+
+    pub fn set_owner_only(&self, v: bool) {
+        self.owner_only.store(v, Ordering::SeqCst);
+    }
+
+    pub fn owner_only(&self) -> bool {
+        self.owner_only.load(Ordering::SeqCst)
+    }
+
+    /// Pourquoi la session s'est fermée (`revoked`, `expired`, `lost`…), pour l'audit.
+    pub fn reason(&self) -> String {
+        lock(&self.reason).clone().unwrap_or_else(|| "lost".into())
+    }
+
+    /// Plafond de débit du tunnel (tous flux et les deux sens confondus) : retarde l'appelant
+    /// le temps qu'il faudrait pour rester sous le plafond. Une rafale initiale passe.
+    pub async fn pace(&self, bytes: usize) {
+        let rate = self.rate.load(Ordering::Relaxed);
+        if rate == 0 {
+            return;
+        }
+        let wait = {
+            let mut at = lock(&self.pace_at);
+            let now = Instant::now();
+            let start = (*at).max(now);
+            *at = start + Duration::from_secs_f64(bytes as f64 / rate as f64);
+            start.saturating_duration_since(now).min(Duration::from_secs(10))
+        };
+        if !wait.is_zero() {
+            tokio::time::sleep(wait).await;
+        }
     }
 
     pub fn is_closed(&self) -> bool {
@@ -255,7 +335,7 @@ impl Session {
     }
 
     pub async fn welcome(&self) -> Result<(), TunnelError> {
-        self.send_ctl(&Ctl::Welcome { v: PROTOCOL, limits: limits(), ping_interval: PING_EVERY.as_secs() }).await
+        self.send_ctl(&Ctl::Welcome { v: PROTOCOL, limits: limits_for(self.max_streams()), ping_interval: PING_EVERY.as_secs() }).await
     }
 
     /// Envoie un ping et note l'heure ; la réponse (`pong`) donne la latence.
@@ -270,6 +350,7 @@ impl Session {
         if self.closed.swap(true, Ordering::SeqCst) {
             return;
         }
+        *lock(&self.reason) = Some(bye.to_string());
         self.try_ctl(&Ctl::Bye { code: bye.to_string(), message: None });
         let _ = self.out.try_send(Out::Close(code, bye.to_string()));
         self.fail_all();
@@ -296,6 +377,9 @@ impl Session {
         if self.is_closed() {
             return Err(TunnelError::Offline);
         }
+        if !self.kind_allowed(kind) {
+            return Err(TunnelError::KindNotAllowed);
+        }
         if !self.services().iter().any(|s| s.name == service && s.kind == kind) {
             return Err(TunnelError::NoService);
         }
@@ -307,7 +391,7 @@ impl Session {
         let pending = Arc::new(AtomicUsize::new(0));
         let id = {
             let mut map = lock(&self.streams);
-            if map.len() >= MAX_STREAMS {
+            if map.len() >= self.max_streams() {
                 return Err(TunnelError::TooManyStreams);
             }
             let id = self.next.fetch_add(1, Ordering::SeqCst);
@@ -344,6 +428,9 @@ impl Session {
             Ctl::Services { services } => {
                 if !validate_services(&services) {
                     return Err("bad_services");
+                }
+                if services.iter().any(|s| !self.kind_allowed(&s.kind)) {
+                    return Err("tunnel_kind_not_allowed");
                 }
                 *self.services.write().unwrap_or_else(|e| e.into_inner()) = services;
             }
@@ -473,6 +560,7 @@ impl StreamTx {
         let n = chunk.len().max(1) as u32;
         let permit = tokio::time::timeout(HTTP_IDLE, self.credit.acquire_many(n)).await.map_err(|_| TunnelError::Timeout)?.map_err(|_| TunnelError::Closed)?;
         permit.forget();
+        self.session.pace(chunk.len() + 5).await;
         let mut buf = Vec::with_capacity(5 + chunk.len());
         buf.extend_from_slice(&self.id.to_be_bytes());
         buf.push(flags);
@@ -644,6 +732,21 @@ pub fn register(s: Arc<Session>) {
 /// Retire la session si c'est toujours celle du registre.
 pub fn unregister(s: &Arc<Session>) {
     REGISTRY.remove_if(&s.id, |_, cur| Arc::ptr_eq(cur, s));
+}
+
+/// Session connectée pour quelqu'un qui veut s'en servir : refusée si le tunnel est réservé à son
+/// propriétaire et que ce n'est pas lui. Tout appelant qui agit pour une personne passe par là.
+pub fn connected_for(id: Uuid, caller: Uuid) -> Result<Arc<Session>, TunnelError> {
+    let s = connected(id).ok_or(TunnelError::Offline)?;
+    if s.owner_only() && s.user != caller {
+        return Err(TunnelError::OwnerOnly);
+    }
+    Ok(s)
+}
+
+/// Toutes les sessions connectées (réglages en direct, fermeture générale).
+pub fn sessions() -> Vec<Arc<Session>> {
+    REGISTRY.iter().map(|e| e.value().clone()).filter(|s| !s.is_closed()).collect()
 }
 
 /// Ferme la connexion d'un jeton (révocation, expiration).

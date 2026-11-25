@@ -1,4 +1,13 @@
 export default {
+  errors: {
+    tunnels_disabled: 'Les tunnels PC sont désactivés sur cette instance', tunnel_ack_required: 'Confirmez que les membres du projet peuvent exécuter du code sur votre ordinateur',
+    tunnel_lifetime_too_long: 'Cette durée dépasse le maximum fixé par l’administrateur', tunnel_too_many_tokens: 'Vous avez atteint le nombre maximum de tunnels fixé par l’administrateur',
+    tunnel_wrong_workspace: 'Ce tunnel appartient à un autre espace', tunnel_owner_only: 'Ce tunnel ne peut être utilisé que par la personne qui l’a créé',
+    tunnel_kind_not_allowed: 'Ce type de service n’est pas autorisé sur cette instance', tunnel_token_lifetime: 'Ce jeton de tunnel dure plus longtemps que ce que l’instance autorise désormais : créez-en un nouveau',
+    tunnel_token_revoked: 'Ce jeton de tunnel a été révoqué', tunnel_token_expired: 'Ce jeton de tunnel a expiré', tunnel_token_invalid: 'Jeton de tunnel invalide',
+    invalid_tunnel_max: 'Tunnels par personne : entre 1 et 100', invalid_tunnel_days: 'Durée de vie des jetons : entre 1 et 365 jours', invalid_tunnel_streams: 'Flux par tunnel : entre 1 et 64',
+    invalid_tunnel_rate: 'Débit : 0 (illimité) ou entre 16 et 1000000 Kio/s', invalid_tunnel_kinds: 'Type de service inconnu', invalid_tunnel_audit_days: 'Conservation de l’audit : entre 1 et 365 jours',
+  },
   settings: {
     latex: {
       title: 'Macros LaTeX', description: 'Définitions partagées par toutes les formules des pages de cet espace : \\newcommand, \\DeclareMathOperator, \\usepackage… Une page peut toujours ajouter ou redéfinir les siennes.',
@@ -81,6 +90,15 @@ export default {
       callsMax: 'Personnes maximum par appel', callsMaxHint: 'Entre 2 et 12. Chacun envoie son audio à tous les autres : restez raisonnable. Les caméras restent limitées à 4 personnes.',
       callsVideo: 'Autoriser les caméras', callsVideoHint: 'Si désactivé, les appels sont uniquement vocaux.',
       callsShare: 'Autoriser le partage d’écran',
+      tunnels: 'Tunnels', tunnelsHint: 'Chacun relie son propre ordinateur à un projet (Jupyter, LaTeX…) par une connexion sortante. Les membres d’un projet peuvent exécuter du code sur cet ordinateur : gardez ces limites serrées.',
+      tunnelsEnabled: 'Activer les tunnels PC', tunnelsEnabledHint: 'Si désactivé, les tunnels en cours sont coupés tout de suite et aucun autre ne peut se connecter. La variable LOOTY_TUNNELS ne donne que la valeur initiale.',
+      tunnelsMax: 'Tunnels par personne', tunnelsMaxHint: 'Jetons de tunnel actifs par personne (1 à 100).',
+      tunnelsDays: 'Durée de vie maximale des jetons (jours)', tunnelsDaysHint: 'Entre 1 et 365. Les jetons plus longs ne se connectent plus.',
+      tunnelsStreams: 'Flux simultanés par tunnel', tunnelsStreamsHint: 'Entre 1 et 64.',
+      tunnelsRate: 'Débit maximal par tunnel (Kio/s)', tunnelsRateHint: '0 pour aucun plafond, sinon 16 ou plus.',
+      tunnelsKinds: 'Types de service autorisés', tunnelsAuditDays: 'Conservation du journal d’audit (jours)', tunnelsAuditDaysHint: 'Les événements plus anciens sont supprimés.',
+      tunnelAudit: 'Journal d’audit des tunnels', tunnelAuditEmpty: 'Rien d’enregistré pour l’instant.', tunnelAuditWhen: 'Quand', tunnelAuditEvent: 'Événement', tunnelAuditWho: 'Qui', tunnelAuditTunnel: 'Tunnel', tunnelAuditDetails: 'Détails',
+      tunnelEvents: { created: 'Créé', attached: 'Attaché à un projet', connected: 'Connecté', disconnected: 'Déconnecté', revoked: 'Révoqué', refused: 'Refusé', owner_only_changed: 'Option « moi seul » modifiée', settings_changed: 'Réglages modifiés' },
       analytics: 'Statistiques (Umami)', analyticsHint: 'Suivi d’audience respectueux de la vie privée, optionnel.', scriptUrl: 'URL du script',
     },
   },

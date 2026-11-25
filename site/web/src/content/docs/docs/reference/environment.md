@@ -54,7 +54,7 @@ This page is generated from `docs/env-vars.json` and checked in CI against the c
 | `LOOTY_DEV_LOGIN` | backend | Development only: lets anyone sign in as any user by email. NEVER enable it on a real instance. | `false` | no | `false` | 0.1.0 | no |
 | `CALDAV_ALLOW_PRIVATE` | backend | Allow external CalDAV servers on a private network or over http (for example an internal Nextcloud). | `false` | no | `true` | 0.1.0 | yes |
 | `JUPYTER_ALLOW_PRIVATE` | backend | Allow project Jupyter servers on a private network or over http. | `false` | no | `true` | 0.29.0 | yes |
-| `LOOTY_TUNNELS` | backend | Turns on PC tunnels (set to on): people can connect their own computer to a project, as a Jupyter server for instance, with an outgoing connection and no open port. Off by default. | `off` | no | `on` | 0.57.0 | yes |
+| `LOOTY_TUNNELS` | backend | Initial value of the PC tunnels switch in Administration > Instance > Tunnels (set to on): people can connect their own computer to a project, as a Jupyter server for instance, with an outgoing connection and no open port. Off by default. | `off` | no | `on` | 0.57.0 | yes |
 | `AI_ALLOW_PRIVATE` | backend | Allow AI providers on a private network or over http (for example Ollama on the same machine). Also allowed when CALDAV_ALLOW_PRIVATE is true. | `false` | no | `true` | 0.34.1 | no |
 | `PUSH_ALLOW_PRIVATE` | backend | Tests only: accept a local push service (http, private network). | `false` | no | `false` | 0.1.0 | no |
 | `LOOTY_METRICS_TOKEN` | backend | Turns on the Prometheus endpoint /metrics (also /api/metrics), read with the header Authorization: Bearer <token>. At least 16 characters; without it the endpoint does not exist. | – | no | `a-long-random-secret` | 0.43.0 | no |
