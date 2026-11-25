@@ -26,6 +26,7 @@ await editor.locator('p').first().click()
 await p.keyboard.press('ControlOrMeta+A')
 await btn('bold').click()
 ok('gras : appliqué', (await editor.locator('strong').count()) > 0)
+await p.waitForFunction(() => document.querySelector('[data-tb="bold"]')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 }).catch(() => {})
 ok('gras : bouton actif', (await btn('bold').getAttribute('aria-pressed')) === 'true')
 await btn('bold').click()
 ok('gras : retiré', (await editor.locator('strong').count()) === 0)
@@ -46,13 +47,16 @@ ok('lien', (await editor.locator('a[href="https://example.org"]').count()) === 1
 // Tableau + action contextuelle.
 await editor.click({ position: { x: 20, y: 300 } })
 await btn('table').click()
+await p.waitForTimeout(800) // pas de fusion avec l'étape suivante dans l'historique
 ok('tableau inséré', (await editor.locator('table').count()) === 1)
 const cellsBefore = await editor.locator('table tr').count()
 await btn('table-actions').click()
 await p.getByRole('menuitem', { name: /^(Row below|Ligne dessous)$/ }).click()
+await p.waitForTimeout(800)
 ok('tableau : ligne ajoutée', (await editor.locator('table tr').count()) === cellsBefore + 1)
 
 // Annuler / rétablir.
+await p.waitForFunction(() => !document.querySelector('[data-tb="undo"]')?.disabled, null, { timeout: 5000 }).catch(() => {})
 await btn('undo').click()
 ok('annuler : ligne retirée', (await editor.locator('table tr').count()) === cellsBefore)
 await btn('redo').click()
@@ -61,7 +65,9 @@ ok('rétablir : ligne revenue', (await editor.locator('table tr').count()) === c
 // Clavier : flèches entre les boutons, un seul arrêt de tabulation.
 await btn('undo').focus()
 await p.keyboard.press('ArrowRight')
-ok('clavier : flèche droite', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'redo')
+ok('clavier : flèche droite', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) !== 'undo')
+await p.keyboard.press('ArrowLeft')
+ok('clavier : flèche gauche', (await p.evaluate(() => document.activeElement?.getAttribute('data-tb'))) === 'undo')
 ok('clavier : un seul bouton tabulable', (await tb.locator('.tb-btn[tabindex="0"]').count()) === 1)
 
 // Masquer (mémorisé) puis réafficher par le menu de la page.

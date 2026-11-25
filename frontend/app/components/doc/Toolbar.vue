@@ -244,7 +244,10 @@ function hide() { updatePrefs({ editorToolbar: false }).catch(() => {}) }
 // --- Navigation au clavier (barre d'outils à tabulation unique) ---------------------------------
 const rover = ref(0)
 function buttons(): HTMLElement[] { return [...(root.value?.querySelectorAll<HTMLElement>('.tb-btn:not([disabled])') ?? [])] }
-function syncTab() { buttons().forEach((b, i) => b.setAttribute('tabindex', i === rover.value ? '0' : '-1')) }
+function syncTab() {
+  root.value?.querySelectorAll('.tb-btn').forEach((b) => b.setAttribute('tabindex', '-1'))
+  buttons()[rover.value]?.setAttribute('tabindex', '0')
+}
 onMounted(syncTab)
 onUpdated(syncTab)
 function onKey(e: KeyboardEvent) {
