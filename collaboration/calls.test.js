@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { CallRooms, isCallRoom, parseRoom } = require('./calls')
+const { CallRooms, isCallRoom, parseRoom, limitsOf } = require('./calls')
 
 const ROOM = 'call:page:11111111-1111-1111-1111-111111111111'
 const alice = { id: 'u1', name: 'Alice' }
@@ -14,9 +14,9 @@ function setup(options = {}) {
     clearTimer: (h) => { h.off = true },
     now: () => t,
   })
-  const client = (id, user) => {
+  const client = (id, user, limits) => {
     const got = []
-    rooms.attach(ROOM, id, (m) => got.push(JSON.parse(m)), user)
+    rooms.attach(ROOM, id, (m) => got.push(JSON.parse(m)), user, limits)
     return {
       got,
       send: (m) => rooms.handle(ROOM, id, JSON.stringify(m)),
@@ -158,4 +158,34 @@ test('mute state is shared and an unknown connection is ignored', () => {
   a.send({ t: 'state', muted: true })
   assert.equal(b.last('presence').peers[0].muted, true)
   assert.equal(rooms.handle(ROOM, 'ghost', '{"t":"leave"}'), false)
+})
+
+test('admin limits: per-connection cap, camera and share forced off', () => {
+  const { client, rooms } = setup({ maxParticipants: 6 })
+  const lim = limitsOf({ calls: { enabled: true, max_participants: 2, video: false, screen_share: false } })
+  assert.deepEqual(lim, { max: 2, video: false, share: false })
+  const cs = [1, 2, 3].map((i) => client('c' + i, { id: 'u' + i, name: 'U' + i }, lim))
+  cs.forEach((c, i) => c.send({ t: 'join', peerId: 'peer-number-' + i, cam: 'cam-1', share: 'share-1' }))
+  assert.equal(cs[2].last('error').code, 'room-full')
+  assert.equal(cs[2].last('error').max, 2)
+  assert.equal(rooms.stats().peers, 2)
+  cs[0].send({ t: 'state', muted: false, cam: 'cam-1', share: 'share-1' })
+  const p = cs[1].last('presence').peers[0]
+  assert.equal(p.cam, '')
+  assert.equal(p.share, '')
+})
+
+test('admin limits: raising the cap on the shared object applies to the next join, no limits means defaults', () => {
+  const { client } = setup({ maxParticipants: 6 })
+  const lim = { max: 1, video: true, share: true }
+  const a = client('c1', alice, lim)
+  const b = client('c2', bob, lim)
+  a.send({ t: 'join', peerId: 'peer-alice-1', cam: 'cam-1' })
+  b.send({ t: 'join', peerId: 'peer-bob-001' })
+  assert.equal(b.last('error').code, 'room-full')
+  lim.max = 3
+  b.send({ t: 'join', peerId: 'peer-bob-001' })
+  assert.ok(b.last('joined'))
+  assert.equal(a.last('presence').peers[0].cam, 'cam-1')
+  assert.equal(limitsOf({}), null)
 })
