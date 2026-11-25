@@ -289,13 +289,32 @@ pub struct GlobalSettings {
     pub default_locale: Option<String>,
     #[serde(default)]
     pub default_timezone: Option<String>,
+    /// Appels (ADR 0019) : activés, participants maximum par salle (NULL = `LOOTY_CALL_MAX_PARTICIPANTS`, sinon 6),
+    /// caméra et partage d'écran autorisés.
+    #[serde(default = "yes")]
+    pub calls_enabled: bool,
+    #[serde(default)]
+    pub calls_max_participants: Option<i32>,
+    #[serde(default = "yes")]
+    pub calls_video: bool,
+    #[serde(default = "yes")]
+    pub calls_screen_share: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 const SETTINGS_SELECT: &str =
-    "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone FROM global_settings WHERE id = 1";
+    "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone, calls_enabled, calls_max_participants, calls_video, calls_screen_share FROM global_settings WHERE id = 1";
+
+/// Réglages d'appel de l'instance (lus par `calls.rs`).
+pub async fn call_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
+    load_settings(pool).await
+}
 
 async fn load_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
-    Ok(sqlx::query_as(SETTINGS_SELECT).fetch_optional(pool).await?.unwrap_or(GlobalSettings {
+    let mut s: GlobalSettings = sqlx::query_as(SETTINGS_SELECT).fetch_optional(pool).await?.unwrap_or(GlobalSettings {
         app_name: "Looty".into(),
         favicon_url: None,
         allow_public_signups: true,
@@ -303,7 +322,13 @@ async fn load_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
         umami_script_url: None,
         default_locale: None,
         default_timezone: None,
-    }))
+        calls_enabled: true,
+        calls_max_participants: None,
+        calls_video: true,
+        calls_screen_share: true,
+    });
+    s.calls_max_participants = Some(s.calls_max_participants.unwrap_or_else(|| crate::calls::max_participants() as i32));
+    Ok(s)
 }
 
 async fn get_settings(State(pool): State<PgPool>, user: AuthUser) -> ApiResult<Json<GlobalSettings>> {
@@ -335,11 +360,16 @@ async fn update_settings(
     if timezone.is_some_and(|z| !crate::setup::valid_timezone(z)) {
         return Err(ApiError::bad_request("invalid_timezone"));
     }
+    if p.calls_max_participants.is_some_and(|n| !crate::calls::valid_max(n)) {
+        return Err(ApiError::bad_request("invalid_call_max"));
+    }
     sqlx::query(
-        "INSERT INTO global_settings (id, app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone, updated_at)
-         VALUES (1, $1, $2, $3, $4, $5, $6, $7, NOW())
+        "INSERT INTO global_settings (id, app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone,
+            calls_enabled, calls_max_participants, calls_video, calls_screen_share, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
          ON CONFLICT (id) DO UPDATE SET app_name = $1, favicon_url = $2, allow_public_signups = $3,
-            umami_website_id = $4, umami_script_url = $5, default_locale = $6, default_timezone = $7, updated_at = NOW()",
+            umami_website_id = $4, umami_script_url = $5, default_locale = $6, default_timezone = $7,
+            calls_enabled = $8, calls_max_participants = $9, calls_video = $10, calls_screen_share = $11, updated_at = NOW()",
     )
     .bind(name)
     .bind(check_url(&p.favicon_url, true)?)
@@ -348,6 +378,10 @@ async fn update_settings(
     .bind(check_url(&p.umami_script_url, false)?)
     .bind(locale)
     .bind(timezone)
+    .bind(p.calls_enabled)
+    .bind(p.calls_max_participants)
+    .bind(p.calls_video)
+    .bind(p.calls_screen_share)
     .execute(&pool)
     .await?;
     Ok(Json(load_settings(&pool).await?))

@@ -19,6 +19,7 @@ Un **appel vocal** permet aux personnes qui peuvent ouvrir une page ou un projet
 ## Pendant l'appel
 
 - **Couper le micro** : le bouton micro, ou `Ctrl`+`Alt`+`M` (`Cmd`+`Alt`+`M` sur Mac). Les autres voient qui est coupé.
+- **Appuyer pour parler** (optionnel, désactivé par défaut) : dans les réglages de l'appel, cochez *Appuyer pour parler*. Le micro reste coupé tant que vous **maintenez une touche** (la touche accent grave par défaut ; *Changer la touche* en choisit une autre). Relâcher la touche, ou quitter la fenêtre, vous coupe de nouveau. La touche est ignorée pendant la saisie dans un champ texte et avec `Ctrl`, `Alt` ou `Cmd` enfoncé. Le choix est conservé sur cet appareil.
 - **Qui parle** est indiqué par un anneau autour de l'avatar.
 - **Réglages** (engrenage) : choix du micro et volume de chaque personne. Si le micro est débranché, Looty passe au micro par défaut ou vous invite à en choisir un autre ; vous continuez à écouter.
 - Annulation d'écho, suppression de bruit et gain automatique sont actifs. L'audio est en Opus, optimisé pour la voix, avec suppression des silences.
@@ -48,12 +49,33 @@ Un **appel vocal** permet aux personnes qui peuvent ouvrir une page ou un projet
 
 ## Limites
 
-- Jusqu'à **6 personnes** par appel par défaut (l'administrateur peut changer cette valeur avec `LOOTY_CALL_MAX_PARTICIPANTS`).
+- Jusqu'à **6 personnes** par appel par défaut. L'administrateur la change (de 2 à 12) dans Administration > Instance > Appels. Quand un appel est complet, un message clair s'affiche.
+- L'administrateur peut aussi **désactiver les appels**, ou n'autoriser que la voix (pas de caméra) ou pas de partage d'écran. Les boutons disparaissent ou expliquent pourquoi ; les limites sont appliquées par le serveur, pas seulement masquées dans l'interface.
 - Mêmes droits que le contenu : qui peut ouvrir la page, le projet ou l'espace peut rejoindre son appel, et personne d'autre.
 - Sur des réseaux très restrictifs (certains pare-feu d'entreprise ou d'école), deux personnes peuvent ne pas réussir à se connecter directement. Un administrateur peut activer un serveur relais pour ce cas (voir plus bas).
 - La latence est celle d'un chemin réseau direct : en général bien en dessous de 150 ms. Le test automatisé rapporte le temps d'aller-retour mesuré entre ses deux navigateurs.
 
 Pour les choix techniques, voir la décision d'architecture `docs/adr/0019-calls-webrtc-mesh.md`.
+
+## Vie privée
+
+- **L'audio, la vidéo et les écrans partagés vont directement d'un navigateur à l'autre** (WebRTC, chiffrés en DTLS-SRTP). Ils ne passent pas par le serveur Looty, qui ne relaie que la mise en relation. **Rien n'est enregistré ni conservé**, ni par Looty ni par personne d'autre.
+- Dans un appel chaque participant se connecte à tous les autres : **les participants voient mutuellement leurs adresses IP** (conséquence normale d'une connexion directe). Si cela pose problème, demandez à l'administrateur d'activer le relais (TURN) : le média passe alors par le serveur relais de votre instance et les adresses ne sont pas échangées entre participants.
+- Sans relais, le serveur STUN public (celui de Google par défaut, `LOOTY_STUN_URLS` pour le changer) apprend que votre navigateur demande son adresse publique, jamais le contenu de l'appel.
+- Le serveur sait qui est dans un appel (les noms affichés dans le bouton, mêmes droits que le contenu) et ne journalise que des compteurs comme « salle pleine », jamais le contenu.
+
+## Réglages d'administration
+
+Administration > Instance > **Appels** :
+
+| Réglage | Effet | Défaut |
+|---|---|---|
+| Activer les appels | Désactivé : personne ne peut lancer ni rejoindre un appel, les boutons disparaissent. | activé |
+| Personnes maximum par appel | De 2 à 12. Au-delà, la connexion est refusée avec « Cet appel est complet ». | 6 (`LOOTY_CALL_MAX_PARTICIPANTS` donne la valeur initiale) |
+| Autoriser les caméras | Désactivé : voix seule, le bouton caméra disparaît et tout flux caméra est ignoré par le serveur. | activé |
+| Autoriser le partage d'écran | Désactivé : le bouton de partage disparaît et les partages sont ignorés par le serveur. | activé |
+
+Les changements s'appliquent tout de suite aux nouvelles connexions et aux personnes déjà connectées sous deux minutes. Les appels avec caméra restent limités à 4 personnes quel que soit le maximum.
 
 ## Hébergement : relais (TURN) pour les réseaux restrictifs
 

@@ -92,7 +92,7 @@ const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })
           <a class="link" href={`${base}docs/`}>{l.nav.docs}</a>
         </nav>
         <div class="tools">
-          <a class="icon-btn lang" href={l.other.href} hreflang={l.other.code} lang={l.other.code} title={l.other.name} aria-label={l.other.name}>{l.other.label}</a>
+          <a class="icon-btn lang" href={l.other.href} hreflang={l.other.code} lang={l.other.code} title={l.other.name} aria-label={`${l.other.label} ${l.other.name}`}>{l.other.label}</a>
           <button class="icon-btn" id="theme" type="button" aria-label={l.theme} title={l.theme}>
             <span class="only-dark"><Icon name="sun" size={17} /></span><span class="only-light"><Icon name="moon" size={17} /></span>
           </button>

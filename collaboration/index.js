@@ -2,7 +2,7 @@ const { Server } = require('@hocuspocus/server')
 const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
 const Y = require('yjs')
-const { CallRooms, isCallRoom, parseRoom } = require('./calls')
+const { CallRooms, isCallRoom, parseRoom, limitsOf } = require('./calls')
 const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal, nextRevalidation, sessionCookieInfo, createRefusalLimiter } = require('./resilience')
 
 const pool = new Pool({
@@ -198,7 +198,12 @@ async function revalidate() {
               return
             }
             const access = await res.json().catch(() => null)
-            if (access) conn.readOnly = !access.can_write
+            if (access) {
+              conn.readOnly = !access.can_write
+              // Réglages d'appel modifiés par l'administrateur : mis à jour en place (l'objet est partagé avec la salle).
+              const next = limitsOf(access)
+              if (next && conn.context?.limits) Object.assign(conn.context.limits, next)
+            }
           })
         }
       }
@@ -287,7 +292,7 @@ const calls = new CallRooms(
 function attachCall(name, connection, context) {
   const user = context?.user
   if (!user) return
-  calls.attach(name, connection.socketId, (m) => connection.sendStateless(m), user)
+  calls.attach(name, connection.socketId, (m) => connection.sendStateless(m), user, context?.limits)
 }
 
 const server = new Server({
@@ -374,7 +379,7 @@ const server = new Server({
     connectionConfig.readOnly = call ? true : !access.can_write
     // Les en-têtes d'authentification restent dans le contexte pour revérifier les droits
     // pendant la connexion (voir revalidate).
-    return { user: { id: access.user_id, name: access.name }, auth: headers }
+    return { user: { id: access.user_id, name: access.name }, auth: headers, limits: limitsOf(access) }
   },
 
   /** Salles d'appel : la connexion devient observatrice (liste des participants). */

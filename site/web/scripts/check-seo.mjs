@@ -3,7 +3,7 @@
 // x-default), Open Graph et Twitter Card, des données structurées valides, et figure au plan du site. Vérifie aussi
 // que le générateur (/install/) ne contient aucun appel réseau (docs/adr/0005). Sortie en erreur sinon (CI).
 //   npm run build && node scripts/check-seo.mjs
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const dist = new URL('../dist/', import.meta.url).pathname
@@ -44,6 +44,8 @@ for (const file of pages) {
   for (const [key, value] of [['property', 'og:title'], ['property', 'og:description'], ['property', 'og:image'], ['property', 'og:url'], ['name', 'twitter:card']]) {
     if (!attr(meta(key, value) ?? '', 'content')) fail(page, `no ${value}`)
   }
+  const og = attr(meta('property', 'og:image') ?? '', 'content')
+  if (og?.startsWith(origin) && !existsSync(join(dist, new URL(og).pathname))) fail(page, `${og} is not built`)
   if (!sitemap.includes(`<loc>${origin}${page}</loc>`)) fail(page, 'not in sitemap.xml')
   const graphs = []
   for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
