@@ -1,0 +1,16 @@
+# looty-latex-service image: the LaTeX compile service of the PC tunnel on top of a full TeX Live.
+# Build context: this directory.   docker build -f Dockerfile.latex -t looty-latex-service bridge/
+FROM rust:slim-trixie AS builder
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --locked --bin looty-latex-service
+
+FROM texlive/texlive:latest
+RUN useradd --system --create-home --uid 10002 latex
+COPY --from=builder /app/target/release/looty-latex-service /usr/local/bin/looty-latex-service
+USER latex
+# Reachable only from the compose network (and 127.0.0.1 on the host, see docker-compose.bridge.yml).
+ENV LATEX_LISTEN=0.0.0.0:8080 LATEX_WORK_DIR=/work
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/looty-latex-service"]

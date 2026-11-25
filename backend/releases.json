@@ -4,6 +4,23 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.58.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "PC tunnel: compile LaTeX with your own TeX Live",
+        "fr": "Tunnel PC : compiler le LaTeX avec votre propre TeX Live"
+      },
+      "notes": {
+        "en": [
+          "A LaTeX project can be compiled by the TeX Live of a PC connected through a tunnel. The new `looty-latex-service` (container profile `latex` of `docker-compose.bridge.yml`, or a binary) compiles the project with latexmk or the engine you choose, without shell escape, with time and size limits, and cancels the job if you leave. Only the owner of the tunnel token can attach it, and a tunnel that is down gives an explicit error instead of compiling elsewhere. Still off unless an administrator sets `LOOTY_TUNNELS=on`; the project screen for it comes with the interface work."
+        ],
+        "fr": [
+          "Un projet LaTeX peut être compilé par le TeX Live d’un PC connecté par tunnel. Le nouveau `looty-latex-service` (profil `latex` de `docker-compose.bridge.yml`, ou binaire) compile le projet avec latexmk ou le moteur choisi, sans exécution de commandes, avec des limites de temps et de taille, et annule le travail si vous partez. Seule la personne propriétaire du jeton peut le rattacher, et un tunnel coupé donne une erreur explicite au lieu de compiler ailleurs. Toujours désactivé tant qu’un administrateur n’a pas mis `LOOTY_TUNNELS=on` ; l’écran du projet correspondant arrive avec le travail sur l’interface."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.57.0",
       "date": "2026-11-25",
       "title": {

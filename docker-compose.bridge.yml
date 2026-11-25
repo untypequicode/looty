@@ -8,7 +8,8 @@
 #   3. docker compose -f docker-compose.bridge.yml --profile jupyter up
 #
 # Profiles: `jupyter` starts a Jupyter server with Python and R kernels (jupyter/r-notebook), `latex` starts a
-# TeX Live container (reserved for the LaTeX compile service, issue #275). Without a profile only the bridge
+# TeX Live container running the LaTeX compile service (add BRIDGE_SERVICES=latex=http://texlive:8080, or both:
+# BRIDGE_SERVICES=jupyter=http://jupyter:8888,latex=http://texlive:8080). Without a profile only the bridge
 # runs, for a Jupyter that already exists on this PC (see BRIDGE_SERVICES below).
 #
 # Every published port is bound to 127.0.0.1: nothing is reachable from the network. The bridge connects
@@ -51,15 +52,25 @@ services:
 
   texlive:
     profiles: [latex]
-    image: texlive/texlive:latest
+    build:
+      context: ./bridge
+      dockerfile: Dockerfile.latex
+    # Or, once a bridge-v* tag is published: image: ghcr.io/untypequicode/looty-latex-service:latest
     restart: unless-stopped
-    # Placeholder until the LaTeX compile service exists (#275): the container just stays up with the work volume.
-    command: ["sleep", "infinity"]
-    volumes:
-      - latex-work:/work
+    # The LaTeX compile service (docs/tunnel-protocol.md, section 13). Add `latex=http://texlive:8080` to
+    # BRIDGE_SERVICES so the bridge declares it. Shell escape is off, jobs run in a throw-away directory
+    # (the tmpfs below), at most 2 at a time, 120 s each by default.
+    environment:
+      LATEX_SLOTS: ${LATEX_SLOTS:-2}
+      LATEX_TIMEOUT: ${LATEX_TIMEOUT:-120}
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /work:size=1g,uid=10002
+      - /home/latex:size=256m,uid=10002
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
 
 volumes:
   jupyter-work:
-  latex-work:

@@ -39,6 +39,7 @@ mod projects;
 mod public_project;
 mod jupyter;
 mod tunnel;
+mod tunnel_latex;
 mod tunnel_relay;
 mod latex;
 mod drive;
@@ -253,7 +254,7 @@ fn app(state: state::AppState) -> Router {
         .nest("/workspaces/{workspace_id}/moodle", moodle::workspace_routes())
         .nest("/workspaces/{workspace_id}/projects", projects::workspace_routes())
         .nest("/workspaces/{workspace_id}/drive", drive::workspace_routes())
-        .nest("/projects", projects::routes().merge(jupyter::routes()))
+        .nest("/projects", projects::routes().merge(jupyter::routes()).merge(tunnel_latex::routes()))
         .nest("/drive/public", drive::public_routes())
         .nest("/workspaces/{workspace_id}/admin", analytics::workspace_routes())
         .nest("/workspaces/{workspace_id}", graph::workspace_routes())

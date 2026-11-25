@@ -53,8 +53,14 @@ pub struct Issue {
     level: &'static str,
 }
 
+impl Issue {
+    pub(crate) fn is_error(&self) -> bool {
+        self.level == "error"
+    }
+}
+
 /// Erreurs et avertissements du journal (`-file-line-error`).
-fn parse_log(log: &str) -> Vec<Issue> {
+pub(crate) fn parse_log(log: &str) -> Vec<Issue> {
     let mut out: Vec<Issue> = Vec::new();
     let lines: Vec<&str> = log.lines().collect();
     for (i, l) in lines.iter().enumerate() {
@@ -134,6 +140,10 @@ pub async fn compile(State(state): State<AppState>, user: AuthUser, Path(id): Pa
         Some(e @ ("xelatex" | "lualatex")) => e,
         _ => "pdflatex",
     };
+    // Projet rattaché au TeX Live d'un PC : compilation par le tunnel, sans repli silencieux sur le serveur.
+    if let Some(route) = crate::tunnel_latex::route(&state, id).await? {
+        return Ok(Json(crate::tunnel_latex::compile(&state, &route, id, &main, engine, &overrides).await?));
+    }
     let engine_bin = find(engine).ok_or_else(|| ApiError::bad_request("latex_unavailable"))?;
     let _slot = tokio::time::timeout(Duration::from_secs(120), SLOTS.acquire()).await.map_err(|_| ApiError::bad_request("latex_busy"))?.map_err(|_| ApiError::bad_request("latex_busy"))?;
     let started = Instant::now();
