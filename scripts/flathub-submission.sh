@@ -12,6 +12,8 @@ out="${2:-/tmp/looty-flathub-submission}"
 [ -n "$tag" ] || { echo "no desktop-v* tag" >&2; exit 1; }
 tmp="$(mktemp -d)"; trap 'git -C "$root" worktree remove --force "$tmp/src" 2> /dev/null || true; rm -rf "$tmp"' EXIT
 git -C "$root" worktree add --quiet --detach "$tmp/src" "$tag"
+# Le modèle AppStream vient de la branche courante (licence, textes) : le tag peut en avoir un plus ancien.
+cp "$root/packaging/flatpak/io.github.untypequicode.looty.metainfo.xml.in" "$tmp/src/packaging/flatpak/"
 FLATPAK_TMP="$tmp/tools" "$tmp/src/scripts/flatpak-prepare.sh" > /dev/null
 rm -rf "$out"; mkdir -p "$out"
 node "$tmp/src/scripts/flatpak-render.mjs" --flathub "$out" > /dev/null
