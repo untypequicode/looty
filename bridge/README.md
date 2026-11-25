@@ -2,6 +2,8 @@
 
 Connects your PC to a Looty instance so a project can use it as its Jupyter (Python, R...) or LaTeX server while the tunnel is up. The bridge opens **one outgoing HTTPS/WebSocket connection** to the instance: no port to open, no firewall change. It speaks tunnel protocol v1 ([`docs/tunnel-protocol.md`](../docs/tunnel-protocol.md), design in [ADR 0020](../docs/adr/0020-pc-tunnel.md)).
 
+Step-by-step guide, troubleshooting and hosting notes: [Use my PC as a Jupyter or R server](https://looty.untypequicode.fr/docs/use/features/pc-tunnel/) and [PC tunnels for hosts](https://looty.untypequicode.fr/docs/host/operate/tunnels/).
+
 Security in short:
 
 - Connecting a Jupyter gives the **editors of the project code execution on that Jupyter** (and with the rights of the user running it). Keep Jupyter's token on and bound to `127.0.0.1`, or use the container below.

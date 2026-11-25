@@ -55,3 +55,7 @@ What was done to bound the risks above:
 - **Tests**: stolen/unknown, revoked, expired, deleted and suspended-account tokens; undeclared service or kind; oversized frames; stream and kind limits at handshake and mid-session; admin disabling mid-session; owner-only in relay and API; the token absent from list, status and audit.
 
 Residual risks: refusals of unknown or revoked tokens at the upgrade are logged but not in the audit table (to avoid unauthenticated spam), the bandwidth cap is per tunnel and not per instance, and the PC side remains trusted code execution by design.
+
+## Documentation (#277)
+
+User guide: `site/web/src/content/docs/docs/use/features/pc-tunnel.md` (site page `/docs/use/features/pc-tunnel/`, FR under `/fr/docs/...`). Hosting guide: `.../docs/host/operate/tunnels.md` (`LOOTY_TUNNELS`, administration settings, reverse proxy and WebSocket timeouts for `/api/tunnels/agent`, audit). Glossary entries: *Tunnel*, *Agent*, *Service tunnelé*, *Jeton de tunnel*. Related: ADR 0003 (Jupyter through the backend), ADR 0018 (R kernel and WebR).

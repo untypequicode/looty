@@ -18,7 +18,7 @@ Chaque personne relie son propre compte Moodle depuis ses paramètres ; rien n�
 
 ## Jupyter
 
-Les serveurs Jupyter des projets ne sont contactés que par le serveur Looty. Par défaut, les serveurs en réseau privé ou en `http` sont refusés : mettez `JUPYTER_ALLOW_PRIVATE=true` si votre serveur Jupyter tourne sur votre réseau local ou sur le même hôte.
+Les serveurs Jupyter des projets ne sont contactés que par le serveur Looty. Par défaut, les serveurs en réseau privé ou en `http` sont refusés : mettez `JUPYTER_ALLOW_PRIVATE=true` si votre serveur Jupyter tourne sur votre réseau local ou sur le même hôte. Pour que chacun utilise son propre ordinateur comme serveur Jupyter sans ouvrir de port, voir [Tunnels PC](/fr/docs/host/operate/tunnels/).
 
 ## CalDAV et fournisseurs d’IA
 
