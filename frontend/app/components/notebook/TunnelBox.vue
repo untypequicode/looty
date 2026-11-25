@@ -64,7 +64,7 @@ async function create() {
     const name = (props.projectName ? `${props.projectName} · ` : '') + t('tunnel.defaultName')
     const r = await api<{ id: string; token: string }>('/api/tunnels', {
       method: 'POST', silent: true,
-      body: { name: name.slice(0, 80), workspace_id: wsId.value, project_id: props.projectId, expires_in_days: days.value },
+      body: { name: name.slice(0, 80), workspace_id: wsId.value, project_id: props.projectId, expires_in_days: days.value, ack_remote_code: confirmed.value },
     })
     id = r.id
     token.value = r.token

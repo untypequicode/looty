@@ -63,7 +63,7 @@ async fn load(state: &AppState, project: Uuid) -> ApiResult<Option<Row>> {
 /// Tunnel du projet s'il y en a un. Un tunnel révoqué, expiré ou désactivé donne `latex_tunnel_offline`.
 pub async fn route(state: &AppState, project: Uuid) -> ApiResult<Option<Route>> {
     let Some(row) = load(state, project).await? else { return Ok(None) };
-    let usable = crate::tunnel::enabled() && crate::tunnel::token_row(state, row.tunnel_id).await?.is_some_and(|t| t.usable());
+    let usable = crate::tunnel::policy(&state.pool).await?.enabled && crate::tunnel::token_row(state, row.tunnel_id).await?.is_some_and(|t| t.usable());
     if !usable {
         return Err(ApiError::bad_request("latex_tunnel_offline"));
     }
@@ -71,7 +71,8 @@ pub async fn route(state: &AppState, project: Uuid) -> ApiResult<Option<Route>> 
 }
 
 async fn config_json(state: &AppState, row: Option<&Row>, viewer: Uuid) -> Value {
-    let Some(r) = row else { return json!({ "attached": false, "tunnels_enabled": crate::tunnel::enabled() }) };
+    let enabled = crate::tunnel::policy(&state.pool).await.map(|p| p.enabled).unwrap_or(false);
+    let Some(r) = row else { return json!({ "attached": false, "tunnels_enabled": enabled }) };
     let t = crate::tunnel::token_row(state, r.tunnel_id).await.ok().flatten();
     let mut live = crate::tunnel::live_json(r.tunnel_id);
     live["id"] = json!(r.tunnel_id);
@@ -79,7 +80,7 @@ async fn config_json(state: &AppState, row: Option<&Row>, viewer: Uuid) -> Value
     live["name"] = json!(t.as_ref().map(|t| t.name.clone()));
     live["usable"] = json!(t.as_ref().is_some_and(|t| t.usable()));
     live["mine"] = json!(t.as_ref().is_some_and(|t| t.user_id == viewer));
-    json!({ "attached": true, "service": r.tunnel_service, "tunnel": live, "tunnels_enabled": crate::tunnel::enabled() })
+    json!({ "attached": true, "service": r.tunnel_service, "tunnel": live, "tunnels_enabled": enabled })
 }
 
 async fn get_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
@@ -103,7 +104,7 @@ async fn put_config(State(state): State<AppState>, user: AuthUser, Path(id): Pat
     if project.kind != "latex" {
         return Err(ApiError::bad_request("invalid_value"));
     }
-    if !crate::tunnel::enabled() {
+    if !crate::tunnel::policy(&state.pool).await?.enabled {
         return Err(ApiError::bad_request("tunnels_disabled"));
     }
     let previous = load(&state, id).await?;
@@ -164,6 +165,8 @@ fn tunnel_error(e: TunnelError) -> ApiError {
         TunnelError::Offline | TunnelError::Closed => "latex_tunnel_offline",
         TunnelError::NoService => "latex_tunnel_service",
         TunnelError::TooManyStreams => "latex_tunnel_busy",
+        TunnelError::KindNotAllowed => "tunnel_kind_not_allowed",
+        TunnelError::OwnerOnly => "tunnel_owner_only",
         TunnelError::Timeout => "latex_timeout",
         TunnelError::TooLarge => "latex_tunnel_too_large",
         TunnelError::BadRequest | TunnelError::Status(_) | TunnelError::Agent(_) => "latex_tunnel_unreachable",
@@ -283,8 +286,8 @@ pub async fn exchange(session: &Arc<Session>, service: &str, zip: Vec<u8>, main:
 }
 
 /// Compile le projet sur le PC. Même réponse que `latex::compile`, avec `via: "tunnel"`.
-pub async fn compile(state: &AppState, route: &Route, project: Uuid, main: &str, engine: &str, overrides: &HashMap<Uuid, String>) -> ApiResult<Value> {
-    let session = relay::connected(route.tunnel_id).ok_or_else(|| ApiError::bad_request("latex_tunnel_offline"))?;
+pub async fn compile(state: &AppState, route: &Route, caller: Uuid, project: Uuid, main: &str, engine: &str, overrides: &HashMap<Uuid, String>) -> ApiResult<Value> {
+    let session = relay::connected_for(route.tunnel_id, caller).map_err(tunnel_error)?;
     if !session.services().iter().any(|s| s.name == route.service && s.kind == KIND) {
         return Err(ApiError::bad_request("latex_tunnel_service"));
     }

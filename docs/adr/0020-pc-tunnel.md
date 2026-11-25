@@ -42,3 +42,16 @@ Important consequence: **connecting a Jupyter to a project gives the project's e
 - A project's Jupyter configuration stores `tunnel_id` and `tunnel_service` instead of a URL. `JUPYTER_ALLOW_PRIVATE` is irrelevant for tunnels: no private network is contacted by the instance.
 - A single backend process is assumed (as for kernels in ADR 0003); several replicas would need sticky routing of the agent connection.
 - Follow-ups under #278: the agent (#273), the project interface (#274), the LaTeX service (#275), security review and admin switch (#276), docs (#277).
+
+## Security and administration (#276, web 0.58.0)
+
+What was done to bound the risks above:
+
+- **Instance settings** (Administration > Instance > Tunnels, in `global_settings`; `LOOTY_TUNNELS` is only the initial value of the switch): on/off, active tokens per person (20), maximum token lifetime (365 days), simultaneous streams (16) and bandwidth (unlimited) per tunnel, allowed service kinds, audit retention (90 days). Create, handshake and relay refuse with explicit codes (`tunnels_disabled`, `tunnel_lifetime_too_long`, `tunnel_too_many_tokens`, `tunnel_kind_not_allowed`, `tunnel_token_lifetime`, `tunnel_owner_only`).
+- **Live changes**: each open connection is revalidated against the database and the settings every 15 s (ping tick): revoked, expired, deleted, suspended-account tokens, a disabled feature, a kind no longer allowed or a lifetime over the new maximum close the connection; new limits (streams, bandwidth, kinds, owner only) are applied in place. Saving settings with the feature off closes every tunnel immediately.
+- **Explicit confirmation**: `POST /api/tunnels` requires `ack_remote_code: true` (members of the project can run code on the PC). `owner_only` restricts a tunnel to its owner: enforced by the relay (`connected_for`), by the attach and server lookups, changeable live with `PATCH /api/tunnels/{id}`, exposed as `owner_only` and `can_use`.
+- **Audit**: table `tunnel_audit` (created, attached, connected, disconnected with duration, bytes and reason, revoked, refused kind, owner-only changes, settings changes), read by administrators at `GET /api/tunnels/audit`, purged beyond the retention, never holding a token. Administrators can also revoke any token.
+- **Bandwidth**: a per-tunnel pacing (both directions) delays frames; reading from the agent pauses so TCP back-pressure does the rest (minimum cap 16 KiB/s so a 64 KiB frame never starves the ping).
+- **Tests**: stolen/unknown, revoked, expired, deleted and suspended-account tokens; undeclared service or kind; oversized frames; stream and kind limits at handshake and mid-session; admin disabling mid-session; owner-only in relay and API; the token absent from list, status and audit.
+
+Residual risks: refusals of unknown or revoked tokens at the upgrade are logged but not in the audit table (to avoid unauthenticated spam), the bandwidth cap is per tunnel and not per instance, and the PC side remains trusted code execution by design.

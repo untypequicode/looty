@@ -153,6 +153,8 @@ struct Server {
 struct Route {
     id: Uuid,
     service: String,
+    /// Personne qui se sert du tunnel : le relais refuse tout autre que le propriétaire si le tunnel lui est réservé.
+    caller: Uuid,
 }
 
 fn tunnel_error(e: crate::tunnel_relay::TunnelError) -> ApiError {
@@ -160,6 +162,8 @@ fn tunnel_error(e: crate::tunnel_relay::TunnelError) -> ApiError {
     ApiError::bad_request(match e {
         E::Offline | E::Closed => "jupyter_tunnel_offline",
         E::NoService => "jupyter_tunnel_service",
+        E::KindNotAllowed => "tunnel_kind_not_allowed",
+        E::OwnerOnly => "tunnel_owner_only",
         E::TooManyStreams => "jupyter_tunnel_busy",
         E::Timeout => "jupyter_timeout",
         E::TooLarge => "jupyter_tunnel_too_large",
@@ -245,7 +249,7 @@ impl Server {
     async fn call_at(&self, base: &Url, method: Method, path: &str, body: Option<Value>, gone: &'static str) -> ApiResult<Value> {
         let url = base.join(path).map_err(|_| ApiError::bad_request("jupyter_invalid_url"))?;
         let (status, text) = if let Some(route) = &self.tunnel {
-            let session = crate::tunnel_relay::connected(route.id).ok_or_else(|| ApiError::bad_request("jupyter_tunnel_offline"))?;
+            let session = crate::tunnel_relay::connected_for(route.id, route.caller).map_err(tunnel_error)?;
             let path = format!("{}{}", url.path(), url.query().map(|q| format!("?{q}")).unwrap_or_default());
             let mut headers = vec![("accept".to_string(), "application/json".to_string())];
             if let Some(t) = &self.token {
@@ -329,16 +333,19 @@ fn decrypt_token(row: &ConfigRow) -> ApiResult<Option<String>> {
     }
 }
 
-async fn server_for(state: &AppState, project: Uuid) -> ApiResult<(Server, ConfigRow)> {
+async fn server_for(state: &AppState, project: Uuid, caller: Uuid) -> ApiResult<(Server, ConfigRow)> {
     let row = load(state, project).await?.ok_or_else(|| ApiError::bad_request("jupyter_not_configured"))?;
     let token = decrypt_token(&row)?;
     if let (Some(id), Some(service)) = (row.tunnel_id, row.tunnel_service.clone()) {
         // Le tunnel doit exister, ne pas être révoqué ni expiré, et la fonction doit être activée.
-        let usable = crate::tunnel::enabled() && crate::tunnel::token_row(state, id).await?.is_some_and(|t| t.usable());
-        if !usable {
+        let t = if crate::tunnel::policy(&state.pool).await?.enabled { crate::tunnel::token_row(state, id).await?.filter(|t| t.usable()) } else { None };
+        let Some(t) = t else {
             return Err(ApiError::bad_request("jupyter_tunnel_offline"));
+        };
+        if !crate::tunnel::may_use(&t, caller) {
+            return Err(ApiError::bad_request("tunnel_owner_only"));
         }
-        return Ok((Server::tunneled(Route { id, service }, token), row));
+        return Ok((Server::tunneled(Route { id, service, caller }, token), row));
     }
     let base = check_base(&row.url).await?;
     Ok((Server::new(base, token).await, row))
@@ -354,16 +361,19 @@ async fn tunnel_json(state: &AppState, row: &ConfigRow, viewer: Uuid) -> Value {
     live["name"] = json!(t.as_ref().map(|t| t.name.clone()));
     live["mine"] = json!(t.as_ref().is_some_and(|t| t.user_id == viewer));
     live["usable"] = json!(t.as_ref().is_some_and(|t| t.usable()));
+    live["owner_only"] = json!(t.as_ref().is_some_and(|t| t.owner_only));
+    // Réservé à son propriétaire et ce n'est pas la personne qui regarde : le projet l'affiche mais ne peut pas s'en servir.
+    live["can_use"] = json!(t.as_ref().is_some_and(|t| t.usable() && crate::tunnel::may_use(t, viewer)));
     live
 }
 
-fn config_json(row: Option<&ConfigRow>, can_edit: bool, tunnel: Value) -> Value {
+fn config_json(row: Option<&ConfigRow>, can_edit: bool, tunnel: Value, tunnels_enabled: bool) -> Value {
     match row {
-        None => json!({ "configured": false, "can_edit": can_edit, "allow_private": allow_private(), "tunnels_enabled": crate::tunnel::enabled() }),
+        None => json!({ "configured": false, "can_edit": can_edit, "allow_private": allow_private(), "tunnels_enabled": tunnels_enabled }),
         Some(r) => json!({
             "configured": true,
             "tunnel": tunnel,
-            "tunnels_enabled": crate::tunnel::enabled(),
+            "tunnels_enabled": tunnels_enabled,
             "url": r.url,
             "kernel": r.kernel,
             "has_token": r.token_enc.is_some(),
@@ -385,7 +395,8 @@ async fn get_config(State(state): State<AppState>, user: AuthUser, Path(id): Pat
         Some(r) => tunnel_json(&state, r, user.id).await,
         None => Value::Null,
     };
-    Ok(Json(config_json(row.as_ref(), can_write(&state, &user, id).await, tunnel)))
+    let enabled = crate::tunnel::policy(&state.pool).await?.enabled;
+    Ok(Json(config_json(row.as_ref(), can_write(&state, &user, id).await, tunnel, enabled)))
 }
 
 #[derive(Deserialize)]
@@ -409,7 +420,7 @@ async fn put_config(State(state): State<AppState>, user: AuthUser, Path(id): Pat
     let previous = load(&state, id).await?;
     let (url, tunnel_id, tunnel_service) = match b.tunnel_id {
         Some(tid) => {
-            if !crate::tunnel::enabled() {
+            if !crate::tunnel::policy(&state.pool).await?.enabled {
                 return Err(ApiError::bad_request("tunnels_disabled"));
             }
             let same = previous.as_ref().is_some_and(|p| p.tunnel_id == Some(tid));
@@ -417,6 +428,12 @@ async fn put_config(State(state): State<AppState>, user: AuthUser, Path(id): Pat
             // Seul le propriétaire attache son tunnel ; un autre membre peut seulement garder celui déjà attaché.
             if t.user_id != user.id && !same {
                 return Err(ApiError::Forbidden);
+            }
+            if !crate::tunnel::may_use(&t, user.id) {
+                return Err(ApiError::bad_request("tunnel_owner_only"));
+            }
+            if !same {
+                crate::tunnel::audit(&state.pool, "attached", Some(&t), Some(user.id), json!({ "project_id": id, "service": b.tunnel_service })).await;
             }
             if t.workspace_id != project.workspace_id || t.project_id.is_some_and(|p| p != id) {
                 return Err(ApiError::bad_request("tunnel_wrong_workspace"));
@@ -462,7 +479,8 @@ async fn put_config(State(state): State<AppState>, user: AuthUser, Path(id): Pat
         Some(r) => tunnel_json(&state, r, user.id).await,
         None => Value::Null,
     };
-    Ok(Json(config_json(row.as_ref(), true, tunnel)))
+    let enabled = crate::tunnel::policy(&state.pool).await?.enabled;
+    Ok(Json(config_json(row.as_ref(), true, tunnel, enabled)))
 }
 
 async fn delete_config(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>) -> ApiResult<StatusCode> {
@@ -495,7 +513,7 @@ async fn test_config(State(state): State<AppState>, user: AuthUser, Path(id): Pa
             };
             Server::new(base, token).await
         }
-        None => server_for(&state, id).await?.0,
+        None => server_for(&state, id, user.id).await?.0,
     };
     server.ensure_up().await?;
     Ok(Json(server.kernelspecs().await?))
@@ -546,7 +564,7 @@ struct StartBody {
 
 async fn start_kernel(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid>, body: Option<Json<StartBody>>) -> ApiResult<Json<Value>> {
     project_for(&state, &user, id, Need::Write).await?;
-    let (server, row) = server_for(&state, id).await?;
+    let (server, row) = server_for(&state, id, user.id).await?;
     let name = body.and_then(|Json(b)| b.kernel).map(|k| k.trim().to_string()).filter(|k| !k.is_empty()).unwrap_or(row.kernel);
     if !valid_kernel_name(&name) {
         return Err(ApiError::bad_request("jupyter_invalid_kernel"));
@@ -612,7 +630,7 @@ struct Upstream {
 }
 
 async fn connect_tunnel(route: &Route, token: Option<&str>, kid: &str) -> ApiResult<Upstream> {
-    let session = crate::tunnel_relay::connected(route.id).ok_or_else(|| ApiError::bad_request("jupyter_tunnel_offline"))?;
+    let session = crate::tunnel_relay::connected_for(route.id, route.caller).map_err(tunnel_error)?;
     let path = format!("/api/kernels/{kid}/channels?session_id={}", Uuid::new_v4());
     let headers = token.map(|t| vec![("authorization".to_string(), format!("token {t}"))]).unwrap_or_default();
     let s = crate::tunnel_relay::ws_open(&session, &route.service, "jupyter", &path, headers).await.map_err(tunnel_error)?;
@@ -811,7 +829,7 @@ mod tests {
                 }
             }
         });
-        let server = super::Server::tunneled(super::Route { id, service: "pc".into() }, Some("secret".into()));
+        let server = super::Server::tunneled(super::Route { id, service: "pc".into(), caller: uuid::Uuid::new_v4() }, Some("secret".into()));
         let specs = server.kernelspecs().await.unwrap();
         assert_eq!(specs["kernels"][0]["name"], "python3");
         let mut up = super::connect_upstream(&server, "k1").await.unwrap();

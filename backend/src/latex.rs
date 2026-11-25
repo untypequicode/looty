@@ -142,7 +142,7 @@ pub async fn compile(State(state): State<AppState>, user: AuthUser, Path(id): Pa
     };
     // Projet rattaché au TeX Live d'un PC : compilation par le tunnel, sans repli silencieux sur le serveur.
     if let Some(route) = crate::tunnel_latex::route(&state, id).await? {
-        return Ok(Json(crate::tunnel_latex::compile(&state, &route, id, &main, engine, &overrides).await?));
+        return Ok(Json(crate::tunnel_latex::compile(&state, &route, user.id, id, &main, engine, &overrides).await?));
     }
     let engine_bin = find(engine).ok_or_else(|| ApiError::bad_request("latex_unavailable"))?;
     let _slot = tokio::time::timeout(Duration::from_secs(120), SLOTS.acquire()).await.map_err(|_| ApiError::bad_request("latex_busy"))?.map_err(|_| ApiError::bad_request("latex_busy"))?;

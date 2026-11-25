@@ -299,6 +299,23 @@ pub struct GlobalSettings {
     pub calls_video: bool,
     #[serde(default = "yes")]
     pub calls_screen_share: bool,
+    /// Tunnels PC (ADR 0020) : activés (NULL = `LOOTY_TUNNELS`), jetons actifs par personne, durée de vie maximale
+    /// d'un jeton (jours), flux simultanés et débit (Kio/s, 0 = illimité) par tunnel, types de service permis,
+    /// conservation du journal d'audit (jours). Les valeurs lues sont toujours résolues (`tunnel::resolve`).
+    #[serde(default)]
+    pub tunnels_enabled: Option<bool>,
+    #[serde(default)]
+    pub tunnels_max_per_user: Option<i32>,
+    #[serde(default)]
+    pub tunnels_max_token_days: Option<i32>,
+    #[serde(default)]
+    pub tunnels_max_streams: Option<i32>,
+    #[serde(default)]
+    pub tunnels_max_kbps: Option<i32>,
+    #[serde(default)]
+    pub tunnels_kinds: Option<Vec<String>>,
+    #[serde(default)]
+    pub tunnels_audit_days: Option<i32>,
 }
 
 fn yes() -> bool {
@@ -306,10 +323,15 @@ fn yes() -> bool {
 }
 
 const SETTINGS_SELECT: &str =
-    "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone, calls_enabled, calls_max_participants, calls_video, calls_screen_share FROM global_settings WHERE id = 1";
+    "SELECT app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone, calls_enabled, calls_max_participants, calls_video, calls_screen_share, tunnels_enabled, tunnels_max_per_user, tunnels_max_token_days, tunnels_max_streams, tunnels_max_kbps, tunnels_kinds, tunnels_audit_days FROM global_settings WHERE id = 1";
 
 /// Réglages d'appel de l'instance (lus par `calls.rs`).
 pub async fn call_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
+    load_settings(pool).await
+}
+
+/// Réglages d'instance (lus par `tunnel.rs`).
+pub async fn tunnel_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
     load_settings(pool).await
 }
 
@@ -326,8 +348,16 @@ async fn load_settings(pool: &PgPool) -> ApiResult<GlobalSettings> {
         calls_max_participants: None,
         calls_video: true,
         calls_screen_share: true,
+        tunnels_enabled: None,
+        tunnels_max_per_user: None,
+        tunnels_max_token_days: None,
+        tunnels_max_streams: None,
+        tunnels_max_kbps: None,
+        tunnels_kinds: None,
+        tunnels_audit_days: None,
     });
     s.calls_max_participants = Some(s.calls_max_participants.unwrap_or_else(|| crate::calls::max_participants() as i32));
+    crate::tunnel::resolve(&mut s);
     Ok(s)
 }
 
@@ -363,13 +393,18 @@ async fn update_settings(
     if p.calls_max_participants.is_some_and(|n| !crate::calls::valid_max(n)) {
         return Err(ApiError::bad_request("invalid_call_max"));
     }
+    crate::tunnel::validate_settings(&p)?;
+    let before = crate::tunnel::Policy::of(&load_settings(&pool).await?);
     sqlx::query(
         "INSERT INTO global_settings (id, app_name, favicon_url, allow_public_signups, umami_website_id, umami_script_url, default_locale, default_timezone,
-            calls_enabled, calls_max_participants, calls_video, calls_screen_share, updated_at)
-         VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+            calls_enabled, calls_max_participants, calls_video, calls_screen_share,
+            tunnels_enabled, tunnels_max_per_user, tunnels_max_token_days, tunnels_max_streams, tunnels_max_kbps, tunnels_kinds, tunnels_audit_days, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
          ON CONFLICT (id) DO UPDATE SET app_name = $1, favicon_url = $2, allow_public_signups = $3,
             umami_website_id = $4, umami_script_url = $5, default_locale = $6, default_timezone = $7,
-            calls_enabled = $8, calls_max_participants = $9, calls_video = $10, calls_screen_share = $11, updated_at = NOW()",
+            calls_enabled = $8, calls_max_participants = $9, calls_video = $10, calls_screen_share = $11,
+            tunnels_enabled = $12, tunnels_max_per_user = $13, tunnels_max_token_days = $14, tunnels_max_streams = $15,
+            tunnels_max_kbps = $16, tunnels_kinds = $17, tunnels_audit_days = $18, updated_at = NOW()",
     )
     .bind(name)
     .bind(check_url(&p.favicon_url, true)?)
@@ -382,9 +417,19 @@ async fn update_settings(
     .bind(p.calls_max_participants)
     .bind(p.calls_video)
     .bind(p.calls_screen_share)
+    .bind(p.tunnels_enabled)
+    .bind(p.tunnels_max_per_user)
+    .bind(p.tunnels_max_token_days)
+    .bind(p.tunnels_max_streams)
+    .bind(p.tunnels_max_kbps)
+    .bind(p.tunnels_kinds.as_deref())
+    .bind(p.tunnels_audit_days)
     .execute(&pool)
     .await?;
-    Ok(Json(load_settings(&pool).await?))
+    let saved = load_settings(&pool).await?;
+    // Réglages des tunnels : appliqués tout de suite aux connexions ouvertes, désactivation comprise.
+    crate::tunnel::settings_changed(&pool, user.id, &before, &crate::tunnel::Policy::of(&saved)).await;
+    Ok(Json(saved))
 }
 
 pub async fn get_public_settings(State(state): State<crate::state::AppState>) -> ApiResult<Json<serde_json::Value>> {
