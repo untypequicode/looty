@@ -94,11 +94,15 @@ Adresse secrète qui permet de lire une page sans compte, en lecture seule. Si l
 _Avoid_: lien de partage, page publiée, partage public
 
 **Document R Markdown**:
-Fichier `.Rmd` ou `.qmd` (Quarto) : en-tête YAML, texte Markdown et chunks de code ```{r}. Looty le convertit en notebook (et inversement) sans perte, mais ne l'exécute pas lui-même : les cellules R tournent sur le serveur Jupyter du projet (noyau IRkernel).
+Fichier `.Rmd` ou `.qmd` (Quarto) : en-tête YAML, texte Markdown et chunks de code ```{r}. Looty le convertit en notebook (et inversement) sans perte, mais ne l'exécute pas lui-même : les cellules R tournent dans le navigateur (moteur WebR) ou sur le serveur Jupyter du projet (noyau IRkernel).
 _Avoid_: rapport R, knitr
 
+**Moteur R du navigateur (WebR)**:
+Exécution des cellules R dans le navigateur de la personne qui clique, sans serveur : R compilé en WebAssembly (WebR), servi par l'application elle-même et chargé seulement au premier calcul R. Choisi par notebook dans la fenêtre Moteur (« R (navigateur) »), à côté de Pyodide (Python) et du serveur Jupyter. Les paquets viennent du dépôt WebR, seulement quand le code les installe ; `r-packages.txt` (à la racine du projet) liste ceux à installer au démarrage.
+_Avoid_: R local, R embarqué
+
 **Requête silencieuse**:
-Code envoyé au noyau Jupyter d'un notebook hors de toute cellule (panneaux R : variables, aide, console) : sans historique, sans numéro d'exécution, le résultat revient au panneau et n'est jamais enregistré dans le notebook.
+Code envoyé au noyau d'un notebook (Jupyter ou WebR) hors de toute cellule (panneaux R : variables, aide, console) : sans historique, sans numéro d'exécution, le résultat revient au panneau et n'est jamais enregistré dans le notebook.
 _Avoid_: cellule cachée
 
 **Serveur Jupyter du projet**:

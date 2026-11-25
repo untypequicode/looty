@@ -87,7 +87,8 @@ export default {
       failed: 'The notebook could not be exported.',
     },
     r: {
-      needsJupyter: 'R cells run on the project’s Jupyter server (IRkernel). Open the Engine button in the toolbar and pick the Jupyter server with an R kernel: the browser engine only runs Python.',
+      needsJupyter: 'R cells do not run with the Python engine. Open the Engine button in the toolbar and pick “R (browser)”, which needs no server, or the Jupyter server with an R kernel.',
+      needsR: 'This notebook is a Python notebook: the R engine only runs R. Pick another engine with the Engine button in the toolbar.',
       panel: {
         title: 'R panels', toggle: 'R panels: environment, plots, help, console', env: 'Environment', plots: 'Plots', help: 'Help', console: 'Console',
         needKernel: 'Connect the Jupyter kernel first: run a cell, or send a line from the Console tab.', timeout: 'The R kernel did not answer in time (it may be busy with a long calculation).',
@@ -98,6 +99,11 @@ export default {
         clear: 'Clear the console', prompt: 'R code…',
       },
     },
+    webr: {
+      loading: 'Downloading R (about 30 MB, only the first time)…', installing: 'Installing the R package {pkg}…', installFailed: 'Could not install the R package {pkg} listed in r-packages.txt.',
+      interrupted: 'Execution stopped (R restarted)', failed: 'R could not start in this browser.',
+      starting: 'Starting R…', busy: 'R running…', ready: 'R ready', off: 'R (starts on first run)', restart: 'Restart R',
+    },
     deps: {
       refreshFailed: 'Project files could not be refreshed: the code runs with the files already loaded.', saveFailed: '{pkg} is installed for this session but could not be saved to requirements.txt.',
       install: 'Install {pkg}', installing: 'Installing {pkg}…', warn: 'Could not install {pkg} from requirements.txt.',
@@ -107,6 +113,8 @@ export default {
       title: 'Execution engine', description: 'Where this notebook’s code runs. The choice is shared with everyone editing it.',
       pyodide: 'Browser (Pyodide)', remote: 'Jupyter server', pyodideShort: 'Pyodide', remoteShort: 'Jupyter', projectKernel: 'project kernel',
       pyodideHint: 'Default engine: Python runs in the browser of the person who clicks, without any server.',
+      webr: 'R (browser)', webrShort: 'R (WebR)',
+      webrHint: 'R runs in the browser of the person who clicks (WebR), without any server or setup. The first run downloads about 30 MB, then the browser keeps it. Packages come from the WebR repository only when your code installs them. Plots and tables are supported; a calculation cannot be interrupted, only stopped by restarting R. Outputs are shared with everyone editing.',
       remoteHint: 'Code runs on the project’s Jupyter server, in your own kernel: variables, files and libraries are those of that machine. Looty’s server connects to it for you, the token never reaches browsers. Outputs are shared with everyone editing.',
       server: 'Project Jupyter server', url: 'Server address', token: 'Token', tokenPlaceholder: 'Jupyter token or JupyterHub API token', tokenKeep: 'Unchanged (stored, hidden)', tokenClear: 'Remove the stored token',
       tokenSet: 'Token stored', noToken: 'No token', defaultKernel: 'Default kernel', notebookKernel: 'Kernel for this notebook', useDefault: 'Project default ({kernel})',

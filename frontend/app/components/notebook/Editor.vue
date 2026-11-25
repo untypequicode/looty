@@ -6,6 +6,7 @@ import 'katex/dist/katex.min.css'
 import { socketBase } from '~/composables/useRealtime'
 import { useNotebookKernel, type NbOutput } from '~/composables/useNotebookKernel'
 import { useJupyterKernel } from '~/composables/useJupyterKernel'
+import { useWebrKernel } from '~/composables/useWebrKernel'
 import type { KernelSpec } from '~/components/notebook/EngineDialog.vue'
 import { useI18n } from '~/composables/useI18n'
 import { confirmDialog } from '~/composables/useConfirm'
@@ -388,13 +389,15 @@ const nbMeta = shallowRef<any>({})
 function readMeta() { try { nbMeta.value = JSON.parse(ymeta.get('nb') || '{}') } catch { nbMeta.value = {} } }
 ymeta.observe(readMeta)
 readMeta()
-const engine = computed<'pyodide' | 'jupyter'>(() => (nbMeta.value?.metadata?.looty?.engine === 'jupyter' ? 'jupyter' : 'pyodide'))
+type Engine = 'pyodide' | 'jupyter' | 'webr'
+const engine = computed<Engine>(() => { const e = nbMeta.value?.metadata?.looty?.engine; return e === 'jupyter' || e === 'webr' ? e : 'pyodide' })
 const remote = computed(() => engine.value === 'jupyter')
+const inBrowserR = computed(() => engine.value === 'webr')
 const nbKernelName = computed(() => (typeof nbMeta.value?.metadata?.looty?.kernel === 'string' ? nbMeta.value.metadata.looty.kernel as string : undefined))
 /** Langage des cellules de code : celui du noyau (`kernelspec`), R ou Python. */
 const language = computed(() => notebookLanguage(nbMeta.value))
 const engineOpen = ref(false)
-function setEngine(next: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec: KernelSpec }) {
+function setEngine(next: Engine, choice?: { kernel?: string; spec: KernelSpec }) {
   if (ro.value) return
   let meta: any = {}
   try { meta = JSON.parse(ymeta.get('nb') || '{}') } catch { meta = {} }
@@ -404,6 +407,12 @@ function setEngine(next: 'pyodide' | 'jupyter', choice?: { kernel?: string; spec
     if (choice?.kernel) meta.metadata.looty.kernel = choice.kernel
     else delete meta.metadata.looty.kernel
     if (choice?.spec?.name) meta.metadata.kernelspec = { name: choice.spec.name, display_name: choice.spec.display_name, language: choice.spec.language || 'python' }
+  } else if (next === 'webr') {
+    // R dans le navigateur : noyau « ir » (langage R) comme pour un notebook R classique, moteur WebR.
+    meta.metadata.looty = { ...(meta.metadata.looty ?? {}), engine: 'webr' }
+    delete meta.metadata.looty.kernel
+    meta.metadata.kernelspec = { name: 'ir', display_name: 'R', language: 'R' }
+    meta.metadata.language_info = { name: 'R' }
   } else {
     if (meta.metadata.looty) { delete meta.metadata.looty.engine; delete meta.metadata.looty.kernel; if (!Object.keys(meta.metadata.looty).length) delete meta.metadata.looty }
     delete meta.metadata.language_info
@@ -469,31 +478,32 @@ function addRequirements(specs: string[]) {
   reqChain = job.catch(() => {})
   return job.catch(() => {})
 }
-const pyodide = useNotebookKernel({
-  list: async () => {
-    const detail = await projectListing()
-    kernelFiles.clear()
-    const out: { path: string; key: string; size: number }[] = []
-    for (const f of detail.files.filter(kernelFileOk).slice(0, 200)) {
-      kernelFiles.set(f.path, f.id)
-      out.push({ path: f.path, key: `${f.id}:${f.size}:${f.updated_at}`, size: f.size })
-    }
-    return out
-  },
-  read: async (path) => {
-    const id = kernelFiles.get(path)
-    if (!id) return null
-    const r = await fetch(`/api/projects/${props.projectId}/files/${id}/raw`, { credentials: 'same-origin' })
-    return r.ok ? r.arrayBuffer() : null
-  },
-  onInstalled: addRequirements,
-})
+const kernelList = async () => {
+  const detail = await projectListing()
+  kernelFiles.clear()
+  const out: { path: string; key: string; size: number }[] = []
+  for (const f of detail.files.filter(kernelFileOk).slice(0, 200)) {
+    kernelFiles.set(f.path, f.id)
+    out.push({ path: f.path, key: `${f.id}:${f.size}:${f.updated_at}`, size: f.size })
+  }
+  return out
+}
+const kernelRead = async (path: string) => {
+  const id = kernelFiles.get(path)
+  if (!id) return null
+  const r = await fetch(`/api/projects/${props.projectId}/files/${id}/raw`, { credentials: 'same-origin' })
+  return r.ok ? r.arrayBuffer() : null
+}
+const pyodide = useNotebookKernel({ list: kernelList, read: kernelRead, onInstalled: addRequirements })
 const jupyter = useJupyterKernel({ projectId: () => props.projectId, kernel: () => nbKernelName.value })
+// R dans le navigateur (WebR) : chargé à la première exécution seulement ; mêmes fichiers du projet que Pyodide.
+const webr = useWebrKernel({ list: kernelList, read: kernelRead })
 // Moteur changé (ici ou par quelqu'un d'autre) : le noyau distant est arrêté, rien ne bascule en silence.
 watch([engine, nbKernelName], ([e], [was, wasKernel]) => {
   if (was === 'jupyter' && (e !== 'jupyter' || nbKernelName.value !== wasKernel)) { jupyter.shutdown(); running.value = null; queued.value = new Set() }
+  if (was === 'webr' && e !== 'webr') { webr.restart(); running.value = null; queued.value = new Set() }
 })
-const kernel = computed(() => (remote.value ? jupyter : pyodide))
+const kernel = computed(() => (remote.value ? jupyter : inBrowserR.value ? webr : pyodide))
 /** Sorties affichées pendant le calcul (et, en lecture seule, gardées sur cet appareil). */
 const local = reactive<Record<string, { outputs: NbOutput[]; count: number | null; ms?: number | null }>>({})
 const running = ref<string | null>(null)
@@ -526,7 +536,11 @@ async function runCell(c: CellVM): Promise<boolean> {
     return false
   }
   // Pyodide ne sait pas exécuter R : erreur explicite, jamais d'exécution de R comme du Python.
-  if (language.value === 'r' && !remote.value) {
+  if (inBrowserR.value && language.value !== 'r') {
+    local[c.id] = { outputs: [{ output_type: 'error', ename: 'KernelError', evalue: t('notebook.r.needsR'), traceback: [t('notebook.r.needsR')] }], count: null }
+    return false
+  }
+  if (language.value === 'r' && !remote.value && !inBrowserR.value) {
     local[c.id] = { outputs: [{ output_type: 'error', ename: 'KernelError', evalue: t('notebook.r.needsJupyter'), traceback: [t('notebook.r.needsJupyter')] }], count: null }
     return false
   }
@@ -697,8 +711,8 @@ const rPanelOpen = useLocalStorage('looty.notebook.rpanels', false)
 const rPanelRef = ref<{ send: (code: string) => Promise<void> } | null>(null)
 const rPanelOn = computed(() => rPanelOpen.value && language.value === 'r')
 const cellPlots = computed(() => (rPanelOn.value ? cells.value.flatMap((c) => (c.type === 'code' ? plotsOf(`cell-${c.id}`, shown(c)) : [])) : []))
-/** Requêtes des panneaux : seulement vers le noyau Jupyter (jamais de démarrage pour un autre moteur). */
-const rQuery: typeof jupyter.query = async (code, o) => (remote.value ? jupyter.query(code, o) : null)
+/** Requêtes des panneaux : noyau Jupyter ou WebR ; Pyodide n'exécute pas de R (jamais de démarrage pour l'occasion). */
+const rQuery: typeof jupyter.query = async (code, o) => (remote.value ? jupyter.query(code, o) : inBrowserR.value ? webr.query(code, o) : null)
 /** Ctrl+Alt+Entrée : la ligne du curseur (ou la sélection) part dans la console. */
 async function runLine(text: string) {
   if (!text.trim() || ro.value || language.value !== 'r') return
@@ -716,6 +730,12 @@ const statusText = computed(() => {
     if (s === 'reconnecting') return t('notebook.jupyter.reconnecting')
     if (s === 'error') return jupyter.message.value || t('notebook.jupyter.lost')
     return t('notebook.jupyter.off', { kernel: kernelLabel.value })
+  }
+  if (inBrowserR.value) {
+    if (k.state.value === 'starting') return k.message.value || t('notebook.webr.starting')
+    if (k.state.value === 'busy') return k.message.value || t('notebook.webr.busy')
+    if (k.state.value === 'idle') return t('notebook.webr.ready')
+    return k.message.value || t('notebook.webr.off')
   }
   if (k.state.value === 'starting') return k.message.value || t('notebook.starting')
   if (k.state.value === 'busy') return k.message.value || t('notebook.busy')
@@ -740,15 +760,15 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
       </template>
       <UiButton size="xs" variant="ghost" :icon="Play" :disabled="!!running || queued.size > 0" @click="runAll">{{ t('notebook.runAll') }}</UiButton>
       <UiButton v-if="remote" size="xs" variant="ghost" :icon="Square" :disabled="kernelState !== 'busy' && !running && queued.size === 0" @click="interrupt">{{ t('notebook.jupyter.interrupt') }}</UiButton>
-      <UiButton size="xs" variant="ghost" :icon="RotateCcw" :disabled="kernelState === 'off'" @click="restart">{{ remote ? t('notebook.jupyter.restart') : t('notebook.restart') }}</UiButton>
+      <UiButton size="xs" variant="ghost" :icon="RotateCcw" :disabled="kernelState === 'off'" @click="restart">{{ remote ? t('notebook.jupyter.restart') : inBrowserR ? t('notebook.webr.restart') : t('notebook.restart') }}</UiButton>
       <UiButton v-if="!ro" size="xs" variant="ghost" :icon="Eraser" @click="clearAll">{{ t('notebook.clearAll') }}</UiButton>
       <UiMenu v-model:open="exportOpen" :items="exportItems" placement="bottom-end" :width="300">
         <UiButton size="xs" variant="ghost" :icon="Download" :disabled="exporting || !synced" data-testid="nb-export">{{ t('notebook.export.title') }}</UiButton>
       </UiMenu>
       <span class="nb-spacer" />
       <UiTooltip :text="t('notebook.shortcutsHint')"><span class="nb-mode" :class="{ edit: !!editingId }" data-testid="nb-mode">{{ editingId ? t('notebook.modeEdit') : t('notebook.modeCommand') }}</span></UiTooltip>
-      <UiButton size="xs" variant="ghost" class="nb-engine" :icon="remote ? Server : Cpu" :title="t('notebook.jupyter.title')" data-testid="nb-engine" @click="engineOpen = true">{{ remote ? t('notebook.jupyter.remoteShort') : t('notebook.jupyter.pyodideShort') }}</UiButton>
-      <UiTooltip :text="remote ? t('notebook.jupyter.remoteHint') : t('notebook.pyodideHint')"><Info :size="13" class="nb-info" /></UiTooltip>
+      <UiButton size="xs" variant="ghost" class="nb-engine" :icon="remote ? Server : Cpu" :title="t('notebook.jupyter.title')" data-testid="nb-engine" @click="engineOpen = true">{{ remote ? t('notebook.jupyter.remoteShort') : inBrowserR ? t('notebook.jupyter.webrShort') : t('notebook.jupyter.pyodideShort') }}</UiButton>
+      <UiTooltip :text="remote ? t('notebook.jupyter.remoteHint') : inBrowserR ? t('notebook.jupyter.webrHint') : t('notebook.pyodideHint')"><Info :size="13" class="nb-info" /></UiTooltip>
       <span class="nb-kernel" :class="kernelState" role="status" data-testid="nb-kernel" :title="statusText"><CircleDot :size="11" /> {{ statusText }}</span>
     </div>
     <div class="nb-body">
@@ -784,7 +804,7 @@ defineExpose({ getText: () => '', goToLine: (_n: number) => {}, focus: () => {} 
         </template>
       </div>
       <NotebookRPanels
-        v-if="rPanelOn" ref="rPanelRef" :query="rQuery" :kernel-state="jupyter.state.value" :cell-plots="cellPlots" :read-only="ro"
+        v-if="rPanelOn" ref="rPanelRef" :query="rQuery" :kernel-state="remote ? jupyter.state.value : webr.state.value" :cell-plots="cellPlots" :read-only="ro"
         @close="rPanelOpen = false"
       />
     </div>

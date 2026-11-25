@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.52.0",
+      "version": "0.54.0",
       "date": "2026-11-25",
       "title": {
         "en": "Voice calls in pages and projects",
@@ -15,13 +15,36 @@
           "**Voice calls**: a **Start call** / **Join call** button in the header of pages and projects. Audio goes directly between browsers (WebRTC): the server only relays the connection set-up and never hears anything.",
           "**Call bar**: floating, stays while you change page. Mute (`Ctrl`+`Alt`+`M`), microphone choice, volume per person, who is speaking, and clear messages when the microphone is blocked, missing or unplugged.",
           "**Same rights as the content**: whoever can open the page, project or workspace can join. Up to 6 people by default (`LOOTY_CALL_MAX_PARTICIPANTS`); `LOOTY_STUN_URLS` sets the STUN servers.",
-        "**Optional call relay (TURN)**: `install.sh --turn` or `services.looty.turn.enable` adds coturn for restrictive networks, with temporary logins per person. Off by default."
+          "**Optional call relay (TURN)**: `install.sh --turn` or `services.looty.turn.enable` adds coturn for restrictive networks, with temporary logins per person. Off by default."
         ],
         "fr": [
           "**Appels vocaux** : un bouton **Lancer un appel** / **Rejoindre l’appel** dans l’en-tête des pages et des projets. L’audio passe directement d’un navigateur à l’autre (WebRTC) : le serveur ne relaie que la mise en relation et n’entend rien.",
           "**Barre d’appel** : flottante, elle reste quand on change de page. Micro coupé (`Ctrl`+`Alt`+`M`), choix du micro, volume par personne, qui parle, et des messages clairs quand le micro est bloqué, absent ou débranché.",
           "**Mêmes droits que le contenu** : qui peut ouvrir la page, le projet ou l’espace peut rejoindre. Jusqu’à 6 personnes par défaut (`LOOTY_CALL_MAX_PARTICIPANTS`) ; `LOOTY_STUN_URLS` règle les serveurs STUN.",
-        "**Relais d’appels facultatif (TURN)** : `install.sh --turn` ou `services.looty.turn.enable` ajoute coturn pour les réseaux restrictifs, avec des accès temporaires par personne. Désactivé par défaut."
+          "**Relais d’appels facultatif (TURN)** : `install.sh --turn` ou `services.looty.turn.enable` ajoute coturn pour les réseaux restrictifs, avec des accès temporaires par personne. Désactivé par défaut."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.53.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "R in the browser: no server, no setup",
+        "fr": "R dans le navigateur : sans serveur, sans installation"
+      },
+      "notes": {
+        "en": [
+          "**R now works without any server**: in the notebook *Engine* dialog, pick **R (browser)**. R runs in your browser with WebR (R compiled to WebAssembly), next to Python with Pyodide. No Jupyter server, no install, and it works on self-hosted and offline instances.",
+          "**Everything you expect**: text, warnings and errors, data frames as tables, plots as images, completion, the RStudio-like panels, Run all, and R Markdown / Quarto documents opened as notebooks. Each person has their own R session, outputs are shared.",
+          "**Lazy and self-hosted**: the R engine (about 30 MB the first time, then cached) is served by Looty itself and is only downloaded when a notebook first runs R. Packages come from the public WebR repository only when your code runs `install.packages()` / `webr::install()`; list packages in `r-packages.txt` to install them at every start.",
+          "**Limits**: a calculation cannot be interrupted, only stopped by restarting R; plots are PNG only. A Jupyter server remains available for everything else."
+        ],
+        "fr": [
+          "**R fonctionne désormais sans aucun serveur** : dans la fenêtre *Moteur* d’un notebook, choisissez **R (navigateur)**. R s’exécute dans votre navigateur avec WebR (R compilé en WebAssembly), comme Python avec Pyodide. Ni serveur Jupyter, ni installation, et cela marche sur les instances auto-hébergées et hors ligne.",
+          "**Tout ce qu’on attend** : texte, avertissements et erreurs, data frames en tableaux, graphiques en images, complétion, panneaux façon RStudio, Tout exécuter, et documents R Markdown / Quarto ouverts comme notebooks. Chaque personne a sa propre session R, les sorties sont partagées.",
+          "**À la demande et auto-hébergé** : le moteur R (environ 30 Mo la première fois, puis en cache) est servi par Looty lui-même et n’est téléchargé que lorsqu’un notebook exécute du R pour la première fois. Les paquets viennent du dépôt public WebR seulement quand votre code lance `install.packages()` / `webr::install()` ; listez-les dans `r-packages.txt` pour les installer à chaque démarrage.",
+          "**Limites** : un calcul ne s’interrompt pas, il s’arrête en redémarrant R ; graphiques en PNG seulement. Le serveur Jupyter reste disponible pour le reste."
         ]
       }
     },
