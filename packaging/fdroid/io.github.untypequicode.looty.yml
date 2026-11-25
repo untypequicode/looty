@@ -1,0 +1,35 @@
+# Fiche pour fdroiddata (https://gitlab.com/fdroid/fdroiddata) : à copier dans metadata/io.github.untypequicode.looty.yml.
+# Mode d'emploi et étapes : docs/packaging-fdroid.md. Les textes (titre, descriptions, journal des changements)
+# viennent du dépôt : fastlane/metadata/android/ (généré par scripts/fastlane-metadata.mjs), il n'y en a donc pas ici.
+Categories:
+  - Office
+  - Science & Education
+License: GPL-3.0-only
+AuthorName: Looty
+WebSite: https://looty.untypequicode.fr
+SourceCode: https://github.com/untypequicode/looty
+IssueTracker: https://github.com/untypequicode/looty/issues
+Changelog: https://github.com/untypequicode/looty/releases
+
+AutoName: Looty
+
+RepoType: git
+Repo: https://github.com/untypequicode/looty.git
+
+Builds:
+  - versionName: 0.32.0
+    versionCode: 37
+    commit: android-v0.32.0
+    subdir: android/app
+    gradle:
+      - fdroid
+    rm:
+      - site
+      - frontend
+      - backend
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^android-v[0-9.]+$
+UpdateCheckData: android/app/build.gradle.kts|versionCode = (\d+)|.|versionName = "([\d.]+)"
+CurrentVersion: 0.32.0
+CurrentVersionCode: 37
