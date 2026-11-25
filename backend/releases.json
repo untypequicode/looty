@@ -20,6 +20,22 @@
           "Nouveau type de page : la Présentation (menu Nouveau des documents). Un rail de miniatures pour ajouter, dupliquer, supprimer et réordonner par glisser-déposer, un canevas où ajouter des zones de texte, rectangles, ellipses, lignes et images, et un panneau de propriétés pour les couleurs de la palette de l’éditeur, la taille du texte, la position, la taille, l’angle, l’ordre, l’alignement, le groupe et le texte alternatif.",
           "Tout le monde modifie en même temps : vous voyez les sélections et les pointeurs des autres sur la diapositive, et qui regarde chaque diapositive dans le rail. Annuler et rétablir ne touchent que vos propres modifications. Des guides aimantent sur la diapositive et sur les autres éléments ; des raccourcis clavier couvrent le déplacement, la duplication, le groupe et le changement de diapositive. Les personnes en lecture seule voient les diapositives sans pouvoir les changer.",
           "Une présentation est une page : même partage, mêmes droits, commentaires, appels, corbeille et recherche (le texte des diapositives est indexé et fait partie de l’export du compte). Thèmes, mode présentateur et import ou export viendront plus tard ; voir la nouvelle page Présentations de la documentation."
+      "version": "0.62.1",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Shared pages: guests can search, safer public links, faster access cut-off",
+        "fr": "Pages partagées : recherche pour les invités, liens publics mieux protégés, retrait d’accès plus rapide"
+      },
+      "notes": {
+        "en": [
+          "People a page is shared with (guests) can now search the pages shared with them; search no longer misses their pages when many other pages in the space match.",
+          "A person who can only read a page no longer receives its public link; only people who can edit it do.",
+          "Moving a page out of a shared tree now cuts the access inherited from its old parent immediately, including for people editing it in real time."
+        ],
+        "fr": [
+          "Les personnes avec qui une page est partagée (invités) peuvent maintenant chercher dans les pages partagées avec elles ; la recherche ne les manque plus quand beaucoup d’autres pages de l’espace correspondent.",
+          "Une personne qui peut seulement lire une page ne reçoit plus son lien public ; seules celles qui peuvent la modifier le reçoivent.",
+          "Déplacer une page hors d’une arborescence partagée coupe tout de suite l’accès hérité de son ancien parent, y compris pour les personnes qui la modifient en temps réel."
         ]
       }
     },

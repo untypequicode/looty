@@ -51,6 +51,17 @@ _Avoid_: vote, questionnaire, formulaire
 Document, projet, fichier du Drive, tableau ou tâche d'un espace partagé visible de son seul propriétaire, même pas des administrateurs : son TP sous la page du cours, son notebook dans le projet du groupe. Ce qui est rangé dedans l'est aussi (sous-pages, sous-tâches, tâches d'un tableau personnel). Seule son autrice le rend personnel, seule sa propriétaire le repartage. S'il quitte l'espace, il part dans son espace perso, sous le nom de l'ancien espace. À ne pas confondre avec l'espace perso.
 _Avoid_: privé, élément privé, brouillon
 
+**Invité**:
+Personne du même compte d'instance, extérieure à l'espace, à qui un membre autorisé a donné accès à une page précise (lecture ou modification), avec ou sans ses sous-pages. Elle ne voit de l'espace que ces pages (ni parents, ni voisines, ni tableaux, ni membres hors de ses pages) et les retrouve dans « Partagé avec moi ». Ce n'est pas un membre : elle n'a pas de rôle et ne compte pas dans l'espace.
+_Avoid_: externe, visiteur (la personne sans compte qui ouvre un lien public)
+
+**Partage de page**:
+Droit donné à une personne sur une page : lecture ou modification (aujourd'hui), sous-pages comprises ou page seule, avec en option la création de sous-pages. Pour un membre il peut aussi retirer l'accès (blocage). Le droit le plus proche dans l'arborescence l'emporte. Le modèle cible (ADR 0022) ajoute les niveaux commentaire et gestion, le refus explicite pour toute personne et les groupes.
+_Avoid_: permission (réservée aux droits des rôles), autorisation
+
+**Partagé avec moi**:
+Liste des pages auxquelles une personne a accès sans être membre de leur espace : les pages qu'on lui a partagées directement et leurs sous-pages accessibles.
+
 ## Recherche
 
 **Mot-clé**:
