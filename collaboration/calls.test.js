@@ -136,6 +136,20 @@ test('size, shape and rate limits', () => {
   assert.equal(a.send({ t: 'join', peerId: 'peer-alice-1' }), true)
 })
 
+test('camera and screen share stream ids are shared, invalid ones are dropped', () => {
+  const { client } = setup()
+  const a = client('c1', alice)
+  const b = client('c2', bob)
+  a.send({ t: 'join', peerId: 'peer-alice-1' })
+  assert.deepEqual([b.last('presence').peers[0].cam, b.last('presence').peers[0].share], ['', ''])
+  a.send({ t: 'state', muted: false, cam: 'stream-cam-1', share: '{abc-def}' })
+  assert.equal(b.last('presence').peers[0].cam, 'stream-cam-1')
+  assert.equal(b.last('presence').peers[0].share, '{abc-def}')
+  a.send({ t: 'state', muted: false, cam: 'x'.repeat(200), share: { evil: 1 } })
+  assert.equal(b.last('presence').peers[0].cam, '')
+  assert.equal(b.last('presence').peers[0].share, '')
+})
+
 test('mute state is shared and an unknown connection is ignored', () => {
   const { client, rooms } = setup()
   const a = client('c1', alice)

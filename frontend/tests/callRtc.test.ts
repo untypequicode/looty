@@ -58,3 +58,105 @@ test('exactly one side of a pair initiates, room names and peer ids are well for
   assert.match(id, /^[A-Za-z0-9_-]{8,64}$/)
   assert.notEqual(id, newPeerId())
 })
+
+// --- Video, screen share, recovery and quality (#265, #266) ---
+import {
+  cameraProfile, shareProfile, canUseCamera, VIDEO_CAM_MAX, cameraConstraints, displayConstraints, cameraError, shareCancelled,
+  backoffDelay, qualityOf, worstQuality, diffCounters, adaptFactor, streamRole, formatBitrate, QUALITY,
+} from '../app/utils/callRtc.ts'
+
+test('camera is modest and gets lighter as the room grows; screen share keeps the text sharp at few frames', () => {
+  assert.deepEqual([cameraProfile(2).width, cameraProfile(2).height, cameraProfile(2).fps], [640, 360, 24])
+  for (let n = 2; n < 6; n++) {
+    assert.ok(cameraProfile(n + 1).maxBitrate <= cameraProfile(n).maxBitrate, `camera bitrate non-increasing at ${n}`)
+    assert.ok(shareProfile(n + 1).maxBitrate <= shareProfile(n).maxBitrate, `share bitrate non-increasing at ${n}`)
+  }
+  for (let n = 2; n <= 6; n++) {
+    const s = shareProfile(n)
+    assert.ok(s.fps >= 5 && s.fps <= 15, `share fps in 5..15 at ${n}`)
+    assert.ok(s.width >= 1600, 'share keeps a high resolution')
+    // Upload budget of the worst participant (everyone shares + a camera) stays far below a typical 5 Mbit/s uplink at 2..4 people.
+    if (n <= 4) assert.ok((n - 1) * (s.maxBitrate + cameraProfile(n).maxBitrate) < 5_000_000, `uplink budget at ${n}`)
+  }
+  assert.equal(canUseCamera(VIDEO_CAM_MAX), true)
+  assert.equal(canUseCamera(VIDEO_CAM_MAX + 1), false)
+})
+
+test('capture constraints: camera at the profile size, display capture without voice processing', () => {
+  const c = cameraConstraints(cameraProfile(2), 'cam1') as any
+  assert.deepEqual([c.width.ideal, c.height.ideal, c.frameRate.max], [640, 360, 24])
+  assert.deepEqual(c.deviceId, { exact: 'cam1' })
+  assert.equal('deviceId' in (cameraConstraints(cameraProfile(2)) as object), false)
+  const d = displayConstraints(shareProfile(3)) as any
+  assert.equal(d.audio.echoCancellation, false)
+  assert.equal(d.systemAudio, 'include')
+  assert.ok(d.video.frameRate.ideal <= 15)
+})
+
+test('camera errors map to codes, cancelling the share picker is silent', () => {
+  assert.equal(cameraError({ name: 'NotAllowedError' }), 'cam-denied')
+  assert.equal(cameraError({ name: 'NotFoundError' }), 'cam-missing')
+  assert.equal(cameraError({ name: 'NotReadableError' }), 'cam-busy')
+  assert.equal(cameraError(new Error('x')), 'cam-failed')
+  assert.equal(shareCancelled({ name: 'NotAllowedError' }), true)
+  assert.equal(shareCancelled({ name: 'NotReadableError' }), false)
+})
+
+test('ICE restart backoff grows, is capped and jittered', () => {
+  const d = [0, 1, 2, 3, 4, 5, 6, 10].map((a) => backoffDelay(a, 0.5))
+  assert.deepEqual(d.slice(0, 5), [1000, 2000, 4000, 8000, 16000])
+  assert.equal(d[5], 30000)
+  assert.equal(d[7], 30000, 'capped at 30 s')
+  assert.ok(backoffDelay(2, 0) < backoffDelay(2, 1), 'jitter spreads peers')
+  assert.ok(backoffDelay(2, 1) <= 4000 * 1.15 + 1)
+})
+
+test('quality indicator follows the documented thresholds', () => {
+  assert.equal(qualityOf(null), 'unknown')
+  assert.equal(qualityOf({ rtt: null, loss: 0, jitter: 0 }), 'unknown')
+  assert.equal(qualityOf({ rtt: 40, loss: 0, jitter: 5 }), 'good')
+  assert.equal(qualityOf({ rtt: QUALITY.fairRtt + 1, loss: 0, jitter: 5 }), 'fair')
+  assert.equal(qualityOf({ rtt: 40, loss: QUALITY.fairLoss + 0.01, jitter: 5 }), 'fair')
+  assert.equal(qualityOf({ rtt: 40, loss: 0, jitter: QUALITY.poorJitter + 1 }), 'poor')
+  assert.equal(qualityOf({ rtt: QUALITY.poorRtt + 1, loss: 0, jitter: 0 }), 'poor')
+  assert.equal(worstQuality(['good', 'fair', 'unknown']), 'fair')
+  assert.equal(worstQuality(['good', 'poor', 'fair']), 'poor')
+  assert.equal(worstQuality([]), 'unknown')
+})
+
+test('getStats counters become bitrates and a loss ratio', () => {
+  const a = { t: 1000, bytesSent: 0, bytesReceived: 0, packetsReceived: 0, packetsLost: 0 }
+  const b = { t: 3000, bytesSent: 50_000, bytesReceived: 25_000, packetsReceived: 90, packetsLost: 10 }
+  assert.deepEqual(diffCounters(null, b), { up: 0, down: 0, loss: 0 })
+  const d = diffCounters(a, b)
+  assert.equal(d.up, 200_000)
+  assert.equal(d.down, 100_000)
+  assert.equal(d.loss, 0.1)
+  assert.deepEqual(diffCounters(b, b), { up: 0, down: 0, loss: 0 }, 'same timestamp: no division by zero')
+  assert.equal(diffCounters(b, { ...b, t: 4000, bytesSent: 0 }).up, 0, 'a counter reset never gives a negative rate')
+  assert.equal(formatBitrate(850_000), '850 kbit/s')
+  assert.equal(formatBitrate(1_500_000), '1.5 Mbit/s')
+})
+
+test('simulated lossy and high latency link: video cap shrinks fast, recovers slowly, never below 20 %', () => {
+  let f = 1
+  const trace: number[] = []
+  // 6 polls of 10 % loss, then 3 polls of 250 ms latency, then a clean link.
+  for (let i = 0; i < 6; i++) { f = adaptFactor(f, { rtt: 80, loss: 0.1 }); trace.push(f) }
+  assert.ok(trace[0]! < 1 && trace.every((v, i) => i === 0 || v <= trace[i - 1]!), 'monotonic decrease')
+  assert.equal(f, 0.2, 'floor')
+  for (let i = 0; i < 3; i++) f = adaptFactor(f, { rtt: 250, loss: 0 })
+  assert.ok(f < 0.2 * 1.01 && f >= 0.2, 'latency alone keeps shrinking, not below the floor')
+  let polls = 0
+  while (f < 1 && polls < 100) { f = adaptFactor(f, { rtt: 30, loss: 0 }); polls++ }
+  assert.equal(f, 1)
+  assert.ok(polls > 10, 'recovery is slower than the drop')
+})
+
+test('received streams are classified by the ids announced in the room', () => {
+  const ann = { cam: 'C1', share: 'S1' }
+  assert.equal(streamRole('S1', ann), 'share')
+  assert.equal(streamRole('C1', ann), 'cam')
+  assert.equal(streamRole('V1', ann), 'voice')
+  assert.equal(streamRole('C1', { cam: '', share: '' }), 'voice', 'camera off: nothing announced')
+})
