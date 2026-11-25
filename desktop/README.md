@@ -261,3 +261,7 @@ With the proprietary NVIDIA driver, WebKitGTK may show a blank window; the app s
 `backend/releases.json` and merge into `main`: the *Release* workflow builds the `.deb` (tested on a clean
 Debian 12) and the Windows installer, publishes the `desktop-v0.2.0` GitHub release, and the *Nix cache*
 workflow builds the Nix package. See [RELEASING.md](../RELEASING.md).
+
+## Calls (microphone, camera, screen sharing)
+
+Linux: WebKitGTK refuses `getUserMedia` unless the app allows it, so the app enables media streams and answers the permission request itself, granting the microphone and camera only to its own local page (nothing else, never display capture). Windows: WebView2 shows its own prompt. **Screen sharing (`getDisplayMedia`) is not supported in the desktop app**; use a browser. See `docs/adr/0019-calls-webrtc-mesh.md`.

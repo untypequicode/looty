@@ -18,6 +18,13 @@ Un **appel vocal** permet aux personnes qui peuvent ouvrir une page ou un projet
 - **Réglages** (engrenage) : choix du micro et volume de chaque personne. Si le micro est débranché, Looty passe au micro par défaut ou vous invite à en choisir un autre ; vous continuez à écouter.
 - Annulation d'écho, suppression de bruit et gain automatique sont actifs. L'audio est en Opus, optimisé pour la voix, avec suppression des silences.
 
+## Sur Android et sur le bureau
+
+- **Application Android** : le premier appel demande le micro (et la caméra pour la vidéo) ; seule votre propre instance Looty peut les utiliser. Pendant un appel, une notification reste visible avec **Raccrocher** et **Haut-parleur / Écouteur** : vous pouvez verrouiller le téléphone ou ouvrir une autre application sans couper la conversation. Les casques filaires, USB et Bluetooth sont utilisés automatiquement, sinon le haut-parleur. Identique dans les versions directe et F-Droid. Si vous avez refusé l'autorisation, activez *Microphone* dans les réglages Android, *Applications*, *Looty*, *Autorisations*.
+- Quitter l'écran web avec le geste retour raccroche (l'appel vit dans cet écran) ; utilisez le geste d'accueil pour mettre l'application de côté. Certains fabricants arrêtent les applications en arrière-plan pour économiser la batterie : réglez Looty sur « sans restriction » si les appels se coupent.
+- **Le partage d'écran n'est pas disponible dans l'application Android** (la WebView du système ne sait pas le faire) : le bouton est masqué. Utilisez le navigateur.
+- **Application de bureau (Linux)** : le micro et la caméra sont autorisés pour la fenêtre de Looty (et rien d'autre). **Le partage d'écran n'est pas encore pris en charge dans l'application de bureau** ; utilisez le navigateur pour partager un écran. Windows demande le micro dans sa propre fenêtre.
+
 ## Caméra et partage d'écran
 
 - **Caméra** : le bouton caméra active ou coupe votre caméra ; les réglages de l'appel permettent de choisir l'appareil. Vous voyez votre aperçu et une vignette de chaque personne dont la caméra est active, la personne qui parle étant mise en évidence.

@@ -792,7 +792,7 @@ export async function chooseCamera(deviceId: string) {
   if (callState.cam) await startCamera(deviceId)
 }
 
-export const canShareScreen = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia
+export const canShareScreen = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia && (window as unknown as { __lootyCaps?: { screenShare?: boolean } }).__lootyCaps?.screenShare !== false // Android (WebView) : pas de partage d'écran
 
 export async function startShare() {
   if (callState.status === 'idle' || !canShareScreen()) return

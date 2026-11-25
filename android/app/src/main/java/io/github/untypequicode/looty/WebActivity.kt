@@ -1,10 +1,12 @@
 package io.github.untypequicode.looty
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
@@ -30,6 +32,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import io.github.untypequicode.looty.call.CallPolicy
+import io.github.untypequicode.looty.call.CallService
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -90,6 +94,18 @@ class WebActivity : ComponentActivity() {
         web.evaluateJavascript("window.dispatchEvent(new CustomEvent('looty:moodle-token', { detail: ${JSONObject.quote(link ?: "")} }))", null)
     }
 
+    /** Appel : demande micro / caméra de la page en attente de la réponse du système (une seule à la fois). */
+    private var mediaRequest: PermissionRequest? = null
+    private var mediaNeed: CallPolicy.Need? = null
+
+    private val mediaPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        val req = mediaRequest
+        val need = mediaNeed
+        mediaRequest = null
+        mediaNeed = null
+        if (req != null && need != null) answerMedia(req, need)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         server = Config.server(this) ?: run {
@@ -132,6 +148,12 @@ class WebActivity : ComponentActivity() {
             web.clearHistory()
         }
         handleIntent(intent)
+    }
+
+    override fun onDestroy() {
+        // L'appel vit dans cette page : sans elle, plus rien à garder en vie.
+        if (isFinishing) { CallService.onHangup = null; CallService.stop(this) }
+        super.onDestroy()
     }
 
     override fun onPause() {
@@ -231,6 +253,23 @@ class WebActivity : ComponentActivity() {
                 }
             }
 
+            // Appels (ADR 0019) : micro et caméra, uniquement pour la page de l'instance de l'application.
+            override fun onPermissionRequest(request: PermissionRequest) {
+                val need = CallPolicy.need(server, request.origin.toString(), request.resources)
+                if (need == null) { request.deny(); return }
+                // Une demande déjà en attente est refusée : la page en refera une.
+                mediaRequest?.deny()
+                val missing = CallPolicy.missing(need, hasPermission(Manifest.permission.RECORD_AUDIO), hasPermission(Manifest.permission.CAMERA))
+                if (missing.isEmpty()) { answerMedia(request, need); return }
+                mediaRequest = request
+                mediaNeed = need
+                mediaPermissions.launch(missing.toTypedArray())
+            }
+
+            override fun onPermissionRequestCanceled(request: PermissionRequest) {
+                if (mediaRequest == request) { mediaRequest = null; mediaNeed = null }
+            }
+
             // window.open / target=_blank : on capte l'adresse, jamais de seconde fenêtre.
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
                 val popup = WebView(this@WebActivity)
@@ -254,6 +293,13 @@ class WebActivity : ComponentActivity() {
                 else -> download(url, userAgent, contentDisposition, mimeType)
             }
         }
+    }
+
+    private fun hasPermission(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
+
+    private fun answerMedia(request: PermissionRequest, need: CallPolicy.Need) {
+        val granted = CallPolicy.grant(need, hasPermission(Manifest.permission.RECORD_AUDIO), hasPermission(Manifest.permission.CAMERA))
+        if (granted.isEmpty()) request.deny() else request.grant(granted)
     }
 
     private var failedUrl: String? = null
@@ -373,8 +419,17 @@ class WebActivity : ComponentActivity() {
             "back" -> if (web.canGoBack()) web.goBack() else finish()
             "theme" -> applyTheme(m.optBoolean("dark"))
             "moodleLogin" -> moodleLogin.launch(Intent(this, MoodleLoginActivity::class.java).putExtra(MoodleLoginActivity.EXTRA_URL, m.optString("url")))
+            "call" -> onCall(m)
+            "callSpeaker" -> CallService.speaker(this, m.optBoolean("on", true))
             "file" -> saveFile(m.optString("name", "download"), m.optString("mime"), m.optString("data"))
         }
+    }
+
+    /** La page signale un appel actif (service au premier plan, notification) ou terminé. */
+    private fun onCall(m: JSONObject) {
+        if (!m.optBoolean("active")) { CallService.stop(this); return }
+        CallService.onHangup = { main.post { web.evaluateJavascript("window.dispatchEvent(new CustomEvent('looty:call-hangup'))", null) } }
+        CallService.start(this, m.optString("title"), Uri.parse(server).host.orEmpty(), m.optBoolean("video"), m.optBoolean("muted"))
     }
 
     // ---------------------------------------------------------------------
@@ -433,6 +488,8 @@ private const val PAGE_SCRIPT = """
 (() => {
   // Page affichée dans l'application native : l'interface masque sa propre navigation.
   window.__lootyNative = true;
+  // Capacités de l'application : getDisplayMedia (partage d'écran) n'existe pas dans la WebView Android.
+  window.__lootyCaps = { screenShare: false, calls: true };
   document.documentElement.classList.add('native-embed');
   if (!window.LootyApp) return;
   const post = (m) => LootyApp.postMessage(JSON.stringify(m));

@@ -1,0 +1,2 @@
+• Microphone and camera: Looty calls work in the app. Android asks for permission the first time, and only your own instance can use the microphone or camera.
+• Keeps going in the background: during a call a notification stays visible with *Hang up* and *Speaker/Earpiece*, so the audio continues with the screen off or another app in front. Wired, USB and Bluetooth headsets are used automatically.

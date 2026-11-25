@@ -71,6 +71,14 @@
     <string name="n_completed">%1$s completed a task</string>
     <string name="n_mail">New email</string>
     <string name="n_other">New activity</string>
+    <!-- Appels -->
+    <string name="call_channel">Calls</string>
+    <string name="call_channel_hint">Ongoing call: hang up and audio output</string>
+    <string name="call_ongoing">Call in progress</string>
+    <string name="call_ongoing_muted">Call in progress (muted)</string>
+    <string name="call_hangup">Hang up</string>
+    <string name="call_speaker">Speaker</string>
+    <string name="call_earpiece">Earpiece</string>
     <!-- Canaux de notification (réglables dans Android : son, vibration, importance) -->
     <string name="chg_work">Work</string>
     <string name="chg_messages">Messages and calendar</string>

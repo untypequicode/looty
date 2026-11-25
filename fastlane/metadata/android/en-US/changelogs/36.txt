@@ -1,2 +1,0 @@
-• Several instances: add your association's and your school's Looty to the same app and switch from *More → Instances*. Each instance keeps its own sign-in, offline copy, queued changes, notifications and widgets; signing out of or removing one never touches the others. Your current instance becomes the first one, with nothing lost.
-• Links: a link from an instance you have added switches to it; a link from an unknown instance offers to add it or to open it in the browser.
