@@ -19,7 +19,9 @@ ok('API : propriétés enregistrées', viaApi.repeat === 'weekly' && viaApi.is_p
 await p.goto(`${B}/w/${WS}/board/${board.id}`, { waitUntil: 'networkidle' })
 await p.evaluate(() => localStorage.removeItem('looty.createTask.full'))
 // Tableau ouvert en lecture (préférence de l'espace) : passage en modification.
-await p.locator('.page-header, header').getByRole('button', { name: /^(Edit|Modifier)$/ }).first().click()
+// Selon les tests précédents du même segment, l'espace est déjà en modification.
+const editBtn = p.locator('.page-header, header').getByRole('button', { name: /^(Edit|Modifier)$/ }).first()
+if (await editBtn.count()) await editBtn.click()
 await p.waitForTimeout(400)
 const open = async () => {
   await p.getByRole('button', { name: /^(New task|Nouvelle tâche)$/ }).first().click()
