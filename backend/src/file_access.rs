@@ -268,7 +268,7 @@ pub async fn report_unattributed(pool: &PgPool) -> usize {
     }
     let total: i64 = sqlx::query_scalar("SELECT count(*) FROM upload_files WHERE kind = 'unattributed'").fetch_one(pool).await.unwrap_or(0);
     if total > 0 {
-        tracing::warn!("uploads: {total} file(s) without owner or reference ({added} new), readable by instance admins only; see Admin > Storage");
+        tracing::warn!("uploads: {total} file(s) without owner or reference ({added} new), readable by instance admins only; count in the storage overview");
     }
     total as usize
 }

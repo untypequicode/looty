@@ -11,6 +11,17 @@ description: "Secrets, LOOTY_DEV_LOGIN et ce qu’il faut exposer."
 - **Connexion** : limitez qui peut créer un compte chez votre fournisseur d’identité. Avec Google, limitez l’écran de consentement.
 - **Mises à jour** : appliquez-les régulièrement, après une sauvegarde.
 
+## Fichiers envoyés
+
+Depuis la 0.66.0, les fichiers sous `/uploads/` (images et pièces jointes des pages, des tâches, avatars) ne sont **plus publics**.
+
+- Chaque fichier est lié à la page, à la tâche ou à l’espace pour lequel il a été envoyé, et n’est servi qu’à une personne connectée (cookie de session, jeton d’API, applications Android et bureau) qui peut lire cette page, cette tâche ou cet espace. Retirez l’accès : le fichier cesse de se charger aussitôt, même pour qui en connaît encore l’adresse. La réponse est `404` pour une personne connectée sans accès et `401` sans connexion.
+- Publics par choix : les avatars et l’icône de l’instance. Une page partagée par **lien public** sert ses propres images à toute personne qui a le lien, et celles-là seulement, tant que le lien existe.
+- Aucun cache partagé ne garde un fichier (`Cache-Control: private, no-cache`, `Vary: Cookie`) ; les médias acceptent les requêtes par plages.
+- Les fichiers d’avant la mise à jour sont rattachés pendant la migration à la première page, tâche ou avatar qui les cite. Les fichiers cités nulle part et sans auteur connu sont listés comme **sans propriétaire** (ligne de journal au démarrage et compteur `unattributed_files` de l’aperçu du stockage dans l’API d’administration) et seuls les administrateurs de l’instance peuvent les ouvrir.
+- Un client qui ne peut pas envoyer d’identifiants peut demander `GET /api/uploads/{nom}/link`, un lien signé valable 10 minutes. En dernier recours, `LOOTY_UPLOADS_PUBLIC=true` rétablit l’ancien comportement ouvert.
+- Les exports, sauvegardes et e-mails envoyés depuis Looty lisent les fichiers sur le serveur, pas par cette adresse : rien ne change, sauf qu’un e-mail ne peut pas joindre un fichier que son expéditeur ne peut pas ouvrir.
+
 ## Tunnels PC
 
 Détails : [Tunnels PC](/fr/docs/host/operate/tunnels/).
