@@ -99,7 +99,21 @@ function nextRevalidation(failures, status) {
   return { action: 'keep', failures: 0 }
 }
 
-module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal, nextRevalidation, sessionCookieInfo, createRefusalLimiter }
+/**
+ * Niveau d'accès revérifié (ADR 0022, G8) : passer de la modification à la lecture rend la connexion en
+ * lecture seule sans la couper (les modifications qu'elle envoie encore sont refusées par le serveur) ;
+ * l'inverse la rouvre. Renvoie « downgraded », « upgraded » ou « same ».
+ */
+function applyAccess(conn, access) {
+  const readOnly = !access.can_write
+  const before = !!conn.readOnly
+  conn.readOnly = readOnly
+  if (readOnly && !before) return 'downgraded'
+  if (!readOnly && before) return 'upgraded'
+  return 'same'
+}
+
+module.exports = { RETRY_DELAYS_MS, withRetry, authErrorForStatus, describeRefusal, nextRevalidation, applyAccess, sessionCookieInfo, createRefusalLimiter }
 
 /**
  * Relance l'enregistrement des documents dont l'enregistrement a échoué et qui sont encore

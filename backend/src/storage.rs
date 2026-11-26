@@ -244,11 +244,13 @@ async fn overview(State(state): State<AppState>, user: AuthUser) -> ApiResult<Js
     let db_size: i64 = sqlx::query_scalar("SELECT pg_database_size(current_database())").fetch_one(&state.pool).await.unwrap_or(0);
     // Ce que la base croit stocker (pièces jointes), pour comparaison avec le disque.
     let recorded: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM task_attachments").fetch_one(&state.pool).await?;
+    let unattributed: i64 = sqlx::query_scalar("SELECT count(*) FROM upload_files WHERE kind = 'unattributed'").fetch_one(&state.pool).await.unwrap_or(0);
 
     Ok(Json(serde_json::json!({
         "upload_bytes": total,
         "file_count": file_count,
         "attachments_recorded_bytes": recorded,
+        "unattributed_files": unattributed,
         "db_bytes": db_size,
         "disk": disk.map(|(t, a)| serde_json::json!({ "total": t, "available": a })),
         "by_usage": bucket(by_usage),

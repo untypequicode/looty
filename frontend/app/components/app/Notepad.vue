@@ -77,7 +77,7 @@ function onResize() {
         <UiButton variant="ghost" size="sm" :icon="X" :aria-label="t('notepad.close')" @click="notepadOpen = false" />
       </header>
       <div class="np-body">
-        <EditorLite v-if="loaded" v-model="content" :placeholder="t('notepad.placeholder')" autofocus />
+        <EditorLite v-if="loaded" v-model="content" personal :placeholder="t('notepad.placeholder')" autofocus />
       </div>
     </aside>
   </Transition>

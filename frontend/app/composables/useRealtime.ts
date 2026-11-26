@@ -237,6 +237,7 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.invalidateQueries({ queryKey: wsKeys.pages(wsId) })
       qc.invalidateQueries({ queryKey: ['page', ev.page_id] })
       qc.invalidateQueries({ queryKey: ['page-permissions', ev.page_id] })
+      qc.invalidateQueries({ queryKey: ['shared-pages'] })
       break
     case 'PAGE_DELETED':
       // Devenue personnelle : disparaît pour les autres, pas pour sa propriétaire.

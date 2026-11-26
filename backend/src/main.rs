@@ -49,6 +49,7 @@ mod templates;
 mod openapi;
 mod token_guard;
 mod webhooks;
+mod file_access;
 mod storage;
 mod text;
 mod bg;
@@ -164,6 +165,10 @@ async fn main() {
         account::start_deletion_loop(state.clone());
         webhooks::start_worker(state.clone());
     }
+    {
+        let pool = state.pool.clone();
+        tokio::spawn(async move { file_access::report_unattributed(&pool).await; });
+    }
     let app = app(state);
 
     tokio::fs::create_dir_all(upload::UPLOAD_DIR).await.ok();
@@ -196,6 +201,7 @@ fn app(state: state::AppState) -> Router {
         .route("/ws", get(ws::ws_handler))
         .route("/ics/{file}", get(ics_feed::feed))
         .route("/upload", post(upload::upload_file))
+        .route("/uploads/{name}/link", get(upload::upload_link))
         .route("/public/pages/{token}", get(page::get_public_page))
         .route("/public/pages/{token}/notebook", get(public_project::notebook))
         .route("/public/pages/{token}/files/{*path}", get(public_project::image))
@@ -339,6 +345,8 @@ fn parse_provider_id(value: &str) -> Result<Option<uuid::Uuid>, String> {
 
 #[cfg(test)]
 mod page_access_tests;
+#[cfg(test)]
+mod file_access_tests;
 
 #[cfg(test)]
 mod slides_collab_tests;

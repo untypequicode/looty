@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.67.0",
+      "date": "2026-11-26",
+      "title": {
+        "en": "Files follow page access: uploads are no longer public",
+        "fr": "Les fichiers suivent l’accès aux pages : les envois ne sont plus publics"
+      },
+      "notes": {
+        "en": [
+          "Images and attachments are now tied to the page, task or space they were uploaded for and are only served to signed-in people who can read it. Take someone’s access to a page away and its images stop loading for them immediately, even if they kept the address. Avatars and the instance icon stay public; a page shared by public link serves its own images to the people who have the link.",
+          "People you shared a page with now see changes live: a new or renamed sub-page, a share added or removed, a page deleted. A guest who loses access is disconnected from the space, and someone moved from edit to read-only while typing becomes read-only without being disconnected.",
+          "Projects carried by a page now follow the access to that page everywhere, including the assistant context and study links. Administrators: files cited nowhere and with no known uploader are reported as unattributed and only instance administrators can open them; LOOTY_UPLOADS_PUBLIC=true brings back the old open behavior if a client needs it."
+        ],
+        "fr": [
+          "Les images et pièces jointes sont désormais liées à la page, à la tâche ou à l’espace pour lequel elles ont été envoyées et ne sont servies qu’aux personnes connectées qui peuvent les lire. Retirez l’accès d’une personne à une page : ses images cessent de se charger aussitôt, même si elle a gardé l’adresse. Les avatars et l’icône de l’instance restent publics ; une page partagée par lien public sert ses propres images à qui a le lien.",
+          "Les personnes avec qui vous avez partagé une page voient les changements en direct : sous-page créée ou renommée, partage ajouté ou retiré, page supprimée. Un invité qui perd l’accès est déconnecté de l’espace, et une personne passée de la modification à la lecture seule pendant qu’elle écrit passe en lecture seule sans être déconnectée.",
+          "Les projets portés par une page suivent partout l’accès à cette page, y compris le contexte de l’assistant et les liens des entraînements. Administrateurs : les fichiers cités nulle part et sans auteur connu sont signalés comme sans propriétaire et seuls les administrateurs de l’instance peuvent les ouvrir ; LOOTY_UPLOADS_PUBLIC=true rétablit l’ancien comportement ouvert si un client en a besoin."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.66.0",
       "date": "2026-11-25",
       "title": {
