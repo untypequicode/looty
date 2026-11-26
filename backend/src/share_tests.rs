@@ -368,3 +368,28 @@ async fn a_manager_by_share_cannot_use_admin_only_group_routes_and_owner_pages_s
     assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM page_access_requests WHERE page_id = $1").bind(mine).fetch_one(&w.pool).await.unwrap(), 0);
     let _ = w.top;
 }
+
+#[sqlx::test]
+async fn images_of_a_shared_page_follow_direct_group_and_request_shares(pool: PgPool) {
+    let w = World::new(pool).await;
+    let name = format!("t-{}.png", Uuid::new_v4());
+    std::fs::create_dir_all(crate::upload::UPLOAD_DIR).unwrap();
+    std::fs::write(std::path::Path::new(crate::upload::UPLOAD_DIR).join(&name), b"png").unwrap();
+    sqlx::query("INSERT INTO upload_files (name, page_id, kind) VALUES ($1, $2, 'upload')").bind(&name).bind(w.child).execute(&w.pool).await.unwrap();
+    let get = |who: Uuid| {
+        let (w, name) = (&w, name.clone());
+        async move { w.call(who, "GET", &format!("/uploads/{name}"), None).await.0 }
+    };
+    assert_eq!(get(w.gus).await, 404, "no share, no image");
+    // Partage direct, par groupe, par demande d'accès approuvée : l'image suit, puis se ferme au retrait.
+    assert_eq!(w.share(w.ana, w.shared, json!({ "user_id": w.gus }), "read", true).await.0, 204);
+    assert_eq!(get(w.gus).await, 200);
+    let g = w.group("Crew", &[w.zed]).await;
+    assert_eq!(w.share(w.ana, w.shared, json!({ "group_id": g }), "read", true).await.0, 204);
+    assert_eq!(get(w.zed).await, 200);
+    assert_eq!(w.call(w.root, "DELETE", &format!("/api/admin/share/groups/{g}/members/{}", w.zed), None).await.0, 204);
+    assert_eq!(get(w.zed).await, 404);
+    assert_eq!(w.share(w.ana, w.shared, json!({ "user_id": w.gus }), "none", true).await.0, 204);
+    assert_eq!(get(w.gus).await, 404);
+    let _ = std::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(&name));
+}
