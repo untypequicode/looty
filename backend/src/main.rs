@@ -341,6 +341,9 @@ fn parse_provider_id(value: &str) -> Result<Option<uuid::Uuid>, String> {
 mod page_access_tests;
 
 #[cfg(test)]
+mod slides_collab_tests;
+
+#[cfg(test)]
 mod tests {
     use super::parse_provider_id;
 

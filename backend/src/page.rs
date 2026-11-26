@@ -110,6 +110,8 @@ pub struct CreatePage {
     /// Modèle (GLOSSARY) : identifiant d'un modèle de l'espace, ou nom d'un modèle fourni. Le contenu,
     /// le titre et l'icône qu'il porte remplacent ce que la requête ne donne pas.
     pub template_id: Option<String>,
+    /// Duplication d'une présentation : page dont on copie les diapositives (même espace, lisible par l'appelant).
+    pub copy_slides_from: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -318,6 +320,14 @@ async fn create_page(
     }
     let title = check_title(payload.title.as_deref().unwrap_or(""))?;
     let default_view = check_view(payload.default_view.as_deref().unwrap_or("doc"))?;
+    // Copie d'une présentation : la source doit être lisible, de cet espace, et une présentation (avant toute création).
+    if let Some(src) = payload.copy_slides_from {
+        let (src_ws, _, _) = crate::access::require_page_read(pool, &user, src).await?;
+        let is_deck: Option<String> = sqlx::query_scalar("SELECT default_view FROM pages WHERE id = $1").bind(src).fetch_optional(pool).await?;
+        if src_ws != workspace_id || is_deck.as_deref() != Some("slides") {
+            return Err(ApiError::NotFound);
+        }
+    }
     if let Some(i) = &payload.icon {
         check_icon(i)?;
     }
@@ -365,6 +375,21 @@ async fn create_page(
         .bind(user.id)
         .execute(pool)
         .await?;
+    }
+    // Copie d'une présentation : l'état des diapositives de la page source (version enregistrée).
+    if let Some(src) = payload.copy_slides_from {
+        let copied = sqlx::query(
+            "UPDATE pages_all d SET default_view = 'slides', slides_state = s.slides_state, slides_count = s.slides_count, slides_text = s.slides_text, slides_updated_at = NOW()
+             FROM pages s WHERE d.id = $1 AND s.id = $2 AND s.default_view = 'slides'",
+        )
+        .bind(page.id)
+        .bind(src)
+        .execute(pool)
+        .await?;
+        if copied.rows_affected() == 0 {
+            return Err(ApiError::NotFound);
+        }
+        page.default_view = "slides".into();
     }
     // Page qui porte un projet : créé avec elle, au nom de la page.
     if let Some(np) = &payload.project {
