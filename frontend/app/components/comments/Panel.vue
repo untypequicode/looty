@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoreHorizontal, Pencil, Trash2, CheckCircle2, RotateCcw, MessageSquare, Quote, X } from 'lucide-vue-next'
+import { MoreHorizontal, Pencil, Trash2, CheckCircle2, RotateCcw, MessageSquare, Quote, X, Crosshair } from 'lucide-vue-next'
 import type { MenuItem } from '~/components/ui/Menu.vue'
 import { useComments, type CommentKind, type ItemComment } from '~/composables/useComments'
 import { useWorkspace } from '~/composables/useWorkspace'
@@ -13,8 +13,10 @@ import { errorMessage } from '~/composables/api'
  * Discussion d'une page ou d'un événement : fils (commentaire + réponses), passage cité,
  * résolution. `quote` (v-model) : passage sélectionné dans le document, à commenter.
  */
-const props = defineProps<{ kind: CommentKind; targetId: string; canComment?: boolean; focusId?: string | null }>()
+const props = defineProps<{ kind: CommentKind; targetId: string; canComment?: boolean; focusId?: string | null; anchorLabel?: (anchor: string) => string | null }>()
 const quote = defineModel<string | null>('quote', { default: null })
+/** Présentation : diapositive ou élément auquel le prochain commentaire sera rattaché (`slide:…`, `el:…`). */
+const anchor = defineModel<string | null>('anchor', { default: null })
 const emit = defineEmits<{ created: [c: ItemComment]; removed: [c: ItemComment]; resolved: [c: ItemComment, resolved: boolean]; select: [c: ItemComment] }>()
 
 const { wsId, isAdmin, member } = useWorkspace()
@@ -37,14 +39,16 @@ const editDraft = ref('')
 const menus = reactive<Record<string, boolean>>({})
 const composer = ref<{ focus?: () => void } | null>(null)
 watch(quote, (q) => { if (q) nextTick(() => composer.value?.focus?.()) })
+watch(anchor, (a) => { if (a) nextTick(() => composer.value?.focus?.()) })
 
 async function send() {
   if (!draft.value.trim() || sending.value) return
   sending.value = true
   try {
-    const c = await add(draft.value, { quote: quote.value ?? undefined })
+    const c = await add(draft.value, { quote: quote.value ?? undefined, anchor: anchor.value ?? undefined })
     draft.value = ''
     quote.value = null
+    anchor.value = null
     emit('created', c)
   } catch (e) { toast.error(errorMessage(e)) } finally { sending.value = false }
 }
@@ -93,7 +97,7 @@ watch(() => props.focusId, (id) => {
   <section class="cm">
     <div ref="listEl" class="cm-list">
       <div v-if="isLoading" class="cm-empty"><UiSpinner /></div>
-      <div v-else-if="!visible.length && !quote" class="cm-empty">
+      <div v-else-if="!visible.length && !quote && !anchor" class="cm-empty">
         <MessageSquare :size="20" />
         <span>{{ t('itemComments.empty') }}</span>
       </div>
@@ -113,6 +117,7 @@ watch(() => props.focusId, (id) => {
                 <button class="cm-act" @click.stop><MoreHorizontal :size="14" /></button>
               </UiMenu>
             </div>
+            <button v-if="c.anchor && !c.parent_id" type="button" class="cm-anchor" :class="{ gone: !anchorLabel?.(c.anchor) }" data-anchor @click.stop="emit('select', c)"><Crosshair :size="12" /> {{ anchorLabel?.(c.anchor) ?? t('slides.collab.detached') }}</button>
             <blockquote v-if="c.quote" class="cm-quote">{{ c.quote }}</blockquote>
             <div v-if="editing === c.id" class="cm-edit" @click.stop>
               <EditorLite v-model="editDraft" autofocus submit-on-enter @submit="saveEdit(c)" />
@@ -142,6 +147,7 @@ watch(() => props.focusId, (id) => {
     </div>
 
     <div v-if="canComment" class="cm-composer">
+      <div v-if="anchor" class="cm-pending cm-pending-anchor" data-pending-anchor><Crosshair :size="12" /><span class="truncate">{{ anchorLabel?.(anchor) ?? anchor }}</span><button :aria-label="t('common.cancel')" @click="anchor = null"><X :size="12" /></button></div>
       <div v-if="quote" class="cm-pending"><Quote :size="12" /><span class="truncate">{{ quote }}</span><button :aria-label="t('common.cancel')" @click="quote = null"><X :size="12" /></button></div>
       <div class="cm-box">
         <EditorLite ref="composer" v-model="draft" :placeholder="t('comments.placeholder')" submit-on-enter @submit="send" />
@@ -170,6 +176,9 @@ watch(() => props.focusId, (id) => {
 .cm-act:hover { background: var(--bg-hover); color: var(--text); }
 .cm-quote { margin: 4px 0 6px; padding: 2px 8px; border-left: 3px solid var(--yellow, #e2a03f); color: var(--text-2); font-size: var(--fs-sm); white-space: pre-wrap; max-height: 5.5em; overflow: hidden; }
 .cm-body :deep(p) { margin: 0; }
+.cm-anchor { display: inline-flex; align-items: center; gap: 4px; margin: 2px 0 4px; padding: 1px 8px; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-xs); font-weight: 600; max-width: 100%; }
+.cm-anchor.gone { background: var(--bg-hover); color: var(--text-3); font-weight: 500; }
+.cm-pending-anchor { border-left-color: var(--accent); }
 .cm-resolved { display: flex; align-items: center; gap: 4px; margin: 8px 0 0; font-size: var(--fs-xs); color: var(--green); }
 .cm-reply-btn { margin-top: 8px; font-size: var(--fs-sm); color: var(--text-3); }
 .cm-reply-btn:hover { color: var(--text); }

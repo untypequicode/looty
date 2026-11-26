@@ -74,10 +74,10 @@ export function usePages() {
     qc.setQueryData<Page>(['page', id], (old) => (old ? { ...old, ...patch } : old))
   }
 
-  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas' | 'slides'; personal?: boolean; templateId?: string } = {}) {
+  async function createPage(opts: { parentId?: string | null; title?: string; content?: string; icon?: string; project?: NewPageProject; defaultView?: 'doc' | 'canvas' | 'slides'; personal?: boolean; templateId?: string; copySlidesFrom?: string } = {}) {
     const page = await api<Page>(`/api/workspaces/${wsId.value}/pages`, {
       method: 'POST',
-      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView, personal: opts.personal ?? false, template_id: opts.templateId },
+      body: { title: opts.title ?? '', parent_id: opts.parentId ?? null, content: opts.content, icon: opts.icon, project: opts.project, default_view: opts.defaultView, personal: opts.personal ?? false, template_id: opts.templateId, copy_slides_from: opts.copySlidesFrom },
     })
     qc.setQueryData<Page[]>(wsKeys.pages(wsId.value), (old) => (old && !old.some((p) => p.id === page.id) ? [...old, { ...page, content: null, can_edit: true }] : old))
     // Droits calculés par le serveur (sous-pages permises par un partage…).
@@ -168,6 +168,8 @@ export function usePages() {
       title: `${src.title || translate('docs.untitled')} (${translate('docs.copy')})`,
       content: src.content ?? '',
       icon: src.icon ?? undefined,
+      // Présentation : les diapositives sont copiées par le serveur (leur état n'est pas dans `content`).
+      ...(src.default_view === 'slides' ? { defaultView: 'slides' as const, copySlidesFrom: src.id } : {}),
     })
     await navigateTo(links.doc(wsId.value, copy.id))
   }
