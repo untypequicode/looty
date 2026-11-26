@@ -8,7 +8,7 @@ use axum::{
     routing::{get, patch, post},
     Json, Router,
 };
-use chrono::{DateTime, Utc};
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ pub fn workspace_routes() -> Router<AppState> {
 }
 
 pub fn user_routes() -> Router<AppState> {
-    Router::new().route("/users/search", get(search_users)).route("/shared", get(shared_with_me))
+    Router::new().route("/users/search", get(search_users)).route("/shared", get(crate::share::shared_with_me))
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -302,6 +302,8 @@ async fn search_users(State(state): State<AppState>, user: AuthUser, Query(q): Q
          WHERE COALESCE(u.is_suspended, FALSE) = FALSE AND (lower(u.name) LIKE $1 OR lower(u.email) LIKE $1)
            AND ($2::uuid IS NULL OR NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = u.id::varchar))
            AND (NOT $4 OR u.demo_copy_id IS NOT DISTINCT FROM (SELECT demo_copy_id FROM users WHERE id = $5))
+           AND ($6 = 'all' OR lower(u.email) = $3
+                OR ($6 = 'shared' AND (u.id = $5 OR EXISTS (SELECT 1 FROM workspace_members a JOIN workspace_members b ON b.workspace_id = a.workspace_id WHERE a.user_id = $5::varchar AND b.user_id = u.id::varchar))))
          ORDER BY (lower(u.email) = $3) DESC, u.name LIMIT 8",
     )
     .bind(like)
@@ -310,6 +312,8 @@ async fn search_users(State(state): State<AppState>, user: AuthUser, Query(q): Q
     // Démo : chaque visiteur ne voit que les personnages de sa propre copie.
     .bind(state.demo)
     .bind(user.id)
+    // Annuaire limité par l'administrateur : tous les comptes, les personnes de mes espaces, ou une adresse exacte.
+    .bind(if user.is_super_admin { "all".to_string() } else { crate::share::directory_scope(&state.pool).await })
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))
@@ -397,72 +401,6 @@ pub async fn send_mail(state: &AppState, to: &str, to_name: &str, subject: &str,
             if let Some(i) = esc.find("http") { let (a, b) = esc.split_at(i); let url = b.split_whitespace().next().unwrap_or(b); format!("{a}<a href=\"{url}\">{url}</a>{}", &b[url.len()..]) } else { esc }
         }).collect::<Vec<_>>().join("<br>"));
     crate::mail::send(&cfg, &crate::mail::Email { to: to.into(), to_name: to_name.into(), subject: subject.into(), text: text.into(), html }).await.is_ok()
-}
-
-// ---------------------------------------------------------------------------
-// Pages partagées avec moi (invité hors de l'espace)
-// ---------------------------------------------------------------------------
-
-#[derive(Serialize, sqlx::FromRow)]
-struct SharedPage {
-    id: Uuid,
-    workspace_id: Uuid,
-    workspace_name: String,
-    parent_id: Option<Uuid>,
-    title: String,
-    icon: Option<String>,
-    updated_at: DateTime<Utc>,
-    /// `viewer` ou `editor` (anciens clients) ; le niveau précis est dans `level`.
-    role: String,
-    /// `read`, `comment`, `edit` ou `manage`.
-    #[sqlx(skip)]
-    level: String,
-    /// Page partagée directement (sinon : sous-page d'une page partagée).
-    root: bool,
-}
-
-async fn shared_with_me(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<Vec<SharedPage>>> {
-    let rows: Vec<SharedPage> = sqlx::query_as(
-        "SELECT DISTINCT ON (p.id) p.id, p.workspace_id, w.name AS workspace_name, p.parent_id, p.title, p.icon, p.updated_at, pp.role, TRUE AS root
-         FROM page_permissions pp JOIN pages p ON p.id = pp.page_id JOIN workspaces w ON w.id = p.workspace_id
-         WHERE pp.user_id = $1 AND pp.role NOT IN ('deny', 'blocked')
-           AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = p.workspace_id AND m.user_id = $1::varchar)
-         ORDER BY p.id",
-    )
-    .bind(user.id)
-    .fetch_all(&state.pool)
-    .await?;
-    // Sous-pages : contrôle d'accès réel (permissions héritées, refus éventuels).
-    let mut out = rows;
-    for r in &mut out {
-        let grant = crate::access::Grant::parse(&r.role).unwrap_or(crate::access::Grant::Deny);
-        r.level = grant.name().into();
-        r.role = grant.legacy_name().into();
-    }
-    let roots: Vec<(Uuid, Uuid)> = out.iter().map(|r| (r.id, r.workspace_id)).collect();
-    for (root, _) in roots {
-        let children: Vec<(Uuid, Uuid, String, Option<Uuid>, String, Option<String>, DateTime<Utc>)> = sqlx::query_as(
-            "WITH RECURSIVE d AS (
-                SELECT id, 0 AS depth FROM pages WHERE parent_id = $1
-                UNION ALL SELECT p.id, d.depth + 1 FROM pages p JOIN d ON p.parent_id = d.id WHERE d.depth < 32
-             )
-             SELECT p.id, p.workspace_id, w.name, p.parent_id, p.title, p.icon, p.updated_at FROM d JOIN pages p ON p.id = d.id JOIN workspaces w ON w.id = p.workspace_id",
-        )
-        .bind(root)
-        .fetch_all(&state.pool)
-        .await?;
-        for (id, ws, wname, parent, title, icon, updated) in children {
-            if out.iter().any(|x| x.id == id) {
-                continue;
-            }
-            if let Ok((_, Role::Guest, lv)) = crate::access::page_access_level(&state.pool, &user, id).await {
-                let role = if lv >= crate::access::level::EDIT { "editor" } else { "viewer" };
-                out.push(SharedPage { id, workspace_id: ws, workspace_name: wname, parent_id: parent, title, icon, updated_at: updated, role: role.into(), level: crate::access::level::name(lv).into(), root: false });
-            }
-        }
-    }
-    out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    Ok(Json(out))
 }
 
 /// Rôle de base correspondant à un rôle de l'espace.

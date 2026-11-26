@@ -188,7 +188,15 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let text = crate::ical::html_to_text(&content);
     let snippet: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(140).collect();
     let data = serde_json::json!({ "title": title, "snippet": snippet, "comment_id": id });
-    let mentioned = crate::groups::mentioned_people(&state.pool, ws, &extract_mentions(&content)).await?;
+    let mut mentioned = crate::groups::mentioned_people(&state.pool, ws, &extract_mentions(&content)).await?;
+    // Une page peut aussi mentionner les personnes extérieures à l'espace qui la lisent (invités).
+    if p.kind == "page" {
+        for o in crate::share::mentioned_outsiders(&state.pool, p.id, &extract_mentions(&content)).await {
+            if !mentioned.contains(&o) {
+                mentioned.push(o);
+            }
+        }
+    }
     // Personne ne reçoit l'extrait d'un commentaire sur un élément qu'elle ne peut pas lire.
     let mut readers = Vec::with_capacity(mentioned.len());
     for m in mentioned {

@@ -433,8 +433,14 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                         continue;
                     };
                     // Un membre, ou un groupe de l'espace : chacun de ses membres est notifié.
-                    let people = crate::groups::mentioned_people(&pool, workspace_id, &[target]).await.unwrap_or_default();
+                    let mut people = crate::groups::mentioned_people(&pool, workspace_id, &[target]).await.unwrap_or_default();
                     let loc = sanitize_location(json["location"].as_str().unwrap_or("home"));
+                    // Dans une page : les personnes extérieures à l'espace qui peuvent la lire se mentionnent aussi.
+                    if let Some(page) = loc.strip_prefix("page:").and_then(|i| Uuid::parse_str(i).ok()) {
+                        if crate::access::page_workspace(&pool, page).await.ok() == Some(workspace_id) {
+                            people.extend(crate::share::mentioned_outsiders(&pool, page, &[target]).await);
+                        }
+                    }
                     for person in people {
                         crate::notifications::notify(
                             &pool,

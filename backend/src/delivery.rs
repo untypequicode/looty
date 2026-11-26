@@ -31,6 +31,9 @@ pub const EVENTS: &[(&str, bool, bool)] = &[
     ("mail_received", false, true),
     ("moodle_received", false, true),
     ("announcement", true, true),
+    // Partage d'une page (l'e-mail du premier partage à une personne extérieure part à part) et demandes d'accès.
+    ("page_shared", false, true),
+    ("access_request", true, true),
 ];
 
 pub fn event_of(kind: &str, target: &str) -> &'static str {
@@ -44,6 +47,8 @@ pub fn event_of(kind: &str, target: &str) -> &'static str {
         "mail" => "mail_received",
         "moodle" => "moodle_received",
         "announcement" => "announcement",
+        "share" => "page_shared",
+        "access_request" => "access_request",
         _ => "other",
     }
 }
@@ -407,6 +412,10 @@ async fn message(state: &AppState, p: &Pending) -> Rendered {
             Some(from) => format!("Moodle — {from} : {title}"),
             None => format!("Moodle : {title}"),
         },
+        ("page_shared", false) => format!("{actor} shared {} with you", q(&title)),
+        ("page_shared", true) => format!("{actor} a partagé {} avec vous", q(&title)),
+        ("access_request", false) => format!("{actor} is asking for access to {}", q(&title)),
+        ("access_request", true) => format!("{actor} demande l’accès à {}", q(&title)),
         ("announcement", false) => format!("{actor} posted an announcement: {}", q(&title)),
         ("announcement", true) => format!("{actor} a publié une annonce : {}", q(&title)),
         ("task_completed", false) => format!("{actor} completed {}", q(&title)),
