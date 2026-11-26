@@ -358,3 +358,122 @@ async fn a_project_carried_by_a_page_follows_the_page_for_ai_context_and_study_l
     sqlx::query("INSERT INTO page_permissions (page_id, user_id, role, inherit, created_by) VALUES ($1, $2, 'deny', true, $3)").bind(w.other).bind(w.ben).bind(w.ana).execute(&w.pool).await.unwrap();
     assert!(crate::ai::check_context(&w.pool, &ben, "project", Some(project)).await.is_err());
 }
+
+// --- Revue : coût des recherches, contenus annexes, jetons limités ---
+
+#[sqlx::test]
+async fn a_missing_file_is_a_plain_404_and_never_searched(pool: PgPool) {
+    let w = W::new(pool).await;
+    let name = fresh_name("png");
+    // Même cité par une page lisible et lié par une ligne : sans fichier sur disque, rien à servir.
+    sqlx::query("UPDATE pages SET content = $2 WHERE id = $1").bind(w.child).bind(format!("<img src=\"/uploads/{name}\">")).execute(&w.pool).await.unwrap();
+    sqlx::query("INSERT INTO upload_files (name, page_id, kind) VALUES ($1, $2, 'upload')").bind(&name).bind(w.child).execute(&w.pool).await.unwrap();
+    assert_eq!(w.status(Some(w.gus), &name).await, 404);
+    assert_eq!(w.status(None, &name).await, 404);
+    assert_eq!(w.get(Some(w.gus), &format!("/api/uploads/{name}/link")).await.status, 404);
+    let refs: i64 = sqlx::query_scalar("SELECT count(*) FROM upload_refs WHERE name = $1").bind(&name).fetch_one(&w.pool).await.unwrap();
+    assert_eq!(refs, 0, "no search was run");
+}
+
+#[sqlx::test]
+async fn a_file_cited_by_more_than_a_batch_of_unreadable_pages_is_still_found(pool: PgPool) {
+    let w = W::new(pool).await;
+    let name = fresh_name("png");
+    disk(&name, b"many");
+    let img = format!("<img src=\"/uploads/{name}\">");
+    for i in 0..95 {
+        page(&w.pool, w.ws, w.ana, &format!("Hidden {i}"), None, &img).await;
+    }
+    // La page lisible est créée en dernier : après plusieurs lots de pages illisibles.
+    sqlx::query("UPDATE pages SET content = $2 WHERE id = $1").bind(w.child).bind(&img).execute(&w.pool).await.unwrap();
+    assert_eq!(w.status(Some(w.gus), &name).await, 200);
+    assert_eq!(w.status(Some(w.zed), &name).await, 404);
+    let _ = std::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(&name));
+}
+
+#[sqlx::test]
+async fn legacy_images_in_comments_announcements_and_notepads_keep_their_audience(pool: PgPool) {
+    let w = W::new(pool).await;
+    let (c_name, a_name, n_name, e_name) = (fresh_name("png"), fresh_name("png"), fresh_name("png"), fresh_name("png"));
+    for n in [&c_name, &a_name, &n_name, &e_name] {
+        disk(n, b"x");
+    }
+    // Commentaire d'une page partagée, d'un événement, annonce de l'espace, bloc-notes de ben.
+    sqlx::query("INSERT INTO item_comments (workspace_id, target_kind, target_id, user_id, content) VALUES ($1, 'page', $2, $3, $4)").bind(w.ws).bind(w.child).bind(w.ana).bind(format!("<img src=\"/uploads/{c_name}\">")).execute(&w.pool).await.unwrap();
+    sqlx::query("INSERT INTO item_comments (workspace_id, target_kind, target_id, user_id, content) VALUES ($1, 'event', $2, $3, $4)").bind(w.ws).bind(Uuid::new_v4()).bind(w.ana).bind(format!("<img src=\"/uploads/{e_name}\">")).execute(&w.pool).await.unwrap();
+    sqlx::query("INSERT INTO announcements (workspace_id, author_id, title, body) VALUES ($1, $2, 'A', $3)").bind(w.ws).bind(w.ana).bind(format!("<img src=\"/uploads/{a_name}\">")).execute(&w.pool).await.unwrap();
+    sqlx::query("INSERT INTO user_notepads (user_id, content) VALUES ($1, $2)").bind(w.ben).bind(format!("<img src=\"/uploads/{n_name}\">")).execute(&w.pool).await.unwrap();
+    // Avant remplissage (fichiers sans ligne) : recherche à la demande.
+    assert_eq!(w.status(Some(w.gus), &c_name).await, 200, "guest reads the page, so its comment images");
+    assert_eq!(w.status(Some(w.zed), &c_name).await, 404);
+    assert_eq!(w.status(Some(w.ben), &a_name).await, 200);
+    assert_eq!(w.status(Some(w.gus), &a_name).await, 404, "announcements are for members");
+    assert_eq!(w.status(Some(w.ben), &n_name).await, 200);
+    assert_eq!(w.status(Some(w.ana), &n_name).await, 404, "a notepad is private, even to the space owner");
+    assert_eq!(w.status(Some(w.ben), &e_name).await, 200, "members read event comments");
+    // Après la migration : mêmes résultats avec les lignes remplies.
+    sqlx::raw_sql(include_str!("../migrations/20261216120000_upload_files.sql")).execute(&w.pool).await.unwrap();
+    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM upload_files WHERE name = ANY($1)").bind(vec![c_name.clone(), a_name.clone(), n_name.clone(), e_name.clone()]).fetch_one(&w.pool).await.unwrap();
+    assert_eq!(rows, 4, "all four backfilled");
+    // Les caches négatifs de la première série sont par fichier et par personne : on change de nom pour la suite.
+    assert_eq!(w.status(Some(w.ben), &n_name).await, 200);
+    assert_eq!(w.status(Some(w.ana), &n_name).await, 404);
+    for n in [&c_name, &a_name, &n_name, &e_name] {
+        let _ = std::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(n));
+    }
+}
+
+#[sqlx::test]
+async fn a_notepad_upload_is_bound_to_nobody_but_its_author(pool: PgPool) {
+    let w = W::new(pool).await;
+    // Le bloc-notes est ouvert sur une page partagée : il n'envoie pas le contexte de la page.
+    let (s, name) = w.upload(w.ben, "?personal=1", b"note").await;
+    assert_eq!(s, 200);
+    let bound: Option<Uuid> = sqlx::query_scalar("SELECT page_id FROM upload_files WHERE name = $1").bind(&name).fetch_one(&w.pool).await.unwrap();
+    assert!(bound.is_none());
+    assert_eq!(w.status(Some(w.ben), &name).await, 200);
+    assert_eq!(w.status(Some(w.ana), &name).await, 404);
+    assert_eq!(w.status(Some(w.gus), &name).await, 404);
+}
+
+#[sqlx::test]
+async fn a_workspace_scoped_api_token_only_reads_files_of_its_spaces(pool: PgPool) {
+    let w = W::new(pool).await;
+    let other_ws: Uuid = sqlx::query_scalar("INSERT INTO workspaces (name) VALUES ('Other') RETURNING id").fetch_one(&w.pool).await.unwrap();
+    sqlx::query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')").bind(other_ws).bind(w.ana.to_string()).execute(&w.pool).await.unwrap();
+    let in_scope = w.upload(w.ana, &format!("?page={}", w.shared), b"in").await.1;
+    let (_, avatar) = w.upload(w.ana, "", b"av").await;
+    sqlx::query("UPDATE upload_files SET kind = 'public' WHERE name = $1").bind(&avatar).execute(&w.pool).await.unwrap();
+    let out_page = page(&w.pool, other_ws, w.ana, "Elsewhere", None, "<p>e</p>").await;
+    let out_scope = w.upload(w.ana, &format!("?page={out_page}"), b"out").await.1;
+    let unbound = w.upload(w.ana, "", b"nobound").await.1;
+    for (tok, scoped) in [("looty_scoped", true), ("looty_free", false)] {
+        let ws: Option<Vec<Uuid>> = scoped.then(|| vec![w.ws]);
+        sqlx::query("INSERT INTO api_tokens (user_id, name, token_hash, scope, access, workspace_ids) VALUES ($1, $2, $3, 'api', 'read', $4)")
+            .bind(w.ana).bind(tok).bind(crate::access::hash_token(tok)).bind(ws).execute(&w.pool).await.unwrap();
+    }
+    let with = |tok: &'static str, name: String| {
+        let w = &w;
+        async move { w.send(None, "GET", &format!("/uploads/{name}"), &[("authorization", &format!("Bearer {tok}"))], Body::empty(), None).await.status }
+    };
+    assert_eq!(with("looty_scoped", in_scope.clone()).await, 200);
+    assert_eq!(with("looty_scoped", out_scope.clone()).await, 403, "another space");
+    assert_eq!(with("looty_scoped", unbound.clone()).await, 403, "no space known: refused for scoped tokens");
+    assert_eq!(with("looty_scoped", avatar.clone()).await, 200, "public files stay public");
+    assert_eq!(with("looty_free", out_scope).await, 200, "an unscoped token reads what its user reads");
+}
+
+#[test]
+fn server_generated_emails_carry_no_upload_urls() {
+    // Digests, rappels, notifications et invitations ne citent aucune image envoyée : rien à signer ni à casser.
+    // (Un nouveau lien `/uploads/` dans ces modules doit passer par `file_access::signed_link`.)
+    for (file, src) in [
+        ("mail.rs", include_str!("mail.rs")),
+        ("delivery.rs", include_str!("delivery.rs")),
+        ("reminders.rs", include_str!("reminders.rs")),
+        ("notifications.rs", include_str!("notifications.rs")),
+        ("announcements.rs", include_str!("announcements.rs")),
+    ] {
+        assert!(!src.contains("/uploads/"), "{file} builds an /uploads/ URL: sign it");
+    }
+}

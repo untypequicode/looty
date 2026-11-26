@@ -60,6 +60,33 @@ SELECT DISTINCT ON (name) name, uploader, ws, task, 'task' FROM (
 ORDER BY name, task
 ON CONFLICT (name) DO NOTHING;
 
+-- Commentaires : d'une page (la page les porte, comme ses images), d'un événement (l'espace).
+INSERT INTO upload_refs (name, page_id)
+SELECT DISTINCT m[1], c.target_id
+FROM item_comments c CROSS JOIN LATERAL regexp_matches(coalesce(c.content, ''), '/uploads/([A-Za-z0-9._-]+)', 'g') AS m
+WHERE c.target_kind = 'page' AND EXISTS (SELECT 1 FROM pages_all p WHERE p.id = c.target_id)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO upload_files (name, uploader_id, workspace_id, page_id, kind)
+SELECT DISTINCT ON (m[1]) m[1], c.user_id, c.workspace_id, CASE WHEN c.target_kind = 'page' THEN c.target_id END, 'upload'
+FROM item_comments c CROSS JOIN LATERAL regexp_matches(coalesce(c.content, ''), '/uploads/([A-Za-z0-9._-]+)', 'g') AS m
+ORDER BY m[1], c.created_at
+ON CONFLICT (name) DO NOTHING;
+
+-- Annonces : lisibles par les membres de l'espace.
+INSERT INTO upload_files (name, uploader_id, workspace_id, kind)
+SELECT DISTINCT ON (m[1]) m[1], a.author_id, a.workspace_id, 'upload'
+FROM announcements a CROSS JOIN LATERAL regexp_matches(coalesce(a.body, ''), '/uploads/([A-Za-z0-9._-]+)', 'g') AS m
+ORDER BY m[1], a.created_at
+ON CONFLICT (name) DO NOTHING;
+
+-- Bloc-notes personnel : à son auteur seulement (aucun espace ni page).
+INSERT INTO upload_files (name, uploader_id, kind)
+SELECT DISTINCT ON (m[1]) m[1], n.user_id, 'upload'
+FROM user_notepads n CROSS JOIN LATERAL regexp_matches(coalesce(n.content, ''), '/uploads/([A-Za-z0-9._-]+)', 'g') AS m
+ORDER BY m[1], n.updated_at
+ON CONFLICT (name) DO NOTHING;
+
 -- Avatars et favicon : publics (affichés à des gens qui n'ont aucun accès aux pages).
 INSERT INTO upload_files (name, uploader_id, kind)
 SELECT DISTINCT ON (m[1]) m[1], u.id, 'public'

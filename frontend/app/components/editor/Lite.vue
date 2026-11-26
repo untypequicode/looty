@@ -25,6 +25,8 @@ const props = withDefaults(defineProps<{
   autofocus?: boolean
   minimal?: boolean
   submitOnEnter?: boolean
+  /** Bloc-notes personnel : les images envoyées ne sont lisibles que par leur auteur. */
+  personal?: boolean
 }>(), { editable: true })
 const emit = defineEmits<{ (e: 'blur'): void; (e: 'submit'): void; (e: 'mention', id: string): void }>()
 
@@ -33,7 +35,7 @@ const { data: groups } = useGroups(wsId)
 const pageSource: PageSource = { wsId: () => wsId.value, pages: () => pages.data.value ?? [] }
 
 async function insertImage(file: File, pos?: number) {
-  const r = await uploadFile(file)
+  const r = await uploadFile(file, '/api/upload', { personal: props.personal })
   const node = editor.value?.schema.nodes.image?.create({ src: r.url, alt: r.name })
   if (!node || !editor.value) return
   const tr = editor.value.state.tr

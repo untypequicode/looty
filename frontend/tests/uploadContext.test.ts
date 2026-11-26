@@ -20,3 +20,7 @@ test('only the generic upload route takes the context', () => {
   assert.equal(uploadUrl('/api/upload', '/'), '/api/upload')
   assert.equal(uploadUrl('/api/boards/tasks/x/attachments', `/w/${WS}/doc/${PAGE}`), '/api/boards/tasks/x/attachments')
 })
+
+test('a personal upload (notepad) is never bound to the open page', () => {
+  assert.equal(uploadUrl('/api/upload', `/w/${WS}/doc/${PAGE}`, true), '/api/upload?personal=1')
+})

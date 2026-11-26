@@ -12,6 +12,7 @@
 //! Tout refus donne 404 à une personne connectée (le fichier n'existe pas pour elle) et 401 sinon.
 
 use sqlx::PgPool;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::access::{level, member_perms, page_level, task_ctx_for, AuthUser};
@@ -22,6 +23,52 @@ pub const LINK_TTL_SECS: i64 = 600;
 const MAC_CONTEXT: &str = "upload-link";
 /// Pages examinées au plus lors d'une recherche de citation.
 const SCAN_LIMIT: i64 = 40;
+
+/// Lots de pages examinés au plus lors d'une recherche de citation (`SCAN_LIMIT` pages chacun).
+const SCAN_ROUNDS: usize = 5;
+/// Recherches de citation par personne et par minute.
+const SCANS_PER_MINUTE: u32 = 120;
+/// Un refus récent pour (personne, fichier) n'est pas recherché de nouveau avant ce délai.
+#[cfg(not(test))]
+const NEGATIVE_TTL: std::time::Duration = std::time::Duration::from_secs(10);
+#[cfg(test)]
+const NEGATIVE_TTL: std::time::Duration = std::time::Duration::ZERO;
+
+type Limiter = std::sync::Mutex<(HashMap<Uuid, (std::time::Instant, u32)>, HashMap<(Uuid, String), std::time::Instant>)>;
+static LIMITER: std::sync::LazyLock<Limiter> = std::sync::LazyLock::new(Default::default);
+
+/// Mémorise un refus complet (voir `scan_allowed`).
+fn scan_denied(user: Uuid, name: &str) {
+    let mut g = LIMITER.lock().unwrap_or_else(|e| e.into_inner());
+    g.1.insert((user, name.to_string()), std::time::Instant::now());
+}
+
+/// Autorise une recherche coûteuse : limite par personne, et pas deux fois de suite pour le même refus.
+/// Un refus mémorisé reste refusé jusqu'à `NEGATIVE_TTL` (un accès accordé entre-temps passe par les
+/// règles rapides au-dessus, jamais par cette recherche).
+fn scan_allowed(user: Uuid, name: &str) -> bool {
+    let now = std::time::Instant::now();
+    let mut g = LIMITER.lock().unwrap_or_else(|e| e.into_inner());
+    let (counts, negatives) = &mut *g;
+    if negatives.len() > 5000 {
+        negatives.retain(|_, t| now.duration_since(*t) < NEGATIVE_TTL);
+    }
+    if counts.len() > 5000 {
+        counts.retain(|_, (t, _)| now.duration_since(*t) < std::time::Duration::from_secs(60));
+    }
+    if negatives.get(&(user, name.to_string())).is_some_and(|t| now.duration_since(*t) < NEGATIVE_TTL) {
+        return false;
+    }
+    let e = counts.entry(user).or_insert((now, 0));
+    if now.duration_since(e.0) >= std::time::Duration::from_secs(60) {
+        *e = (now, 0);
+    }
+    if e.1 >= SCANS_PER_MINUTE {
+        return false;
+    }
+    e.1 += 1;
+    true
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Decision {
@@ -69,8 +116,16 @@ pub async fn register(pool: &PgPool, name: &str, uploader: Uuid, kind: &str, b: 
 
 /// Un fichier devient public (avatar, favicon) : seulement par la personne qui l'a envoyé (ou un fichier
 /// d'avant la migration sans propriétaire, ou un administrateur d'instance).
+async fn row_exists(pool: &PgPool, name: &str) -> ApiResult<bool> {
+    Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM upload_files WHERE name = $1)").bind(name).fetch_one(pool).await?)
+}
+
 pub async fn mark_public(pool: &PgPool, user: &AuthUser, url: &str) -> ApiResult<()> {
     let Some(name) = name_of_url(url) else { return Ok(()) };
+    // Seulement un fichier que la personne peut lire (l'envoyeur pour une migration : voir ADR 0022 § 8).
+    if row_exists(pool, name).await? && decide(pool, Some(user), name, None, None).await? == Decision::Denied {
+        return Err(ApiError::bad_request("invalid_avatar_url"));
+    }
     let row: Option<(Option<Uuid>, String)> = sqlx::query_as("SELECT uploader_id, kind FROM upload_files WHERE name = $1").bind(name).fetch_optional(pool).await?;
     match row {
         Some((_, kind)) if kind == "public" => Ok(()),
@@ -183,27 +238,73 @@ pub async fn decide(pool: &PgPool, user: Option<&AuthUser>, name: &str, share: O
         }
     }
     // Pages qui citent le fichier : lien connu, revérifié (la page le contient toujours, la personne la lit).
-    let known: Vec<Uuid> = sqlx::query_scalar("SELECT page_id FROM upload_refs WHERE name = $1 LIMIT 200").bind(name).fetch_all(pool).await?;
+    let known: Vec<Uuid> = sqlx::query_scalar("SELECT page_id FROM upload_refs WHERE name = $1 ORDER BY page_id LIMIT 200").bind(name).fetch_all(pool).await?;
     for p in &known {
         if page_cites(pool, *p, name).await? && page_readable(pool, user, *p).await {
             return Ok(Decision::Allowed);
         }
     }
-    // Recherche dans les pages (fichier cité depuis l'envoi) : le lien trouvé est mémorisé.
+    // Recherche dans les contenus (fichier cité depuis l'envoi) : bornée par personne, résultat négatif
+    // mémorisé quelques secondes, jamais pour un fichier absent du disque (voir `serve_upload`).
+    if !scan_allowed(user.id, name) {
+        return Ok(Decision::Denied);
+    }
     let needle = format!("/uploads/{name}");
-    let found: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM pages WHERE strpos(coalesce(content, ''), $1) > 0 OR strpos(coalesce(icon, ''), $1) > 0 OR position($2::bytea in yjs_state) > 0 LIMIT $3",
+    // Pages : par lots triés, sans les pages déjà vérifiées, jusqu'à en trouver une que la personne lit.
+    let mut seen: Vec<Uuid> = known;
+    let mut last: Option<Uuid> = None;
+    for _ in 0..SCAN_ROUNDS {
+        let found: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM pages WHERE (strpos(coalesce(content, ''), $1) > 0 OR strpos(coalesce(icon, ''), $1) > 0 OR position($2::bytea in yjs_state) > 0)
+               AND id <> ALL($3) AND ($4::uuid IS NULL OR id > $4) ORDER BY id LIMIT $5",
+        )
+        .bind(&needle)
+        .bind(needle.clone().into_bytes())
+        .bind(&seen)
+        .bind(last)
+        .bind(SCAN_LIMIT)
+        .fetch_all(pool)
+        .await?;
+        let full = found.len() as i64 == SCAN_LIMIT;
+        for p in found {
+            last = Some(p);
+            seen.push(p);
+            let _ = sqlx::query("INSERT INTO upload_refs (name, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(name).bind(p).execute(pool).await;
+            if page_readable(pool, user, p).await {
+                return Ok(Decision::Allowed);
+            }
+        }
+        if !full {
+            break;
+        }
+    }
+    // Commentaires de pages et d'événements, annonces, bloc-notes personnel.
+    let comments: Vec<(String, Uuid, Uuid)> = sqlx::query_as(
+        "SELECT target_kind, target_id, workspace_id FROM item_comments WHERE strpos(content, $1) > 0 ORDER BY created_at LIMIT $2",
     )
     .bind(&needle)
-    .bind(needle.clone().into_bytes())
     .bind(SCAN_LIMIT)
     .fetch_all(pool)
     .await?;
-    for p in found {
-        let _ = sqlx::query("INSERT INTO upload_refs (name, page_id) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(name).bind(p).execute(pool).await;
-        if !known.contains(&p) && page_readable(pool, user, p).await {
+    for (kind, target, ws) in comments {
+        let ok = if kind == "page" {
+            page_readable(pool, user, target).await
+        } else {
+            matches!(member_perms(pool, user.id, ws).await, Ok(Some((_, p))) if p.calendar >= level::READ)
+        };
+        if ok {
             return Ok(Decision::Allowed);
         }
+    }
+    let spaces: Vec<Uuid> = sqlx::query_scalar("SELECT DISTINCT workspace_id FROM announcements WHERE strpos(body, $1) > 0 LIMIT $2").bind(&needle).bind(SCAN_LIMIT).fetch_all(pool).await?;
+    for ws in spaces {
+        if member_perms(pool, user.id, ws).await?.is_some() {
+            return Ok(Decision::Allowed);
+        }
+    }
+    let own_note: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM user_notepads WHERE user_id = $1 AND strpos(content, $2) > 0)").bind(user.id).bind(&needle).fetch_one(pool).await?;
+    if own_note {
+        return Ok(Decision::Allowed);
     }
     // Tâches : description, commentaires, pièces jointes.
     let tasks: Vec<Uuid> = sqlx::query_scalar(
@@ -222,6 +323,7 @@ pub async fn decide(pool: &PgPool, user: Option<&AuthUser>, name: &str, share: O
             return Ok(Decision::Allowed);
         }
     }
+    scan_denied(user.id, name);
     Ok(Decision::Denied)
 }
 
@@ -235,10 +337,17 @@ pub fn tag_public_links(html: &str, token: Uuid) -> String {
         let tail = &rest[i + P.len()..];
         let end = tail.find(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')).unwrap_or(tail.len());
         out.push_str(&rest[..i + P.len() + end]);
-        if end > 0 && !tail[end..].starts_with('?') {
+        let after = &tail[end..];
+        if end == 0 {
+            rest = after;
+        } else if let Some(q) = after.strip_prefix('?') {
+            // Déjà une requête : le jeton s'ajoute devant.
+            out.push_str(&format!("?share={token}&"));
+            rest = q;
+        } else {
             out.push_str(&format!("?share={token}"));
+            rest = after;
         }
-        rest = &tail[end..];
     }
     out.push_str(rest);
     out
@@ -281,6 +390,7 @@ mod tests {
     fn tags_links() {
         let t = Uuid::nil();
         assert_eq!(tag_public_links(r#"<img src="/uploads/a-1.png"> /uploads/ x"#, t), format!(r#"<img src="/uploads/a-1.png?share={t}"> /uploads/ x"#));
+        assert_eq!(tag_public_links(r#"<img src="/uploads/a.png?w=2">"#, t), format!(r#"<img src="/uploads/a.png?share={t}&w=2">"#));
     }
 
     #[test]
@@ -289,6 +399,14 @@ mod tests {
         assert!(sig_valid("a.png", &s));
         assert!(!sig_valid("b.png", &s));
         assert!(!sig_valid("a.png", "1.deadbeef"));
+    }
+
+    #[test]
+    fn scans_are_limited_per_person() {
+        let u = Uuid::new_v4();
+        let allowed = (0..SCANS_PER_MINUTE + 20).filter(|i| scan_allowed(u, &format!("n{i}.png"))).count();
+        assert_eq!(allowed as u32, SCANS_PER_MINUTE);
+        assert!(scan_allowed(Uuid::new_v4(), "n0.png"), "another person is not affected");
     }
 
     #[test]

@@ -102,6 +102,8 @@ pub struct UploadCtx {
     pub page: Option<Uuid>,
     /// Espace (sans page) : lecture par ses membres.
     pub workspace: Option<Uuid>,
+    /// Bloc-notes personnel : lisible par son auteur seulement, jamais lié à une page.
+    pub personal: Option<String>,
 }
 
 impl SavedFile {
@@ -119,7 +121,9 @@ pub async fn upload_file(
     mut multipart: Multipart,
 ) -> ApiResult<Json<UploadResponse>> {
     let mut binding = crate::file_access::Binding::default();
-    if let Some(page) = ctx.page {
+    if ctx.personal.is_some() {
+        // Rien à lier : le fichier reste à son auteur.
+    } else if let Some(page) = ctx.page {
         let (ws, _, _) = crate::access::require_page_level(&pool, &user, page, crate::access::level::COMMENT).await?;
         binding = crate::file_access::Binding { workspace_id: Some(ws), page_id: Some(page), task_id: None };
     } else if let Some(ws) = ctx.workspace {
@@ -190,6 +194,11 @@ pub async fn serve_upload(
     if !is_safe_name(&name) {
         return StatusCode::NOT_FOUND.into_response();
     }
+    // Le fichier doit exister : pas de recherche d'accès (coûteuse) pour un nom inventé.
+    let path = PathBuf::from(UPLOAD_DIR).join(&name);
+    let Ok(mut file) = tokio::fs::File::open(&path).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let decision = match crate::file_access::decide(&pool, user.as_ref(), &name, q.share, q.sig.as_deref()).await {
         Ok(d) => d,
         Err(e) => return e.into_response(),
@@ -213,10 +222,6 @@ pub async fn serve_upload(
         h.insert(header::VARY, HeaderValue::from_static("Cookie, Authorization"));
         return r;
     }
-    let path = PathBuf::from(UPLOAD_DIR).join(&name);
-    let Ok(mut file) = tokio::fs::File::open(&path).await else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
     let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
     let mime = mime_guess::from_path(&path).first_or_octet_stream();
     let mime_str = mime.essence_str().to_string();
@@ -267,6 +272,9 @@ pub async fn serve_upload(
 /// `GET /api/uploads/{nom}/link` : lien signé de 10 minutes (clients qui n'envoient pas de cookies :
 /// lecteur externe, téléchargement natif). Même contrôle d'accès que la lecture.
 pub async fn upload_link(State(pool): State<PgPool>, user: AuthUser, Path(name): Path<String>) -> ApiResult<Json<serde_json::Value>> {
+    if !is_safe_name(&name) || !tokio::fs::try_exists(PathBuf::from(UPLOAD_DIR).join(&name)).await.unwrap_or(false) {
+        return Err(ApiError::NotFound);
+    }
     if crate::file_access::decide(&pool, Some(&user), &name, None, None).await? == crate::file_access::Decision::Denied {
         return Err(ApiError::NotFound);
     }

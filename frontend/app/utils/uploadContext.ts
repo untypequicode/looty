@@ -14,8 +14,10 @@ export function uploadContext(pathname: string): { page?: string; workspace?: st
 }
 
 /** `/api/upload` avec le contexte de la page courante. */
-export function uploadUrl(base: string, pathname: string): string {
+export function uploadUrl(base: string, pathname: string, personal = false): string {
   if (base !== '/api/upload') return base
+  // Bloc-notes : jamais lié à la page ouverte, lisible par son auteur seulement.
+  if (personal) return `${base}?personal=1`
   const ctx = uploadContext(pathname)
   if (ctx.page) return `${base}?page=${ctx.page}`
   if (ctx.workspace) return `${base}?workspace=${ctx.workspace}`
