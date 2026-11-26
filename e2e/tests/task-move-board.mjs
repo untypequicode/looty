@@ -13,6 +13,7 @@ const task = await api(`/api/boards/columns/${col.id}/tasks`, 'POST', { title: '
 await p.goto(`${B}/w/${WS}/board/${src.id}`, { waitUntil: 'networkidle' })
 // Tableau ouvert en lecture (préférence de l'espace) : passage en modification.
 // Selon les tests précédents du même segment, l'espace est déjà en modification.
+await p.waitForTimeout(800)
 const editBtn = p.locator('.page-header, header').getByRole('button', { name: /^(Edit|Modifier)$/ }).first()
 if (await editBtn.count()) await editBtn.click()
 await p.waitForTimeout(400)
