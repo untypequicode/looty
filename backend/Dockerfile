@@ -2,11 +2,12 @@ FROM rust:slim-trixie AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev
 # Dépendances d'abord (couche en cache tant que Cargo.toml et Cargo.lock ne changent pas) : seul le code du serveur
-# est recompilé à chaque commit. Les traces de la crate factice sont retirées pour que cargo reconstruise le vrai code.
+# est recompilé à chaque commit. La crate factice est nettoyée (cargo clean -p, indépendant de l'organisation de target/) pour que cargo reconstruise le vrai code.
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo 'fn main() {}' > src/main.rs \
  && cargo build --release --locked \
- && rm -rf src target/release/.fingerprint/backend-* target/release/deps/backend-* target/release/incremental target/release/backend
+ && cargo clean --release -p backend \
+ && rm -rf src
 COPY . .
 RUN cargo build --release --locked
 
