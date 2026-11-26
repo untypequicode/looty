@@ -34,7 +34,17 @@ fn put(path: &str, token: Option<&str>, body: &str) -> Request<Body> {
 fn safe_paths() {
     assert!(safe_rel("releases/android/looty-0.12.0.apk").is_some());
     assert!(safe_rel("apt/dists/stable/main/binary-amd64/Packages.gz").is_some());
-    for bad in ["", "releases", "other/x/y", "releases/../etc/passwd", "/releases/a/b", "releases/a/.hidden", "releases/a/b c", "releases/a/b;rm", "releases//a/b", "releases/a/b/c/d/e/f/g/h", "apt/x\\y"] {
+    // Dépôt F-Droid : images localisées, nom suffixé du SHA-256 en base64 URL (avec « = »).
+    for ok in [
+        "fdroid/repo/icon.png",
+        "fdroid/repo/io.github.untypequicode.looty/en-US/featureGraphic.png",
+        "fdroid/repo/io.github.untypequicode.looty/en-US/featureGraphic_Qm-2_x8aB0kE9rWq5Zr1nT3yVd7cHsLw4uJf6gXo=.png",
+        "fdroid/repo/io.github.untypequicode.looty/fr-FR/phoneScreenshots/1.png",
+        "fdroid/repo/icons-640/io.github.untypequicode.looty.37.png",
+    ] {
+        assert!(safe_rel(ok).is_some(), "{ok} devrait être accepté");
+    }
+    for bad in ["", "releases", "other/x/y", "releases/../etc/passwd", "/releases/a/b", "releases/a/.hidden", "releases/a/b c", "releases/a/b;rm", "releases//a/b", "releases/a/b/c/d/e/f/g/h", "apt/x\\y", "fdroid/repo/a/..=/x", "fdroid/repo/a/=/../x", "fdroid/repo/a/b=c d"] {
         assert!(safe_rel(bad).is_none(), "{bad} devrait être refusé");
     }
 }

@@ -90,7 +90,7 @@ impl<S> LayerFilesCache for S {
 // Chemins et jeton
 // ---------------------------------------------------------------------------------------------
 
-/// Chemin relatif sûr dans `DATA_DIR` : sous `releases/`, `apt/` ou `fdroid/` (dépôt F-Droid), composants simples uniquement.
+/// Chemin relatif sûr dans `DATA_DIR` : sous `releases/`, `apt/` ou `fdroid/` (dépôt F-Droid), composants simples uniquement (« = » admis : fdroid nomme les images <nom>_<sha256 base64 URL>.png, avec le remplissage « = »).
 pub fn safe_rel(path: &str) -> Option<PathBuf> {
     if path.is_empty() || path.len() > 240 || path.contains("//") || path.ends_with('/') {
         return None;
@@ -101,7 +101,7 @@ pub fn safe_rel(path: &str) -> Option<PathBuf> {
         match c {
             Component::Normal(n) => {
                 let n = n.to_str()?;
-                if n.starts_with('.') || n.is_empty() || !n.chars().all(|ch| ch.is_ascii_alphanumeric() || "._+~-".contains(ch)) {
+                if n.starts_with('.') || n.is_empty() || !n.chars().all(|ch| ch.is_ascii_alphanumeric() || "._+~=-".contains(ch)) {
                     return None;
                 }
                 if i == 0 && !["releases", "apt", "fdroid"].contains(&n) {
