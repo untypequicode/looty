@@ -22,8 +22,14 @@ export const MAX_SLIDES = 300
 export const MAX_ELEMENTS = 500
 export const MAX_TEXT = 20000
 export const LOCAL = 'looty-slides-local'
+/**
+ * Identifiant de la première diapositive d'un document neuf : le même pour tout le monde (et pour le
+ * serveur de collaboration, qui initialise les documents vides). Deux personnes qui ouvrent une
+ * présentation neuve en même temps écrivent alors la même clé : une seule diapositive subsiste.
+ */
+export const INITIAL_SLIDE_ID = '00000000-0000-4000-8000-000000000001'
 
-export type ElementType = 'text' | 'rect' | 'ellipse' | 'line' | 'image' | 'group'
+export type ElementType = 'text' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'icon' | 'image' | 'group'
 export type PropValue = string | number | boolean
 export type Props = Record<string, PropValue>
 
@@ -48,6 +54,8 @@ export interface Slide {
   layout: string
   background: string
   notes: string
+  /** Titre de la section qui commence à cette diapositive (vide : elle continue la précédente). */
+  section: string
   elements: SlideElement[]
 }
 
@@ -110,7 +118,7 @@ export function readSlide(doc: Y.Doc, id: string): Slide | null {
   const notes = s.get('notes')
   return {
     id, pos: num(s.get('pos')), layout: str(s.get('layout'), 'blank'), background: str(s.get('background'), 'default'),
-    notes: notes instanceof Y.Text ? notes.toString() : str(notes), elements,
+    notes: notes instanceof Y.Text ? notes.toString() : str(notes), section: str(s.get('section')), elements,
   }
 }
 
@@ -145,7 +153,7 @@ export function initDoc(doc: Y.Doc): void {
       meta.set('width', SLIDE_W)
       meta.set('height', SLIDE_H)
     }
-    if (slidesOf(doc).size === 0) createSlide(doc)
+    if (slidesOf(doc).size === 0) createSlide(doc, { id: INITIAL_SLIDE_ID })
   }, LOCAL)
 }
 
@@ -190,12 +198,12 @@ function insertPos(doc: Y.Doc, afterId?: string | null): number {
   return posBetween(before, next)
 }
 
-export interface SlideSpec { background?: string; layout?: string; afterId?: string | null }
+export interface SlideSpec { background?: string; layout?: string; afterId?: string | null; id?: string }
 
 /** Nouvelle diapositive vide après `afterId` (à la fin par défaut). Renvoie null au-delà de la limite. */
 export function createSlide(doc: Y.Doc, spec: SlideSpec = {}): string | null {
   if (slidesOf(doc).size >= MAX_SLIDES) return null
-  const id = newId()
+  const id = spec.id ?? newId()
   doc.transact(() => {
     const pos = insertPos(doc, spec.afterId)
     const s = new Y.Map<any>()
@@ -271,6 +279,10 @@ export function deleteSlide(doc: Y.Doc, id: string): string | null {
   if (at < 0) return ids[0] ?? null
   let next: string | null = null
   doc.transact(() => {
+    // Une section qui commençait ici commence à la diapositive suivante.
+    const title = str(slideMap(doc, id)?.get('section'))
+    const follower = ids[at + 1] ? slideMap(doc, ids[at + 1]!) : undefined
+    if (title && follower && !str(follower.get('section'))) follower.set('section', title)
     slidesOf(doc).delete(id)
     next = ids.length === 1 ? createSlide(doc) : ids[at + 1] ?? ids[at - 1] ?? null
   }, LOCAL)
@@ -492,4 +504,106 @@ export function outline(doc: Y.Doc): string {
 /** Annulation propre à la personne : ne suit que ses transactions (locales et frappe dans les zones de texte). */
 export function createUndo(doc: Y.Doc, extraOrigins: unknown[] = []): Y.UndoManager {
   return new Y.UndoManager([slidesOf(doc), metaOf(doc)], { trackedOrigins: new Set<unknown>([LOCAL, ...extraOrigins]), captureTimeout: 400 })
+}
+
+// --- Sections du rail : des groupes nommés de diapositives consécutives ---
+
+export interface SlideGroup {
+  /** Première diapositive de la section (null : diapositives avant la première section). */
+  start: string | null
+  title: string
+  ids: string[]
+}
+
+/** Découpe l'ordre des diapositives en sections : une section commence à une diapositive qui porte un titre. */
+export function groupSlides(slides: readonly { id: string; section: string }[]): SlideGroup[] {
+  const out: SlideGroup[] = []
+  for (const s of slides) {
+    if (s.section || !out.length) out.push({ start: s.section ? s.id : null, title: s.section, ids: [] })
+    out[out.length - 1]!.ids.push(s.id)
+  }
+  return out
+}
+
+/** Titre de section posé sur une diapositive (vide : la retire, la diapositive rejoint la section précédente). */
+export function setSection(doc: Y.Doc, slideId: string, title: string): void {
+  const s = slideMap(doc, slideId)
+  if (!s) return
+  const clean = title.trim().slice(0, 80)
+  if (str(s.get('section')) !== clean) doc.transact(() => s.set('section', clean), LOCAL)
+}
+
+// --- Versions d'une présentation : comparaison et restauration ---
+
+/** Empreinte du contenu visible d'une diapositive (champs, éléments triés, texte) pour comparer deux versions. */
+export function slideSignature(doc: Y.Doc, slideId: string): string {
+  const s = readSlide(doc, slideId)
+  if (!s) return ''
+  return JSON.stringify([
+    s.layout, s.background, s.notes, s.section,
+    s.elements.map((e) => [
+      e.id, e.type, e.x, e.y, e.w, e.h, e.rotation, e.z, e.locked, e.groupId, e.alt,
+      Object.entries(e.props).sort(([a], [b]) => (a < b ? -1 : 1)),
+      e.type === 'text' ? fragmentText(textOf(doc, slideId, e.id) ?? new Y.XmlFragment()) : '',
+    ]),
+  ])
+}
+
+export type SlideChange = 'added' | 'removed' | 'changed'
+
+/** Ce qui sépare deux états : diapositives présentes seulement dans `after` (added), seulement dans `before` (removed), modifiées. */
+export function diffSlides(before: Y.Doc, after: Y.Doc): Map<string, SlideChange> {
+  const out = new Map<string, SlideChange>()
+  const a = new Set(slideIds(before))
+  const b = new Set(slideIds(after))
+  for (const id of b) {
+    if (!a.has(id)) out.set(id, 'added')
+    else if (slideSignature(before, id) !== slideSignature(after, id)) out.set(id, 'changed')
+  }
+  for (const id of a) if (!b.has(id)) out.set(id, 'removed')
+  return out
+}
+
+function cloneDeep(v: unknown): unknown {
+  if (v instanceof Y.Map) {
+    const m = new Y.Map<any>()
+    v.forEach((x, k) => m.set(k, cloneDeep(x)))
+    return m
+  }
+  if (v instanceof Y.XmlFragment) return v.clone()
+  if (v instanceof Y.Text) return new Y.Text(v.toString())
+  return v
+}
+
+/**
+ * Remplace le contenu de `doc` par celui d'une version `snapshot` : une transaction normale (les autres
+ * personnes la voient arriver en direct, la personne qui restaure peut l'annuler). Les diapositives
+ * identiques restent intactes (aucune modification concurrente écrasée pour rien). Renvoie false pour
+ * une version écrite par un format plus récent que ce client.
+ */
+export function restoreFrom(doc: Y.Doc, snapshot: Y.Doc): boolean {
+  if (docSchema(snapshot) > SLIDES_SCHEMA) return false
+  doc.transact(() => {
+    const live = slidesOf(doc)
+    const wanted = slidesOf(snapshot)
+    for (const id of [...live.keys()]) if (!wanted.has(id)) live.delete(id)
+    wanted.forEach((s, id) => {
+      const mine = live.get(id)
+      if (mine && slideSignature(doc, id) === slideSignature(snapshot, id) && num(mine.get('pos')) === num(s.get('pos'))) return
+      live.set(id, cloneDeep(s) as Y.Map<any>)
+    })
+    const meta = metaOf(doc)
+    const sm = metaOf(snapshot)
+    for (const k of ['width', 'height']) if (sm.has(k) && meta.get(k) !== sm.get(k)) meta.set(k, sm.get(k))
+    // Une version sans aucune diapositive : on garde au moins une diapositive vide.
+    if (live.size === 0) createSlide(doc, { id: INITIAL_SLIDE_ID })
+  }, LOCAL)
+  return true
+}
+
+/** Document Yjs reconstruit depuis l'état d'une version (base64, tel que renvoyé par l'API). */
+export function decodeState(b64: string): Y.Doc {
+  const d = new Y.Doc()
+  Y.applyUpdate(d, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)))
+  return d
 }

@@ -3,35 +3,48 @@ import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import type { Editor as TEditor } from '@tiptap/vue-3'
 import {
-  Circle, ChevronDown, ChevronUp, Copy, Image as ImageIcon, Minus, Plus, Redo2, Square, Trash2, Type, Undo2,
+  Circle, ChevronDown, ChevronRight, ChevronUp, Copy, FolderPlus, Grid3x3, Image as ImageIcon, MessageSquare, MessageSquarePlus, Minus, MoveRight, Pencil, Plus, Redo2, Shapes, Square, Trash2, Type, Undo2, X, ZoomIn, ZoomOut,
 } from 'lucide-vue-next'
+import { useLocalStorage } from '@vueuse/core'
 import { socketBase } from '~/composables/useRealtime'
 import { uploadFile } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
 import { useCollabRecovery } from '~/composables/useCollabRecovery'
+import { useComments } from '~/composables/useComments'
+import { useWorkspace } from '~/composables/useWorkspace'
+import { promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 import { HANDLES, angleFromCenter, boundsOf, marquee, normalizeAngle, resizeBox, rotatedBounds, snap, type Box, type Guide, type Handle, type Rect } from '~/slides/geometry'
 import {
   SLIDES_SCHEMA, addElement, alignElements, createSlide, createUndo, deleteElements, deleteSlide, distributeElements, duplicateElements, duplicateSlide, expandGroups, groupElements, initDoc,
-  isNewerThanClient, listSlides, metaOf, moveSlide, moveZ, slideSize, slidesOf, setSlideBackground, textOf, ungroupElements, updateElement, updateElements, type ElementPatch, type SlideElement, type ZMove,
+  groupSlides, isNewerThanClient, listSlides, metaOf, moveSlide, moveZ, restoreFrom, setSection, slideSize, slidesOf, setSlideBackground, textOf, ungroupElements, updateElement, updateElements, type ElementPatch, type SlideElement, type ZMove,
 } from '~/slides/model'
+import { anchorCounts, anchorTarget, elementAnchor, parseAnchor, slideAnchor } from '~/slides/comments'
+import { GRID, midpoint, distance, pinchZoom, snapMove, snapRect, stepZoom, wheelZoom, clampZoom } from '~/slides/view'
 import type { AlignMode } from '~/slides/geometry'
 import SlideView from './SlideView.vue'
 import PresentLauncher from './PresentLauncher.vue'
 import PresentPanel from './PresentPanel.vue'
 import TextEdit from './TextEdit.vue'
 import Inspector from './Inspector.vue'
+import LazyThumb from './LazyThumb.vue'
+import SlidesHistory from './History.vue'
+import IconPicker from './IconPicker.vue'
 
 /**
  * Présentation d'une page (ADR 0023) : rail de miniatures, canevas et panneau de propriétés, édités
  * à plusieurs dans le document Yjs « slides:<page> ». Annulation par personne, présence (sélection et
  * curseur des autres personnes), lecture seule sans droit d'écriture.
  */
-const props = defineProps<{ pageId: string; canEdit: boolean; user: { name: string; color: string } }>()
+const props = defineProps<{ pageId: string; canEdit: boolean; canComment?: boolean; user: { name: string; color: string } }>()
 const emit = defineEmits<{
   (e: 'status', s: 'connecting' | 'synced' | 'offline' | 'denied'): void
   (e: 'collaborators', users: { name: string; color: string }[]): void
+  /** Plan des diapositives (identifiants, noms d'éléments) : libellés des commentaires ancrés, côté page. */
+  (e: 'outline', outline: { id: string; elements: { id: string; label: string }[] }[]): void
 }>()
+/** Historique des versions (ouvert depuis le menu de la page). */
+const historyOpen = defineModel<boolean>('historyOpen', { default: false })
 const { t } = useI18n()
 const config = useRuntimeConfig()
 
@@ -96,7 +109,7 @@ provider.on('status', ({ status }: { status: string }) => { if (status === 'disc
 onMounted(() => emit('status', 'connecting'))
 
 // --- Présence ---
-interface Peer { id: number; name: string; color: string; slide: string; sel: string[]; x?: number; y?: number }
+interface Peer { id: number; name: string; color: string; slide: string; sel: string[]; x?: number; y?: number; editing?: string }
 const peers = ref<Peer[]>([])
 provider.setAwarenessField('user', props.user)
 provider.on('awarenessUpdate', () => {
@@ -105,35 +118,39 @@ provider.on('awarenessUpdate', () => {
   provider.awareness?.getStates().forEach((s: any, id: number) => {
     if (id === mine || !s.user) return
     const p = s.slides ?? {}
-    list.push({ id, name: s.user.name, color: s.user.color, slide: p.slide ?? '', sel: Array.isArray(p.sel) ? p.sel : [], x: p.x, y: p.y })
+    list.push({ id, name: s.user.name, color: s.user.color, slide: p.slide ?? '', sel: Array.isArray(p.sel) ? p.sel : [], x: p.x, y: p.y, editing: typeof p.editing === 'string' ? p.editing : undefined })
   })
   peers.value = list
   const seen = new Set<string>()
   emit('collaborators', list.filter((p) => !seen.has(p.name) && seen.add(p.name)).map((p) => ({ name: p.name, color: p.color })))
 })
 let pointer: { x: number; y: number } | null = null
-watch([cur, sel], () => announce(), { deep: true })
+watch([cur, sel, editingId], () => { announceAt = 0; announce() }, { deep: true })
 let announceAt = 0
 function announce() {
   const now = Date.now()
   if (now - announceAt < 30 && pointer) return
   announceAt = now
-  provider.setAwarenessField('slides', { slide: cur.value, sel: sel.value, x: pointer?.x, y: pointer?.y })
+  provider.setAwarenessField('slides', { slide: cur.value, sel: sel.value, editing: editingId.value ?? undefined, x: pointer?.x, y: pointer?.y })
 }
 const peersOn = (id: string) => peers.value.filter((p) => p.slide === id)
 const peersHere = computed(() => (curSlide.value ? peersOn(curSlide.value.id) : []))
 /** Cadres de sélection des autres personnes sur la diapositive affichée. */
 const peerBoxes = computed(() => {
-  const out: { key: string; name: string; color: string; style: Record<string, string> }[] = []
+  const out: { key: string; name: string; color: string; editing: boolean; style: Record<string, string> }[] = []
   for (const p of peersHere.value) {
     for (const id of p.sel) {
       const e = curSlide.value?.elements.find((x) => x.id === id)
-      if (e) out.push({ key: `${p.id}-${id}`, name: p.name, color: p.color, style: { left: `${e.x}px`, top: `${e.y}px`, width: `${e.w}px`, height: `${e.h}px`, transform: `rotate(${e.rotation}deg)`, outlineColor: p.color, outlineWidth: `${2 / Math.max(0.1, scale.value)}px` } })
+      if (e) out.push({ key: `${p.id}-${id}`, name: p.name, color: p.color, editing: p.editing === id, style: { left: `${e.x}px`, top: `${e.y}px`, width: `${e.w}px`, height: `${e.h}px`, transform: `rotate(${e.rotation}deg)`, outlineColor: p.color, outlineWidth: `${2 / Math.max(0.1, scale.value)}px` } })
     }
   }
   return out
 })
 const initials = (n: string) => n.trim().slice(0, 1).toUpperCase() || '?'
+/** Zones de texte de la diapositive que d'autres personnes sont en train de modifier : affichées en direct, avec leur curseur. */
+const liveIds = computed(() => [...new Set(peersHere.value.map((p) => p.editing).filter((id): id is string => !!id && !!curSlide.value?.elements.some((e) => e.id === id && e.type === 'text')))])
+/** Identité d'un fragment de texte : change si la zone est remplacée (restauration d'une version), pour recréer l'éditeur. */
+const fragKey = (f: Y.XmlFragment | null) => { const it = (f as unknown as { _item?: { id: { client: number; clock: number } } } | null)?._item; return it ? `${it.id.client}:${it.id.clock}` : 'root' }
 
 // --- Ajustement du canevas au conteneur ---
 const stageBox = ref<HTMLElement | null>(null)
@@ -146,18 +163,127 @@ onMounted(() => {
   ro = new ResizeObserver(measure)
   if (stageBox.value) ro.observe(stageBox.value)
 })
-const frameStyle = computed(() => {
+/** Zoom : « fit » ajuste la diapositive à la zone ; sinon un nombre (1 = taille réelle). */
+const zoom = ref<'fit' | number>('fit')
+const fitScale = computed(() => {
   const margin = 24
-  const s = Math.max(0.05, Math.min((box.w - margin * 2) / size.value.w, (box.h - margin * 2) / size.value.h))
-  return { width: `${Math.floor(size.value.w * s)}px` }
+  return Math.max(0.05, Math.min((box.w - margin * 2) / size.value.w, (box.h - margin * 2) / size.value.h))
 })
-const scale = computed(() => view.value?.scale ?? 1)
+const zoomValue = computed(() => (zoom.value === 'fit' ? fitScale.value : zoom.value))
+const frameStyle = computed(() => ({ width: `${Math.floor(size.value.w * zoomValue.value)}px` }))
+const setZoom = (z: number) => { zoom.value = clampZoom(z) }
+const zoomBy = (dir: 1 | -1) => setZoom(stepZoom(zoomValue.value, dir))
+const zoomPct = computed(() => `${Math.round(zoomValue.value * 100)}%`)
+function onWheel(e: WheelEvent) {
+  if (!(e.ctrlKey || e.metaKey)) return
+  e.preventDefault()
+  setZoom(wheelZoom(zoomValue.value, e.deltaY))
+}
+/** Grille magnétique (réglage personnel). */
+const grid = useLocalStorage<boolean>('looty.slides.grid', false)
+
+// Gestes tactiles : pincement pour zoomer, deux doigts pour déplacer la vue.
+const touches = new Map<number, { x: number; y: number }>()
+let gesture: { dist: number; zoom: number; mid: { x: number; y: number } } | null = null
+const inGesture = () => gesture !== null
+function onTouchDown(e: PointerEvent) {
+  if (e.pointerType !== 'touch') return
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  if (touches.size === 2) {
+    const [a, b] = [...touches.values()] as [{ x: number; y: number }, { x: number; y: number }]
+    gesture = { dist: distance(a, b), zoom: zoomValue.value, mid: midpoint(a, b) }
+    // Un geste à deux doigts n'est jamais un déplacement d'élément.
+    drag = null
+    guides.value = []
+    marqueeRect.value = null
+  }
+}
+function onTouchMove(e: PointerEvent) {
+  if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  if (!gesture || touches.size < 2) return
+  e.stopPropagation()
+  const [a, b] = [...touches.values()] as [{ x: number; y: number }, { x: number; y: number }]
+  setZoom(pinchZoom(gesture.zoom, gesture.dist, distance(a, b)))
+  const m = midpoint(a, b)
+  if (stageBox.value) { stageBox.value.scrollLeft -= m.x - gesture.mid.x; stageBox.value.scrollTop -= m.y - gesture.mid.y }
+  gesture.mid = m
+}
+function onTouchUp(e: PointerEvent) {
+  if (!touches.delete(e.pointerId)) return
+  if (touches.size < 2) gesture = null
+}
+const scale = computed(() => view.value?.scale ?? zoomValue.value)
 function frameRect(): DOMRect | null { return (view.value?.root as HTMLElement | null)?.getBoundingClientRect() ?? null }
 function toCanvas(e: { clientX: number; clientY: number }) {
   const r = frameRect()
   if (!r) return { x: 0, y: 0 }
   const s = r.width / size.value.w
   return { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s }
+}
+
+// --- Commentaires ancrés (panneau de la page, table des commentaires de la page) ---
+const { wsId } = useWorkspace()
+const { threads } = useComments(wsId, ref('page'), computed(() => props.pageId))
+const counts = computed(() => anchorCounts(threads.value.map((th) => ({ anchor: th.root.anchor, resolved: !!th.root.resolved_at }))))
+const slideComments = (id: string) => counts.value.bySlide.get(id) ?? 0
+const elementBubbles = computed(() => {
+  const out: { id: string; n: number; style: Record<string, string> }[] = []
+  for (const e of curSlide.value?.elements ?? []) {
+    const n = counts.value.byElement.get(`${curSlide.value!.id}:${e.id}`) ?? 0
+    if (n) out.push({ id: e.id, n, style: { left: `${e.x + e.w}px`, top: `${e.y}px`, '--k': String(1 / Math.max(0.1, scale.value)) } })
+  }
+  return out
+})
+const slideOnlyComments = computed(() => curSlide.value ? threads.value.filter((th) => !th.root.resolved_at && th.root.anchor === slideAnchor(curSlide.value!.id)).length : 0)
+function commentTarget(): string | null {
+  if (!curSlide.value) return null
+  return single.value ? elementAnchor(curSlide.value.id, single.value.id) : slideAnchor(curSlide.value.id)
+}
+function startComment() {
+  const a = commentTarget()
+  if (a) window.dispatchEvent(new CustomEvent('looty:comment-anchor', { detail: { anchor: a } }))
+}
+function openThreadsAt(anchor: string) {
+  const th = threads.value.find((x) => !x.root.resolved_at && x.root.anchor === anchor)
+  if (th) window.dispatchEvent(new CustomEvent('looty:comment-open', { detail: { id: th.root.id } }))
+}
+/** Un fil est choisi dans le panneau : on affiche sa diapositive et on sélectionne son élément. */
+function onGoto(e: Event) {
+  const p = parseAnchor((e as CustomEvent).detail?.anchor)
+  const t = anchorTarget((e as CustomEvent).detail?.anchor, slides.value)
+  if (!p || t.state === 'missing') return
+  cur.value = p.slide
+  if (p.kind === 'element') nextTick(() => { sel.value = [p.element] })
+}
+onMounted(() => window.addEventListener('looty:slide-goto', onGoto))
+onBeforeUnmount(() => window.removeEventListener('looty:slide-goto', onGoto))
+const outline = computed(() => slides.value.map((s) => ({ id: s.id, elements: s.elements.map((e) => ({ id: e.id, label: e.alt || t(`slides.types.${e.type}`) })) })))
+watch(() => JSON.stringify(outline.value), () => emit('outline', outline.value), { immediate: true })
+
+// --- Sections du rail ---
+const groups = computed(() => groupSlides(slides.value))
+const indexOf = computed(() => new Map(slides.value.map((s, i) => [s.id, i])))
+const collapsed = ref<Set<string>>(new Set())
+function toggleSection(id: string) {
+  const next = new Set(collapsed.value)
+  if (!next.delete(id)) next.add(id)
+  collapsed.value = next
+}
+watch(cur, (id) => {
+  const g = groups.value.find((x) => x.ids.includes(id))
+  if (g?.start && collapsed.value.has(g.start)) toggleSection(g.start)
+})
+async function addSection() {
+  if (!canWrite.value || !curSlide.value) return
+  const id = curSlide.value.id
+  const name = await promptDialog({ title: t('slides.collab.sectionName'), initial: curSlide.value.section || '', confirmLabel: t('common.save') })
+  if (name) setSection(ydoc, id, name)
+}
+async function renameSection(start: string, title: string) {
+  if (!canWrite.value) return
+  const name = await promptDialog({ title: t('slides.collab.sectionName'), initial: title, confirmLabel: t('common.save') })
+  if (name !== null) setSection(ydoc, start, name)
 }
 
 // --- Actions sur les diapositives ---
@@ -230,6 +356,9 @@ function addText() {
 const addRect = () => insert({ type: 'rect', ...place(480, 270), props: { fill: 'indigo', stroke: 'none', strokeWidth: 0, radius: 16 } })
 const addEllipse = () => insert({ type: 'ellipse', ...place(360, 360), props: { fill: 'teal', stroke: 'none', strokeWidth: 0 } })
 const addLine = () => insert({ type: 'line', ...place(600, 24), props: { stroke: 'default', strokeWidth: 6 } })
+const addArrow = () => insert({ type: 'arrow', ...place(600, 64), props: { stroke: 'default', strokeWidth: 8, head: 'end' } })
+const iconOpen = ref(false)
+const addIcon = (name: string) => insert({ type: 'icon', ...place(200, 200), alt: name.replace(/([a-z0-9])([A-Z])/g, '$1 $2'), props: { name, color: 'default', strokeWidth: 2 } })
 const fileEl = ref<HTMLInputElement | null>(null)
 async function onFile(e: Event) {
   const input = e.target as HTMLInputElement
@@ -304,6 +433,7 @@ function onHandleDown(e: PointerEvent, handle: Handle | 'rotate') {
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
 }
 function onStageMove(e: PointerEvent) {
+  if (inGesture()) return
   const p = toCanvas(e)
   pointer = { x: Math.round(p.x), y: Math.round(p.y) }
   announce()
@@ -314,7 +444,11 @@ function onStageMove(e: PointerEvent) {
     let dy = p.y - drag.start.y
     const startBounds = boundsOf([...drag.boxes.values()])!
     guides.value = []
-    if (!e.altKey) {
+    if (grid.value && !e.altKey) {
+      const g = snapMove(startBounds, dx, dy)
+      dx = g.dx
+      dy = g.dy
+    } else if (!e.altKey) {
       const s = snap({ ...startBounds, x: startBounds.x + dx, y: startBounds.y + dy }, drag.others, drag.sz, 8 / Math.max(0.1, scale.value))
       dx += s.dx
       dy += s.dy
@@ -325,7 +459,8 @@ function onStageMove(e: PointerEvent) {
     const rid = drag.id
     const el = curSlide.value.elements.find((x) => x.id === rid)
     const r = resizeBox(drag.box, drag.handle, p.x - drag.start.x, p.y - drag.start.y, { keepRatio: e.shiftKey || el?.type === 'image', fromCenter: e.altKey })
-    updateElement(ydoc, slideId, drag.id, { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) })
+    const g = grid.value && !e.altKey && !el?.rotation ? snapRect(r) : r
+    updateElement(ydoc, slideId, drag.id, { x: Math.round(g.x), y: Math.round(g.y), w: Math.round(g.w), h: Math.round(g.h) })
   } else if (drag.kind === 'rotate') {
     updateElement(ydoc, slideId, drag.id, { rotation: normalizeAngle(angleFromCenter(drag.center, p), e.shiftKey ? 15 : 1) })
   } else {
@@ -384,6 +519,13 @@ const onDistribute = (a: 'x' | 'y') => canWrite.value && distributeElements(ydoc
 const onGroup = () => canWrite.value && groupElements(ydoc, slideId(), sel.value)
 const onUngroup = () => canWrite.value && ungroupElements(ydoc, slideId(), sel.value)
 const onBackground = (v: string) => canWrite.value && curSlide.value && setSlideBackground(ydoc, curSlide.value.id, v)
+function onRestore(snapshot: Y.Doc) {
+  if (!canWrite.value) return
+  editingId.value = null
+  undo.stopCapturing()
+  if (!restoreFrom(ydoc, snapshot)) toast.error(t('slides.newerFormat'))
+  undo.stopCapturing()
+}
 function doUndo() { if (canWrite.value) { editingId.value = null; undo.undo() } }
 function doRedo() { if (canWrite.value) { editingId.value = null; undo.redo() } }
 
@@ -395,6 +537,9 @@ function onKey(e: KeyboardEvent) {
   const k = e.key.toLowerCase()
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return }
   if (mod && k === 'y') { e.preventDefault(); doRedo(); return }
+  if (mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomBy(1); return }
+  if (mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomBy(-1); return }
+  if (mod && e.key === '0') { e.preventDefault(); zoom.value = 'fit'; return }
   if (mod && k === 'a' && curSlide.value) { e.preventDefault(); sel.value = curSlide.value.elements.map((x) => x.id); return }
   if (mod && k === 'd') { e.preventDefault(); dupSel(); return }
   if (mod && k === 'c') { copySel(); return }
@@ -458,55 +603,87 @@ defineExpose({ undo: doUndo, redo: doRedo })
         <button type="button" class="rb" :title="t('slides.duplicateSlide')" :aria-label="t('slides.duplicateSlide')" @click="copySlide"><Copy :size="15" /></button>
         <button type="button" class="rb" :title="t('slides.moveUp')" :aria-label="t('slides.moveUp')" :disabled="slides[0]?.id === cur" @click="shiftSlide(cur, -1)"><ChevronUp :size="15" /></button>
         <button type="button" class="rb" :title="t('slides.moveDown')" :aria-label="t('slides.moveDown')" :disabled="slides[slides.length - 1]?.id === cur" @click="shiftSlide(cur, 1)"><ChevronDown :size="15" /></button>
+        <button type="button" class="rb" :title="t('slides.collab.addSection')" :aria-label="t('slides.collab.addSection')" data-add-section @click="addSection"><FolderPlus :size="15" /></button>
         <button type="button" class="rb danger" :title="t('slides.deleteSlide')" :aria-label="t('slides.deleteSlide')" @click="removeSlide()"><Trash2 :size="15" /></button>
       </div>
       <ol class="rail-list" @dragover.prevent @drop="onRailDrop">
-        <li v-for="(s, i) in slides" :key="s.id" class="rail-item" :class="{ on: s.id === cur, before: dropAt === i && dragId, after: dropAt === slides.length && i === slides.length - 1 && dragId }">
-          <button
-            type="button" class="thumb" :aria-current="s.id === cur ? 'true' : undefined" :aria-label="t('slides.slideN', { n: i + 1 })"
-            :draggable="canWrite" @click="cur = s.id" @keydown="onRailKey($event, s.id)"
-            @dragstart="dragId = s.id; ($event.dataTransfer as DataTransfer).effectAllowed = 'move'; ($event.dataTransfer as DataTransfer).setData('text/plain', s.id)"
-            @dragover="onRailOver($event, i)" @dragend="dragId = null; dropAt = null"
-          >
-            <span class="num">{{ i + 1 }}</span>
-            <span class="mini"><SlideView :doc="ydoc" :slide="s" :size="size" :tick="tick" /></span>
-            <span v-if="peersOn(s.id).length" class="who">
-              <span v-for="p in peersOn(s.id).slice(0, 3)" :key="p.id" class="dot" :style="{ background: p.color }" :title="p.name">{{ initials(p.name) }}</span>
-            </span>
-          </button>
-        </li>
+        <template v-for="g in groups" :key="g.start ?? 'first'">
+          <li v-if="g.start" class="rail-sec" data-section>
+            <button type="button" class="sec-toggle" :aria-expanded="!collapsed.has(g.start)" :aria-label="g.title" @click="toggleSection(g.start)">
+              <component :is="collapsed.has(g.start) ? ChevronRight : ChevronDown" :size="14" />
+              <span class="sec-title truncate">{{ g.title }}</span>
+              <span class="sec-n">{{ g.ids.length }}</span>
+            </button>
+            <button v-if="canWrite" type="button" class="sec-edit" :title="t('slides.collab.renameSection')" :aria-label="t('slides.collab.renameSection')" @click="renameSection(g.start, g.title)"><Pencil :size="12" /></button>
+            <button v-if="canWrite" type="button" class="sec-edit" :title="t('slides.collab.removeSection')" :aria-label="t('slides.collab.removeSection')" data-remove-section @click="setSection(ydoc, g.start, '')"><X :size="12" /></button>
+          </li>
+          <template v-if="!g.start || !collapsed.has(g.start)">
+            <li v-for="s in g.ids.map((id) => slides[indexOf.get(id)!]!)" :key="s.id" class="rail-item" :class="{ on: s.id === cur, before: dropAt === indexOf.get(s.id) && dragId, after: dropAt === slides.length && indexOf.get(s.id) === slides.length - 1 && dragId }">
+              <button
+                type="button" class="thumb" :aria-current="s.id === cur ? 'true' : undefined" :aria-label="t('slides.slideN', { n: indexOf.get(s.id)! + 1 })"
+                :draggable="canWrite" @click="cur = s.id" @keydown="onRailKey($event, s.id)"
+                @dragstart="dragId = s.id; ($event.dataTransfer as DataTransfer).effectAllowed = 'move'; ($event.dataTransfer as DataTransfer).setData('text/plain', s.id)"
+                @dragover="onRailOver($event, indexOf.get(s.id)!)" @dragend="dragId = null; dropAt = null"
+              >
+                <span class="num">{{ indexOf.get(s.id)! + 1 }}</span>
+                <span class="mini"><LazyThumb :doc="ydoc" :slide="s" :size="size" :tick="tick" /></span>
+                <span v-if="slideComments(s.id)" class="cbadge" data-slide-comments :title="t('slides.collab.openComments', { count: slideComments(s.id) })"><MessageSquare :size="10" /> {{ slideComments(s.id) }}</span>
+                <span v-if="peersOn(s.id).length" class="who" data-slide-peers>
+                  <span v-for="p in peersOn(s.id).slice(0, 3)" :key="p.id" class="dot" :style="{ background: p.color }" :title="p.name">{{ initials(p.name) }}</span>
+                  <span v-if="peersOn(s.id).length > 3" class="dot more">+{{ peersOn(s.id).length - 3 }}</span>
+                </span>
+              </button>
+            </li>
+          </template>
+        </template>
       </ol>
     </nav>
 
     <section class="main">
       <div class="pbar"><PresentLauncher :doc="ydoc" :provider="provider" :page-id="pageId" :current-id="cur" :can-edit="canEdit" :ready="synced" /></div>
-      <div v-if="canWrite" class="bar" role="toolbar" :aria-label="t('slides.tools')">
+      <div class="bar" role="toolbar" :aria-label="t('slides.tools')">
+        <template v-if="canWrite">
         <button type="button" class="tb" :title="t('slides.addText')" @click="addText"><Type :size="16" /><span>{{ t('slides.text') }}</span></button>
         <button type="button" class="tb" :title="t('slides.addRect')" :aria-label="t('slides.addRect')" @click="addRect"><Square :size="16" /></button>
         <button type="button" class="tb" :title="t('slides.addEllipse')" :aria-label="t('slides.addEllipse')" @click="addEllipse"><Circle :size="16" /></button>
         <button type="button" class="tb" :title="t('slides.addLine')" :aria-label="t('slides.addLine')" @click="addLine"><Minus :size="16" /></button>
+        <button type="button" class="tb" :title="t('slides.collab.addArrow')" :aria-label="t('slides.collab.addArrow')" data-add-arrow @click="addArrow"><MoveRight :size="16" /></button>
+        <button type="button" class="tb" :title="t('slides.collab.addIcon')" :aria-label="t('slides.collab.addIcon')" data-add-icon @click="iconOpen = true"><Shapes :size="16" /></button>
         <button type="button" class="tb" :title="t('slides.addImage')" @click="fileEl?.click()"><ImageIcon :size="16" /><span>{{ t('slides.image') }}</span></button>
         <input ref="fileEl" type="file" accept="image/*" hidden @change="onFile" />
         <span class="sep" />
         <button type="button" class="tb" :title="t('slides.undo')" :aria-label="t('slides.undo')" :disabled="!canUndo" @click="doUndo"><Undo2 :size="16" /></button>
         <button type="button" class="tb" :title="t('slides.redo')" :aria-label="t('slides.redo')" :disabled="!canRedo" @click="doRedo"><Redo2 :size="16" /></button>
+        <span class="sep" />
+        </template>
+        <button v-if="canComment" type="button" class="tb" :title="single ? t('slides.collab.commentElement') : t('slides.collab.commentSlide')" :aria-label="single ? t('slides.collab.commentElement') : t('slides.collab.commentSlide')" data-add-comment @click="startComment"><MessageSquarePlus :size="16" /></button>
+        <span class="spacer" />
+        <button type="button" class="tb" :class="{ on: grid }" :title="t('slides.collab.grid')" :aria-label="t('slides.collab.grid')" :aria-pressed="grid" data-grid @click="grid = !grid"><Grid3x3 :size="16" /></button>
+        <button type="button" class="tb" :title="t('slides.collab.zoomOut')" :aria-label="t('slides.collab.zoomOut')" data-zoom-out @click="zoomBy(-1)"><ZoomOut :size="16" /></button>
+        <button type="button" class="tb zoom" :title="t('slides.collab.fit')" :aria-label="t('slides.collab.fit')" data-zoom-fit @click="zoom = 'fit'">{{ zoom === 'fit' ? t('slides.collab.fitShort') : zoomPct }}</button>
+        <button type="button" class="tb" :title="t('slides.collab.zoomIn')" :aria-label="t('slides.collab.zoomIn')" data-zoom-in @click="zoomBy(1)"><ZoomIn :size="16" /></button>
+        <button type="button" class="tb zoom" :title="t('slides.collab.actualSize')" :aria-label="t('slides.collab.actualSize')" data-zoom-100 @click="setZoom(1)">100%</button>
       </div>
       <p v-if="newer" class="notice" role="status">{{ t('slides.newerFormat') }}</p>
       <p v-else-if="!canEdit" class="notice" role="status">{{ t('slides.readOnly') }}</p>
-      <div ref="stageBox" class="stagebox">
+      <div ref="stageBox" class="stagebox" @wheel="onWheel" @pointerdown.capture="onTouchDown" @pointermove.capture="onTouchMove" @pointerup.capture="onTouchUp" @pointercancel.capture="onTouchUp">
         <div v-if="!synced" class="loading"><UiSpinner /></div>
         <p v-else-if="!curSlide" class="empty">{{ t('slides.empty') }}</p>
         <div
           v-if="curSlide" class="frame" :style="frameStyle" role="group" :aria-label="t('slides.canvasLabel', { n: slides.findIndex((s) => s.id === curSlide!.id) + 1 })"
           @pointerdown="onStageDown" @pointermove="onStageMove" @pointerup="onStageUp" @pointercancel="onStageUp" @pointerleave="onStageLeave" @dblclick="onDouble"
         >
-          <SlideView ref="view" :doc="ydoc" :slide="curSlide" :size="size" :tick="tick" :editing-id="editingId">
+          <SlideView ref="view" :doc="ydoc" :slide="curSlide" :size="size" :tick="tick" :editing-id="editingId" :live-ids="liveIds">
             <template #editor="{ el, textStyle }">
-              <TextEdit v-if="frag(el.id)" :fragment="frag(el.id)!" :text-style="{ ...textStyle, ...textStyleOf(el) }" @done="editingId = null" @editor="textEditor = $event" />
+              <TextEdit
+                v-if="frag(el.id)" :key="`${el.id}:${el.id === editingId ? 'w' : 'r'}:${fragKey(frag(el.id))}`" :fragment="frag(el.id)!" :provider="provider" :user="user" :readonly="el.id !== editingId"
+                :text-style="{ ...textStyle, ...textStyleOf(el) }" @done="editingId = null" @editor="textEditor = $event"
+              />
             </template>
+            <div v-if="grid" class="grid-ov" :style="{ backgroundSize: `${GRID}px ${GRID}px`, '--lw': `${Math.max(1, 1 / Math.max(0.1, scale))}px` }" />
             <!-- Sélection des autres personnes -->
             <div v-for="b in peerBoxes" :key="b.key" class="peer-box" :style="b.style">
-              <span class="peer-tag" :style="{ background: b.color, fontSize: `${12 / Math.max(0.1, scale)}px` }">{{ b.name }}</span>
+              <span class="peer-tag" :class="{ editing: b.editing }" :style="{ background: b.color, fontSize: `${12 / Math.max(0.1, scale)}px` }">{{ b.name }}<template v-if="b.editing"> · {{ t('slides.collab.editing') }}</template></span>
             </div>
             <template v-for="p in peersHere" :key="`c${p.id}`">
               <div v-if="p.x !== undefined && p.y !== undefined" class="peer-cursor" :style="{ left: `${p.x}px`, top: `${p.y}px`, '--c': p.color, '--k': 1 / Math.max(0.1, scale) }"><span>{{ p.name }}</span></div>
@@ -524,6 +701,8 @@ defineExpose({ undo: doUndo, redo: doRedo })
                 <div class="sel multi" :style="{ left: `${multiBounds.x}px`, top: `${multiBounds.y}px`, width: `${multiBounds.w}px`, height: `${multiBounds.h}px`, outlineWidth: `${2 / Math.max(0.1, scale)}px` }" />
               </template>
             </template>
+            <button v-for="b in elementBubbles" :key="`cb${b.id}`" type="button" class="cbubble" data-el-comments :style="b.style" :aria-label="t('slides.collab.openComments', { count: b.n })" @pointerdown.stop @click.stop="openThreadsAt(elementAnchor(curSlide.id, b.id))"><MessageSquare :size="12" /> {{ b.n }}</button>
+            <button v-if="slideOnlyComments" type="button" class="cbubble slide" data-slide-bubble :style="{ left: '0px', top: '0px', '--k': String(1 / Math.max(0.1, scale)) }" :aria-label="t('slides.collab.openComments', { count: slideOnlyComments })" @pointerdown.stop @click.stop="openThreadsAt(slideAnchor(curSlide.id))"><MessageSquare :size="12" /> {{ slideOnlyComments }}</button>
             <div v-for="(g, i) in guides" :key="`g${i}`" class="guide" :style="g.axis === 'x' ? { left: `${g.pos}px`, top: `${g.from}px`, width: `${2 / Math.max(0.1, scale)}px`, height: `${g.to - g.from}px` } : { top: `${g.pos}px`, left: `${g.from}px`, height: `${2 / Math.max(0.1, scale)}px`, width: `${g.to - g.from}px` }" />
             <div v-if="marqueeRect" class="marquee" :style="{ left: `${marqueeRect.x}px`, top: `${marqueeRect.y}px`, width: `${marqueeRect.w}px`, height: `${marqueeRect.h}px`, outlineWidth: `${1.5 / Math.max(0.1, scale)}px` }" />
           </SlideView>
@@ -541,6 +720,8 @@ defineExpose({ undo: doUndo, redo: doRedo })
     >
       <PresentPanel :doc="ydoc" :slide="curSlide" :selected="selected" :tick="tick" :can-write="canWrite" />
     </Inspector>
+    <SlidesHistory v-model:open="historyOpen" :page-id="pageId" :doc="ydoc" :can-edit="canWrite" @restore="onRestore" />
+    <IconPicker v-model:open="iconOpen" @pick="addIcon" />
   </div>
 </template>
 
@@ -574,8 +755,24 @@ defineExpose({ undo: doUndo, redo: doRedo })
 .tb:focus-visible, .rb:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
 .sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 .notice { margin: 0; padding: 6px 12px; font-size: var(--fs-sm); color: var(--text-2); background: var(--bg-hover); }
-.stagebox { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; background: var(--bg-column); }
-.empty { margin: 0; color: var(--text-3); }
+.stagebox { position: relative; flex: 1; min-height: 0; display: flex; padding: 24px; overflow: auto; background: var(--bg-column); }
+.stagebox > .frame { margin: auto; flex: none; }
+.spacer { flex: 1; }
+.tb.on { background: var(--bg-selected); color: var(--accent-text); }
+.tb.zoom { min-width: 44px; font-variant-numeric: tabular-nums; }
+.grid-ov { position: absolute; inset: 0; pointer-events: none; z-index: 9990; background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 18%, transparent) var(--lw), transparent var(--lw)), linear-gradient(to bottom, color-mix(in srgb, var(--text) 18%, transparent) var(--lw), transparent var(--lw)); }
+.cbubble { position: absolute; z-index: 9997; display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; background: var(--yellow, #e2a03f); color: #1b1b1b; font-size: 12px; font-weight: 700; transform: translate(-100%, -50%) scale(var(--k)); transform-origin: 100% 50%; box-shadow: 0 1px 4px rgb(0 0 0 / 0.3); cursor: pointer; }
+.cbubble.slide { transform: translate(0, 0) scale(var(--k)); transform-origin: 0 0; margin: 12px; }
+.cbadge { position: absolute; right: 4px; top: 3px; z-index: 2; display: inline-flex; align-items: center; gap: 2px; padding: 0 5px; border-radius: 999px; background: var(--yellow, #e2a03f); color: #1b1b1b; font-size: 10px; font-weight: 700; }
+.rail-sec { display: flex; align-items: center; gap: 2px; margin-top: 4px; }
+.sec-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: var(--r-sm); color: var(--text-2); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; text-align: left; }
+.sec-toggle:hover, .sec-edit:hover { background: var(--bg-hover); color: var(--text); }
+.sec-title { flex: 1; min-width: 0; }
+.sec-n { font-weight: 500; color: var(--text-3); }
+.sec-edit { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--text-3); }
+.dot.more { background: var(--bg-active); color: var(--text-2); }
+.peer-tag.editing { font-weight: 700; }
+.empty { margin: auto; color: var(--text-3); }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; }
 .frame { position: relative; box-shadow: 0 0 0 1px var(--border-strong), 0 8px 30px rgb(0 0 0 / 0.25); touch-action: none; user-select: none; }
 .ro .frame { touch-action: auto; }

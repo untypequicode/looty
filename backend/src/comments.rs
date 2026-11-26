@@ -36,6 +36,8 @@ struct CommentDto {
     avatar_url: Option<String>,
     content: String,
     quote: Option<String>,
+    /// Présentation : diapositive (`slide:<id>`) ou élément (`el:<diapo>:<élément>`) commenté.
+    anchor: Option<String>,
     resolved_at: Option<DateTime<Utc>>,
     resolved_by: Option<Uuid>,
     created_at: DateTime<Utc>,
@@ -43,7 +45,7 @@ struct CommentDto {
 }
 
 const SELECT: &str = "SELECT c.id, c.target_kind, c.target_id, c.parent_id, c.user_id, u.name AS user_name, u.avatar_url,
-       c.content, c.quote, c.resolved_at, c.resolved_by, c.created_at, c.updated_at
+       c.content, c.quote, c.anchor, c.resolved_at, c.resolved_by, c.created_at, c.updated_at
 FROM item_comments c LEFT JOIN users u ON u.id = c.user_id";
 
 #[derive(Deserialize)]
@@ -136,6 +138,18 @@ struct CreateReq {
     content: String,
     parent_id: Option<Uuid>,
     quote: Option<String>,
+    anchor: Option<String>,
+}
+
+/// Ancre valide : `slide:<id>` ou `el:<diapo>:<élément>`, identifiants de 1 à 64 caractères [A-Za-z0-9_-].
+fn valid_anchor(a: &str) -> bool {
+    let id = |s: &str| !s.is_empty() && s.len() <= 64 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+    let parts: Vec<&str> = a.split(':').collect();
+    match parts.as_slice() {
+        ["slide", s] => id(s),
+        ["el", s, e] => id(s) && id(e),
+        _ => false,
+    }
 }
 
 fn clean_content(raw: &str) -> ApiResult<String> {
@@ -157,6 +171,20 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let (title, author) = check_target(&state, &user, ws, &p.kind, p.id).await?;
     require_comment(&state, &user, ws, &p.kind, p.id).await?;
     let content = clean_content(&p.content)?;
+    // Ancre : seulement sur le commentaire racine d'un fil, d'une présentation.
+    let anchor = match p.anchor.as_deref().map(str::trim).filter(|a| !a.is_empty()) {
+        Some(a) if p.parent_id.is_none() => {
+            if p.kind != "page" || !valid_anchor(a) {
+                return Err(ApiError::bad_request("invalid_anchor"));
+            }
+            let slides: Option<String> = sqlx::query_scalar("SELECT default_view FROM pages WHERE id = $1").bind(p.id).fetch_optional(&state.pool).await?;
+            if slides.as_deref() != Some("slides") {
+                return Err(ApiError::bad_request("invalid_anchor"));
+            }
+            Some(a.to_string())
+        }
+        _ => None,
+    };
     let quote = p.quote.map(|q| q.trim().chars().take(500).collect::<String>()).filter(|q| !q.is_empty());
     // Réponse : toujours rattachée au commentaire racine du fil.
     let parent = match p.parent_id {
@@ -171,7 +199,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
         None => None,
     };
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO item_comments (workspace_id, target_kind, target_id, parent_id, user_id, content, quote) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+        "INSERT INTO item_comments (workspace_id, target_kind, target_id, parent_id, user_id, content, quote, anchor) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
     )
     .bind(ws)
     .bind(&p.kind)
@@ -180,6 +208,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     .bind(user.id)
     .bind(&content)
     .bind(&quote)
+    .bind(&anchor)
     .fetch_one(&state.pool)
     .await?;
 
@@ -187,7 +216,7 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(ws): Path<Uu
     let target = format!("{}:{}", p.kind, p.id);
     let text = crate::ical::html_to_text(&content);
     let snippet: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(140).collect();
-    let data = serde_json::json!({ "title": title, "snippet": snippet, "comment_id": id });
+    let data = serde_json::json!({ "title": title, "snippet": snippet, "comment_id": id, "anchor": anchor });
     let mentioned = crate::groups::mentioned_people(&state.pool, ws, &extract_mentions(&content)).await?;
     // Personne ne reçoit l'extrait d'un commentaire sur un élément qu'elle ne peut pas lire.
     let mut readers = Vec::with_capacity(mentioned.len());
@@ -275,4 +304,20 @@ async fn resolve(State(state): State<AppState>, user: AuthUser, Path(id): Path<U
         .await?;
     changed(&state, ws, &kind, target).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::valid_anchor;
+
+    #[test]
+    fn anchors_name_a_slide_or_an_element_only() {
+        for ok in ["slide:abc", "slide:0f8fad5b-d9cb-469f-a165-70867728950e", "el:s1:e_2", "el:a-b:c-d"] {
+            assert!(valid_anchor(ok), "{ok}");
+        }
+        let long = "x".repeat(65);
+        for bad in ["", "slide:", "slide", "el:a", "el:a:", "el::b", "el:a:b:c", "page:abc", "slide:a b", "slide:a/b", "slide:é", &format!("slide:{long}")] {
+            assert!(!valid_anchor(bad), "{bad}");
+        }
+    }
 }

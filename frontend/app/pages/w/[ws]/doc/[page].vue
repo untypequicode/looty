@@ -24,6 +24,7 @@ import { exportMarkdown } from '~/editor/export'
 import { useAppHandoff } from '~/composables/useAppHandoff'
 import { useComments, type ItemComment } from '~/composables/useComments'
 import { replaceCommentMark, findCommentMark } from '~/editor/commentMark'
+import { anchorTarget } from '~/slides/comments'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -130,6 +131,19 @@ async function saveHtml(html: string, id: string = pageId.value) {
 const commentsOpen = useLocalStorage<boolean>('looty.doc.comments', false)
 const pendingQuote = ref<string | null>(null)
 const focusThread = ref<string | null>(null)
+/** Présentation : diapositive ou élément auquel sera rattaché le prochain commentaire. */
+const pendingAnchor = ref<string | null>(null)
+const slidesOutline = ref<{ id: string; elements: { id: string; label: string }[] }[]>([])
+function anchorLabel(a: string): string | null {
+  const tg = anchorTarget(a, slidesOutline.value)
+  if (tg.state === 'slide') return t('slides.collab.onSlide', { n: tg.index + 1 })
+  if (tg.state === 'element') return t('slides.collab.onElement', { n: tg.index + 1, name: slidesOutline.value[tg.index]!.elements.find((e) => e.id === tg.element)?.label ?? '' })
+  return slidesOutline.value.length ? null : '…'
+}
+function onCommentAnchor(e: Event) {
+  pendingAnchor.value = (e as CustomEvent).detail.anchor
+  commentsOpen.value = true
+}
 const { threads: commentThreads, openCount: openComments } = useComments(wsId, ref('page'), pageId)
 const canComment = computed(() => !!live.value && allows('docs', 'comment'))
 function onCommentSelection(e: Event) {
@@ -143,16 +157,18 @@ function onCommentOpen(e: Event) {
 onMounted(() => {
   window.addEventListener('looty:comment-selection', onCommentSelection)
   window.addEventListener('looty:comment-open', onCommentOpen)
+  window.addEventListener('looty:comment-anchor', onCommentAnchor)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('looty:comment-selection', onCommentSelection)
   window.removeEventListener('looty:comment-open', onCommentOpen)
+  window.removeEventListener('looty:comment-anchor', onCommentAnchor)
 })
 // Lien vers un commentaire (notification) : ouvrir la discussion sur ce fil.
 watch(() => route.query.comment as string | undefined, (id) => { if (id) { commentsOpen.value = true; focusThread.value = id } }, { immediate: true })
 // Passage cité abandonné : retirer la marque provisoire.
 watch(pendingQuote, (q) => { if (!q && editorInst.value && canEdit.value) replaceCommentMark(editorInst.value, 'pending', null) })
-watch(commentsOpen, (o) => { if (!o) pendingQuote.value = null })
+watch(commentsOpen, (o) => { if (!o) { pendingQuote.value = null; pendingAnchor.value = null } })
 function onCommentCreated(c: ItemComment) {
   if (c.quote && editorInst.value && canEdit.value) replaceCommentMark(editorInst.value, 'pending', c.id)
 }
@@ -161,6 +177,8 @@ function onCommentRemoved(c: ItemComment) {
 }
 function onCommentSelect(c: ItemComment) {
   focusThread.value = c.id
+  // Présentation : afficher la diapositive (et sélectionner l'élément) du fil.
+  if (c.anchor) window.dispatchEvent(new CustomEvent('looty:slide-goto', { detail: { anchor: c.anchor } }))
   const e = editorInst.value
   const pos = e ? findCommentMark(e, c.id) : null
   if (e && pos !== null) {
@@ -333,7 +351,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <input v-model="title" class="doc-project-title" :readonly="!canEdit" :placeholder="t('docs.untitled')" @input="saveTitle()" />
         <AppKeywords kind="page" :id="live.id" :readonly="!canEdit" class="doc-project-kw" />
       </div>
-      <SlidesDeck :key="`slides-${live.id}`" class="doc-project-ws" :page-id="live.id" :can-edit="canEdit" :user="cursorUser" @status="(s) => (status = s)" @collaborators="(c) => (collaborators = c)" />
+      <SlidesDeck v-model:history-open="historyOpen" :key="`slides-${live.id}`" class="doc-project-ws" :page-id="live.id" :can-edit="canEdit" :can-comment="canComment" :user="cursorUser" @status="(s) => (status = s)" @collaborators="(c) => (collaborators = c)" @outline="(o) => (slidesOutline = o)" />
     </div>
     <div v-else-if="showCanvas && live" class="doc-project">
       <div class="doc-project-head">
@@ -422,6 +440,8 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         </header>
         <CommentsPanel
           v-model:quote="pendingQuote"
+          v-model:anchor="pendingAnchor"
+          :anchor-label="showSlides ? anchorLabel : undefined"
           kind="page"
           :target-id="pageId"
           :can-comment="canComment"
@@ -437,7 +457,7 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
     <DocShareDialog v-if="live" v-model:open="shareOpen" :page="live" />
     <DocExportDialog v-if="live" v-model:open="exportOpen" :page="{ ...live, title }" :get-html="() => editorInst?.getHTML() ?? ''" />
     <DocImportDialog v-if="live" v-model:open="importOpen" :parent="live" />
-    <DocHistoryDialog v-if="live" v-model:open="historyOpen" :page-id="pageId" :editor="editorInst as any" :can-edit="canEdit" :current-title="title" @restore-title="(v) => { title = v; updatePage(pageId, { title: v }) }" />
+    <DocHistoryDialog v-if="live && !showSlides" v-model:open="historyOpen" :page-id="pageId" :editor="editorInst as any" :can-edit="canEdit" :current-title="title" @restore-title="(v) => { title = v; updatePage(pageId, { title: v }) }" />
   </div>
 </template>
 
