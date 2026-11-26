@@ -622,3 +622,38 @@ async fn a_slides_page_follows_the_same_resolver(pool: PgPool) {
     assert!(!w.visible_titles(w.edi).await.contains(&"Deck".to_string()));
     assert_eq!(w.collab(w.gus, deck).await.1["level"], "comment");
 }
+
+/// Dernière ligne de la matrice (§ 3) : le lien public ne donne que la page elle-même, en lecture, sans compte.
+#[sqlx::test]
+async fn a_public_link_reads_its_page_only_and_stops_when_revoked(pool: PgPool) {
+    let w = World::new(pool).await;
+    let anon = |path: String| {
+        let app = w.app.clone();
+        async move {
+            let res = app.oneshot(Request::builder().method("GET").uri(path).body(Body::empty()).unwrap()).await.unwrap();
+            let status = res.status().as_u16();
+            let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+            (status, serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null))
+        }
+    };
+    let (s, b) = w.call(w.ana, "POST", &format!("/api/workspaces/{}/pages/{}/share", w.ws, w.child), None).await;
+    assert_eq!(s, 200, "{b}");
+    let token = b["share_token"].as_str().unwrap().to_string();
+    let (s, public) = anon(format!("/api/public/pages/{token}")).await;
+    assert_eq!(s, 200);
+    assert_eq!(public["title"], "Child");
+    let shown = public.to_string();
+    assert!(!shown.contains("Top secret parent") && !shown.contains("Shared root") && !shown.contains("Grand needle"), "no neighbour leaks: {shown}");
+    // Sans compte, la page, ses sous-pages, son parent et la recherche restent fermés : le lien ne donne que la lecture de cette page.
+    for p in [w.child, w.grand, w.shared, w.top] {
+        assert_eq!(anon(format!("/api/workspaces/{}/pages/{p}", w.ws)).await.0, 401, "page {p}");
+    }
+    // Un jeton inconnu ne donne rien ; le lien d'une page ne vaut pas pour sa sous-page.
+    assert_eq!(anon(format!("/api/public/pages/{}", Uuid::new_v4())).await.0, 404);
+    // Une personne sans droit n'obtient pas non plus le jeton par l'API de la page.
+    assert_eq!(w.call(w.zed, "GET", &format!("/api/workspaces/{}/pages/{}", w.ws, w.child), None).await.0, 404);
+    // Lien retiré : la page publique disparaît tout de suite.
+    let (s, _) = w.call(w.ana, "DELETE", &format!("/api/workspaces/{}/pages/{}/share", w.ws, w.child), None).await;
+    assert!(s == 200 || s == 204, "{s}");
+    assert_eq!(anon(format!("/api/public/pages/{token}")).await.0, 404);
+}

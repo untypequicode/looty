@@ -36,3 +36,15 @@ Pages other people shared with you in spaces you are not a member of are grouped
 ## Moving a page
 
 Moving a page under another parent lists who would gain or lose access and asks you to confirm. Moving it to another space removes its individual shares.
+
+## Files and images
+
+Images and attachments follow the page they belong to: a person can open a file only if they can read that page (or task, or space). Removing someone's access stops the images loading for them at once, even if they kept the address. Older links keep working for people who still have access; they no longer work for people who do not, and they do not work without signing in (a person who is not signed in gets *401*, a signed-in person without access gets *404*). To show an image to someone who is not signed in, use a public link.
+
+## Public links
+
+**Copy public link** in the dialog makes the page readable by anyone who has the link, without an account, in read-only mode. Only that page is exposed (not its parent or sub-pages), with its own images. Turn the link off and the page and its images stop loading. A public link does not give access to the space: guests and members keep using the levels above.
+
+## API and tokens
+
+An API token acts as the person who created it: it has exactly their access to pages and files, and a token limited to some spaces cannot read files of other spaces. Share changes through the API follow the same rule as the dialog (you must be able to manage the page).

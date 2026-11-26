@@ -4,6 +4,27 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.68.1",
+      "date": "2026-11-26",
+      "title": {
+        "en": "Files without owner can be handled in Storage, clearer shared page icon",
+        "fr": "Fichiers sans propriétaire gérables dans Stockage, icône de page partagée plus claire"
+      },
+      "notes": {
+        "en": [
+          "Administration, Storage lists the files that no page or account cites and nobody uploaded (Files without owner): open or download them, attach them to a page, or delete them after confirmation.",
+          "The icon next to a page in the sidebar now says the page is shared or restricted.",
+          "Sharing documentation completed: files, public links and API tokens."
+        ],
+        "fr": [
+          "Administration, Stockage liste les fichiers que ni une page ni un compte ne cite et que personne n’a envoyés (Fichiers sans propriétaire) : les ouvrir ou télécharger, les rattacher à une page ou les supprimer après confirmation.",
+          "L’icône à côté d’une page dans la barre latérale indique maintenant que la page est partagée ou restreinte.",
+          "Documentation du partage complétée : fichiers, liens publics et jetons d’API."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.68.0",
       "date": "2026-11-26",
       "title": {

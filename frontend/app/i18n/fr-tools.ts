@@ -61,7 +61,7 @@ export default {
     addPlaceholder: 'Ajouter un membre ou un compte Looty…', withSubpages: 'Sous-pages comprises', guest: 'Invité', noMatch: 'Aucun résultat.',
     editorHint: 'Peut modifier cette page', viewerHint: 'Peut lire cette page', commentLabel: 'Peut commenter', commentHint: 'Peut lire et commenter cette page', manageLabel: 'Peut gérer', manageHint: 'Peut modifier cette page et changer qui y a accès', blockedHint: 'Ne voit pas cette page', remove: 'Retirer l’accès particulier',
     scopeTree: 'Cette page et ses sous-pages', scopePage: 'Cette page seulement', onlyThis: 'cette page seulement', includeSub: 'inclure les sous-pages',
-    inherited: 'Depuis une page parente', from: 'Depuis « {title} »', none: 'Aucun accès particulier : chacun suit son rôle.', badge: 'Permissions particulières',
+    inherited: 'Depuis une page parente', from: 'Depuis « {title} »', none: 'Aucun accès particulier : chacun suit son rôle.', badge: 'Partagée ou restreinte : cette page a ses propres réglages d’accès',
     createSub: 'Peut créer des sous-pages', createSubHint: 'Cette personne peut ajouter des pages dans celle-ci, même si son rôle (ou son statut d’invité) ne permet pas de créer des documents.',
   },
   shared: { title: 'Partagé avec moi', hint: 'Documents d’autres espaces que l’on a partagés avec vous.', empty: 'Rien n’a encore été partagé avec vous.', link: 'Documents partagés avec vous ({n})' },

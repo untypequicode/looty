@@ -56,7 +56,7 @@ Personne du même compte d'instance, extérieure à l'espace, à qui un membre a
 _Avoid_: externe, visiteur (la personne sans compte qui ouvre un lien public)
 
 **Partage de page**:
-Droit donné à une personne sur une page : un niveau (lecture, commentaire, modification, gestion — la gestion permet de changer les partages de la page) ou un refus explicite (membre ou personne extérieure), sous-pages comprises ou page seule, avec en option la création de sous-pages. Le droit le plus proche dans l'arborescence l'emporte. Une seule règle de résolution (`access.rs`) sert toutes les routes. Le modèle cible (ADR 0022) ajoute les groupes.
+Droit donné à une personne sur une page : un niveau (lecture, commentaire, modification, gestion — la gestion permet de changer les partages de la page) ou un refus explicite (membre ou personne extérieure), sous-pages comprises ou page seule, avec en option la création de sous-pages. Le droit le plus proche dans l'arborescence l'emporte. Une seule règle de résolution (`access.rs`) sert toutes les routes. Un groupe d’instance peut aussi recevoir le partage (chaque membre du groupe a le droit, et le perd en sortant). Voir ADR 0022.
 _Avoid_: permission (réservée aux droits des rôles), autorisation
 
 **Partagé avec moi**:

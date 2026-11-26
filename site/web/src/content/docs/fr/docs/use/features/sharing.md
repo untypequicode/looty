@@ -36,3 +36,15 @@ Les pages que d’autres vous ont partagées dans des espaces dont vous n’ête
 ## Déplacer une page
 
 Déplacer une page sous un autre parent liste qui gagnerait ou perdrait l’accès et demande confirmation. La déplacer vers un autre espace retire ses partages individuels.
+
+## Fichiers et images
+
+Les images et pièces jointes suivent la page à laquelle elles appartiennent : une personne ne peut ouvrir un fichier que si elle peut lire cette page (ou cette tâche, ou cet espace). Retirer l’accès à quelqu’un arrête aussitôt le chargement des images pour lui, même s’il a gardé l’adresse. Les anciens liens continuent de fonctionner pour les personnes qui ont encore accès ; ils ne fonctionnent plus pour les autres, ni sans connexion (une personne non connectée reçoit *401*, une personne connectée sans accès reçoit *404*). Pour montrer une image à quelqu’un qui n’est pas connecté, utilisez un lien public.
+
+## Liens publics
+
+**Copier le lien public** dans le dialogue rend la page lisible par toute personne qui a le lien, sans compte, en lecture seule. Seule cette page est exposée (ni son parent ni ses sous-pages), avec ses propres images. Désactivez le lien : la page et ses images ne se chargent plus. Un lien public ne donne pas accès à l’espace : invités et membres gardent les niveaux ci-dessus.
+
+## API et jetons
+
+Un jeton d’API agit comme la personne qui l’a créé : il a exactement son accès aux pages et aux fichiers, et un jeton limité à certains espaces ne peut pas lire les fichiers des autres espaces. Les changements de partage par l’API suivent la même règle que le dialogue (il faut pouvoir gérer la page).
