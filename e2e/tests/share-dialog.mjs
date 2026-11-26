@@ -4,7 +4,6 @@ import { B, WS, OUT, ok, launch, login, api as call } from '../lib/index.mjs'
 const { browser, page: alice, errors } = await launch(1400, 950)
 await login(alice)
 const a = (path, method, body) => call(alice, path, method, body)
-await a(`/api/workspaces/${WS}/prefs`, 'PATCH', { modes: { docs: 'write', boards: 'write', calendar: 'write' }, modesChosen: true })
 
 const person = async (email) => {
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } })

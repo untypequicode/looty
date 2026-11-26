@@ -70,7 +70,7 @@ watch(() => workspace.error.value, (e: any) => {
   else {
     // Lien d'une page sans droit : la page « demander l'accès » plutôt qu'un retour muet à l'accueil.
     const doc = docIdOfPath(route.path)
-    navigateTo(doc ? `/request-access/` : '/')
+    navigateTo(doc ? `/request-access/${doc}` : '/')
   }
 })
 
