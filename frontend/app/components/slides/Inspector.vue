@@ -144,6 +144,7 @@ const aligns = [['left', AlignLeft], ['center', AlignCenter], ['right', AlignRig
 
       <label v-if="one && canWrite" class="alt"><span>{{ t('slides.altText') }}</span><input type="text" maxlength="300" :value="one.alt" :placeholder="t('slides.altHint')" @change="emit('patch', { alt: ($event.target as HTMLInputElement).value })" /></label>
     </template>
+    <slot />
   </aside>
 </template>
 

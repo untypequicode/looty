@@ -13,7 +13,7 @@ import { publicProject, type PublicProjectSummary } from '~/composables/useProje
  */
 const route = useRoute()
 const { t } = useI18n()
-const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string; latex_preamble?: string; diagram_styles?: DiagramStyleSettings; project?: PublicProjectSummary | null } | null>(null)
+const page = ref<{ id: string; title: string; icon?: string | null; content?: string | null; updated_at: string; latex_preamble?: string; diagram_styles?: DiagramStyleSettings; project?: PublicProjectSummary | null; default_view?: string; slides_state?: string | null } | null>(null)
 const project = computed(() => publicProject(String(route.params.token), page.value?.project))
 const missing = ref(false)
 
@@ -31,7 +31,8 @@ useHead({ title: () => (page.value ? `${page.value.icon ? `${page.value.icon} ` 
 </script>
 
 <template>
-  <DocReader :page="page" :error="missing" :current-id="String(route.params.token)" storage="local" crumb="Looty" :project="project">
+  <SlidesPublicSlides v-if="page?.default_view === 'slides'" :token="String(route.params.token)" :title="page.title" :state="page.slides_state ?? null" />
+  <DocReader v-else :page="page" :error="missing" :current-id="String(route.params.token)" storage="local" crumb="Looty" :project="project">
     <template #error>
       <UiEmpty :icon="FileQuestion" :title="t('public.notFound')" :description="t('public.notFoundHint')" />
     </template>

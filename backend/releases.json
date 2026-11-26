@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.66.0",
+      "version": "0.67.0",
       "date": "2026-11-26",
       "title": {
         "en": "Sharing a page: new Share dialog, groups, access requests and a clearer Shared with me",
@@ -28,6 +28,50 @@
           "« Partagé avec moi » est groupé par espace, avec recherche, votre niveau, qui a partagé et un chemin limité aux parents que vous voyez, et se met à jour tout seul.",
           "Les personnes hors de l’espace qui peuvent lire une page peuvent être mentionnées dans la page et ses commentaires, et un partage envoie une notification dans l’application (avec de nouveaux réglages de notification).",
           "Déplacer une page entre parents ou espaces demande confirmation et liste qui gagne ou perd l’accès."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.66.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Presentations: present full screen, with a presenter view and live following",
+        "fr": "Présentations : présenter en plein écran, vue présentateur et suivi en direct"
+      },
+      "notes": {
+        "en": [
+          "New Present button in presentations: full screen slide show with the keyboard (arrows, space, Page up and down, Home, End, Esc), a clicker, swipes on touch screens, an auto-hiding control bar, a slide overview, jump to a slide by number, black and white screens (B, W), a laser pointer, zoom, and slide numbers announced to screen readers.",
+          "Presenter view in a second window, synchronized with the slide show: current and next slide, speaker notes (written in the properties panel of the editor), timer, clock and progress. Transitions (fade, slide, zoom) per slide or for the whole presentation, and element animations (appear, fade in, move in, on click or after the previous one) with a simple ordered list; reduced motion is honored.",
+          "Live following: while you present, people who have the presentation open see who is presenting and can follow your slide, browse on their own and come back to the presenter. Presentations shared by public link can be read without an account, in a loop (kiosk) if you want, and printed one slide per page."
+        ],
+        "fr": [
+          "Nouveau bouton Présenter dans les présentations : diaporama plein écran au clavier (flèches, espace, Page précédente et suivante, Début, Fin, Échap), à la télécommande, par balayage sur écran tactile, avec une barre de commandes qui se masque, un aperçu des diapositives, l’accès à une diapositive par son numéro, des écrans noir et blanc (B, W), un pointeur laser, le zoom, et le numéro de diapositive annoncé aux lecteurs d’écran.",
+          "Vue présentateur dans une seconde fenêtre, synchronisée avec le diaporama : diapositive en cours et suivante, notes de l’orateur (saisies dans le panneau de propriétés de l’éditeur), minuteur, horloge et progression. Transitions (fondu, glissement, zoom) par diapositive ou pour toute la présentation, et animations d’éléments (apparition, fondu, entrée en glissant, au clic ou après la précédente) avec une liste ordonnée simple ; la préférence de réduction des animations est respectée.",
+          "Suivi en direct : pendant que vous présentez, les personnes qui ont la présentation ouverte voient qui présente et peuvent suivre votre diapositive, naviguer librement et revenir au présentateur. Une présentation partagée par lien public se lit sans compte, en boucle (kiosque) si vous le souhaitez, et s’imprime à raison d’une diapositive par page."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.65.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Presentations: comments, version history and live carets",
+        "fr": "Présentations : commentaires, historique des versions et curseurs en direct"
+      },
+      "notes": {
+        "en": [
+          "Comment on a slide or on a single element of a presentation: the comment button of the toolbar attaches your next comment to the selection, the panel on the right lists the threads with the slide or element they are about (click one to jump to it), and yellow badges on the thumbnails and on the elements show the open threads. Mentions, replies, resolving and notifications work like on pages and follow the same access levels.",
+          "Version history for presentations: the page menu opens the list of versions (one per editing session, plus the ones you name), with who made each and when. Preview a version slide by slide, see which slides differ from the current presentation, then restore it: the current state is kept as a version first, everybody sees the change live, and Ctrl+Z undoes it. Duplicate in the page menu now copies the slides of a presentation.",
+          "Better live presence: you see the text cursor and selection of people typing in a text box (even when you are only looking at it), a tag that says who is editing which element, and avatars on the slides in the rail. Two people opening a brand-new presentation at the same time no longer end up with two first slides.",
+          "Editor basics: zoom (fit, 100%, zoom in and out, Ctrl and wheel), a grid with snapping, named collapsible sections in the slide rail, an arrow shape with optional heads, an icon picker (the Lucide icons Looty already ships), thumbnails that are only drawn when visible, and pinch to zoom with two fingers to pan on touch screens."
+        ],
+        "fr": [
+          "Commentez une diapositive ou un seul élément d’une présentation : le bouton commentaire de la barre d’outils rattache votre prochain commentaire à la sélection, le panneau de droite liste les fils avec la diapositive ou l’élément concerné (un clic y mène), et des pastilles jaunes sur les miniatures et les éléments montrent les fils ouverts. Mentions, réponses, résolution et notifications fonctionnent comme sur les pages et suivent les mêmes niveaux d’accès.",
+          "Historique des versions des présentations : le menu de la page ouvre la liste des versions (une par session d’édition, plus celles que vous nommez), avec qui l’a faite et quand. Aperçu d’une version diapositive par diapositive, repérage des diapositives qui diffèrent de la présentation actuelle, puis restauration : l’état actuel est d’abord gardé comme version, tout le monde voit le changement en direct, et Ctrl+Z l’annule. Dupliquer dans le menu de la page copie maintenant les diapositives d’une présentation.",
+          "Présence en direct améliorée : vous voyez le curseur et la sélection des personnes qui écrivent dans une zone de texte (même si vous ne faites que la regarder), une étiquette qui dit qui modifie quel élément, et les avatars sur les diapositives du rail. Deux personnes qui ouvrent en même temps une présentation neuve n’obtiennent plus deux premières diapositives.",
+          "Bases de l’éditeur : zoom (ajuster, 100 %, avant et arrière, Ctrl et molette), grille avec aimantation, sections nommées et repliables dans le rail, forme flèche avec pointes au choix, sélecteur d’icônes (les icônes Lucide déjà fournies par Looty), miniatures dessinées seulement quand elles sont visibles, et pincement pour zoomer avec deux doigts pour déplacer la vue sur écran tactile."
         ]
       }
     },
