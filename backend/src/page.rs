@@ -727,6 +727,9 @@ pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>
     .ok_or(ApiError::NotFound)?;
     page.diagram_styles = crate::diagram_styles::load(&pool, page.workspace_id).await?;
     page.project = crate::public_project::summary(&pool, token).await?;
+    // Images de la page : lisibles avec le jeton du lien public seulement (voir `file_access`).
+    page.content = page.content.map(|c| crate::file_access::tag_public_links(&c, token));
+    page.icon = page.icon.map(|c| crate::file_access::tag_public_links(&c, token));
     Ok(Json(page))
 }
 

@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { toast } from './useToast'
 import { translate } from './useI18n'
+import { uploadUrl } from '../utils/uploadContext'
 
 export interface ApiError {
   status: number
@@ -63,5 +64,5 @@ export async function api<T = any>(url: string, opts: Parameters<typeof $fetch>[
 export async function uploadFile(file: File, url = '/api/upload'): Promise<{ url: string; name: string; mime: string; size: number }> {
   const form = new FormData()
   form.append('file', file)
-  return api(url, { method: 'POST', body: form })
+  return api(typeof window === 'undefined' ? url : uploadUrl(url, window.location.pathname), { method: 'POST', body: form })
 }

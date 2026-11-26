@@ -1657,6 +1657,7 @@ async fn upload_attachment(
             continue;
         }
         let saved = crate::upload::save_field(field).await?;
+        crate::file_access::register(pool, saved.name(), user.id, "task", crate::file_access::Binding { workspace_id: Some(ctx.workspace_id), page_id: None, task_id: Some(task_id) }).await?;
         let att: TaskAttachment = sqlx::query_as(
             "INSERT INTO task_attachments (task_id, uploaded_by, filename, file_path, mime_type, size_bytes)
              VALUES ($1, $2, $3, $4, $5, $6)

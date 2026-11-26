@@ -87,3 +87,15 @@ test('describeRefusal ajoute la raison donnée par le backend, nettoyée', () =>
   const line = describeRefusal({ reason: 'unauthorized', status: 401, documentName: 'abc', hasCookie: true, userAgent: 'u', backendReason: 'no_user_in_session"\n x' })
   assert.match(line, / backend_reason=no_user_in_sessionx$/)
 })
+
+test('applyAccess: edit to read downgrades a live connection without closing it, read to edit reopens it', () => {
+  const { applyAccess } = require('./resilience')
+  const conn = { readOnly: false }
+  assert.equal(applyAccess(conn, { can_write: true, level: 'edit' }), 'same')
+  assert.equal(conn.readOnly, false)
+  assert.equal(applyAccess(conn, { can_write: false, level: 'read' }), 'downgraded')
+  assert.equal(conn.readOnly, true)
+  assert.equal(applyAccess(conn, { can_write: false, level: 'comment' }), 'same')
+  assert.equal(applyAccess(conn, { can_write: true, level: 'edit' }), 'upgraded')
+  assert.equal(conn.readOnly, false)
+})

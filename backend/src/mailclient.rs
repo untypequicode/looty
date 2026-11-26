@@ -980,6 +980,19 @@ fn parse_mailboxes(list: &[String]) -> ApiResult<Vec<Mailbox>> {
         .collect()
 }
 
+/// Le fichier cité peut-il être lu par cette personne ? (un message ne joint pas ce qu'elle ne peut pas ouvrir)
+async fn check_upload_access(pool: &sqlx::PgPool, user: &AuthUser, name: &str) -> ApiResult<()> {
+    match crate::file_access::decide(pool, Some(user), name, None, None).await? {
+        crate::file_access::Decision::Denied => Err(ApiError::bad_request("mail_invalid_attachment")),
+        _ => Ok(()),
+    }
+}
+
+async fn check_upload_url_access(pool: &sqlx::PgPool, user: &AuthUser, url: &str) -> ApiResult<()> {
+    let name = crate::file_access::name_of_url(url).ok_or_else(|| ApiError::bad_request("mail_invalid_attachment"))?;
+    check_upload_access(pool, user, name).await
+}
+
 /// Lit un fichier envoyé sur Looty (`/uploads/<nom>`).
 async fn read_upload(url: &str) -> ApiResult<(Vec<u8>, String)> {
     let name = url.rsplit_once("/uploads/").map(|(_, n)| n).unwrap_or("");
@@ -1045,6 +1058,9 @@ async fn send(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid
     // Corps : texte + HTML (avec images intégrées).
     let cleaned = clean_html(&p.html);
     let (html, images) = inline_images(&cleaned, &state.base_url);
+    for name in &images {
+        check_upload_access(&state.pool, &user, name).await?;
+    }
     let doc = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5\">{html}</body></html>"
     );
@@ -1065,6 +1081,7 @@ async fn send(State(state): State<AppState>, user: AuthUser, Path(id): Path<Uuid
     // Pièces jointes : fichiers envoyés sur Looty, puis celles du message transféré.
     let mut files: Vec<(String, Vec<u8>, String)> = Vec::new();
     for att in &p.attachments {
+        check_upload_url_access(&state.pool, &user, &att.url).await?;
         let (data, mime) = read_upload(&att.url).await?;
         let name: String = att.name.chars().filter(|c| !c.is_control()).take(200).collect();
         files.push((if name.is_empty() { "attachment".into() } else { name }, data, mime));
