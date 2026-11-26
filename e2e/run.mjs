@@ -31,7 +31,9 @@ await call(`/api/workspaces/${WS}/moodle/connect`, 'POST', { token: MOODLE_TOKEN
 
 const dir = fileURLToPath(new URL('./tests/', import.meta.url))
 const filter = process.argv[2]
-const files = readdirSync(dir).filter((f) => f.endsWith('.mjs') && (!filter || f.includes(filter))).sort()
+// E2E_SHARD="i/n" (CI) : ne lance que les fichiers de rang i modulo n (i de 1 à n), chaque tranche sur sa propre instance.
+const [shard, shards] = (process.env.E2E_SHARD || '1/1').split('/').map(Number)
+const files = readdirSync(dir).filter((f) => f.endsWith('.mjs') && (!filter || f.includes(filter))).sort().filter((_, i) => i % shards === shard - 1)
 let failed = 0
 for (const f of files) {
   console.log(`\n# ${f}`)

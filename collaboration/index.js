@@ -3,7 +3,7 @@ const { Database } = require('@hocuspocus/extension-database')
 const { Pool } = require('pg')
 const Y = require('yjs')
 const { CallRooms, isCallRoom, parseRoom, limitsOf } = require('./calls')
-const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal, nextRevalidation, sessionCookieInfo, createRefusalLimiter } = require('./resilience')
+const { withRetry, authErrorForStatus, retryFailedStores, describeRefusal, nextRevalidation, applyAccess, sessionCookieInfo, createRefusalLimiter } = require('./resilience')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/looty_db',
@@ -200,7 +200,7 @@ async function revalidate() {
             }
             const access = await res.json().catch(() => null)
             if (access) {
-              conn.readOnly = !access.can_write
+              if (applyAccess(conn, access) === 'downgraded') console.log(`revalidation: ${name.slice(0, 64)} is now read-only for a connection`)
               // Réglages d'appel modifiés par l'administrateur : mis à jour en place (l'objet est partagé avec la salle).
               const next = limitsOf(access)
               if (next && conn.context?.limits) Object.assign(conn.context.limits, next)

@@ -3,6 +3,7 @@ import type * as Y from 'yjs'
 import { arrowGeometry, fragmentHtml, slideColor } from '~/slides/render'
 import SlideIcon from './SlideIcon.vue'
 import { textOf, type Slide, type SlideElement } from '~/slides/model'
+import { withShare } from '~/utils/uploadContext'
 
 /**
  * Une diapositive rendue en DOM et SVG (ADR 0023) : une boîte de taille logique (1920 x 1080) mise
@@ -11,6 +12,9 @@ import { textOf, type Slide, type SlideElement } from '~/slides/model'
  * texte d'un élément en cours d'édition.
  */
 const props = defineProps<{ doc: Y.Doc; slide: Slide; size: { w: number; h: number }; tick: number; editingId?: string | null; liveIds?: readonly string[] }>()
+/** Jeton du lien public quand la présentation est lue sans compte : ses images en ont besoin (ADR 0022). */
+const shareToken = inject<string | null>('uploadShare', null)
+const imgSrc = (src: string) => withShare(src, shareToken)
 const root = ref<HTMLElement | null>(null)
 const scale = ref(1)
 let ro: ResizeObserver | null = null
@@ -70,7 +74,7 @@ const label = (el: SlideElement) => el.alt || (el.type === 'text' ? '' : el.type
           </template>
         </svg>
         <div v-else-if="el.type === 'icon'" class="sv-icon" role="img" :aria-label="label(el) || String(el.props.name ?? '')"><SlideIcon :name="typeof el.props.name === 'string' ? el.props.name : ''" :color="slideColor(el.props.color, 'var(--text)')" :stroke-width="num(el.props.strokeWidth, 2)" /></div>
-        <img v-else-if="el.type === 'image' && typeof el.props.src === 'string' && /^(\/|https?:)/.test(el.props.src)" class="sv-img" :src="el.props.src" :alt="el.alt" draggable="false" />
+        <img v-else-if="el.type === 'image' && typeof el.props.src === 'string' && /^(\/|https?:)/.test(el.props.src)" class="sv-img" :src="imgSrc(el.props.src)" :alt="el.alt" draggable="false" />
       </div>
       <slot />
     </div>

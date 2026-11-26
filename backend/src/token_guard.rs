@@ -95,12 +95,33 @@ async fn workspace_of(pool: &PgPool, target: &Target) -> Option<Uuid> {
     }
 }
 
+/// Espace du fichier `/uploads/{nom}` pour un jeton limité à des espaces : `Some(None)` = public
+/// (avatars), `Some(Some(w))` = lié à l'espace `w`, `None` = inconnu ou sans espace (refusé).
+async fn upload_scope(pool: &PgPool, path: &str) -> Option<Option<Uuid>> {
+    let name = path.strip_prefix("/uploads/")?;
+    let row: (Option<Uuid>, Option<Uuid>, Option<Uuid>, String) =
+        sqlx::query_as("SELECT workspace_id, page_id, task_id, kind FROM upload_files WHERE name = $1").bind(name).fetch_optional(pool).await.ok()??;
+    if row.3 == "public" {
+        return Some(None);
+    }
+    if let Some(w) = row.0 {
+        return Some(Some(w));
+    }
+    if let Some(p) = row.1 {
+        return crate::access::page_workspace(pool, p).await.ok().map(Some);
+    }
+    if let Some(t) = row.2 {
+        return crate::access::task_ctx(pool, t).await.ok().map(|c| Some(c.workspace_id));
+    }
+    None
+}
+
 pub async fn guard(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let path = req.uri().path().to_string();
     let Some(raw) = bearer(&req).filter(|r| r.starts_with("looty_")).map(str::to_string) else {
         return next.run(req).await;
     };
-    if !path.starts_with("/api/") {
+    if !path.starts_with("/api/") && !path.starts_with("/uploads/") {
         return next.run(req).await;
     }
     let tok: Option<Token> = sqlx::query_as(
@@ -126,6 +147,14 @@ pub async fn guard(State(state): State<AppState>, req: Request, next: Next) -> R
     let Some(allowed) = tok.workspace_ids.filter(|w| !w.is_empty()) else {
         return next.run(req).await;
     };
+    // Fichiers envoyés : un jeton limité à des espaces ne lit que ceux de ces espaces (et les publics).
+    if path.starts_with("/uploads/") {
+        return match upload_scope(&state.pool, &path).await {
+            Some(None) => next.run(req).await,
+            Some(Some(w)) if allowed.contains(&w) => next.run(req).await,
+            _ => refuse(StatusCode::FORBIDDEN, "token_workspace_scope"),
+        };
+    }
     let target = classify(&path);
     match target {
         Target::Free => next.run(req).await,

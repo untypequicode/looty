@@ -390,6 +390,9 @@ async fn update_settings(
     if timezone.is_some_and(|z| !crate::setup::valid_timezone(z)) {
         return Err(ApiError::bad_request("invalid_timezone"));
     }
+    if let Some(f) = check_url(&p.favicon_url, true)? {
+        crate::file_access::mark_public(&pool, &user, &f).await?;
+    }
     if p.calls_max_participants.is_some_and(|n| !crate::calls::valid_max(n)) {
         return Err(ApiError::bad_request("invalid_call_max"));
     }

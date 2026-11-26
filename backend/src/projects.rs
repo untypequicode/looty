@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::access::{level, member_perms, AuthUser, Perms};
+use sqlx::PgPool;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -116,7 +117,11 @@ fn allowed(p: &Perms, need: Need) -> bool {
 }
 
 async fn require_ws(state: &AppState, user: &AuthUser, ws: Uuid, need: Need) -> ApiResult<Perms> {
-    let (_, perms) = member_perms(&state.pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
+    require_ws_pool(&state.pool, user, ws, need).await
+}
+
+async fn require_ws_pool(pool: &PgPool, user: &AuthUser, ws: Uuid, need: Need) -> ApiResult<Perms> {
+    let (_, perms) = member_perms(pool, user.id, ws).await?.ok_or(ApiError::NotFound)?;
     if !allowed(&perms, Need::Read) {
         return Err(ApiError::NotFound);
     }
@@ -127,16 +132,21 @@ async fn require_ws(state: &AppState, user: &AuthUser, ws: Uuid, need: Need) -> 
 }
 
 pub(crate) async fn project_for(state: &AppState, user: &AuthUser, id: Uuid, need: Need) -> ApiResult<(Project, Perms)> {
+    project_for_pool(&state.pool, user, id, need).await
+}
+
+/// Les mêmes droits sans l'état de l'application (contexte d'une conversation IA, liens d'un entraînement…).
+pub(crate) async fn project_for_pool(pool: &PgPool, user: &AuthUser, id: Uuid, need: Need) -> ApiResult<(Project, Perms)> {
     let p: Project = sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {PROJECT_COLS} FROM projects WHERE id = $1")))
         .bind(id)
-        .fetch_optional(&state.pool)
+        .fetch_optional(pool)
         .await?
         .ok_or(ApiError::NotFound)?;
     // Projet porté par une page : les droits de la page (permissions par page, invités).
-    let page: Option<Uuid> = sqlx::query_scalar("SELECT id FROM pages_all WHERE project_id = $1").bind(id).fetch_optional(&state.pool).await?;
+    let page: Option<Uuid> = sqlx::query_scalar("SELECT id FROM pages_all WHERE project_id = $1").bind(id).fetch_optional(pool).await?;
     if let Some(page_id) = page {
-        let (_, _, access) = crate::access::page_access(&state.pool, user, page_id).await?;
-        let mut perms = member_perms(&state.pool, user.id, p.workspace_id).await?.map(|(_, x)| x).unwrap_or(Perms::preset(crate::access::Role::Guest));
+        let (_, _, access) = crate::access::page_access(pool, user, page_id).await?;
+        let mut perms = member_perms(pool, user.id, p.workspace_id).await?.map(|(_, x)| x).unwrap_or(Perms::preset(crate::access::Role::Guest));
         perms.docs = match access {
             crate::access::PageAccess::None => return Err(ApiError::NotFound),
             crate::access::PageAccess::Read => level::READ,
@@ -153,11 +163,11 @@ pub(crate) async fn project_for(state: &AppState, user: &AuthUser, id: Uuid, nee
         return Ok((p, perms));
     }
     // Projet personnel (GLOSSARY) : à son propriétaire seulement.
-    let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM projects WHERE id = $1").bind(id).fetch_one(&state.pool).await?;
+    let owner: Option<Uuid> = sqlx::query_scalar("SELECT private_to FROM projects WHERE id = $1").bind(id).fetch_one(pool).await?;
     if owner.is_some_and(|o| o != user.id) {
         return Err(ApiError::NotFound);
     }
-    let perms = require_ws(state, user, p.workspace_id, need).await?;
+    let perms = require_ws_pool(pool, user, p.workspace_id, need).await?;
     Ok((p, perms))
 }
 

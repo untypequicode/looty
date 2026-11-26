@@ -307,6 +307,65 @@ async fn still_allowed(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> bool
     require_member_or_guest(pool, &user, workspace_id).await.is_ok()
 }
 
+/// Ce qu'on fait d'un message de l'espace pour un invité (ADR 0022, G8).
+#[derive(Debug, PartialEq)]
+pub(crate) enum GuestStep {
+    /// Présence : filtrée par `guest_view`.
+    Presence,
+    /// Message à transmettre tel quel.
+    Send(String),
+    Drop,
+    /// L'invité n'a plus aucun accès : fin de la connexion.
+    Stop,
+}
+
+/// Pages de l'invité tenues à jour en direct : un partage retiré ou ajouté, une sous-page créée,
+/// renommée, déplacée ou supprimée sous une page partagée lui parvient (son arbre et « Partagé avec moi »
+/// se rechargent), sans rien lui montrer des pages qu'il ne lit pas.
+pub(crate) async fn guest_step(pool: &PgPool, payload: &str, set: &mut std::collections::HashSet<Uuid>, workspace_id: Uuid, user_id: Uuid) -> GuestStep {
+    let Ok(mut v) = serde_json::from_str::<serde_json::Value>(payload) else { return GuestStep::Drop };
+    let page_id = |v: &serde_json::Value, k: &str| v[k].as_str().and_then(|s| Uuid::parse_str(s).ok());
+    match v["type"].as_str().unwrap_or_default() {
+        "USER_PRESENCE_UPDATE" | "PRESENCE_SYNC" | "USER_OFFLINE" => GuestStep::Presence,
+        "PAGE_PERMISSIONS_UPDATED" | "MEMBERS_UPDATED" | "WORKSPACE_DELETED" => {
+            if !still_allowed(pool, user_id, workspace_id).await {
+                return GuestStep::Stop;
+            }
+            let user = AuthUser { id: user_id, is_super_admin: false };
+            let Ok(fresh) = visible_pages(pool, &user, workspace_id, Role::Guest).await else { return GuestStep::Drop };
+            let fresh: std::collections::HashSet<Uuid> = fresh.into_iter().filter(|(_, a)| *a != PageAccess::None).map(|(id, _)| id).collect();
+            let touched = page_id(&v, "page_id").is_some_and(|p| set.contains(&p) || fresh.contains(&p));
+            let changed = *set != fresh;
+            *set = fresh;
+            if touched || changed {
+                GuestStep::Send(serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": v["page_id"] }).to_string())
+            } else {
+                GuestStep::Drop
+            }
+        }
+        "PAGE_CREATED" | "PAGE_UPDATED" => {
+            let Some(id) = v["page"]["id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) else { return GuestStep::Drop };
+            let lv = page_level(pool, user_id, id).await.map(|(_, _, l)| l).unwrap_or(level::NONE);
+            if lv == level::NONE {
+                // Sortie de l'arbre partagé (déplacée) : l'invité recharge.
+                return if set.remove(&id) { GuestStep::Send(serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": id }).to_string()) } else { GuestStep::Drop };
+            }
+            set.insert(id);
+            if lv < level::EDIT {
+                if let Some(p) = v["page"].as_object_mut() {
+                    p.remove("share_token");
+                }
+            }
+            GuestStep::Send(v.to_string())
+        }
+        "PAGE_DELETED" => match page_id(&v, "page_id") {
+            Some(id) if set.remove(&id) => GuestStep::Send(v.to_string()),
+            _ => GuestStep::Drop,
+        },
+        _ => GuestStep::Drop,
+    }
+}
+
 async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, user_id: Uuid, guest_pages: Option<std::sync::Arc<std::collections::HashSet<Uuid>>>) {
     let hub = state.hub.clone();
     let (mut sender, mut receiver) = socket.split();
@@ -329,6 +388,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
     };
     let _ = sender.send(Message::Text(snapshot.into())).await;
 
+    // Pages de l'invité, tenues à jour par `guest_step`.
+    let mut guest_pages: Option<std::collections::HashSet<Uuid>> = guest_pages.map(|a| (*a).clone());
     let mut send_task = tokio::spawn(async move {
         // Vérification régulière : compte suspendu, accès à l'espace perdu (invité dont les partages
         // ont été retirés) : la connexion est fermée.
@@ -355,6 +416,19 @@ async fn handle_socket(socket: WebSocket, state: AppState, workspace_id: Uuid, u
                 Ok(env) => {
                     if env.to.is_some_and(|to| to != user_id) {
                         continue;
+                    }
+                    if let (Some(set), true) = (guest_pages.as_mut(), env.to.is_none()) {
+                        match guest_step(&send_pool, &env.payload, set, workspace_id, user_id).await {
+                            GuestStep::Presence => {}
+                            GuestStep::Send(text) => {
+                                if sender.send(Message::Text(text.into())).await.is_err() {
+                                    break;
+                                }
+                                continue;
+                            }
+                            GuestStep::Drop => continue,
+                            GuestStep::Stop => break,
+                        }
                     }
                     let text = match (&guest_pages, view.as_mut()) {
                         // Invité : messages qui lui sont adressés, et la présence filtrée.

@@ -390,14 +390,14 @@ async fn own_connection(pool: &PgPool, user: &AuthUser, id: Uuid) -> ApiResult<(
 }
 
 /// Le contexte doit être lisible par la personne.
-async fn check_context(pool: &PgPool, user: &AuthUser, kind: &str, id: Option<Uuid>) -> ApiResult<()> {
+pub(crate) async fn check_context(pool: &PgPool, user: &AuthUser, kind: &str, id: Option<Uuid>) -> ApiResult<()> {
     match (kind, id) {
         ("none", _) => Ok(()),
         ("page", Some(p)) => require_page_read(pool, user, p).await.map(|_| ()),
         ("workspace", Some(w)) => require_member_or_guest(pool, user, w).await.map(|_| ()),
         ("project", Some(pr)) => {
-            let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM projects WHERE id = $1").bind(pr).fetch_optional(pool).await?.ok_or(ApiError::NotFound)?;
-            require_member_or_guest(pool, user, ws).await.map(|_| ())
+            // Un projet porté par une page suit l'accès à cette page (ADR 0022).
+            crate::projects::project_for_pool(pool, user, pr, crate::projects::Need::Read).await.map(|_| ())
         }
         _ => Err(ApiError::bad_request("invalid_context")),
     }

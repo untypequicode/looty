@@ -36,6 +36,21 @@ fn key() -> &'static [u8; 32] {
     })
 }
 
+/// HMAC-SHA256 (hex) de `data` avec la clé du serveur, séparée par un libellé de contexte.
+pub fn mac(context: &str, data: &str) -> String {
+    let mut k = [0u8; 64];
+    k[..32].copy_from_slice(key());
+    let mut inner = Sha256::new();
+    inner.update(k.map(|b| b ^ 0x36));
+    inner.update(context.as_bytes());
+    inner.update([0u8]);
+    inner.update(data.as_bytes());
+    let mut outer = Sha256::new();
+    outer.update(k.map(|b| b ^ 0x5c));
+    outer.update(inner.finalize());
+    hex::encode(outer.finalize())
+}
+
 /// Chiffre une chaîne : renvoie `base64(nonce || ciphertext)`.
 pub fn encrypt(plain: &str) -> String {
     let cipher = Aes256Gcm::new_from_slice(key()).expect("32-byte key");

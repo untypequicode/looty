@@ -47,6 +47,9 @@ async fn update_profile(
     if name.is_empty() || name.chars().count() > 80 {
         return Err(ApiError::bad_request("invalid_name"));
     }
+    if let Some(url) = check_avatar(&p.avatar_url)? {
+        crate::file_access::mark_public(&pool, &user, &url).await?;
+    }
     sqlx::query("UPDATE users SET name = $1, avatar_url = $2, updated_at = NOW() WHERE id = $3")
         .bind(name)
         .bind(check_avatar(&p.avatar_url)?)

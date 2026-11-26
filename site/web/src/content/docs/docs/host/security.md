@@ -11,6 +11,17 @@ description: "Secrets, LOOTY_DEV_LOGIN and what to expose."
 - **Sign-in**: restrict who can create an account at your identity provider. With Google, restrict the consent screen.
 - **Updates**: apply them regularly, after a backup.
 
+## Uploaded files
+
+Since 0.67.0 the files under `/uploads/` (images and attachments of pages, tasks, avatars) are **not public any more**.
+
+- Each file is tied to the page, task or space it was uploaded for, and is served only to a signed-in person (session cookie, API token, the Android and desktop apps) who can read that page, task or space. Take the access away and the file stops loading at once, even for someone who still has its address. An answer is `404` for a signed-in person without access and `401` without sign-in.
+- Public by design: avatars and the instance icon. A page shared with a **public link** serves its own images to anyone who has the link, and only those images, as long as the link exists.
+- Files are never kept by a shared cache (`Cache-Control: private, no-cache`, `Vary: Cookie`); media support range requests.
+- Files that existed before the update are tied to the first page, task or avatar that cites them during the migration. Files cited nowhere and with no known uploader are listed as **unattributed** (log line at startup and the `unattributed_files` count of the storage overview in the admin API) and only instance administrators can open them.
+- A client that cannot send credentials can ask `GET /api/uploads/{name}/link` for a signed link valid 10 minutes. As a last resort, `LOOTY_UPLOADS_PUBLIC=true` brings back the old open behavior.
+- Exports, backups and e-mails sent from Looty read the files from the server, not from this address: they are unchanged, except that an e-mail cannot attach a file its sender cannot open.
+
 ## PC tunnels
 
 Details: [PC tunnels](/docs/host/operate/tunnels/).

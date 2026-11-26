@@ -772,10 +772,10 @@ pub async fn resolve_target(pool: &PgPool, user: &AuthUser, kind: &str, id: Uuid
             }
         }
         "project" => {
-            let row: Option<(Uuid, String, Option<Uuid>)> = sqlx::query_as("SELECT workspace_id, name, private_to FROM projects WHERE id = $1").bind(id).fetch_optional(pool).await?;
-            match row {
-                Some((ws, name, owner)) if owner.is_none_or(|o| o == user.id) && member_perms(pool, user.id, ws).await?.is_some_and(|(_, p)| p.docs >= level::READ) => Some((ws, name)),
-                _ => None,
+            // Un projet porté par une page suit l'accès à cette page (ADR 0022).
+            match crate::projects::project_for_pool(pool, user, id, crate::projects::Need::Read).await {
+                Ok((p, _)) => Some((p.workspace_id, p.name)),
+                Err(_) => None,
             }
         }
         _ => None,

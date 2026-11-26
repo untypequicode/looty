@@ -15,6 +15,7 @@ import PresentSlide from './PresentSlide.vue'
 const props = defineProps<{ token: string; title: string; state: string | null }>()
 const { t } = useI18n()
 const route = useRoute()
+provide('uploadShare', props.token)
 const doc = new Y.Doc()
 if (props.state) {
   try { Y.applyUpdate(doc, Uint8Array.from(atob(props.state), (c) => c.charCodeAt(0))) } catch { /* état illisible : présentation vide */ }
