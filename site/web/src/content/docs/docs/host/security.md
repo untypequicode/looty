@@ -13,7 +13,7 @@ description: "Secrets, LOOTY_DEV_LOGIN and what to expose."
 
 ## Uploaded files
 
-Since 0.66.0 the files under `/uploads/` (images and attachments of pages, tasks, avatars) are **not public any more**.
+Since 0.67.0 the files under `/uploads/` (images and attachments of pages, tasks, avatars) are **not public any more**.
 
 - Each file is tied to the page, task or space it was uploaded for, and is served only to a signed-in person (session cookie, API token, the Android and desktop apps) who can read that page, task or space. Take the access away and the file stops loading at once, even for someone who still has its address. An answer is `404` for a signed-in person without access and `401` without sign-in.
 - Public by design: avatars and the instance icon. A page shared with a **public link** serves its own images to anyone who has the link, and only those images, as long as the link exists.

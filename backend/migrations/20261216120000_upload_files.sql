@@ -31,7 +31,7 @@ CREATE TEMP TABLE _upload_page_refs AS
 SELECT DISTINCT m[1] AS name, p.id AS page_id, p.workspace_id, p.created_by
 FROM pages_all p
 CROSS JOIN LATERAL regexp_matches(
-    coalesce(p.content, '') || ' ' || coalesce(p.icon, '') || ' ' || coalesce(encode(p.yjs_state, 'escape'), ''),
+    coalesce(p.content, '') || ' ' || coalesce(p.icon, '') || ' ' || coalesce(encode(p.yjs_state, 'escape'), '') || ' ' || coalesce(encode(p.slides_state, 'escape'), ''),
     '/uploads/([A-Za-z0-9._-]+)', 'g') AS m;
 
 INSERT INTO upload_refs (name, page_id) SELECT name, page_id FROM _upload_page_refs ON CONFLICT DO NOTHING;

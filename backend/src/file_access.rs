@@ -163,10 +163,11 @@ fn constant_eq(a: &[u8], b: &[u8]) -> bool {
 async fn shared_page_has(pool: &PgPool, token: Uuid, name: &str) -> ApiResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM pages WHERE share_token = $1 AND is_public = true
-                       AND (strpos(coalesce(content, ''), $2) > 0 OR strpos(coalesce(icon, ''), $2) > 0))",
+                       AND (strpos(coalesce(content, ''), $2) > 0 OR strpos(coalesce(icon, ''), $2) > 0 OR position($3::bytea in slides_state) > 0))",
     )
     .bind(token)
     .bind(format!("/uploads/{name}"))
+    .bind(format!("/uploads/{name}").into_bytes())
     .fetch_one(pool)
     .await?)
 }
@@ -183,7 +184,7 @@ async fn task_readable(pool: &PgPool, user: &AuthUser, task: Uuid) -> bool {
 async fn page_cites(pool: &PgPool, page: Uuid, name: &str) -> ApiResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM pages WHERE id = $1
-                       AND (strpos(coalesce(content, ''), $2) > 0 OR strpos(coalesce(icon, ''), $2) > 0 OR position($3::bytea in yjs_state) > 0))",
+                       AND (strpos(coalesce(content, ''), $2) > 0 OR strpos(coalesce(icon, ''), $2) > 0 OR position($3::bytea in yjs_state) > 0 OR position($3::bytea in slides_state) > 0))",
     )
     .bind(page)
     .bind(format!("/uploads/{name}"))
@@ -255,7 +256,7 @@ pub async fn decide(pool: &PgPool, user: Option<&AuthUser>, name: &str, share: O
     let mut last: Option<Uuid> = None;
     for _ in 0..SCAN_ROUNDS {
         let found: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM pages WHERE (strpos(coalesce(content, ''), $1) > 0 OR strpos(coalesce(icon, ''), $1) > 0 OR position($2::bytea in yjs_state) > 0)
+            "SELECT id FROM pages WHERE (strpos(coalesce(content, ''), $1) > 0 OR strpos(coalesce(icon, ''), $1) > 0 OR position($2::bytea in yjs_state) > 0 OR position($2::bytea in slides_state) > 0)
                AND id <> ALL($3) AND ($4::uuid IS NULL OR id > $4) ORDER BY id LIMIT $5",
         )
         .bind(&needle)

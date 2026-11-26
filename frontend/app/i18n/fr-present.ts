@@ -1,0 +1,20 @@
+export default {
+  present: {
+    start: 'Présenter', startFrom: 'Présenter depuis cette diapositive', presenterView: 'Vue présentateur', presenterWindow: 'Ouvrir la vue présentateur dans une nouvelle fenêtre', exit: 'Quitter la présentation',
+    slideOf: 'Diapositive {n} sur {total}', announce: 'Diapositive {n} sur {total}. {text}', noText: 'Pas de texte sur cette diapositive.', controls: 'Commandes de la présentation', stage: 'Présentation',
+    prev: 'Précédent', next: 'Suivant', first: 'Première diapositive', last: 'Dernière diapositive', grid: 'Toutes les diapositives', gridHint: 'Choisissez une diapositive', closeGrid: 'Fermer l’aperçu', jump: 'Aller à la diapositive', jumpPlaceholder: 'Numéro de diapositive',
+    black: 'Écran noir', white: 'Écran blanc', laser: 'Pointeur laser', zoomIn: 'Zoom avant', zoomOut: 'Zoom arrière', zoomReset: 'Réinitialiser le zoom', fullscreen: 'Plein écran',
+    keys: 'Touches', keysHelp: 'Flèches, espace, Page précédente et Page suivante pour avancer. Début, Fin, un numéro puis Entrée pour sauter. B ou W pour un écran noir ou blanc, G pour l’aperçu, L pour le pointeur laser, + et - pour zoomer, F pour le plein écran, Échap pour quitter.',
+    share: 'Laisser les autres me suivre', sharing: 'Les autres peuvent vous suivre', notSharing: 'Personne ne peut vous suivre',
+    presenting: '{name} présente', follow: 'Suivre', following: 'Vous suivez {name}', detached: 'Vous naviguez librement', backToPresenter: 'Revenir au présentateur', leave: 'Ne plus suivre', presenterEnded: 'Le présentateur a arrêté le partage',
+    reducedMotion: 'Animations réduites',
+    notes: 'Notes de l’orateur', notesPlaceholder: 'Notes que vous seul voyez pendant la présentation', noNotes: 'Pas de notes pour cette diapositive.', current: 'Diapositive en cours', upNext: 'Suivante', endOfShow: 'Fin de la présentation',
+    elapsed: 'Écoulé', clock: 'Heure', timerStart: 'Démarrer le minuteur', timerPause: 'Mettre le minuteur en pause', timerResume: 'Reprendre le minuteur', timerReset: 'Remettre le minuteur à zéro', progress: 'Progression', step: 'Étape {n} sur {total}',
+    notesBigger: 'Notes plus grandes', notesSmaller: 'Notes plus petites', waiting: 'Chargement de la présentation…', openShow: 'Ouvrir le diaporama', syncHint: 'Cette fenêtre suit le diaporama ouvert dans une autre fenêtre de ce navigateur.',
+    panel: 'Présentation', transition: 'Transition', transitionDefault: 'Comme la présentation', transitionDeck: 'Transition par défaut', transitions: { none: 'Aucune', fade: 'Fondu', slide: 'Glissement', zoom: 'Zoom' },
+    animations: 'Animations', animationsHint: 'Sélectionnez un élément puis ajoutez une animation. Elles se jouent dans l’ordre ci-dessous.', addAnimation: 'Ajouter une animation à la sélection',
+    kinds: { appear: 'Apparition', fade: 'Fondu', move: 'Entrée en glissant' }, triggers: { click: 'Au clic', after: 'Après la précédente' }, animKind: 'Effet', animTrigger: 'Démarrage', animRemove: 'Supprimer l’animation', animUp: 'Jouer plus tôt', animDown: 'Jouer plus tard',
+    animElement: 'Animation {n} : {name}', speakerNotes: 'Notes de l’orateur', speakerNotesHint: 'Affichées dans la vue présentateur, jamais sur la diapositive.',
+    publicTitle: 'Présentation partagée', kiosk: 'Boucle', kioskOn: 'Défilement automatique en boucle', kioskEvery: 'Secondes par diapositive', startShow: 'Lancer le diaporama', empty: 'Cette présentation est vide.', embed: 'Présentation', print: 'Imprimer',
+  },
+}

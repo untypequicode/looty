@@ -24,3 +24,12 @@ test('only the generic upload route takes the context', () => {
 test('a personal upload (notepad) is never bound to the open page', () => {
   assert.equal(uploadUrl('/api/upload', `/w/${WS}/doc/${PAGE}`, true), '/api/upload?personal=1')
 })
+
+test('images of a public presentation carry the link token', async () => {
+  const { withShare } = await import('../app/utils/uploadContext.ts')
+  assert.equal(withShare('/uploads/a.png', PAGE), `/uploads/a.png?share=${PAGE}`)
+  assert.equal(withShare('/uploads/a.png?w=1', PAGE), `/uploads/a.png?w=1&share=${PAGE}`)
+  assert.equal(withShare(`/uploads/a.png?share=${PAGE}`, PAGE), `/uploads/a.png?share=${PAGE}`)
+  assert.equal(withShare('https://x.org/a.png', PAGE), 'https://x.org/a.png')
+  assert.equal(withShare('/uploads/a.png', null), '/uploads/a.png')
+})

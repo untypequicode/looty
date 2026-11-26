@@ -4,7 +4,7 @@
   "releases": [
     {
       "platform": "web",
-      "version": "0.66.0",
+      "version": "0.67.0",
       "date": "2026-11-26",
       "title": {
         "en": "Files follow page access: uploads are no longer public",
@@ -20,6 +20,27 @@
           "Les images et pièces jointes sont désormais liées à la page, à la tâche ou à l’espace pour lequel elles ont été envoyées et ne sont servies qu’aux personnes connectées qui peuvent les lire. Retirez l’accès d’une personne à une page : ses images cessent de se charger aussitôt, même si elle a gardé l’adresse. Les avatars et l’icône de l’instance restent publics ; une page partagée par lien public sert ses propres images à qui a le lien.",
           "Les personnes avec qui vous avez partagé une page voient les changements en direct : sous-page créée ou renommée, partage ajouté ou retiré, page supprimée. Un invité qui perd l’accès est déconnecté de l’espace, et une personne passée de la modification à la lecture seule pendant qu’elle écrit passe en lecture seule sans être déconnectée.",
           "Les projets portés par une page suivent partout l’accès à cette page, y compris le contexte de l’assistant et les liens des entraînements. Administrateurs : les fichiers cités nulle part et sans auteur connu sont signalés comme sans propriétaire et seuls les administrateurs de l’instance peuvent les ouvrir ; LOOTY_UPLOADS_PUBLIC=true rétablit l’ancien comportement ouvert si un client en a besoin."
+        ]
+      }
+    },
+    {
+      "platform": "web",
+      "version": "0.66.0",
+      "date": "2026-11-25",
+      "title": {
+        "en": "Presentations: present full screen, with a presenter view and live following",
+        "fr": "Présentations : présenter en plein écran, vue présentateur et suivi en direct"
+      },
+      "notes": {
+        "en": [
+          "New Present button in presentations: full screen slide show with the keyboard (arrows, space, Page up and down, Home, End, Esc), a clicker, swipes on touch screens, an auto-hiding control bar, a slide overview, jump to a slide by number, black and white screens (B, W), a laser pointer, zoom, and slide numbers announced to screen readers.",
+          "Presenter view in a second window, synchronized with the slide show: current and next slide, speaker notes (written in the properties panel of the editor), timer, clock and progress. Transitions (fade, slide, zoom) per slide or for the whole presentation, and element animations (appear, fade in, move in, on click or after the previous one) with a simple ordered list; reduced motion is honored.",
+          "Live following: while you present, people who have the presentation open see who is presenting and can follow your slide, browse on their own and come back to the presenter. Presentations shared by public link can be read without an account, in a loop (kiosk) if you want, and printed one slide per page."
+        ],
+        "fr": [
+          "Nouveau bouton Présenter dans les présentations : diaporama plein écran au clavier (flèches, espace, Page précédente et suivante, Début, Fin, Échap), à la télécommande, par balayage sur écran tactile, avec une barre de commandes qui se masque, un aperçu des diapositives, l’accès à une diapositive par son numéro, des écrans noir et blanc (B, W), un pointeur laser, le zoom, et le numéro de diapositive annoncé aux lecteurs d’écran.",
+          "Vue présentateur dans une seconde fenêtre, synchronisée avec le diaporama : diapositive en cours et suivante, notes de l’orateur (saisies dans le panneau de propriétés de l’éditeur), minuteur, horloge et progression. Transitions (fondu, glissement, zoom) par diapositive ou pour toute la présentation, et animations d’éléments (apparition, fondu, entrée en glissant, au clic ou après la précédente) avec une liste ordonnée simple ; la préférence de réduction des animations est respectée.",
+          "Suivi en direct : pendant que vous présentez, les personnes qui ont la présentation ouverte voient qui présente et peuvent suivre votre diapositive, naviguer librement et revenir au présentateur. Une présentation partagée par lien public se lit sans compte, en boucle (kiosque) si vous le souhaitez, et s’imprime à raison d’une diapositive par page."
         ]
       }
     },

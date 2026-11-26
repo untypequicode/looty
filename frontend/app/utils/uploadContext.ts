@@ -23,3 +23,9 @@ export function uploadUrl(base: string, pathname: string, personal = false): str
   if (ctx.workspace) return `${base}?workspace=${ctx.workspace}`
   return base
 }
+
+/** URL d'un fichier envoyé affiché dans une page publique : porte le jeton du lien (voir `file_access`). */
+export function withShare(src: string, token: string | null | undefined): string {
+  if (!token || !src.startsWith('/uploads/') || /[?&]share=/.test(src)) return src
+  return `${src}${src.includes('?') ? '&' : '?'}share=${token}`
+}

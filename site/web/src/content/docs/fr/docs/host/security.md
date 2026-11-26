@@ -13,7 +13,7 @@ description: "Secrets, LOOTY_DEV_LOGIN et ce qu’il faut exposer."
 
 ## Fichiers envoyés
 
-Depuis la 0.66.0, les fichiers sous `/uploads/` (images et pièces jointes des pages, des tâches, avatars) ne sont **plus publics**.
+Depuis la 0.67.0, les fichiers sous `/uploads/` (images et pièces jointes des pages, des tâches, avatars) ne sont **plus publics**.
 
 - Chaque fichier est lié à la page, à la tâche ou à l’espace pour lequel il a été envoyé, et n’est servi qu’à une personne connectée (cookie de session, jeton d’API, applications Android et bureau) qui peut lire cette page, cette tâche ou cet espace. Retirez l’accès : le fichier cesse de se charger aussitôt, même pour qui en connaît encore l’adresse. La réponse est `404` pour une personne connectée sans accès et `401` sans connexion.
 - Publics par choix : les avatars et l’icône de l’instance. Une page partagée par **lien public** sert ses propres images à toute personne qui a le lien, et celles-là seulement, tant que le lien existe.

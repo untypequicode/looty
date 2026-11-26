@@ -477,3 +477,32 @@ fn server_generated_emails_carry_no_upload_urls() {
         assert!(!src.contains("/uploads/"), "{file} builds an /uploads/ URL: sign it");
     }
 }
+
+// --- Présentations (pages slides) ---
+
+#[sqlx::test]
+async fn slide_images_load_for_anonymous_visitors_with_the_link_token_and_for_readers(pool: PgPool) {
+    let w = W::new(pool).await;
+    let name = fresh_name("png");
+    disk(&name, b"slide");
+    // L'état de la présentation cite l'image (chaîne UTF-8 dans l'état Yjs binaire).
+    let mut state = vec![1u8, 2, 3];
+    state.extend_from_slice(format!("src\x01/uploads/{name}\x00").as_bytes());
+    let token = Uuid::new_v4();
+    sqlx::query("UPDATE pages SET default_view = 'slides', slides_state = $2, share_token = $3, is_public = true WHERE id = $1").bind(w.other).bind(&state).bind(token).execute(&w.pool).await.unwrap();
+    let public = w.get(None, &format!("/api/public/pages/{token}")).await;
+    assert_eq!(public.status, 200);
+    let v: Value = serde_json::from_slice(&public.body).unwrap();
+    assert_eq!(v["default_view"], "slides");
+    assert!(v["slides_state"].as_str().is_some_and(|s| !s.is_empty()));
+    // Le client ajoute `?share=` aux images de la présentation (withShare) : lisibles sans compte.
+    assert_eq!(w.get(None, &format!("/uploads/{name}?share={token}")).await.status, 200);
+    assert_eq!(w.status(None, &name).await, 401, "without the token it stays private");
+    assert_eq!(w.get(None, &format!("/uploads/{name}?share={}", Uuid::new_v4())).await.status, 401);
+    // Lecteurs connectés (vues présentateur et suivi : même cookie) : la page porte l'image.
+    assert_eq!(w.status(Some(w.ben), &name).await, 200);
+    assert_eq!(w.status(Some(w.zed), &name).await, 404);
+    sqlx::query("INSERT INTO page_permissions (page_id, user_id, role, inherit, created_by) VALUES ($1, $2, 'read', false, $3)").bind(w.other).bind(w.gus).bind(w.ana).execute(&w.pool).await.unwrap();
+    assert_eq!(w.status(Some(w.gus), &name).await, 200);
+    let _ = std::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(&name));
+}
