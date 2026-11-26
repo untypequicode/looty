@@ -300,6 +300,26 @@ pub async fn member_perms(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> A
     Ok(Some((role, perms)))
 }
 
+/// Rôle et permissions de tous les membres d'un espace, en une requête (même règle que `member_perms`).
+pub async fn workspace_perms(pool: &PgPool, workspace_id: Uuid) -> ApiResult<HashMap<Uuid, (Role, Perms)>> {
+    let rows: Vec<(String, String, Option<serde_json::Value>)> = sqlx::query_as(
+        "SELECT DISTINCT ON (m.user_id) m.user_id, m.role, r.permissions FROM workspace_members m
+         LEFT JOIN workspace_roles r ON r.workspace_id = m.workspace_id AND (r.id = m.role_id OR (m.role_id IS NULL AND r.preset = m.role))
+         WHERE m.workspace_id = $1
+         ORDER BY m.user_id, (r.id = m.role_id) DESC NULLS LAST",
+    )
+    .bind(workspace_id)
+    .fetch_all(pool)
+    .await?;
+    let mut out = HashMap::new();
+    for (uid, role, perms) in rows {
+        let (Ok(uid), Some(role)) = (Uuid::parse_str(&uid), Role::parse(&role)) else { continue };
+        let perms = if role == Role::Owner { Perms::all() } else { perms.map(|p| Perms::from_json(&p, Perms::preset(role))).unwrap_or(Perms::preset(role)) };
+        out.insert(uid, (role, perms));
+    }
+    Ok(out)
+}
+
 /// Exige d'être membre et une permission (`check`) ; NotFound si non membre, Forbidden sinon.
 pub async fn require_perm(pool: &PgPool, user: &AuthUser, workspace_id: Uuid, check: impl Fn(&Perms) -> bool) -> ApiResult<(Role, Perms)> {
     let (role, perms) = member_perms(pool, user.id, workspace_id).await?.ok_or(ApiError::NotFound)?;
@@ -564,7 +584,7 @@ async fn is_suspended(pool: &PgPool, user_id: Uuid) -> ApiResult<bool> {
 }
 
 /// Chaîne d'ancêtres d'une page (elle comprise) : (page, parent).
-async fn ancestors(pool: &PgPool, page_id: Uuid) -> ApiResult<Vec<(Uuid, Option<Uuid>)>> {
+pub async fn ancestors(pool: &PgPool, page_id: Uuid) -> ApiResult<Vec<(Uuid, Option<Uuid>)>> {
     Ok(sqlx::query_as(
         "WITH RECURSIVE anc AS (
             SELECT id, parent_id, 0 AS depth FROM pages WHERE id = $1

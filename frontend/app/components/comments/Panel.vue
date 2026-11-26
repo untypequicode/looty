@@ -150,7 +150,7 @@ watch(() => props.focusId, (id) => {
       <div v-if="anchor" class="cm-pending cm-pending-anchor" data-pending-anchor><Crosshair :size="12" /><span class="truncate">{{ anchorLabel?.(anchor) ?? anchor }}</span><button :aria-label="t('common.cancel')" @click="anchor = null"><X :size="12" /></button></div>
       <div v-if="quote" class="cm-pending"><Quote :size="12" /><span class="truncate">{{ quote }}</span><button :aria-label="t('common.cancel')" @click="quote = null"><X :size="12" /></button></div>
       <div class="cm-box">
-        <EditorLite ref="composer" v-model="draft" :placeholder="t('comments.placeholder')" submit-on-enter @submit="send" />
+        <EditorLite ref="composer" v-model="draft" :page-id="kind === 'page' ? targetId : undefined" :placeholder="t('comments.placeholder')" submit-on-enter @submit="send" />
         <div class="cm-row">
           <span class="faint"><UiKbd :keys="['mod', 'enter']" /></span>
           <UiButton size="xs" variant="primary" :disabled="!draft.trim()" :loading="sending" @click="send">{{ t('comments.send') }}</UiButton>

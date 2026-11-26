@@ -72,6 +72,7 @@ mod prefs;
 mod comments;
 mod revisions;
 mod roles;
+mod share;
 mod planning;
 mod polls;
 mod study;
@@ -219,6 +220,8 @@ fn app(state: state::AppState) -> Router {
         .nest("/user/caldav", caldav::routes())
         .nest("/user/notifications", delivery::routes())
         .nest("/user/push", push::routes())
+        .nest("/admin/share", share::admin_routes())
+        .nest("/share", share::routes())
         .nest("/admin/mail", mail::admin_routes())
         .nest("/admin/storage", storage::routes())
         .nest("/admin/insights", analytics::admin_routes())
@@ -346,6 +349,7 @@ fn parse_provider_id(value: &str) -> Result<Option<uuid::Uuid>, String> {
 #[cfg(test)]
 mod page_access_tests;
 #[cfg(test)]
+mod share_tests;
 mod file_access_tests;
 
 #[cfg(test)]

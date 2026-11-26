@@ -9,7 +9,7 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use crate::access::{
-    is_member, require_page_read, require_page_write, visible_pages, AuthUser,
+    require_page_read, require_page_write, visible_pages, AuthUser,
     PageAccess,
 };
 use crate::error::{ApiError, ApiResult};
@@ -62,6 +62,10 @@ pub struct Page {
     #[sqlx(skip)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub can_edit: Option<bool>,
+    /// Niveau « gestion » sur la page : le dialogue de partage est ouvert à cette personne.
+    #[sqlx(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub can_manage: Option<bool>,
     /// Sous-pages permises par un partage (invités, rôles sans création de documents).
     #[sqlx(skip)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -140,6 +144,10 @@ pub fn routes() -> Router<AppState> {
         .route("/{page_id}/view", post(record_view))
         .route("/{page_id}/share", post(share_page).delete(revoke_share))
         .route("/{page_id}/permissions", get(get_page_permissions).put(set_page_permission))
+        .route("/{page_id}/access-summary", get(crate::share::access_summary))
+        .route("/{page_id}/access-requests", get(crate::share::list_requests))
+        .route("/{page_id}/access-requests/{request_id}", post(crate::share::decide_request))
+        .route("/{page_id}/mentionable", get(crate::share::mentionable))
         .route("/{page_id}/project", post(make_project))
         .route("/{page_id}/canvas-preview", put(save_canvas_preview))
         .route("/{page_id}/move", post(move_to_workspace))
@@ -185,8 +193,9 @@ async fn list_pages(
     user: AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<Page>>> {
-    let role = crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
-    let visible = visible_pages(&pool, &user, workspace_id, role).await?;
+    crate::access::require_member_or_guest(&pool, &user, workspace_id).await?;
+    let levels = crate::access::visible_levels(&pool, user.id, workspace_id).await?;
+    let visible: std::collections::HashMap<Uuid, PageAccess> = levels.iter().map(|(id, l)| (*id, crate::access::access_of(*l))).collect();
     let grants = crate::access::subpage_grants(&pool, user.id, workspace_id).await?;
     let sql = format!(
         "SELECT {PAGE_LIST_COLUMNS},
@@ -207,6 +216,7 @@ async fn list_pages(
                 Some(PageAccess::None) | None => None,
                 Some(a) => {
                     p.can_edit = Some(*a == PageAccess::Write);
+                    p.can_manage = Some(levels.get(&p.id).is_some_and(|l| *l >= crate::access::level::MANAGE));
                     // Le lien public ne se lit que là où on peut le gérer (comme dans les événements temps réel).
                     if *a != PageAccess::Write {
                         p.share_token = None;
@@ -226,8 +236,9 @@ async fn get_page(
     user: AuthUser,
     Path((workspace_id, page_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<Page>> {
-    let (ws, _, access) = require_page_read(&pool, &user, page_id).await?;
-    if ws != workspace_id {
+    let (ws, _, level) = crate::access::page_access_level(&pool, &user, page_id).await?;
+    let access = crate::access::access_of(level);
+    if ws != workspace_id || access == PageAccess::None {
         return Err(ApiError::NotFound);
     }
     let mut page: Page = sqlx::query_as(
@@ -245,6 +256,7 @@ async fn get_page(
     .fetch_one(&pool)
     .await?;
     page.can_edit = Some(access == PageAccess::Write);
+    page.can_manage = Some(level >= crate::access::level::MANAGE);
     if access != PageAccess::Write {
         page.share_token = None;
     }
@@ -772,7 +784,9 @@ pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>
 
 #[derive(Deserialize)]
 pub struct SetPagePermissionReq {
-    pub user_id: Uuid,
+    /// La personne visée, ou `group_id` (groupe d'instance) : l'un des deux.
+    pub user_id: Option<Uuid>,
+    pub group_id: Option<Uuid>,
     pub role: String,
     /// Sous-pages comprises (par défaut) ou page seule.
     pub inherit: Option<bool>,
@@ -790,14 +804,14 @@ async fn get_page_permissions(
         return Err(ApiError::NotFound);
     }
     // Permissions de la page et celles héritées d'un ancêtre (« sous-pages comprises »).
-    let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Uuid, String, i32, bool, bool)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Uuid, String, i32, bool, bool, Option<Uuid>, Option<String>)> = sqlx::query_as(
         "WITH RECURSIVE anc AS (
             SELECT id, parent_id, title, 0 AS depth FROM pages WHERE id = $1
             UNION ALL SELECT p.id, p.parent_id, p.title, anc.depth + 1 FROM pages p JOIN anc ON p.id = anc.parent_id WHERE anc.depth < 64
          )
          SELECT pp.user_id, u.name, u.email, u.avatar_url, pp.role, pp.inherit, anc.id, anc.title, anc.depth, pp.allow_subpages,
-                EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = pp.user_id::varchar) AS is_member
-         FROM anc JOIN page_permissions pp ON pp.page_id = anc.id JOIN users u ON u.id = pp.user_id
+                EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspace_id = $2 AND m.user_id = pp.user_id::varchar) AS is_member, pp.via_group, ig.name
+         FROM anc JOIN page_permissions pp ON pp.page_id = anc.id JOIN users u ON u.id = pp.user_id LEFT JOIN instance_groups ig ON ig.id = pp.via_group
          WHERE anc.depth = 0 OR pp.inherit
          ORDER BY anc.depth, u.name",
     )
@@ -808,7 +822,7 @@ async fn get_page_permissions(
     let readable = crate::access::visible_levels(&pool, user.id, workspace_id).await?;
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for (uid, name, email, avatar, role, inherit, from, from_title, depth, allow_subpages, is_member) in rows {
+    for (uid, name, email, avatar, role, inherit, from, from_title, depth, allow_subpages, is_member, via_group, via_group_name) in rows {
         // La permission la plus proche s'applique ; les plus lointaines sont masquées.
         if !seen.insert(uid) {
             continue;
@@ -816,7 +830,7 @@ async fn get_page_permissions(
         let grant = crate::access::Grant::parse(&role).unwrap_or(crate::access::Grant::Deny);
         out.push(serde_json::json!({
             "user_id": uid, "name": name, "email": email, "avatar_url": avatar, "role": grant.legacy_name(), "level": grant.name(), "inherit": inherit, "allow_subpages": allow_subpages,
-            "is_member": is_member, "inherited_from": if depth == 0 { None } else if readable.get(&from).is_some_and(|l| *l > crate::access::level::NONE) { Some(serde_json::json!({ "id": from, "title": from_title })) } else { Some(serde_json::json!({ "id": null, "title": "" })) },
+            "is_member": is_member, "via_group": via_group.map(|g| serde_json::json!({ "id": g, "name": via_group_name })), "inherited_from": if depth == 0 { None } else if readable.get(&from).is_some_and(|l| *l > crate::access::level::NONE) { Some(serde_json::json!({ "id": from, "title": from_title })) } else { Some(serde_json::json!({ "id": null, "title": "" })) },
         }));
     }
     Ok(Json(out))
@@ -832,59 +846,36 @@ async fn set_page_permission(
     ensure_in_workspace(pool, page_id, workspace_id).await?;
     // Administrateur de l'espace, ou niveau « gestion » sur la page (invité compris).
     crate::access::require_page_manage(pool, &user, page_id).await?;
-    let member = is_member(pool, workspace_id, &payload.user_id.to_string()).await?;
     let inherit = payload.inherit.unwrap_or(true);
+    // Une seule cible : une personne ou un groupe d'instance.
+    let target = match (payload.user_id, payload.group_id) {
+        (Some(u), None) => Ok(u),
+        (None, Some(g)) => Err(g),
+        _ => return Err(ApiError::bad_request("invalid_target")),
+    };
+    match payload.role.as_str() {
+        "none" | "read" | "comment" | "edit" | "manage" | "deny" | "viewer" | "editor" | "blocked" => {}
+        _ => return Err(ApiError::bad_request("invalid_role")),
+    }
     // `viewer` (anciens clients) : lecture et commentaire, comme avant les niveaux ; la personne dont
     // le rôle ne permet pas de commenter garde la lecture seule.
     let stored = match payload.role.as_str() {
         "viewer" => {
-            let docs = crate::access::member_perms(pool, payload.user_id, workspace_id).await?.map(|(_, p)| p.docs);
+            let docs = match target {
+                Ok(u) => crate::access::member_perms(pool, u, workspace_id).await?.map(|(_, p)| p.docs),
+                Err(_) => None,
+            };
             if docs.is_some_and(|d| d < crate::access::level::COMMENT) { "read" } else { "comment" }
         }
         other => crate::access::Grant::parse(other).map(|g| g.name()).unwrap_or(other),
     };
     let allow_subpages = matches!(crate::access::Grant::parse(stored), Some(crate::access::Grant::Level(l)) if l >= crate::access::level::EDIT) && payload.allow_subpages.unwrap_or(false);
-    match payload.role.as_str() {
-        "none" => {
-            let removed = sqlx::query("DELETE FROM page_permissions WHERE page_id = $1 AND user_id = $2")
-                .bind(page_id)
-                .bind(payload.user_id)
-                .execute(pool)
-                .await?
-                .rows_affected();
-            if removed > 0 {
-                crate::activity::log_page(pool, page_id, workspace_id, user.id, "unshare").await;
-            }
-        }
+    match target {
+        Ok(uid) if payload.role == "none" => crate::share::revoke_user(&state, user.id, workspace_id, page_id, uid).await?,
         // Niveaux : lecture, commentaire, modification, gestion, ou refus (membres et personnes extérieures).
-        "read" | "comment" | "edit" | "manage" | "deny" | "viewer" | "editor" | "blocked" => {
-            let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE id = $1").bind(payload.user_id).fetch_optional(pool).await?;
-            exists.ok_or(ApiError::NotFound)?;
-            let created: bool = sqlx::query_scalar(
-                "INSERT INTO page_permissions (page_id, user_id, role, inherit, created_by, allow_subpages) VALUES ($1, $2, $3, $4, $5, $6)
-                 ON CONFLICT (page_id, user_id) DO UPDATE SET role = $3, inherit = $4, allow_subpages = $6
-                 RETURNING (xmax = 0)",
-            )
-            .bind(page_id)
-            .bind(payload.user_id)
-            .bind(stored)
-            .bind(inherit)
-            .bind(user.id)
-            .bind(allow_subpages)
-            .fetch_one(pool)
-            .await?;
-            crate::activity::log_page(pool, page_id, workspace_id, user.id, "share").await;
-            if created && !member && stored != "deny" {
-                // Invité : prévenu par e-mail (page visible dans « Partagé avec moi »).
-                let (title,): (String,) = sqlx::query_as("SELECT title FROM pages WHERE id = $1").bind(page_id).fetch_one(pool).await?;
-                let (to, to_name): (String, String) = sqlx::query_as("SELECT email, name FROM users WHERE id = $1").bind(payload.user_id).fetch_one(pool).await?;
-                let from: String = sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(user.id).fetch_one(pool).await?;
-                let link = format!("{}/shared/{page_id}", state.base_url);
-                crate::roles::send_mail(&state, &to, &to_name, &format!("{from} a partagé « {title} » avec vous"),
-                    &format!("{from} a partagé le document « {title} » avec vous sur Looty.\nOuvrir : {link}\n\n{from} shared “{title}” with you: {link}")).await;
-            }
-        }
-        _ => return Err(ApiError::bad_request("invalid_role")),
+        Ok(uid) => crate::share::grant_user(&state, user.id, workspace_id, page_id, uid, stored, inherit, allow_subpages).await?,
+        Err(gid) if payload.role == "none" => crate::share::grant_group(&state, user.id, workspace_id, page_id, gid, "none", inherit, false).await?,
+        Err(gid) => crate::share::grant_group(&state, user.id, workspace_id, page_id, gid, stored, inherit, allow_subpages).await?,
     }
     state.emit(workspace_id, serde_json::json!({ "type": "PAGE_PERMISSIONS_UPDATED", "page_id": page_id })).await;
     Ok(StatusCode::NO_CONTENT)

@@ -1,32 +1,43 @@
 <script setup lang="ts">
-import { Link2, Globe, Lock, Copy, Search, UserPlus, CornerLeftUp } from 'lucide-vue-next'
+import { Link2, Globe, Lock, Copy, Search, Users, Check, X, CornerLeftUp } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useAccess } from '~/composables/useAccess'
 import type { Page } from '~/types'
-import { api } from '~/composables/api'
+import { api, errorMessage } from '~/composables/api'
 import { useWorkspace, links } from '~/composables/useWorkspace'
 import { usePages } from '~/composables/usePages'
 import { useI18n } from '~/composables/useI18n'
 import { toast } from '~/composables/useToast'
+import { confirmDialog } from '~/composables/useConfirm'
+import { useAccessSummary, useAccessRequests, type PageRequest } from '~/composables/useShare'
+import { needsManageWarning, sectionsOf, type AccessPerson, type AccessGroup, type ShareLevel } from '~/utils/shareAccess'
 
+/**
+ * Dialogue de partage d'une page : qui a accès (personnes et groupes) avec le niveau, la portée et l'origine de
+ * chaque droit, ajout par recherche dans l'annuaire, demandes d'accès, lien interne et lien public.
+ * Ouvert à toute personne qui gère la page (pas seulement aux administrateurs de l'espace).
+ */
 const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{ page: Page }>()
-const { wsId, members, member } = useWorkspace()
+const { wsId, members } = useWorkspace()
 const { can } = useAccess(wsId)
 const { patchLocal } = usePages()
 const { t } = useI18n()
+const qc = useQueryClient()
 
-const tab = ref<'share' | 'access'>('share')
+const canManage = computed(() => props.page.can_manage === true || can.value.admin)
+const pageId = computed(() => props.page.id)
+const { data: summary, isError, refetch } = useAccessSummary(wsId, pageId, computed(() => open.value && canManage.value))
+const { data: requests, refetch: refetchRequests } = useAccessRequests(wsId, pageId, computed(() => open.value && canManage.value))
 const busy = ref(false)
 
 const internal = computed(() => `${location.origin}${links.doc(wsId.value, props.page.id)}`)
 const publicUrl = computed(() => (props.page.share_token ? `${location.origin}/public/${props.page.share_token}` : ''))
-
 function copy(text: string) {
   navigator.clipboard.writeText(text)
   toast.success(t('common.linkCopied'))
 }
-
 async function setPublic(on: boolean) {
   busy.value = true
   try {
@@ -37,142 +48,232 @@ async function setPublic(on: boolean) {
   }
 }
 
-// --- Accès particuliers (membres et invités extérieurs à l'espace) ---
-interface PagePerm { user_id: string; name: string; email: string; avatar_url?: string | null; role: 'read' | 'comment' | 'edit' | 'manage' | 'deny'; level?: 'read' | 'comment' | 'edit' | 'manage' | 'deny'; inherit: boolean; allow_subpages?: boolean; is_member: boolean; inherited_from?: { id: string; title: string } | null }
-const perms = ref<PagePerm[]>([])
-async function loadPerms() {
-  // `level` : niveau précis (lecture, commentaire, modification, gestion, refus) ; `role` reste le nom historique.
-  const rows = await api<PagePerm[]>(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`)
-  perms.value = rows.map((r) => ({ ...r, role: r.level ?? r.role }))
-}
-watch([open, tab], ([o, tb]) => { if (o && tb === 'access' && can.value.admin) loadPerms() })
-const own = computed(() => perms.value.filter((p) => !p.inherited_from))
-const inherited = computed(() => perms.value.filter((p) => p.inherited_from))
-const roleItems = computed(() => [
-  { value: 'manage', label: t('pagePerms.manageLabel'), hint: t('pagePerms.manageHint') },
-  { value: 'edit', label: t('share.editor'), hint: t('pagePerms.editorHint') },
-  { value: 'comment', label: t('pagePerms.commentLabel'), hint: t('pagePerms.commentHint') },
-  { value: 'read', label: t('share.viewer'), hint: t('pagePerms.viewerHint') },
-  { value: 'deny', label: t('share.blocked'), hint: t('pagePerms.blockedHint') },
-  { value: 'none', label: t('pagePerms.remove') },
-])
-const roleLabel = (r: string) => roleItems.value.find((x) => x.value === r)?.label ?? r
-async function setPerm(userId: string, role: string, inherit = true, allowSubpages = false) {
-  await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`, { method: 'PUT', body: { user_id: userId, role, inherit, allow_subpages: allowSubpages } })
-  await loadPerms()
-  toast.success(t('common.saved'))
-}
-const permOpen = ref<Record<string, boolean>>({})
+// --- Résumé et lignes ---
+const counts = computed(() => summary.value?.counts ?? { total: 0, outside: 0, space: 0 })
+const sections = computed(() => sectionsOf(summary.value?.people ?? []))
+const groups = computed(() => summary.value?.groups ?? [])
+const directoryHint = computed(() => (summary.value?.directory === 'shared' ? t('sharing.directoryShared') : summary.value?.directory === 'email' ? t('sharing.directoryEmail') : ''))
 
-// Ajouter : membres de l'espace, puis toute personne ayant un compte Looty (invitée).
-const addQuery = ref('')
-const addRole = ref<'read' | 'comment' | 'edit' | 'manage' | 'deny'>('comment')
+const levelItems = computed(() => (['manage', 'edit', 'comment', 'read', 'deny'] as ShareLevel[]).map((l) => ({ value: l as string, label: t(`sharing.level.${l}`), hint: t(`sharing.levelHint.${l}`) })))
+const rowItems = computed(() => [...levelItems.value, { value: 'none', label: t('sharing.level.none'), hint: t('sharing.levelHint.none') }])
+const levelLabel = (l: string) => t(`sharing.level.${l}`)
+
+function originText(p: AccessPerson | AccessGroup): string {
+  if ('origin' in p) {
+    if (p.origin === 'group') return t('sharing.originGroup', { name: p.via_group?.name ?? '' })
+    if (p.origin === 'space') return t('sharing.originSpace')
+    if (p.origin === 'inherited') return p.from?.id ? t('sharing.originInherited', { title: p.from.title || t('sharing.untitled') }) : t('sharing.originInheritedHidden')
+    return t('sharing.originDirect')
+  }
+  return p.from ? (p.from.id ? t('sharing.originInherited', { title: p.from.title || t('sharing.untitled') }) : t('sharing.originInheritedHidden')) : t('sharing.originDirect')
+}
+
+async function refresh() {
+  await Promise.all([refetch(), refetchRequests()])
+  qc.invalidateQueries({ queryKey: ['ws', wsId.value, 'pages'] })
+}
+type Target = { user_id: string } | { group_id: string }
+async function setPerm(target: Target, name: string, role: string, inherit = true, allowSubpages = false, notice: 'added' | 'changed' | 'removed' = 'changed') {
+  if (needsManageWarning(role) && !(await confirmDialog({ title: t('sharing.manageTitle'), message: t('sharing.manageBody', { name }), confirmLabel: t('sharing.manageConfirm') }))) return
+  try {
+    await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/permissions`, { method: 'PUT', body: { ...target, role, inherit, allow_subpages: allowSubpages } })
+    await refresh()
+    toast.success(notice === 'added' ? t('sharing.added', { name }) : notice === 'removed' ? t('sharing.removed') : t('sharing.changed'))
+  } catch (e) {
+    toast.error(errorMessage(e))
+  }
+}
+const rowTarget = (p: AccessPerson): Target => ({ user_id: p.user_id })
+function changeLevel(p: AccessPerson, v: string) {
+  // Une ligne héritée ou venue du rôle se remplace par un partage direct sur cette page.
+  const direct = p.origin === 'direct' || p.origin === 'group'
+  setPerm(rowTarget(p), p.name, v, direct ? p.inherit : true, !!p.allow_subpages, v === 'none' ? 'removed' : 'changed')
+}
+function changeGroup(g: AccessGroup, v: string) {
+  setPerm({ group_id: g.group_id }, g.name, v, g.inherit, !!g.allow_subpages, v === 'none' ? 'removed' : 'changed')
+}
+
+// --- Ajouter : personnes de l'espace, comptes de l'instance, groupes ---
+const query = ref('')
+const addLevel = ref<string>('comment')
 const addInherit = ref(true)
 const outside = ref<{ id: string; name: string; email: string; avatar_url?: string | null }[]>([])
-const searchOutside = useDebounceFn(async () => {
-  const q = addQuery.value.trim()
-  outside.value = q.length >= 2 ? await api(`/api/users/search?q=${encodeURIComponent(q)}&exclude_ws=${wsId.value}`, { silent: true }).catch(() => []) : []
+const found = ref<{ id: string; name: string; member_count: number }[]>([])
+const searching = ref(false)
+const active = ref(0)
+const search = useDebounceFn(async () => {
+  const q = query.value.trim()
+  if (q.length < 2) { outside.value = []; found.value = []; searching.value = false; return }
+  const [u, g] = await Promise.all([
+    api<typeof outside.value>(`/api/users/search?q=${encodeURIComponent(q)}&exclude_ws=${wsId.value}`, { silent: true }).catch(() => []),
+    api<typeof found.value>(`/api/share/groups?q=${encodeURIComponent(q)}`, { silent: true }).catch(() => []),
+  ])
+  outside.value = u
+  found.value = g
+  searching.value = false
 }, 250)
-watch(addQuery, searchOutside)
-const memberHits = computed(() => {
-  const q = addQuery.value.trim().toLowerCase()
+watch(query, () => { searching.value = true; active.value = 0; search() })
+const hasGrant = (id: string) => (summary.value?.people ?? []).some((p) => p.user_id === id && (p.origin === 'direct' || p.origin === 'group'))
+type Hit = { key: string; kind: 'user' | 'group'; id: string; name: string; sub: string; avatar?: string | null; guest: boolean }
+const hits = computed<Hit[]>(() => {
+  const q = query.value.trim().toLowerCase()
   if (!q) return []
-  return (members.data.value ?? []).filter((m) => !own.value.some((p) => p.user_id === m.user_id) && `${m.name} ${m.email}`.toLowerCase().includes(q)).slice(0, 5)
+  const gs: Hit[] = found.value.filter((g) => !groups.value.some((x) => x.group_id === g.id)).map((g) => ({ key: `g${g.id}`, kind: 'group', id: g.id, name: g.name, sub: t('sharing.groupCount', { count: g.member_count }), guest: false }))
+  const ms: Hit[] = (members.data.value ?? []).filter((m) => !hasGrant(m.user_id) && `${m.name} ${m.email}`.toLowerCase().includes(q)).slice(0, 5).map((m) => ({ key: `m${m.user_id}`, kind: 'user', id: m.user_id, name: m.name, sub: m.email, avatar: m.avatar_url, guest: false }))
+  const os: Hit[] = outside.value.filter((u) => !hasGrant(u.id)).map((u) => ({ key: `u${u.id}`, kind: 'user', id: u.id, name: u.name, sub: u.email, avatar: u.avatar_url, guest: true }))
+  return [...ms, ...gs, ...os]
 })
-async function add(userId: string) {
-  await setPerm(userId, addRole.value, addInherit.value)
-  addQuery.value = ''
+function move(d: number) { if (hits.value.length) active.value = (active.value + d + hits.value.length) % hits.value.length }
+async function add(h?: Hit) {
+  const hit = h ?? hits.value[active.value]
+  if (!hit) return
+  await setPerm(hit.kind === 'group' ? { group_id: hit.id } : { user_id: hit.id }, hit.name, addLevel.value, addInherit.value, false, 'added')
+  query.value = ''
 }
+
+// --- Demandes d'accès ---
+async function decide(r: PageRequest, decision: 'approve' | 'deny') {
+  try {
+    await api(`/api/workspaces/${wsId.value}/pages/${props.page.id}/access-requests/${r.id}`, { method: 'POST', body: { decision, level: 'read' } })
+    await refresh()
+    toast.success(t(decision === 'approve' ? 'sharing.approved' : 'sharing.declined'))
+  } catch (e) {
+    toast.error(errorMessage(e))
+  }
+}
+watch(open, (o) => { if (o) query.value = '' })
+const permOpen = ref<Record<string, boolean>>({})
 </script>
 
 <template>
-  <UiDialog v-model:open="open" :title="t('share.title')" :width="520">
-    <UiSegmented v-if="can.admin" v-model="tab" size="md" :options="[{ value: 'share', label: t('share.share') }, { value: 'access', label: t('share.access') }]" />
+  <UiDialog v-model:open="open" :title="t('sharing.title', { title: page.title || t('sharing.untitled') })" :width="580">
+    <div class="pane">
+      <template v-if="canManage">
+        <p v-if="summary" class="summary" aria-live="polite">
+          <Users :size="14" />
+          <span>{{ t('sharing.summaryTotal', { count: counts.total }) }}</span>
+          <span v-if="counts.outside" class="guest">{{ t('sharing.summaryOutside', { count: counts.outside }) }}</span>
+        </p>
+        <p v-if="isError" class="hint" role="alert">{{ t('sharing.loadError') }}</p>
 
-    <div v-if="tab === 'share'" class="pane">
+        <div v-if="requests?.length" class="requests" role="group" :aria-label="t('sharing.requests')">
+          <div v-for="r in requests" :key="r.id" class="request">
+            <UiAvatar :name="r.name" :src="r.avatar_url" :size="26" />
+            <div class="m-body">
+              <div class="m-name truncate">{{ t('sharing.requestFrom', { name: r.name }) }}</div>
+              <div class="m-role truncate">{{ r.message || r.email }}</div>
+            </div>
+            <UiButton size="xs" variant="primary" :icon="Check" @click="decide(r, 'approve')">{{ t('sharing.approve') }}</UiButton>
+            <UiButton size="xs" :icon="X" @click="decide(r, 'deny')">{{ t('sharing.deny') }}</UiButton>
+          </div>
+        </div>
+
+        <div class="add">
+          <div class="add-q">
+            <UiInput v-model="query" :icon="Search" size="sm" :placeholder="t('sharing.searchPlaceholder')" role="combobox" aria-autocomplete="list" :aria-expanded="hits.length > 0"
+              @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)" @keydown.enter.prevent="add()" />
+          </div>
+          <UiCombobox v-model="addLevel" :items="levelItems" :width="280" placement="bottom-end">
+            <button class="m-select" :class="addLevel" :aria-label="t('sharing.levelLabel')">{{ levelLabel(addLevel) }}</button>
+          </UiCombobox>
+        </div>
+        <label class="scope"><UiSwitch v-model="addInherit" /> {{ t('sharing.scopeTree') }}</label>
+        <p v-if="directoryHint" class="hint">{{ directoryHint }}</p>
+        <div v-if="query.trim()" class="hits" role="listbox">
+          <button v-for="(h, i) in hits" :key="h.key" class="hit" :class="{ on: i === active }" role="option" :aria-selected="i === active" @click="add(h)" @mouseenter="active = i">
+            <span v-if="h.kind === 'group'" class="g-ico"><Users :size="14" /></span>
+            <UiAvatar v-else :name="h.name" :src="h.avatar" :size="24" />
+            <span class="m-body"><span class="m-name truncate">{{ h.name }}</span><span class="m-role">{{ h.sub }}</span></span>
+            <span v-if="h.guest" class="guest">{{ t('sharing.outside') }}</span>
+            <span v-else-if="h.kind === 'group'" class="guest grp">{{ t('sharing.group') }}</span>
+          </button>
+          <p v-if="!hits.length && !searching" class="hint">{{ t('sharing.noMatch') }}</p>
+        </div>
+
+        <div v-for="g in groups" :key="g.group_id" class="member">
+          <span class="g-ico"><Users :size="14" /></span>
+          <div class="m-body">
+            <div class="m-name truncate">{{ g.name }} <span class="guest grp">{{ t('sharing.group') }}</span></div>
+            <div class="m-role">{{ t('sharing.groupCount', { count: g.member_count }) }} · {{ originText(g) }} · {{ g.inherit ? t('sharing.scopeTree') : t('sharing.scopePage') }}</div>
+          </div>
+          <UiCombobox v-model:open="permOpen['g' + g.group_id]" :model-value="g.level" :items="rowItems" :width="280" placement="bottom-end" @update:model-value="(v) => changeGroup(g, v as string)">
+            <button class="m-select" :class="g.level" :aria-label="`${g.name}: ${levelLabel(g.level)}`">{{ levelLabel(g.level) }}</button>
+          </UiCombobox>
+        </div>
+
+        <div v-for="p in sections.direct" :key="'d' + p.user_id" class="member">
+          <UiAvatar :name="p.name" :src="p.avatar_url" :size="26" />
+          <div class="m-body">
+            <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('sharing.outside') }}</span></div>
+            <div class="m-role">{{ p.email }} · {{ originText(p) }} ·
+              <button class="link" @click="setPerm(rowTarget(p), p.name, p.level, !p.inherit, !!p.allow_subpages)">{{ p.inherit ? t('sharing.scopeTree') : t('sharing.scopePage') }}</button>
+            </div>
+          </div>
+          <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.level" :items="rowItems" :width="280" placement="bottom-end" @update:model-value="(v) => changeLevel(p, v as string)">
+            <button class="m-select" :class="p.level" :aria-label="`${p.name}: ${levelLabel(p.level)}`">{{ levelLabel(p.level) }}</button>
+          </UiCombobox>
+        </div>
+
+        <template v-if="sections.inherited.length">
+          <div class="sub-label">{{ t('sharing.sectionInherited') }}</div>
+          <div v-for="p in sections.inherited" :key="'i' + p.user_id" class="member inh">
+            <UiAvatar :name="p.name" :src="p.avatar_url" :size="22" />
+            <div class="m-body">
+              <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('sharing.outside') }}</span></div>
+              <div class="m-role"><CornerLeftUp :size="11" /> {{ originText(p) }}</div>
+            </div>
+            <UiCombobox v-model:open="permOpen['i' + p.user_id]" :model-value="p.level" :items="levelItems" :width="280" placement="bottom-end" @update:model-value="(v) => changeLevel(p, v as string)">
+              <button class="m-select" :class="p.level" :title="t('sharing.overrideHint')" :aria-label="`${p.name}: ${levelLabel(p.level)}`">{{ levelLabel(p.level) }}</button>
+            </UiCombobox>
+          </div>
+        </template>
+
+        <template v-if="sections.space.length">
+          <div class="sub-label">{{ t('sharing.sectionSpace') }}</div>
+          <div v-for="p in sections.space" :key="'s' + p.user_id" class="member inh">
+            <UiAvatar :name="p.name" :src="p.avatar_url" :size="22" />
+            <div class="m-body">
+              <div class="m-name truncate">{{ p.name }}</div>
+              <div class="m-role">{{ originText(p) }}</div>
+            </div>
+            <UiCombobox v-model:open="permOpen['s' + p.user_id]" :model-value="p.level" :items="levelItems" :width="280" placement="bottom-end" @update:model-value="(v) => changeLevel(p, v as string)">
+              <button class="m-select" :class="p.level" :title="t('sharing.overrideHint')" :aria-label="`${p.name}: ${levelLabel(p.level)}`">{{ levelLabel(p.level) }}</button>
+            </UiCombobox>
+          </div>
+        </template>
+      </template>
+      <p v-else class="hint">{{ t('sharing.noManage') }}</p>
+
       <div class="row-card">
         <div class="rc-icon"><Link2 :size="16" /></div>
         <div class="rc-body">
-          <div class="rc-title">{{ t('share.internal') }}</div>
-          <div class="rc-hint">{{ t('share.internalHint') }}</div>
+          <div class="rc-title">{{ t('sharing.linkTitle') }}</div>
+          <div class="rc-hint">{{ t('sharing.linkHint') }}</div>
         </div>
-        <UiButton size="sm" :icon="Copy" @click="copy(internal)">{{ t('common.copy') }}</UiButton>
+        <UiButton size="sm" :icon="Copy" @click="copy(internal)">{{ t('sharing.copyLink') }}</UiButton>
       </div>
 
       <div class="row-card">
         <div class="rc-icon" :class="{ on: page.is_public }"><Globe v-if="page.is_public" :size="16" /><Lock v-else :size="16" /></div>
         <div class="rc-body">
-          <div class="rc-title">{{ t('share.public') }}</div>
+          <div class="rc-title">{{ t('sharing.publicTitle') }}</div>
           <div class="rc-hint">{{ page.is_public ? t('share.publicOn') : t('share.publicOff') }}</div>
         </div>
-        <UiSwitch :model-value="!!page.is_public" :disabled="busy || page.can_edit === false || !can.share" @update:model-value="setPublic" />
+        <UiSwitch :model-value="!!page.is_public" :disabled="busy || page.can_edit === false || !(can.share || canManage)" :aria-label="t('sharing.publicTitle')" @update:model-value="setPublic" />
       </div>
       <div v-if="page.is_public && publicUrl" class="url">
         <input :value="publicUrl" readonly @focus="($event.target as HTMLInputElement).select()" />
         <UiButton size="sm" variant="primary" :icon="Copy" @click="copy(publicUrl)">{{ t('common.copy') }}</UiButton>
       </div>
     </div>
-
-    <div v-else class="pane">
-      <p class="hint">{{ t('pagePerms.hint') }}</p>
-      <div class="add">
-        <UiInput v-model="addQuery" :icon="Search" size="sm" :placeholder="t('pagePerms.addPlaceholder')" class="add-q" />
-        <UiCombobox v-model="addRole" :items="roleItems.filter((r) => r.value !== 'none')" :width="260" placement="bottom-end">
-          <button class="m-select" :class="addRole">{{ roleLabel(addRole) }}</button>
-        </UiCombobox>
-      </div>
-      <label class="scope"><UiSwitch v-model="addInherit" /> {{ t('pagePerms.withSubpages') }}</label>
-      <div v-if="addQuery.trim()" class="hits">
-        <button v-for="m in memberHits" :key="m.user_id" class="hit" @click="add(m.user_id)">
-          <UiAvatar :name="m.name" :src="m.avatar_url" :size="24" />
-          <span class="m-body"><span class="m-name truncate">{{ m.name }}</span><span class="m-role">{{ m.role_name ?? t(`roles.${m.role}`) }}</span></span>
-          <UserPlus :size="14" class="faint" />
-        </button>
-        <button v-for="u in outside" :key="u.id" class="hit" @click="add(u.id)">
-          <UiAvatar :name="u.name" :src="u.avatar_url" :size="24" />
-          <span class="m-body"><span class="m-name truncate">{{ u.name }}</span><span class="m-role">{{ u.email }} · {{ t('pagePerms.guest') }}</span></span>
-          <UserPlus :size="14" class="faint" />
-        </button>
-        <p v-if="!memberHits.length && !outside.length" class="hint">{{ t('pagePerms.noMatch') }}</p>
-      </div>
-
-      <div v-for="p in own" :key="p.user_id" class="member">
-        <UiAvatar :name="p.name" :src="p.avatar_url" :size="26" />
-        <div class="m-body">
-          <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('pagePerms.guest') }}</span></div>
-          <div class="m-role">{{ p.inherit ? t('pagePerms.scopeTree') : t('pagePerms.scopePage') }}
-            · <button class="link" @click="setPerm(p.user_id, p.role, !p.inherit, !!p.allow_subpages)">{{ p.inherit ? t('pagePerms.onlyThis') : t('pagePerms.includeSub') }}</button></div>
-          <label v-if="p.role === 'edit' || p.role === 'manage'" class="m-sub" :title="t('pagePerms.createSubHint')">
-            <input type="checkbox" :checked="!!p.allow_subpages" @change="setPerm(p.user_id, p.role, p.inherit, ($event.target as HTMLInputElement).checked)" />
-            {{ t('pagePerms.createSub') }}
-          </label>
-        </div>
-        <UiCombobox v-model:open="permOpen[p.user_id]" :model-value="p.role" :items="roleItems" :width="260" placement="bottom-end" @update:model-value="(v) => setPerm(p.user_id, v as string, p.inherit, !!p.allow_subpages)">
-          <button class="m-select" :class="p.role">{{ roleLabel(p.role) }}</button>
-        </UiCombobox>
-      </div>
-      <template v-if="inherited.length">
-        <div class="sub-label">{{ t('pagePerms.inherited') }}</div>
-        <div v-for="p in inherited" :key="'i' + p.user_id" class="member inh">
-          <UiAvatar :name="p.name" :src="p.avatar_url" :size="22" />
-          <div class="m-body">
-            <div class="m-name truncate">{{ p.name }} <span v-if="!p.is_member" class="guest">{{ t('pagePerms.guest') }}</span></div>
-            <div class="m-role"><CornerLeftUp :size="11" /> {{ t('pagePerms.from', { title: p.inherited_from!.title || t('docs.untitled') }) }}</div>
-          </div>
-          <span class="m-select static" :class="p.role">{{ roleLabel(p.role) }}</span>
-        </div>
-      </template>
-      <p v-if="!own.length && !inherited.length" class="hint empty">{{ t('pagePerms.none') }}</p>
-    </div>
   </UiDialog>
 </template>
 
 <style scoped>
-.m-sub { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: var(--fs-xs); color: var(--text-2); cursor: pointer; }
-.m-sub input { accent-color: var(--accent); margin: 0; }
-.pane { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.pane { margin-top: 4px; display: flex; flex-direction: column; gap: 10px; max-height: min(70vh, 640px); overflow-y: auto; }
+.summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-weight: 600; }
 .row-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-md); background: var(--bg-hover); }
-.rc-icon { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--bg-elevated); color: var(--text-2); box-shadow: var(--shadow-card); }
+.rc-icon { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--bg-elevated); color: var(--text-2); box-shadow: var(--shadow-card); flex: none; }
 .rc-icon.on { color: var(--green); }
 .rc-body { flex: 1; min-width: 0; }
 .rc-title { font-weight: 600; }
@@ -180,26 +281,27 @@ async function add(userId: string) {
 .url { display: flex; gap: 8px; }
 .url input { flex: 1; min-width: 0; height: 28px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-input); font-size: var(--fs-sm); color: var(--text-2); outline: none; }
 .hint { margin: 0; color: var(--text-3); font-size: var(--fs-sm); line-height: 1.5; }
-.member { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.member, .request { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.requests { padding: 6px 10px; border-radius: var(--r-md); background: var(--accent-soft); }
+.request { border-bottom: 0; flex-wrap: wrap; }
 .m-body { flex: 1; min-width: 0; }
 .m-name { font-weight: 500; }
-.m-role { font-size: var(--fs-xs); color: var(--text-3); }
-.m-full { font-size: var(--fs-sm); }
-.m-select { height: 28px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); }
+.m-role { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: var(--fs-xs); color: var(--text-3); }
+.m-select { height: 28px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); font-size: var(--fs-sm); white-space: nowrap; }
 .m-select.deny { color: var(--red); }
 .m-select.read, .m-select.comment { color: var(--yellow); }
 .m-select.edit, .m-select.manage { color: var(--green); }
-.m-select.static { display: inline-flex; align-items: center; border-style: dashed; }
 .add { display: flex; gap: 8px; }
-.add-q { flex: 1; }
+.add-q { flex: 1; min-width: 0; }
 .scope { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); cursor: pointer; }
 .hits { display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: var(--r-md); background: var(--bg-hover); }
 .hit { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-sm); text-align: left; }
-.hit:hover { background: var(--bg-active); }
-.guest { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: var(--r-full); background: color-mix(in srgb, var(--orange, #e2a03f) 20%, transparent); color: var(--orange, #e2a03f); }
+.hit:hover, .hit.on { background: var(--bg-active); }
+.g-ico { width: 24px; height: 24px; border-radius: var(--r-full); display: grid; place-items: center; background: var(--bg-active); color: var(--text-2); flex: none; }
+.guest { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: var(--r-full); background: color-mix(in srgb, var(--orange, #e2a03f) 20%, transparent); color: var(--orange, #e2a03f); white-space: nowrap; }
+.guest.grp { background: var(--accent-soft); color: var(--accent-text); }
 .link { color: var(--accent); font-size: inherit; }
 .sub-label { font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); margin-top: 6px; }
-.member.inh { opacity: .8; }
-.m-role { display: flex; align-items: center; gap: 4px; }
-.empty { text-align: center; padding: 8px; }
+.member.inh { opacity: .85; }
+@media (max-width: 640px) { .add { flex-direction: column; } .m-select { min-height: 36px; } }
 </style>

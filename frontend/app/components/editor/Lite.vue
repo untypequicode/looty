@@ -13,6 +13,7 @@ import { PageMention, pageMentionSuggest, type PageSource } from '~/editor/pageM
 import { useWorkspace } from '~/composables/useWorkspace'
 import { uploadFile } from '~/composables/api'
 import { useGroups } from '~/composables/useGroups'
+import { usePageOutsiders } from '~/composables/useShare'
 
 /**
  * Éditeur riche léger (descriptions de tâches, commentaires) : raccourcis
@@ -25,12 +26,15 @@ const props = withDefaults(defineProps<{
   autofocus?: boolean
   minimal?: boolean
   submitOnEnter?: boolean
+  /** Page commentée : ses invités se mentionnent aussi. */
+  pageId?: string
   /** Bloc-notes personnel : les images envoyées ne sont lisibles que par leur auteur. */
   personal?: boolean
 }>(), { editable: true })
 const emit = defineEmits<{ (e: 'blur'): void; (e: 'submit'): void; (e: 'mention', id: string): void }>()
 
 const { members, pages, wsId } = useWorkspace()
+const outsiders = usePageOutsiders(() => props.pageId, () => wsId.value)
 const { data: groups } = useGroups(wsId)
 const pageSource: PageSource = { wsId: () => wsId.value, pages: () => pages.data.value ?? [] }
 
@@ -57,7 +61,7 @@ const editor = useEditor({
     TaskList,
     TaskItem.configure({ nested: true }),
     Image.configure({ HTMLAttributes: { loading: 'lazy' } }),
-    mentionExtension(() => members.data.value ?? [], (id) => emit('mention', id), pageSource, () => groups.value ?? []),
+    mentionExtension(() => [...(members.data.value ?? []), ...outsiders.value], (id) => emit('mention', id), pageSource, () => groups.value ?? []),
     PageMention,
     pageMentionSuggest(pageSource),
   ],

@@ -70,6 +70,7 @@ const groups = computed(() => [
           { key: 'admin-instance', label: t('settings.nav.instance'), icon: Server },
           { key: 'admin-local', label: t('localAdmin.title'), icon: KeyRound },
           { key: 'admin-doctor', label: t('doctor.title'), icon: Stethoscope },
+          { key: 'admin-sharing', label: t('adminSharing.title'), icon: Users },
         ],
       }]
     : []),

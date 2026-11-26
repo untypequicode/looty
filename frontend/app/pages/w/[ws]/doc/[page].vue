@@ -328,13 +328,14 @@ useHead({ title: () => live.value ? `${live.value.icon ? `${live.value.icon} ` :
         <UiTooltip :text="t('itemComments.title')">
           <UiButton size="sm" variant="ghost" :icon="MessageSquare" :class="{ 'cm-on': commentsOpen }" :aria-pressed="commentsOpen" @click="commentsOpen = !commentsOpen">{{ openComments || '' }}</UiButton>
         </UiTooltip>
-        <UiButton v-if="!isGuest" size="sm" :icon="Share2" @click="shareOpen = true">{{ t('share.share') }}</UiButton>
+        <UiButton v-if="!isGuest || live.can_manage" size="sm" :icon="Share2" @click="shareOpen = true">{{ t('share.share') }}</UiButton>
         <UiMenu v-model:open="menuOpen" :items="menu" placement="bottom-end" :width="250"><UiButton size="sm" variant="ghost" :icon="MoreHorizontal" class="doc-more" :aria-label="t('common.more')" /></UiMenu>
       </template>
     </AppPageHeader>
 
     <UiEmpty v-if="error && !isLoading" :icon="FileQuestion" :title="t('docs.notFound')" :description="t('docs.notFoundHint')">
       <UiButton :to="links.docs(wsId)">{{ t('nav.allDocs') }}</UiButton>
+      <UiButton variant="primary" :to="`/request-access/${route.params.page}`">{{ t('requestAccess.send') }}</UiButton>
     </UiEmpty>
     <div v-else class="doc-body">
     <div v-if="showProject && live?.project_id" class="doc-project">
