@@ -9,6 +9,7 @@ import { translate } from './useI18n'
 import { toast } from './useToast'
 import { trashedToast } from './useTrash'
 import { useStudySets, useStudyActions, type StudyKind, type StudySummary } from './useStudy'
+import { confirmMoveAccess } from './useShare'
 import { computeMove, lastRootPosition, type DropWhere, type TreeEntry } from './treeMove'
 
 export interface PageNode extends Page {
@@ -120,7 +121,11 @@ export function usePages() {
   async function movePage(id: string, targetId: string, where: DropWhere) {
     const all = entries()
     const m = computeMove(all, id, targetId, where)
-    if (m) await place(all, id, m.parentId, m.position)
+    if (!m) return
+    // Changer de page parente change qui voit la page : on le montre avant (pages seulement).
+    const cur = (pages.data.value ?? []).find((p) => p.id === id)
+    if (cur && (cur.parent_id ?? null) !== m.parentId && !(await confirmMoveAccess(wsId.value, cur, m.parentId))) return
+    await place(all, id, m.parentId, m.position)
   }
 
   /** Remonte une page ou un entraînement à la racine de l'espace, en dernier. */

@@ -5,6 +5,7 @@ import { api } from './api'
 import { links, wsKeys } from './useWorkspace'
 import { toast } from './useToast'
 import { translate } from './useI18n'
+import { confirmMoveSpace } from './useShare'
 
 /** Page à déplacer vers un autre espace (fenêtre « Déplacer vers… »). */
 export const moveRequest = ref<{ ws: string; id: string; title: string; kind: 'page' | 'study' } | null>(null)
@@ -50,7 +51,10 @@ export function useMovePage() {
     toast.success(translate('move.doneStudy', { name: nameOf(toWs) }), shown ? {} : { action: { label: translate('move.open'), run: () => navigateTo(links.studySet(toWs, id)) } })
   }
   async function move(fromWs: string, id: string, toWs: string, parentId: string | null = null) {
-    const moved = subtree(qc.getQueryData<Page[]>(wsKeys.pages(fromWs)) ?? [], id)
+    const cached = qc.getQueryData<Page[]>(wsKeys.pages(fromWs)) ?? []
+    const moved = subtree(cached, id)
+    // Les partages individuels ne suivent pas la page dans un autre espace : on prévient avant.
+    if (fromWs !== toWs && !(await confirmMoveSpace({ title: cached.find((p) => p.id === id)?.title ?? '' }, cached.some((p) => moved.has(p.id) && p.has_permissions)))) return null
     const r = await api<{ moved: number }>(`/api/workspaces/${fromWs}/pages/${id}/move`, { method: 'POST', body: { workspace_id: toWs, parent_id: parentId } })
     qc.setQueryData<Page[]>(wsKeys.pages(fromWs), (old) => old?.filter((p) => !moved.has(p.id)))
     await Promise.all([qc.invalidateQueries({ queryKey: wsKeys.pages(fromWs) }), qc.invalidateQueries({ queryKey: wsKeys.pages(toWs) })])

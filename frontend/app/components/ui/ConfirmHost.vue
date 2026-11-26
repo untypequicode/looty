@@ -35,5 +35,5 @@ function answer(v: boolean) {
 </template>
 
 <style scoped>
-.msg { margin: 0 0 12px; color: var(--text-2); line-height: 1.55; }
+.msg { white-space: pre-line; margin: 0 0 12px; color: var(--text-2); line-height: 1.55; }
 </style>

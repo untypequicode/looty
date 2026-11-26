@@ -237,6 +237,9 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
       qc.invalidateQueries({ queryKey: wsKeys.pages(wsId) })
       qc.invalidateQueries({ queryKey: ['page', ev.page_id] })
       qc.invalidateQueries({ queryKey: ['page-permissions', ev.page_id] })
+      qc.invalidateQueries({ queryKey: ['shared-pages'] })
+      qc.invalidateQueries({ queryKey: ['page-access-summary'] })
+      qc.invalidateQueries({ queryKey: ['page-mentionable', ev.page_id] })
       break
     case 'PAGE_DELETED':
       // Devenue personnelle : disparaît pour les autres, pas pour sa propriétaire.
@@ -329,6 +332,10 @@ function handleEvent(qc: QueryClient, wsId: string, ev: any, selfId: string | un
     case 'NOTIFICATION': {
       const n: Notification = ev.notification
       qc.setQueryData<Notification[]>(wsKeys.notifications(wsId), (old) => (old ? [n, ...old] : old))
+      if (n.kind === 'share' || n.kind === 'access_request') {
+        qc.invalidateQueries({ queryKey: ['shared-pages'] })
+        qc.invalidateQueries({ queryKey: ['page-access-requests'] })
+      }
       qc.invalidateQueries({ queryKey: wsKeys.notifications(wsId) })
       // Nouvel e-mail : « Expéditeur — Objet », ouvre la page Mail.
       const isMail = n.kind === 'mail' || n.kind === 'moodle'

@@ -22,6 +22,7 @@ import { toast } from '~/composables/useToast'
 import { translate } from '~/composables/useI18n'
 import { DOC_SCHEMA } from '~/editor/source'
 import { useGroups } from '~/composables/useGroups'
+import { usePageOutsiders } from '~/composables/useShare'
 
 /**
  * Éditeur de document collaboratif (Yjs + Hocuspocus).
@@ -46,6 +47,8 @@ const emit = defineEmits<{
 }>()
 
 const { members, wsId, pages } = useWorkspace()
+// Les invités qui peuvent lire la page se mentionnent comme les membres.
+const outsiders = usePageOutsiders(() => props.pageId, () => wsId.value)
 const { data: groups } = useGroups(wsId)
 const config = useRuntimeConfig()
 const router = useRouter()
@@ -120,7 +123,7 @@ const editor = useEditor({
     ydoc,
     provider,
     user: props.user,
-    getMembers: () => members.data.value ?? [],
+    getMembers: () => [...(members.data.value ?? []), ...outsiders.value],
     getGroups: () => groups.value ?? [],
     pages: { wsId: () => wsId.value, pages: () => (pages.data.value ?? []).filter((p) => p.id !== props.pageId) },
     onMention: (id) => sendMention(id, `page:${props.pageId}`),

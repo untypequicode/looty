@@ -33,6 +33,7 @@ import Tunnels from '~/components/settings/Tunnels.vue'
 import Templates from '~/components/settings/Templates.vue'
 import AdminLocal from '~/components/settings/AdminLocal.vue'
 import AdminDoctor from '~/components/settings/AdminDoctor.vue'
+import AdminSharing from '~/components/settings/AdminSharing.vue'
 
 definePageMeta({ layout: 'settings' })
 
@@ -69,6 +70,7 @@ const SECTIONS: Record<string, { comp: Component; title: string; admin?: boolean
   'admin-instance': { comp: AdminInstance, title: 'settings.nav.instance', admin: true },
   'admin-local': { comp: AdminLocal, title: 'localAdmin.title', admin: true },
   'admin-doctor': { comp: AdminDoctor, title: 'doctor.title', admin: true },
+  'admin-sharing': { comp: AdminSharing, title: 'adminSharing.title', admin: true },
 }
 // Sections qui chargent le serveur ou sortent vers l'extérieur : indisponibles dans la démo.
 const DEMO_LOCKED = new Set(['notifications', 'calendars', 'ai', 'tunnels'])

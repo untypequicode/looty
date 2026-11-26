@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart, GraduationCap, Megaphone } from 'lucide-vue-next'
+import { Inbox, CheckCheck, AtSign, UserPlus, MessageSquare, Circle, Bell, BellRing, CalendarClock, CircleCheck, Mail, CalendarHeart, GraduationCap, Megaphone, Share2, LockKeyhole, Check, X } from 'lucide-vue-next'
 import type { Notification } from '~/types'
 import { useNotifications } from '~/composables/useNotifications'
 import { useWorkspace, links } from '~/composables/useWorkspace'
@@ -7,6 +7,8 @@ import { useI18n } from '~/composables/useI18n'
 // Application de bureau : notifications système de l'application, sans permission du navigateur.
 import { isDesktop } from '~/composables/useDesktop'
 import { motion } from '~/composables/useMotion'
+import { api, errorMessage } from '~/composables/api'
+import { toast } from '~/composables/useToast'
 
 definePageMeta({ layout: 'workspace' })
 
@@ -15,8 +17,19 @@ const { wsId, member, pages, boards } = useWorkspace()
 const { t, relativeTime } = useI18n()
 const filter = ref<'all' | 'unread'>('all')
 
+/** Demande d'accès à une page : on l'accepte ou la refuse depuis la notification. */
+async function decide(n: Notification, decision: 'approve' | 'deny') {
+  const page = n.target.split(':')[1]
+  try {
+    await api(`/api/workspaces/${wsId.value}/pages/${page}/access-requests/${n.data?.request_id}`, { method: 'POST', body: { decision, level: 'read' } })
+    await markRead(n, true)
+    toast.success(t(decision === 'approve' ? 'sharing.approved' : 'sharing.declined'))
+  } catch (e) {
+    toast.error(errorMessage(e))
+  }
+}
 const list = computed(() => (notifications.value ?? []).filter((n) => filter.value === 'all' || !n.read_at))
-const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, moodle: GraduationCap, event_tag: CalendarHeart, announcement: Megaphone }
+const icons: Record<string, any> = { mention: AtSign, assigned: UserPlus, comment: MessageSquare, due_soon: CalendarClock, completed: CircleCheck, mail: Mail, moodle: GraduationCap, event_tag: CalendarHeart, announcement: Megaphone, share: Share2, access_request: LockKeyhole, access_denied: LockKeyhole }
 
 function targetLink(n: Notification): string {
   const [kind, id = ''] = n.target.split(':')
@@ -76,7 +89,8 @@ useHead({ title: () => t('nav.inbox') })
       <div v-if="isLoading" class="list"><div v-for="i in 6" :key="i" class="skeleton" style="height: 52px; margin: 6px 0" /></div>
       <UiEmpty v-else-if="!list.length" :icon="Bell" :title="filter === 'unread' ? t('inbox.allCaughtUp') : t('inbox.empty')" :description="t('inbox.emptyHint')" />
       <div v-else class="list">
-        <button v-for="n in list" :key="n.id" class="n-row" :class="{ unread: !n.read_at }" @click="open(n)">
+        <div v-for="n in list" :key="n.id" class="n-wrap">
+        <button class="n-row" :class="{ unread: !n.read_at }" @click="open(n)">
           <span class="n-avatar">
             <UiAvatar :name="n.actor_name" :src="member(n.actor_id)?.avatar_url" :size="28" />
             <span class="n-kind"><component :is="icons[n.kind] ?? Bell" :size="10" /></span>
@@ -90,6 +104,11 @@ useHead({ title: () => t('nav.inbox') })
             <span class="n-dot" role="button" @click.stop="markRead(n, !n.read_at)"><Circle :size="8" :fill="n.read_at ? 'none' : 'currentColor'" /></span>
           </UiTooltip>
         </button>
+        <div v-if="n.kind === 'access_request' && !n.read_at" class="n-actions">
+          <UiButton size="xs" variant="primary" :icon="Check" @click="decide(n, 'approve')">{{ t('sharing.approve') }}</UiButton>
+          <UiButton size="xs" :icon="X" @click="decide(n, 'deny')">{{ t('sharing.deny') }}</UiButton>
+        </div>
+        </div>
       </div>
     </div>
   </div>
@@ -113,6 +132,7 @@ useHead({ title: () => t('nav.inbox') })
   text-align: left;
   transition: background var(--dur-fast);
 }
+.n-actions { display: flex; gap: 8px; padding: 0 10px 8px 50px; }
 .n-row:hover { background: var(--bg-hover); }
 .n-avatar { position: relative; flex: none; }
 .n-kind {

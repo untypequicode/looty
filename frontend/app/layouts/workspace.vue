@@ -24,6 +24,7 @@ import { useNotifications } from '~/composables/useNotifications'
 import { usePages } from '~/composables/usePages'
 import { useBreakpoint } from '~/composables/useBreakpoint'
 import { useI18n } from '~/composables/useI18n'
+import { docIdOfPath } from '~/utils/shareAccess'
 import { usePersonalShell, usePersonalSpace } from '~/composables/usePersonal'
 
 const route = useRoute()
@@ -66,7 +67,11 @@ watch(() => workspace.error.value, (e: any) => {
   if (!e || !(e.status === 404 || e.statusCode === 404 || e.status === 403)) return
   // Espace gardé autour d'un élément perso devenu inaccessible : l'espace perso reprend sa coque.
   if (shell.borrowing.value) shell.dropShell()
-  else navigateTo('/')
+  else {
+    // Lien d'une page sans droit : la page « demander l'accès » plutôt qu'un retour muet à l'accueil.
+    const doc = docIdOfPath(route.path)
+    navigateTo(doc ? `/request-access/` : '/')
+  }
 })
 
 // Mémorise le dernier workspace visité
