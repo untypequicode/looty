@@ -4,6 +4,35 @@
   "releases": [
     {
       "platform": "web",
+      "version": "0.66.0",
+      "date": "2026-11-26",
+      "title": {
+        "en": "Sharing a page: new Share dialog, groups, access requests and a clearer Shared with me",
+        "fr": "Partage de page : nouveau dialogue de partage, groupes, demandes d’accès et « Partagé avec moi » plus clair"
+      },
+      "notes": {
+        "en": [
+          "The Share dialog lists everyone who can see the page, with their level, whether it applies to the page only or its sub-pages, and where the right comes from (added directly, a parent page, a group or the space role). A summary line tells how many people have access and how many are outside the space.",
+          "Anyone who can manage a page can share it, not only space administrators. Giving manage access asks for confirmation.",
+          "Instance groups of accounts can be shared with like a person (administrators create them in Settings, Sharing). The same settings page limits who can be found when sharing: everyone, people sharing a space with you, or a full email address.",
+          "Opening the link of a page you cannot see now offers Request access instead of an empty error. The people who manage the page get a notification and can approve or decline it from the notification or from the Share dialog.",
+          "Shared with me is grouped by space, searchable, shows your level, who shared it and the path limited to the parents you can see, and refreshes by itself.",
+          "People outside the space who can read a page can be mentioned in it and in its comments, and sharing a page sends an in-app notification (with new notification settings).",
+          "Moving a page between parents or spaces now asks for confirmation and lists who gains or loses access."
+        ],
+        "fr": [
+          "Le dialogue de partage liste toutes les personnes qui voient la page, avec leur niveau, la portée (page seule ou sous-pages) et l’origine du droit (ajout direct, page parente, groupe ou rôle dans l’espace). Une ligne de résumé indique combien de personnes ont accès, dont combien hors de l’espace.",
+          "Toute personne qui gère une page peut la partager, pas seulement les administrateurs de l’espace. Donner la gestion demande une confirmation.",
+          "Les groupes de comptes de l’instance se partagent comme une personne (les administrateurs les créent dans Réglages, Partage). La même page limite qui peut être trouvé pour un partage : tout le monde, les personnes de vos espaces, ou une adresse e-mail complète.",
+          "Ouvrir le lien d’une page qu’on ne voit pas propose maintenant de demander l’accès au lieu d’une erreur vide. Les personnes qui gèrent la page reçoivent une notification et peuvent accepter ou refuser, depuis la notification ou le dialogue de partage.",
+          "« Partagé avec moi » est groupé par espace, avec recherche, votre niveau, qui a partagé et un chemin limité aux parents que vous voyez, et se met à jour tout seul.",
+          "Les personnes hors de l’espace qui peuvent lire une page peuvent être mentionnées dans la page et ses commentaires, et un partage envoie une notification dans l’application (avec de nouveaux réglages de notification).",
+          "Déplacer une page entre parents ou espaces demande confirmation et liste qui gagne ou perd l’accès."
+        ]
+      }
+    },
+    {
+      "platform": "web",
       "version": "0.64.0",
       "date": "2026-11-25",
       "title": {

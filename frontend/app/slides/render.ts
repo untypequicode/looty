@@ -65,3 +65,21 @@ function nodeHtml(n: Y.XmlElement | Y.XmlText | Y.XmlHook | Y.XmlFragment): stri
 export function fragmentHtml(f: Y.XmlFragment): string {
   return f.toArray().map((c) => nodeHtml(c as Y.XmlElement)).join('')
 }
+
+export interface ArrowGeometry { x1: number; x2: number; y: number; endHead: string | null; startHead: string | null }
+
+/** Tracé d'une flèche dans sa boîte (w x h) : le trait s'arrête à la base de la pointe, pointes en triangle. */
+export function arrowGeometry(w: number, h: number, strokeWidth: number, heads: unknown): ArrowGeometry {
+  const sw = Math.max(1, Number.isFinite(strokeWidth) ? strokeWidth : 1)
+  const mode = heads === 'both' || heads === 'none' ? heads : 'end'
+  const hl = Math.min(Math.max(sw * 3.5, 20), Math.max(w / 2, 1))
+  const hw = hl * 0.55
+  const y = h / 2
+  const end = mode !== 'none'
+  const start = mode === 'both'
+  return {
+    x1: start ? hl : 0, x2: end ? Math.max(0, w - hl) : w, y,
+    endHead: end ? `${w},${y} ${w - hl},${y - hw} ${w - hl},${y + hw}` : null,
+    startHead: start ? `0,${y} ${hl},${y - hw} ${hl},${y + hw}` : null,
+  }
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type * as Y from 'yjs'
-import { fragmentHtml, slideColor } from '~/slides/render'
+import { arrowGeometry, fragmentHtml, slideColor } from '~/slides/render'
+import SlideIcon from './SlideIcon.vue'
 import { textOf, type Slide, type SlideElement } from '~/slides/model'
 
 /**
@@ -9,7 +10,7 @@ import { textOf, type Slide, type SlideElement } from '~/slides/model'
  * Le slot par défaut est dessiné dans le repère logique (sélection, guides) ; `editor` remplace le
  * texte d'un élément en cours d'édition.
  */
-const props = defineProps<{ doc: Y.Doc; slide: Slide; size: { w: number; h: number }; tick: number; editingId?: string | null }>()
+const props = defineProps<{ doc: Y.Doc; slide: Slide; size: { w: number; h: number }; tick: number; editingId?: string | null; liveIds?: readonly string[] }>()
 const root = ref<HTMLElement | null>(null)
 const scale = ref(1)
 let ro: ResizeObserver | null = null
@@ -49,7 +50,7 @@ const label = (el: SlideElement) => el.alt || (el.type === 'text' ? '' : el.type
     <div class="sv-stage" :style="{ width: `${size.w}px`, height: `${size.h}px`, transform: `scale(${scale})`, background: slideColor(slide.background, 'var(--bg-elevated)') }">
       <div v-for="el in slide.elements" :key="el.id" class="sv-el" :data-el="el.id" :data-type="el.type" :style="boxStyle(el)">
         <template v-if="el.type === 'text'">
-          <slot v-if="editingId === el.id" name="editor" :el="el" :text-style="textStyle(el)" />
+          <slot v-if="editingId === el.id || liveIds?.includes(el.id)" name="editor" :el="el" :text-style="textStyle(el)" />
           <div v-else class="sv-text slide-text" :style="textStyle(el)" :aria-label="el.alt || undefined" v-html="html(el)" />
         </template>
         <svg v-else-if="el.type === 'rect'" class="sv-svg" :viewBox="`0 0 ${el.w} ${el.h}`" role="img" :aria-label="label(el)">
@@ -61,6 +62,14 @@ const label = (el: SlideElement) => el.alt || (el.type === 'text' ? '' : el.type
         <svg v-else-if="el.type === 'line'" class="sv-svg" :viewBox="`0 0 ${el.w} ${el.h}`" role="img" :aria-label="label(el)">
           <line :x1="0" :y1="el.h / 2" :x2="el.w" :y2="el.h / 2" :stroke="slideColor(el.props.stroke, 'var(--text)')" :stroke-width="num(el.props.strokeWidth, 6)" stroke-linecap="round" />
         </svg>
+        <svg v-else-if="el.type === 'arrow'" class="sv-svg" :viewBox="`0 0 ${el.w} ${el.h}`" role="img" :aria-label="label(el)">
+          <template v-for="g in [arrowGeometry(el.w, el.h, num(el.props.strokeWidth, 8), el.props.head)]" :key="'a'">
+            <line :x1="g.x1" :y1="g.y" :x2="g.x2" :y2="g.y" :stroke="slideColor(el.props.stroke, 'var(--text)')" :stroke-width="num(el.props.strokeWidth, 8)" stroke-linecap="butt" />
+            <polygon v-if="g.endHead" :points="g.endHead" :fill="slideColor(el.props.stroke, 'var(--text)')" />
+            <polygon v-if="g.startHead" :points="g.startHead" :fill="slideColor(el.props.stroke, 'var(--text)')" />
+          </template>
+        </svg>
+        <div v-else-if="el.type === 'icon'" class="sv-icon" role="img" :aria-label="label(el) || String(el.props.name ?? '')"><SlideIcon :name="typeof el.props.name === 'string' ? el.props.name : ''" :color="slideColor(el.props.color, 'var(--text)')" :stroke-width="num(el.props.strokeWidth, 2)" /></div>
         <img v-else-if="el.type === 'image' && typeof el.props.src === 'string' && /^(\/|https?:)/.test(el.props.src)" class="sv-img" :src="el.props.src" :alt="el.alt" draggable="false" />
       </div>
       <slot />
@@ -74,6 +83,7 @@ const label = (el: SlideElement) => el.alt || (el.type === 'text' ? '' : el.type
 .sv-el { position: absolute; }
 .sv-text { width: 100%; height: 100%; overflow: hidden; line-height: 1.2; overflow-wrap: anywhere; }
 .sv-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sv-icon { width: 100%; height: 100%; }
 .sv-img { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; }
 .slide-text :deep(p), .slide-text :deep(h1), .slide-text :deep(h2), .slide-text :deep(h3), .slide-text :deep(h4), .slide-text :deep(ul), .slide-text :deep(ol), .slide-text :deep(blockquote), .slide-text :deep(pre) { margin: 0 0 0.35em; }
 .slide-text :deep(h1) { font-size: 1.6em; } .slide-text :deep(h2) { font-size: 1.35em; } .slide-text :deep(h3), .slide-text :deep(h4) { font-size: 1.15em; }

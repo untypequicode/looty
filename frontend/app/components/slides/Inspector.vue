@@ -32,7 +32,9 @@ const first = computed(() => props.selected[0] ?? null)
 const kinds = computed(() => new Set(props.selected.map((e) => e.type)))
 const hasShape = computed(() => ['rect', 'ellipse'].some((k) => kinds.value.has(k as 'rect')))
 const hasText = computed(() => kinds.value.has('text'))
-const hasLine = computed(() => kinds.value.has('line'))
+const hasLine = computed(() => kinds.value.has('line') || kinds.value.has('arrow'))
+const hasArrow = computed(() => kinds.value.has('arrow'))
+const hasIcon = computed(() => kinds.value.has('icon'))
 const grouped = computed(() => props.selected.some((e) => e.groupId))
 const locked = computed(() => props.selected.length > 0 && props.selected.every((e) => e.locked))
 const str = (k: string, d: string) => (typeof first.value?.props[k] === 'string' ? (first.value!.props[k] as string) : d)
@@ -89,9 +91,22 @@ const aligns = [['left', AlignLeft], ['center', AlignCenter], ['right', AlignRig
       </fieldset>
 
       <fieldset v-if="canWrite && hasLine" class="grp">
-        <legend>{{ t('slides.types.line') }}</legend>
+        <legend>{{ t(hasArrow ? 'slides.types.arrow' : 'slides.types.line') }}</legend>
         <ColorField :label="t('slides.stroke')" :model-value="str('stroke', 'default')" @update:model-value="setProp('stroke', $event)" />
         <label class="num"><span>{{ t('slides.strokeWidth') }}</span><input type="number" min="1" max="60" :value="numProp('strokeWidth', 6)" @change="setProp('strokeWidth', Math.min(60, Math.max(1, Number(($event.target as HTMLInputElement).value) || 6)))" /></label>
+      </fieldset>
+
+      <fieldset v-if="canWrite && hasArrow" class="grp">
+        <legend>{{ t('slides.collab.heads') }}</legend>
+        <div class="row">
+          <button v-for="h in ['none', 'end', 'both']" :key="h" type="button" class="ib wide" :class="{ on: str('head', 'end') === h }" :aria-pressed="str('head', 'end') === h" :data-head="h" @click="setProp('head', h)">{{ t(`slides.collab.head.${h}`) }}</button>
+        </div>
+      </fieldset>
+
+      <fieldset v-if="canWrite && hasIcon" class="grp">
+        <legend>{{ t('slides.types.icon') }}</legend>
+        <ColorField :label="t('slides.textColor')" :model-value="str('color', 'default')" @update:model-value="setProp('color', $event)" />
+        <label class="num"><span>{{ t('slides.strokeWidth') }}</span><input type="number" min="0.5" max="6" step="0.5" :value="numProp('strokeWidth', 2)" @change="setProp('strokeWidth', Math.min(6, Math.max(0.5, Number(($event.target as HTMLInputElement).value) || 2)))" /></label>
       </fieldset>
 
       <fieldset v-if="one" class="grp">
@@ -141,6 +156,7 @@ h3 { margin: 0; font-size: var(--fs-md); font-weight: 600; }
 .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .ib { width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--text-2); }
 .ib:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+.ib.wide { width: auto; padding: 0 8px; font-size: var(--fs-sm); }
 .ib.on { background: var(--bg-selected); color: var(--accent-text); }
 .ib.danger:hover { color: var(--red); }
 .ib:disabled { opacity: 0.4; }

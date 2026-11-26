@@ -346,6 +346,9 @@ mod page_access_tests;
 mod share_tests;
 
 #[cfg(test)]
+mod slides_collab_tests;
+
+#[cfg(test)]
 mod tests {
     use super::parse_provider_id;
 

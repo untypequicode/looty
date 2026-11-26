@@ -14,6 +14,8 @@ export interface ItemComment {
   avatar_url: string | null
   content: string
   quote: string | null
+  /** Présentation : `slide:<id>` ou `el:<diapositive>:<élément>` (voir slides/comments.ts). */
+  anchor: string | null
   resolved_at: string | null
   resolved_by: string | null
   created_at: string
@@ -44,8 +46,8 @@ export function useComments(ws: Ref<string>, kind: Ref<CommentKind>, id: Ref<str
     qc.invalidateQueries({ queryKey: key.value })
     qc.invalidateQueries({ queryKey: commentKeys.counts(ws.value, kind.value) })
   }
-  async function add(content: string, opts: { parentId?: string; quote?: string } = {}) {
-    const c = await api<ItemComment>(`/api/workspaces/${ws.value}/comments`, { method: 'POST', body: { kind: kind.value, id: id.value, content, parent_id: opts.parentId, quote: opts.quote } })
+  async function add(content: string, opts: { parentId?: string; quote?: string; anchor?: string } = {}) {
+    const c = await api<ItemComment>(`/api/workspaces/${ws.value}/comments`, { method: 'POST', body: { kind: kind.value, id: id.value, content, parent_id: opts.parentId, quote: opts.quote, anchor: opts.anchor } })
     qc.setQueryData<ItemComment[]>(key.value, (old) => [...(old ?? []), c])
     refresh()
     return c

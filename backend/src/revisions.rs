@@ -4,7 +4,8 @@
 //! dix minutes au plus) ; on peut aussi nommer une version. La restauration se fait côté
 //! client, dans l'éditeur collaboratif : le contenu de l'ancienne version y remplace le
 //! contenu actuel (les autres personnes connectées voient le changement en direct), après
-//! un instantané « avant restauration » créé ici.
+//! un instantané « avant restauration » créé ici. Une présentation (`default_view = 'slides'`)
+//! enregistre l'état Yjs de ses diapositives (`slides_state`) dans la même colonne.
 
 use axum::{
     extract::{Path, State},
@@ -84,7 +85,8 @@ async fn create(State(state): State<AppState>, user: AuthUser, Path(page_id): Pa
     }
     let id: Option<Uuid> = sqlx::query_scalar(
         "INSERT INTO page_revisions (page_id, yjs_state, title, kind, label, created_by)
-         SELECT id, yjs_state, title, $2, $3, $4 FROM pages WHERE id = $1 AND yjs_state IS NOT NULL RETURNING id",
+         SELECT id, CASE WHEN default_view = 'slides' THEN slides_state ELSE yjs_state END, title, $2, $3, $4 FROM pages
+         WHERE id = $1 AND (CASE WHEN default_view = 'slides' THEN slides_state ELSE yjs_state END) IS NOT NULL RETURNING id",
     )
     .bind(page_id)
     .bind(&kind)
