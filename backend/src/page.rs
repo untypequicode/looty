@@ -738,6 +738,12 @@ pub struct PublicPage {
     /// Projet notebook ou LaTeX porté par la page (lien public : notebook lisible, dernier PDF).
     #[sqlx(skip)]
     pub project: Option<crate::public_project::PublicProject>,
+    /// Vue d'ouverture (`slides` : présentation lisible sans compte, ADR 0023).
+    #[sqlx(skip)]
+    pub default_view: String,
+    /// État Yjs d'une présentation (base64), pour la lire en lecture seule.
+    #[sqlx(skip)]
+    pub slides_state: Option<String>,
 }
 
 pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>) -> ApiResult<Json<PublicPage>> {
@@ -752,6 +758,12 @@ pub async fn get_public_page(State(pool): State<PgPool>, Path(token): Path<Uuid>
     .ok_or(ApiError::NotFound)?;
     page.diagram_styles = crate::diagram_styles::load(&pool, page.workspace_id).await?;
     page.project = crate::public_project::summary(&pool, token).await?;
+    let (view, state): (String, Option<Vec<u8>>) = sqlx::query_as("SELECT default_view, slides_state FROM pages WHERE id = $1").bind(page.id).fetch_one(&pool).await?;
+    if view == "slides" {
+        use base64::Engine;
+        page.slides_state = state.map(|s| base64::engine::general_purpose::STANDARD.encode(s));
+    }
+    page.default_view = view;
     Ok(Json(page))
 }
 

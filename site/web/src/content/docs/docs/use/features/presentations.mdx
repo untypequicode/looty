@@ -35,6 +35,39 @@ In the sidebar, open the **New** menu of the documents and choose **Presentation
 | Arrows, <kbd>Shift</kbd> + arrows | Move by 1 or 10 units |
 | <kbd>Page up</kbd> / <kbd>Page down</kbd>, <kbd>Home</kbd>, <kbd>End</kbd> | Change slide |
 
+## Present
+
+**Present** (above the canvas) starts the slide show from the current slide, full screen when the browser allows it.
+
+| Key or gesture | Action |
+|---|---|
+| <kbd>→</kbd> <kbd>↓</kbd> <kbd>Space</kbd> <kbd>Page down</kbd>, click, swipe left | Next step or slide (a clicker works the same way) |
+| <kbd>←</kbd> <kbd>↑</kbd> <kbd>Page up</kbd>, swipe right | Previous |
+| <kbd>Home</kbd> / <kbd>End</kbd> | First / last slide |
+| A number then <kbd>Enter</kbd> | Go to that slide |
+| <kbd>G</kbd> | Overview of all slides |
+| <kbd>B</kbd> or <kbd>.</kbd> / <kbd>W</kbd> or <kbd>,</kbd> | Black / white screen (press again to come back) |
+| <kbd>L</kbd> | Laser pointer |
+| <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom in, out, reset (the zoom follows the pointer) |
+| <kbd>F</kbd> / <kbd>Esc</kbd> | Full screen / leave |
+
+The control bar at the bottom hides when you stop moving the pointer and comes back with it or with the keyboard. The slide number is announced to screen readers at each change, and <kbd>Esc</kbd> always leaves. Only the slide being shown is rendered, so long presentations stay light.
+
+### Transitions and animations
+
+In the properties panel of a slide, **Transition** picks none, fade, slide or zoom for that slide, and **Default transition** sets the one used by the others. **Animations** lists, in playing order, the elements that enter step by step: select an element and add an animation (appear, fade in, move in), then choose whether it starts **on click** or **after the previous** one, and reorder them. Animations and transitions are skipped when your system asks to reduce motion.
+
+### Speaker notes and presenter view
+
+Write the **speaker notes** of each slide in the properties panel; they are never shown on the slide. **Presenter view** opens a second window, meant for your own screen, with the current and next slide, the notes (with larger or smaller text), a timer, the clock and a progress bar. Both windows stay in sync in both directions and use the same browser, so you can move on from either one.
+
+### Let others follow you
+
+While you present, the people who have the presentation open see **"Someone is presenting"** (with their name) and can **Follow**. They see your slide and step as you move. If they go back or ahead on their own, they stay free until they choose **Back to presenter**, and **Stop following** leaves the live view. The **share** button of the control bar turns this off if you want to present privately. Nothing more than the page rights is needed: the live state travels through the collaboration channel of the presentation.
+
+### Public link, loop and print
+
+A presentation shared by public link opens a read-only viewer without any account, with a **Start the slide show** button. Add `?kiosk=8` to the link (or tick **Loop automatically**) to loop on its own, 8 seconds per slide, for a screen at an event. Signed-in people can also open `/w/<workspace>/present/<page>` for the slide show alone, with `?mode=presenter` for the presenter view. **Print** (or the browser print command) prints all slides, one per page, to paper or PDF.
 ## View: zoom, grid, sections
 
 - **Zoom**: the buttons above the canvas fit the slide to the window, show it at 100%, zoom in and out; <kbd>Ctrl</kbd> + wheel zooms too, and <kbd>Ctrl</kbd> + <kbd>0</kbd> fits again. On a touch screen, pinch to zoom and drag with two fingers to move the view.
@@ -60,4 +93,4 @@ Rights are those of the page: people who can only read see the slides but cannot
 
 ## Limits
 
-A presentation holds up to 300 slides and 500 elements per slide. Themes, presenter mode, import and export (PowerPoint, PDF) are planned and not available yet. The arrow is a shape: it is not glued to other shapes yet.
+A presentation holds up to 300 slides and 500 elements per slide. Themes, import and export (PowerPoint, PDF) are planned and not available yet. The arrow is a shape: it is not glued to other shapes yet.
