@@ -1,6 +1,6 @@
 # 0022 - Page access model: audit, target model and phases
 
-Status: phases 1, 2 and 5 shipped (audit, tests, one access resolver, levels, deny, scope, authenticated page-bound files, live guest revocation); share dialog, groups and the rest of the target model in other phases
+Status: all six phases shipped (audit, tests, one access resolver, levels, deny, scope, share dialog, instance groups, request access, Shared with me, authenticated page-bound files, live guest revocation, end-to-end tests and docs)
 
 Context: giving someone of the instance who is not a member of the space access to a page and its sub-pages goes through the page share (Share, Access). Users report it "does not seem to work well". This ADR records how access works today (audited end to end, with executable tests in `backend/src/page_access_tests.rs`), the defects found, the target model and the plan.
 

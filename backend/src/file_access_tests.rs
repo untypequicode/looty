@@ -506,3 +506,45 @@ async fn slide_images_load_for_anonymous_visitors_with_the_link_token_and_for_re
     assert_eq!(w.status(Some(w.gus), &name).await, 200);
     let _ = std::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(&name));
 }
+
+#[sqlx::test]
+async fn an_instance_admin_lists_assigns_and_deletes_unattributed_files(pool: PgPool) {
+    let w = W::new(pool).await;
+    let (lost, gone) = (fresh_name("png"), fresh_name("png"));
+    disk(&lost, b"lost");
+    disk(&gone, b"gone");
+    assert!(crate::file_access::report_unattributed(&w.pool).await >= 2);
+    sqlx::query("UPDATE users SET is_super_admin = TRUE WHERE id = $1").bind(w.zed).execute(&w.pool).await.unwrap();
+    // Ni un membre ni le propriétaire de l'espace ne voient la liste : administrateur d'instance seulement.
+    assert_eq!(w.get(Some(w.ana), "/api/admin/storage/unattributed").await.status, 403);
+    let r = w.get(Some(w.zed), "/api/admin/storage/unattributed").await;
+    assert_eq!(r.status, 200);
+    let v: Value = serde_json::from_slice(&r.body).unwrap();
+    let names: Vec<&str> = v["files"].as_array().unwrap().iter().filter_map(|f| f["name"].as_str()).collect();
+    assert!(names.contains(&lost.as_str()) && names.contains(&gone.as_str()));
+    let o: Value = serde_json::from_slice(&w.get(Some(w.zed), "/api/admin/storage").await.body).unwrap();
+    assert!(o["unattributed_files"].as_i64().unwrap() >= 2);
+    // L'administrateur lit le fichier, les autres non.
+    assert_eq!(w.status(Some(w.zed), &lost).await, 200);
+    assert_eq!(w.status(Some(w.gus), &lost).await, 404);
+    // Rattaché à une page partagée : l'invité la lit désormais, la liste ne la montre plus.
+    let body = Body::from(json!({ "page_id": w.shared }).to_string());
+    assert_eq!(w.send(Some(w.ana), "POST", &format!("/api/admin/storage/files/{lost}/assign"), &[], Body::from(json!({ "page_id": w.shared }).to_string()), Some("application/json")).await.status, 403);
+    assert_eq!(w.send(Some(w.zed), "POST", &format!("/api/admin/storage/files/{lost}/assign"), &[], body, Some("application/json")).await.status, 204);
+    assert_eq!(w.status(Some(w.gus), &lost).await, 200);
+    assert_eq!(w.status(Some(w.zed), &lost).await, 200);
+    // Déjà rattaché : on ne le rattache pas une seconde fois ; page inconnue : introuvable.
+    let again = Body::from(json!({ "page_id": w.other }).to_string());
+    assert_eq!(w.send(Some(w.zed), "POST", &format!("/api/admin/storage/files/{lost}/assign"), &[], again, Some("application/json")).await.status, 404);
+    let ghost = Body::from(json!({ "page_id": Uuid::new_v4() }).to_string());
+    assert_eq!(w.send(Some(w.zed), "POST", &format!("/api/admin/storage/files/{gone}/assign"), &[], ghost, Some("application/json")).await.status, 404);
+    let v: Value = serde_json::from_slice(&w.get(Some(w.zed), "/api/admin/storage/unattributed").await.body).unwrap();
+    assert!(!v["files"].as_array().unwrap().iter().any(|f| f["name"] == lost.as_str()));
+    // Suppression : refusée aux autres, le fichier et la ligne disparaissent (le compte baisse).
+    assert_eq!(w.send(Some(w.ana), "DELETE", &format!("/api/admin/storage/files/{gone}"), &[], Body::empty(), None).await.status, 403);
+    assert_eq!(w.send(Some(w.zed), "DELETE", &format!("/api/admin/storage/files/{gone}"), &[], Body::empty(), None).await.status, 204);
+    assert!(!std::path::Path::new(crate::upload::UPLOAD_DIR).join(&gone).exists());
+    let v: Value = serde_json::from_slice(&w.get(Some(w.zed), "/api/admin/storage/unattributed").await.body).unwrap();
+    assert!(!v["files"].as_array().unwrap().iter().any(|f| f["name"] == gone.as_str()));
+    let _ = std::fs::remove_file(std::path::Path::new(crate::upload::UPLOAD_DIR).join(&lost));
+}

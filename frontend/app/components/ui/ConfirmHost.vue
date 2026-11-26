@@ -20,7 +20,7 @@ function answer(v: boolean) {
 <template>
   <UiDialog v-model:open="open" :title="confirmState?.title" :width="420">
     <p v-if="confirmState?.message" class="msg">{{ confirmState.message }}</p>
-    <UiInput v-if="confirmState?.prompt" v-model="typed" autofocus :placeholder="confirmState.prompt.placeholder" maxlength="100" @keydown.enter="canConfirm && answer(true)" />
+    <UiInput v-if="confirmState?.prompt" v-model="typed" autofocus :placeholder="confirmState.prompt.placeholder" :maxlength="confirmState.prompt.maxlength ?? 100" @keydown.enter="canConfirm && answer(true)" />
     <template v-if="confirmState?.typeToConfirm">
       <label class="field-label">{{ $t('common.typeToConfirm', { text: confirmState.typeToConfirm }) }}</label>
       <UiInput v-model="typed" autofocus @keydown.enter="canConfirm && answer(true)" />

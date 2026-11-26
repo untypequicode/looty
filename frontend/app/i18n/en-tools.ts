@@ -61,7 +61,7 @@ export default {
     addPlaceholder: 'Add a member or a Looty account…', withSubpages: 'Including sub-pages', guest: 'Guest', noMatch: 'No match.',
     editorHint: 'Can edit this page', viewerHint: 'Can read this page', commentLabel: 'Can comment', commentHint: 'Can read and comment on this page', manageLabel: 'Can manage', manageHint: 'Can edit this page and change who has access to it', blockedHint: 'Cannot see this page', remove: 'Remove special access',
     scopeTree: 'This page and its sub-pages', scopePage: 'This page only', onlyThis: 'only this page', includeSub: 'include sub-pages',
-    inherited: 'From a parent page', from: 'From “{title}”', none: 'No special access: everyone follows their role.', badge: 'Special permissions',
+    inherited: 'From a parent page', from: 'From “{title}”', none: 'No special access: everyone follows their role.', badge: 'Shared or restricted: this page has its own access settings',
     createSub: 'Can create sub-pages', createSubHint: 'This person can add pages inside this one, even if their role (or being a guest) doesn’t allow creating documents.',
   },
   shared: { title: 'Shared with me', hint: 'Documents from other workspaces that people shared with you.', empty: 'Nothing has been shared with you yet.', link: 'Documents shared with you ({n})' },

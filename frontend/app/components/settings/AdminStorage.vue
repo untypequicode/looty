@@ -1,23 +1,25 @@
 <script setup lang="ts">
-import { HardDrive, Database, FolderOpen, Trash2, ExternalLink, FileWarning } from 'lucide-vue-next'
+import { HardDrive, Database, FolderOpen, Trash2, ExternalLink, FileWarning, Download, FileSymlink } from 'lucide-vue-next'
 import { useQuery } from '@tanstack/vue-query'
 import { api } from '~/composables/api'
 import { useI18n } from '~/composables/useI18n'
-import { confirmDialog } from '~/composables/useConfirm'
+import { confirmDialog, promptDialog } from '~/composables/useConfirm'
 import { toast } from '~/composables/useToast'
 
 interface Usage { kind: string; label: string; workspace_id?: string | null; target_id?: string | null; board_id?: string | null; in_trash: boolean }
 interface FileRow { name: string; size: number; modified?: string | null; file_type: string; usages: Usage[] }
 interface Bucket { key: string; bytes: number; count: number }
 interface Storage {
-  upload_bytes: number; file_count: number; attachments_recorded_bytes: number; db_bytes: number
+  upload_bytes: number; file_count: number; attachments_recorded_bytes: number; unattributed_files?: number; db_bytes: number
   disk?: { total: number; available: number } | null
   by_usage: Bucket[]; by_type: Bucket[]; largest: FileRow[]; orphans: FileRow[]; orphan_count: number; orphan_bytes: number
 }
 
 const { t, formatDate } = useI18n()
 const { data, isLoading, refetch } = useQuery({ queryKey: ['admin', 'storage'], queryFn: () => api<Storage>('/api/admin/storage') })
-const view = ref<'largest' | 'orphans'>('largest')
+const view = ref<'largest' | 'orphans' | 'unattributed'>('largest')
+const { data: lost, refetch: refetchLost } = useQuery({ queryKey: ['admin', 'storage', 'unattributed'], queryFn: () => api<{ count: number; bytes: number; files: FileRow[] }>('/api/admin/storage/unattributed') })
+const rows = computed(() => (view.value === 'largest' ? data.value?.largest : view.value === 'orphans' ? data.value?.orphans : lost.value?.files) ?? [])
 
 function bytes(n: number) {
   if (!n) return '0 B'
@@ -40,6 +42,23 @@ async function removeFile(f: FileRow) {
   if (!(await confirmDialog({ title: t('storage.deleteTitle', { name: f.name }), message: t('storage.deleteMessage'), danger: true, confirmLabel: t('common.delete') }))) return
   await api(`/api/admin/storage/files/${encodeURIComponent(f.name)}`, { method: 'DELETE' })
   refetch()
+  refetchLost()
+}
+async function assignFile(f: FileRow) {
+  const v = await promptDialog({ title: t('storage.assignTitle', { name: f.name }), message: t('storage.assignMessage'), placeholder: t('storage.assignPlaceholder'), maxlength: 300, confirmLabel: t('storage.assign') })
+  // Un lien de page contient l'espace puis la page : la page est le dernier identifiant.
+  const id = v?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)?.at(-1)
+  if (!v) return
+  if (!id) { toast.error(t('storage.assignInvalid')); return }
+  try {
+    await api(`/api/admin/storage/files/${encodeURIComponent(f.name)}/assign`, { method: 'POST', body: { page_id: id } })
+  } catch {
+    toast.error(t('storage.assignInvalid'))
+    return
+  }
+  toast.success(t('storage.assigned'))
+  refetch()
+  refetchLost()
 }
 async function cleanOrphans() {
   if (!data.value || !(await confirmDialog({ title: t('storage.cleanTitle', { count: data.value.orphan_count }), message: t('storage.cleanMessage', { size: bytes(data.value.orphan_bytes) }), danger: true, confirmLabel: t('storage.clean') }))) return
@@ -84,6 +103,12 @@ async function cleanOrphans() {
             <button v-if="data.orphan_count" class="sg-link" @click="cleanOrphans">{{ t('storage.clean') }}</button>
           </div>
         </div>
+        <div v-if="data.unattributed_files" class="sg-tile" data-test="unattributed-tile">
+          <FileSymlink :size="16" class="sg-ic" />
+          <div class="sg-val">{{ data.unattributed_files }}</div>
+          <div class="sg-lab">{{ t('storage.unattributed') }}</div>
+          <div class="sg-sub"><button class="sg-link" @click="view = 'unattributed'">{{ t('storage.unattributedReview') }}</button></div>
+        </div>
       </div>
       <p class="sg-note">{{ t('storage.recorded', { recorded: bytes(data.attachments_recorded_bytes), real: bytes(data.upload_bytes) }) }}</p>
     </SettingsSection>
@@ -111,10 +136,11 @@ async function cleanOrphans() {
 
     <SettingsSection :title="t('storage.filesTitle')">
       <template #actions>
-        <UiSegmented v-model="view" :options="[{ value: 'largest', label: t('storage.largest') }, { value: 'orphans', label: `${t('storage.orphans')} · ${data.orphan_count}` }]" />
+        <UiSegmented v-model="view" :options="[{ value: 'largest', label: t('storage.largest') }, { value: 'orphans', label: `${t('storage.orphans')} · ${data.orphan_count}` }, { value: 'unattributed', label: `${t('storage.unattributed')} · ${data.unattributed_files ?? 0}` }]" />
       </template>
+      <p v-if="view === 'unattributed'" class="sg-note">{{ t('storage.unattributedHint') }}</p>
       <div class="sg-table">
-        <div v-for="f in (view === 'largest' ? data.largest : data.orphans)" :key="f.name" class="sg-row">
+        <div v-for="f in rows" :key="f.name" class="sg-row">
           <div class="sg-file">
             <a :href="`/uploads/${f.name}`" target="_blank" rel="noopener" class="sg-name truncate">{{ f.name }} <ExternalLink :size="11" /></a>
             <div class="sg-uses">
@@ -130,10 +156,14 @@ async function cleanOrphans() {
           <span class="sg-type">{{ t(`storage.type.${f.file_type}`) }}</span>
           <span class="sg-date tabular">{{ f.modified ? formatDate(f.modified) : '' }}</span>
           <span class="sg-size tabular">{{ bytes(f.size) }}</span>
+          <template v-if="view === 'unattributed'">
+            <a :href="`/uploads/${f.name}`" download class="sg-act" :title="t('storage.download')" :aria-label="t('storage.download')"><Download :size="14" /></a>
+            <UiButton size="xs" variant="ghost" :icon="FileSymlink" :aria-label="t('storage.assign')" :title="t('storage.assign')" @click="assignFile(f)" />
+          </template>
           <UiButton v-if="!f.usages.length" size="xs" variant="ghost" :icon="Trash2" :aria-label="t('common.delete')" @click="removeFile(f)" />
           <span v-else class="sg-spacer" />
         </div>
-        <p v-if="!(view === 'largest' ? data.largest : data.orphans).length" class="sg-note">{{ t('storage.none') }}</p>
+        <p v-if="!rows.length" class="sg-note">{{ t('storage.none') }}</p>
       </div>
     </SettingsSection>
   </template>
@@ -174,5 +204,7 @@ a.sg-use:hover { color: var(--text); }
 .sg-date { width: 90px; }
 .sg-size { font-size: var(--fs-sm); color: var(--text); width: 70px; text-align: right; flex: none; }
 .sg-spacer { width: 24px; flex: none; }
+.sg-act { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--text-3); flex: none; }
+.sg-act:hover { color: var(--text); }
 @media (max-width: 720px) { .sg-cols { grid-template-columns: 1fr; } .sg-type, .sg-date { display: none; } }
 </style>

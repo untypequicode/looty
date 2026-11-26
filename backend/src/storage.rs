@@ -5,7 +5,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{delete, get},
+    routing::{delete, get, post},
     Json, Router,
 };
 use chrono::{DateTime, Utc};
@@ -24,6 +24,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(overview))
         .route("/orphans", delete(delete_orphans))
+        .route("/unattributed", get(list_unattributed))
+        .route("/files/{name}/assign", post(assign_file))
         .route("/files/{name}", delete(delete_file))
 }
 
@@ -292,6 +294,49 @@ async fn delete_file(State(state): State<AppState>, user: AuthUser, Path(name): 
         return Err(ApiError::Conflict("file_in_use".into()));
     }
     tokio::fs::remove_file(PathBuf::from(UPLOAD_DIR).join(&name)).await.map_err(|_| ApiError::NotFound)?;
+    // Plus de fichier : la ligne « sans propriétaire » n'a plus de sens (et fausserait le compte).
+    sqlx::query("DELETE FROM upload_files WHERE name = $1 AND kind = 'unattributed'").bind(&name).execute(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+
+/// Fichiers sur disque sans propriétaire ni citation (voir `file_access::report_unattributed`) : seul
+/// l'administrateur de l'instance les lit ; il peut les ouvrir, les télécharger, les rattacher à une page ou les supprimer.
+async fn list_unattributed(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<serde_json::Value>> {
+    require_super_admin(&user)?;
+    let names: Vec<String> = sqlx::query_scalar("SELECT name FROM upload_files WHERE kind = 'unattributed'").fetch_all(&state.pool).await?;
+    let files = tokio::task::spawn_blocking(list_files).await.map_err(|e| ApiError::Internal(e.to_string()))?;
+    let mut rows: Vec<FileDto> = files
+        .into_iter()
+        .filter(|f| names.contains(&f.name))
+        .map(|f| {
+            let t = file_type(&f.name);
+            FileDto { name: f.name, size: f.size, modified: f.modified, file_type: t, usages: vec![] }
+        })
+        .collect();
+    rows.sort_by(|a, b| b.size.cmp(&a.size));
+    Ok(Json(serde_json::json!({ "count": rows.len(), "bytes": rows.iter().map(|r| r.size).sum::<u64>(), "files": rows })))
+}
+
+#[derive(serde::Deserialize)]
+struct AssignBody {
+    page_id: Uuid,
+}
+
+/// Rattache un fichier « sans propriétaire » à une page : il suit désormais l'accès à cette page.
+async fn assign_file(State(state): State<AppState>, user: AuthUser, Path(name): Path<String>, Json(body): Json<AssignBody>) -> ApiResult<StatusCode> {
+    require_super_admin(&user)?;
+    let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM upload_files WHERE name = $1").bind(&name).fetch_optional(&state.pool).await?;
+    if kind.as_deref() != Some("unattributed") {
+        return Err(ApiError::NotFound);
+    }
+    let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM pages WHERE id = $1").bind(body.page_id).fetch_optional(&state.pool).await?.ok_or(ApiError::NotFound)?;
+    sqlx::query("UPDATE upload_files SET kind = 'upload', workspace_id = $2, page_id = $3 WHERE name = $1")
+        .bind(&name)
+        .bind(ws)
+        .bind(body.page_id)
+        .execute(&state.pool)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
