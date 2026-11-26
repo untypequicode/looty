@@ -95,8 +95,12 @@ jobs:
           build-args: WITH_LATEX=0
           load: true
           tags: ghcr.io/untypequicode/looty-backend:ci
-          cache-from: type=gha,scope=self-host-backend
-          cache-to: type=gha,mode=max,scope=self-host-backend
+          # Étape de compilation identique à l'image publiée (seul WITH_LATEX change, après) : le cache de « Docker » sert aussi.
+          cache-from: |
+            type=gha,scope=self-host-backend
+            type=gha,scope=backend-amd64
+          # Écrit seulement par main (pull request : lecture seule, voir docs/ci.md).
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max,scope=self-host-backend' || '' }}
       - uses: docker/build-push-action@v7
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false

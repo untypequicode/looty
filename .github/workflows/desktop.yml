@@ -86,7 +86,20 @@ jobs:
           key: tauri-cli-windows-2
       - name: Install Tauri CLI
         if: steps.cli.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --version "^2" --locked
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Binaire publié par le projet Tauri (quelques secondes) ; compilation depuis les sources (~10 min) si indisponible.
+        run: |
+          set -u
+          tag=$(gh api 'repos/tauri-apps/tauri/releases?per_page=100' -q '[.[]|select(.tag_name|test("^tauri-cli-v2\\."))][0].tag_name' || true)
+          if [ -n "$tag" ] && gh release download "$tag" -R tauri-apps/tauri -p cargo-tauri-x86_64-pc-windows-msvc.zip -D "$RUNNER_TEMP/tauri" \
+             && 7z x -y "$RUNNER_TEMP/tauri/cargo-tauri-x86_64-pc-windows-msvc.zip" -o"$HOME/.cargo/bin" >/dev/null \
+             && cargo tauri --version; then
+            echo "Tauri CLI $tag (prebuilt)"
+          else
+            cargo install tauri-cli --version "^2" --locked
+          fi
       - name: Cargo cache
         uses: actions/cache@v6
         with:
