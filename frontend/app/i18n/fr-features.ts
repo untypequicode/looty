@@ -37,7 +37,7 @@ export default {
     title: 'Activité', everyone: 'Tout le monde', empty: 'Pas encore d’activité', more: 'Charger plus', commented: 'a commenté',
     task: { created: 'a créé', moved: 'a déplacé', completed: 'a terminé', reopened: 'a rouvert', assigned: 'a assigné quelqu’un à', unassigned: 'a retiré quelqu’un de',
       labeled: 'a changé les étiquettes de', attached: 'a joint un fichier à', renamed: 'a renommé', described: 'a modifié la description de', prioritized: 'a changé la priorité de', scheduled: 'a changé l’échéance de', updated: 'a modifié' },
-    page: { create: 'a créé', edit: 'a modifié', rename: 'a renommé', move: 'a déplacé', delete: 'a supprimé', restore: 'a restauré' },
+    page: { create: 'a créé', edit: 'a modifié', rename: 'a renommé', move: 'a déplacé', delete: 'a supprimé', restore: 'a restauré', share: 'a modifié le partage de', unshare: 'a retiré un accès à' },
   },
   storage: {
     title: 'Stockage', description: 'Taille réelle du dossier d’upload et utilisation de chaque fichier.',

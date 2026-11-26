@@ -37,7 +37,7 @@ export default {
     title: 'Activity', everyone: 'Everyone', empty: 'No activity yet', more: 'Load more', commented: 'commented on',
     task: { created: 'created', moved: 'moved', completed: 'completed', reopened: 'reopened', assigned: 'assigned someone to', unassigned: 'unassigned someone from',
       labeled: 'changed the labels of', attached: 'attached a file to', renamed: 'renamed', described: 'edited the description of', prioritized: 'changed the priority of', scheduled: 'changed the due date of', updated: 'updated' },
-    page: { create: 'created', edit: 'edited', rename: 'renamed', move: 'moved', delete: 'deleted', restore: 'restored' },
+    page: { create: 'created', edit: 'edited', rename: 'renamed', move: 'moved', delete: 'deleted', restore: 'restored', share: 'changed sharing of', unshare: 'removed an access to' },
   },
   storage: {
     title: 'Storage', description: 'Actual size of the upload folder and where each file is used.',

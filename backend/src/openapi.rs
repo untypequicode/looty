@@ -40,7 +40,10 @@ const OPS: &[Op] = &[
     op("post", "/api/workspaces/{workspace_id}/pages", "Documents", "Create a document, optionally from a template", Some("PageCreate")),
     op("get", "/api/workspaces/{workspace_id}/pages/{page_id}", "Documents", "Get a document", None),
     op("put", "/api/workspaces/{workspace_id}/pages/{page_id}", "Documents", "Update a document", Some("PageUpdate")),
-    op("delete", "/api/workspaces/{workspace_id}/pages/{page_id}", "Documents", "Move a document to the trash", None),
+    op("delete", "/api/workspaces/{workspace_id}/pages/{page_id}", "Documents", "Move a document to the trash (the page shared with you as an editor needs the manage level)", None),
+    op("get", "/api/workspaces/{workspace_id}/pages/{page_id}/permissions", "Documents", "Who has a particular access to a document: level (read, comment, edit, manage, deny), scope and origin; needs the manage level or space admin", None),
+    op("put", "/api/workspaces/{workspace_id}/pages/{page_id}/permissions", "Documents", "Set or remove (role none) a person's level on a document; needs the manage level or space admin", Some("PagePermissionSet")),
+    op("get", "/api/workspaces/{workspace_id}/pages/{page_id}/move-preview", "Documents", "Who would gain or lose access if the document moved under parent_id (query parameter, absent: root)", None),
     op("post", "/api/workspaces/{workspace_id}/events", "Calendar", "Create a calendar event", Some("EventWrite")),
     op("get", "/api/workspaces/{workspace_id}/events/{id}", "Calendar", "Get a calendar event", None),
     op("put", "/api/workspaces/{workspace_id}/events/{id}", "Calendar", "Update a calendar event", Some("EventWrite")),
@@ -99,6 +102,12 @@ fn schemas() -> Value {
             "personal": { "type": "boolean" },
             "template_id": { "type": "string", "description": "Id of a workspace template, or the name of a built-in one: meeting-notes, course-notes." }
         }), &[]),
+        "PagePermissionSet": obj(json!({
+            "user_id": { "type": "string", "format": "uuid" },
+            "role": { "type": "string", "enum": ["read", "comment", "edit", "manage", "deny", "none", "viewer", "editor", "blocked"], "description": "Levels: read < comment < edit < manage (manage can change the shares of the page); deny hides the page (members and outsiders); none removes the grant. viewer (= comment, or read for a role that cannot comment), editor (= edit) and blocked (= deny) are the former names, still accepted." },
+            "inherit": { "type": "boolean", "description": "true (default): this page and its sub-pages; false: this page only. The nearest grant on the page or an ancestor wins." },
+            "allow_subpages": { "type": "boolean", "description": "Edit and manage levels: the person may create sub-pages." }
+        }), &["user_id", "role"]),
         "PageUpdate": obj(json!({ "title": { "type": "string" }, "icon": { "type": ["string", "null"] }, "parent_id": { "type": ["string", "null"], "format": "uuid" }, "content": { "type": "string" }, "position": { "type": "number" } }), &[]),
         "EventWrite": obj(json!({
             "title": { "type": "string" }, "description": { "type": "string" }, "location": { "type": "string" }, "all_day": { "type": "boolean" },
