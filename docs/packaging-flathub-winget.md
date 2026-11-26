@@ -47,7 +47,7 @@ Submission (**owner**), for a release that already has its `desktop-vX.Y.Z` tag 
    ```
    Check the current instructions first: https://docs.flathub.org/docs/for-app-authors/submission.
 3. After acceptance a `flathub/io.github.untypequicode.looty` repository is created. For each later desktop release, rerun step 1 and open a PR there (or enable the Flathub external-data checker/bot).
-4. Screenshots: the metainfo uses `https://looty.untypequicode.fr/shots/*-light-en.webp`; Flathub requires them to be reachable and a stable size, so replace them with desktop-window screenshots when you have them.
+4. Screenshots: the metainfo uses `https://looty.untypequicode.fr/shots/*-light-en.webp`; Flathub requires them to be reachable and a stable size, so replace them with desktop-window screenshots when you have them. (Android phone screenshots now also exist as PNG under `fastlane/metadata/android/*/images/phoneScreenshots/`, used by F-Droid.)
 
 Licence: `GPL-3.0-only` everywhere (README, Cargo/package manifests, metainfo, F-Droid, winget `GPL-3.0`), confirmed by the maintainer.
 

@@ -36,6 +36,9 @@ for loc in "$root"/fastlane/metadata/android/*/; do
   cp -r "$loc" "$out/metadata/$appid/$(basename "$loc")"
 done
 
+# 2b. Icône du dépôt (index : "icon": "icon.png") : fdroid update la cherche dans repo/ puis la copie dans repo/icons/.
+cp "$root/fastlane/metadata/android/en-US/images/icon.png" "$out/repo/icon.png"
+
 # 3. Configuration de F-Droid (dossier de travail temporaire, droits 600, supprimée ensuite). Les mots de passe
 #    sont écrits en chaîne JSON, valide en YAML, quels que soient leurs caractères.
 yq() { node -e 'process.stdout.write(JSON.stringify(process.env[process.argv[1]]))' "$1"; }
@@ -44,6 +47,7 @@ cat > "$out/config.yml" <<EOF
 repo_url: ${FDROID_REPO_URL:-https://looty.untypequicode.fr/fdroid/repo}
 repo_name: Looty
 repo_description: Looty releases without a built-in updater, signed by the Looty project.
+repo_icon: icon.png
 repo_keyalias: $(yq REPO_KEY_ALIAS)
 keystore: $(realpath "$REPO_KEYSTORE")
 keystorepass: $(yq REPO_KEYSTORE_PASSWORD)
@@ -61,5 +65,8 @@ rm -f "$out/config.yml"
 keytool -list -v -keystore "$REPO_KEYSTORE" -storepass "$REPO_KEYSTORE_PASSWORD" -alias "$REPO_KEY_ALIAS" \
   | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -1 | tr -d ':' | tr 'a-f' 'A-F' > "$out/fingerprint.txt"
 [ -s "$out/fingerprint.txt" ] || { echo "fdroid-repo: no fingerprint" >&2; exit 1; }
+# L icône et les captures doivent figurer dans le dépôt (sinon Droid-ify n affiche rien).
+test -f "$out/repo/icons/icon.png" || test -f "$out/repo/icon.png"
+ls "$out/repo/$appid"/*/phoneScreenshots/*.png > /dev/null
 test -f "$out/repo/index-v1.json" && grep -q "\"$appid\"" "$out/repo/index-v1.json"
 echo "fdroid repository ready in $out/repo (key fingerprint $(cat "$out/fingerprint.txt"))"

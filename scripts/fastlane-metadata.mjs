@@ -4,7 +4,7 @@
 // courante (android/app/build.gradle.kts) est tiré de backend/releases.json.
 //   node scripts/fastlane-metadata.mjs           écrit les fichiers
 //   node scripts/fastlane-metadata.mjs --check   échoue (CI) si les fichiers ne sont pas à jour
-// Les captures d'écran vont dans <langue>/images/phoneScreenshots/ (ajoutées à la main, non générées).
+// Les images (<langue>/images/icon.png, featureGraphic.png, phoneScreenshots/) sont générées par scripts/fastlane-images.sh.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
